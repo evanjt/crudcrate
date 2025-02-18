@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Rust traits and functions to aid in building CRUD APIs in Axum and Sea-ORM"
 license = "MIT"
@@ -18,7 +18,9 @@ utoipa = "5.3.1"
 axum = "0.8.1"
 hyper = "1.6.0"
 serde_json = "1.0.137"
-crudcrate-derive = "0.1.0"
+crudcrate-derive = "0.1.1"
 
 [lib]
 proc-macro = false
+
+[workspace]
