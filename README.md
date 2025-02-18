@@ -1,7 +1,10 @@
 # crudcrate
 
+The procedural macros in `crudcrate-derive`, exported from within here, are
+available at [crates.io](https://crates.io/crates/crudcrate-derive) | [GitHub](https://github.com/evanjt/crudcrate-derive)
+
 This crate aims to reduce the amount of excess code required to generate structures
-for CRUD APIs working with sea-orm and axum. 
+for CRUD APIs working with sea-orm and axum.
 
 For example, the structs below, and their mutating functions with an ActiveModel:
 
@@ -92,7 +95,7 @@ pub struct Project {
 }
 ```
 
-Using the `ToUpdateModel` and `ToCreateModel` create the models 
+Using the `ToUpdateModel` and `ToCreateModel` create the models
 `ProjectUpdate` and `ProjectCreate` respectively. Using the `update` and
-`create` attributes allow the flexibility of their inclusion in the 
+`create` attributes allow the flexibility of their inclusion in the
 generated structs.
