@@ -10,6 +10,7 @@ use axum::{
 };
 use hyper::HeaderMap;
 use sea_orm::{DatabaseConnection, DbErr, SqlErr};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
 // Example: Get all resources.
@@ -20,7 +21,6 @@ pub async fn get_all<T>(
 where
     T: CRUDResource,
 {
-    println!("Getting all {}", T::RESOURCE_NAME_PLURAL);
     let (offset, limit) = parse_range(params.range.clone());
     let condition = apply_filters(params.filter.clone(), &T::filterable_columns());
     let (order_column, order_direction) = generic_sort(
@@ -56,7 +56,6 @@ pub async fn get_one<T>(
 where
     T: CRUDResource,
 {
-    println!("Getting one {}", T::RESOURCE_NAME_PLURAL);
     match T::get_one(&db, id).await {
         Ok(item) => Ok(Json(item)),
         Err(DbErr::RecordNotFound(_)) => {
@@ -77,7 +76,6 @@ pub async fn create_one<T>(
 where
     T: CRUDResource,
 {
-    println!("Creating one {}", T::RESOURCE_NAME_PLURAL);
     match T::create(&db, payload).await {
         Ok(created_item) => Ok((StatusCode::CREATED, Json(created_item))),
         Err(err) => match err.sql_err() {
@@ -105,7 +103,6 @@ pub async fn update_one<T>(
 where
     T: CRUDResource,
 {
-    println!("Updating one {}", T::RESOURCE_NAME_PLURAL);
     match T::update(&db, id, payload).await {
         Ok(updated_item) => Ok(Json(updated_item)),
         Err(DbErr::RecordNotFound(_)) => {
@@ -126,7 +123,6 @@ pub async fn delete_one<T>(
 where
     T: CRUDResource,
 {
-    println!("Deleting one {}", T::RESOURCE_NAME_PLURAL);
     match T::delete(&db, id).await {
         Ok(rows_affected) if rows_affected > 0 => Ok((StatusCode::NO_CONTENT, Json(id))),
         Ok(_) => Err((StatusCode::NOT_FOUND, Json("Not Found".to_string()))),
@@ -145,7 +141,6 @@ pub async fn delete_many<T>(
 where
     T: CRUDResource,
 {
-    println!("Deleting many {}", T::RESOURCE_NAME_PLURAL);
     match T::delete_many(&db, ids.clone()).await {
         Ok(deleted_ids) => Ok((StatusCode::NO_CONTENT, Json(deleted_ids))),
         Err(_) => Err((
