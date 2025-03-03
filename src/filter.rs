@@ -22,7 +22,7 @@ pub fn apply_filters(
             let mut or_conditions = Condition::any();
             for (_col_name, col) in searchable_columns {
                 or_conditions =
-                    or_conditions.add(Expr::col(*col).ilike(format!("%{}%", q_value_str)));
+                    or_conditions.add(Expr::col(*col).ilike(format!("%{q_value_str}%")));
             }
             condition = condition.add(or_conditions);
         }
@@ -37,7 +37,7 @@ pub fn apply_filters(
                     condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
                 } else {
                     condition = condition
-                        .add(Expr::col(Alias::new(&*key)).ilike(format!("%{}%", trimmed_value)));
+                        .add(Expr::col(Alias::new(&*key)).ilike(format!("%{trimmed_value}%")));
                 }
             } else if let Some(value_array) = value.as_array() {
                 let mut or_conditions = Condition::any();
@@ -57,10 +57,11 @@ pub fn apply_filters(
     condition
 }
 
+#[must_use]
 pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
     if let Some(range) = range_str {
         let range_vec: Vec<u64> = serde_json::from_str(&range).unwrap_or(vec![0, 24]);
-        let start = range_vec.get(0).copied().unwrap_or(0);
+        let start = range_vec.first().copied().unwrap_or(0);
         let end = range_vec.get(1).copied().unwrap_or(24);
         let limit = end - start + 1;
         (start, limit)

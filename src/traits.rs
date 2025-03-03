@@ -11,8 +11,6 @@ where
     Self::ActiveModelType: ActiveModelTrait + ActiveModelBehavior + Send + Sync,
     <Self::EntityType as EntityTrait>::Model: Sync,
     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<uuid::Uuid>,
-    // <<Self::ActiveModelType as ActiveModelTrait>::Entity as EntityTrait>::Model:
-    //     IntoActiveModel<Self::ActiveModelType> + Send + Sync,
     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
 {
@@ -44,12 +42,15 @@ where
         create_model: Self::CreateModel,
     ) -> Result<Self::ApiModel, DbErr> {
         let active_model: Self::ActiveModelType = create_model.into();
-        let result = Self::EntityType::insert(active_model).exec(db).await?;
+        let result = <Self::EntityType as EntityTrait>::insert(active_model)
+            .exec(db)
+            .await?;
         match Self::get_one(db, result.last_insert_id.into()).await {
             Ok(obj) => Ok(obj),
-            Err(_) => Err(DbErr::RecordNotFound(
-                format!("{} not created", Self::RESOURCE_NAME_SINGULAR).into(),
-            )),
+            Err(_) => Err(DbErr::RecordNotFound(format!(
+                "{} not created",
+                Self::RESOURCE_NAME_SINGULAR
+            ))),
         }
     }
     async fn update(
@@ -58,11 +59,17 @@ where
         update_model: Self::UpdateModel,
     ) -> Result<Self::ApiModel, DbErr>;
 
-    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<usize, DbErr> {
+    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
         let res = <Self::EntityType as EntityTrait>::delete_by_id(id)
             .exec(db)
             .await?;
-        Ok(res.rows_affected as usize)
+        match res.rows_affected {
+            0 => Err(DbErr::RecordNotFound(format!(
+                "{} not found",
+                Self::RESOURCE_NAME_SINGULAR
+            ))),
+            _ => Ok(id),
+        }
     }
 
     async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, DbErr> {
@@ -78,16 +85,19 @@ where
         PaginatorTrait::count(query, db).await.unwrap()
     }
 
+    #[must_use]
     fn default_index_column() -> Self::ColumnType {
         // Default to the ID column
         Self::ID_COLUMN
     }
 
+    #[must_use]
     fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         // Default sort at least for the ID column
         vec![("id", Self::ID_COLUMN)]
     }
 
+    #[must_use]
     fn filterable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![("id", Self::ID_COLUMN)]
     }

@@ -10,7 +10,6 @@ use axum::{
 };
 use hyper::HeaderMap;
 use sea_orm::{DatabaseConnection, DbErr, SqlErr};
-use utoipa::OpenApi;
 use uuid::Uuid;
 
 // Example: Get all resources.
@@ -115,7 +114,18 @@ where
     }
 }
 
-// Example: Delete one resource.
+/// Deletes a single resource by its UUID.
+///
+/// # Parameters
+/// - `State(db)`: The database connection state.
+/// - `Path(id)`: The UUID of the resource to be deleted.
+///
+/// # Returns
+/// - `Ok((StatusCode::NO_CONTENT, Json<Uuid>))`: If the resource was successfully deleted.
+/// - `Err((StatusCode::INTERNAL_SERVER_ERROR, Json<String>))`: If there was an error deleting the resource.
+///
+/// # Errors
+/// - Returns `StatusCode::INTERNAL_SERVER_ERROR` if there is an error during the deletion process.
 pub async fn delete_one<T>(
     State(db): State<DatabaseConnection>,
     Path(id): Path<Uuid>,
@@ -124,8 +134,7 @@ where
     T: CRUDResource,
 {
     match T::delete(&db, id).await {
-        Ok(rows_affected) if rows_affected > 0 => Ok((StatusCode::NO_CONTENT, Json(id))),
-        Ok(_) => Err((StatusCode::NOT_FOUND, Json("Not Found".to_string()))),
+        Ok(deleted_row) => Ok((StatusCode::NO_CONTENT, Json(deleted_row))),
         Err(_) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json("Error deleting item".to_string()),
@@ -133,7 +142,21 @@ where
     }
 }
 
-// Example: Delete many resources.
+/// Example: Delete many resources.
+///
+/// # Parameters
+/// - `State(db)`: The database connection state.
+/// - `Json(ids)`: A list of UUIDs to be deleted.
+///
+/// # Returns
+/// - `Ok((StatusCode::NO_CONTENT, Json<Vec<Uuid>))`: If the resources were successfully deleted.
+/// - `Err((StatusCode::INTERNAL_SERVER_ERROR, Json<String>))`: If there was an error deleting the resources.
+///
+/// # Errors
+/// - Returns `StatusCode::INTERNAL_SERVER_ERROR` if there is an error during the deletion process.
+///
+/// # Panics
+/// - Panics if the `T` type does not implement the `CRUDResource` trait.
 pub async fn delete_many<T>(
     State(db): State<DatabaseConnection>,
     Json(ids): Json<Vec<Uuid>>,

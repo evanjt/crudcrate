@@ -20,7 +20,7 @@ where
         ]);
         (
             sort_vec
-                .get(0)
+                .first()
                 .cloned()
                 .unwrap_or(default_sort_column.to_string()),
             sort_vec
@@ -46,8 +46,7 @@ where
     let order_column = order_column_logic
         .iter()
         .find(|&&(col_name, _)| col_name == sort_column)
-        .map(|&(_, col)| col)
-        .unwrap_or(default_column);
+        .map_or(default_column, |&(_, col)| col);
 
     (order_column, order_direction)
 }
