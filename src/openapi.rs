@@ -1,98 +1,3 @@
-// use crate::routes;
-// use crate::traits::crudcrate::traits::CRUDResource;
-// use aide::axum::{
-//     routing::{delete_with, get_with, post_with, put_with},
-//     ApiRouter,
-// };
-// use aide::transform::TransformOperation;
-// use axum::{extract::State, http::StatusCode, Json};
-// // use http::StatusCode;
-// use schemars::JsonSchema;
-// use sea_orm::DatabaseConnection;
-
-// macro_rules! wrap_handler {
-//     ($func:path, ($($arg:ident : $ty:ty),+)) => {
-//         move |$($arg: $ty),+| {
-//             $func($($arg),+)
-//         }
-//     };
-// }
-
-// // Documentation function for GET all endpoint.
-// pub fn get_all_docs<T: crudcrate::traits::CRUDResource + JsonSchema>(op: TransformOperation) -> TransformOperation {
-//     op.description(&format!("Retrieve all {}.", T::RESOURCE_NAME_PLURAL))
-//         .response::<200, Json<Vec<T::ApiModel>>>()
-//         .description("List of resources.")
-// }
-
-// // Documentation function for GET one endpoint.
-// pub fn get_one_docs<T: crudcrate::traits::CRUDResource + JsonSchema>(op: TransformOperation) -> TransformOperation {
-//     op.description(&format!(
-//         "Retrieve a single {} by ID.",
-//         T::RESOURCE_NAME_SINGULAR
-//     ))
-//     .response::<200, Json<T::ApiModel>>()
-//     .description("The requested resource.")
-//     .response::<404, ()>()
-//     .description("Resource not found.")
-// }
-
-// // Documentation function for CREATE endpoint.
-// pub fn create_one_docs<T: crudcrate::traits::CRUDResource + JsonSchema>(op: TransformOperation) -> TransformOperation {
-//     op.description(&format!("Create a new {}.", T::RESOURCE_NAME_SINGULAR))
-//         .response::<201, Json<T::ApiModel>>()
-//         .description("Resource created successfully.")
-// }
-
-// // Documentation function for UPDATE endpoint.
-// pub fn update_one_docs<T: crudcrate::traits::CRUDResource + JsonSchema>(op: TransformOperation) -> TransformOperation {
-//     op.description(&format!(
-//         "Update an existing {} by ID.",
-//         T::RESOURCE_NAME_SINGULAR
-//     ))
-//     .response::<200, Json<T::ApiModel>>()
-//     .description("Resource updated successfully.")
-//     .response::<404, ()>()
-//     .description("Resource not found.")
-// }
-
-// // Documentation function for DELETE one endpoint.
-// pub fn delete_one_docs<T: crudcrate::traits::CRUDResource + JsonSchema>(op: TransformOperation) -> TransformOperation {
-//     op.description(&format!("Delete a {} by ID.", T::RESOURCE_NAME_SINGULAR))
-//         .response::<204, ()>()
-//         .description("Resource deleted successfully.")
-//         .response::<404, ()>()
-//         .description("Resource not found.")
-// }
-
-// // Documentation function for DELETE many endpoint.
-// pub fn delete_many_docs<T: crudcrate::traits::CRUDResource + JsonSchema>(
-//     op: TransformOperation,
-// ) -> TransformOperation {
-//     op.description(&format!("Batch delete {}.", T::RESOURCE_NAME_PLURAL))
-//         .response::<204, Json<Vec<String>>>()
-//         .description("Resources deleted successfully.")
-// }
-// async fn create_one_handler<T: crudcrate::traits::CRUDResource>(
-//     state: State<DatabaseConnection>,
-//     json: Json<T::CreateModel>,
-// ) -> Result<(StatusCode, Json<T::ApiModel>), (StatusCode, Json<String>)> {
-//     routes::create_one::<T>(state, json).await
-// }
-
-// // Build an Aide-based router that mounts all CRUD endpoints along with their docs functions.
-// pub fn crud_router<T: crudcrate::traits::CRUDResource + JsonSchema + 'static>(db: DatabaseConnection) -> ApiRouter {
-//     ApiRouter::new()
-//         .api_route(
-//             "/",
-//             post_with(
-//                 wrap_handler!(routes::create_one::<T>, (state: State<DatabaseConnection>, json: Json<T::CreateModel>)),
-//                 create_one_docs::<T>,
-//             ),
-//         )
-//         .with_state(db)
-// }
-
 #[macro_export]
 macro_rules! crud_handlers {
     ($resource:ty, $update_model:ty, $create_model:ty) => {
@@ -102,7 +7,7 @@ macro_rules! crud_handlers {
         use crudcrate::sort::generic_sort;
 
         use axum::{
-            extract::{Path, Query, State},
+            // extract::{Path, Query, State},
             http::StatusCode,
             Json,
         };
@@ -119,8 +24,8 @@ macro_rules! crud_handlers {
             )
         )]
         pub async fn get_one_handler(
-            State(db): axum::extract::State<sea_orm::DatabaseConnection>,
-            Path(id): axum::extract::Path<uuid::Uuid>,
+            axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
+            axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
         ) -> Result<axum::Json<$resource>, (axum::http::StatusCode, axum::Json<String>)> {
             match <$resource as crudcrate::traits::CRUDResource>::get_one(&db, id).await {
                 Ok(item) => Ok(axum::Json(item)),
@@ -139,8 +44,8 @@ macro_rules! crud_handlers {
             )
         )]
         pub async fn get_all_handler(
-            Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
-            State(db): axum::extract::State<sea_orm::DatabaseConnection>,
+            axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
+            axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
         ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$resource>>), (axum::http::StatusCode, String)> {
             let (offset, limit) = crudcrate::filter::parse_range(params.range.clone());
             let condition = crudcrate::filter::apply_filters(params.filter.clone(), &<$resource as CRUDResource>::filterable_columns());
