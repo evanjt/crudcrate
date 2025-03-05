@@ -23,8 +23,10 @@ where
     type UpdateModel: Send + Sync;
 
     const ID_COLUMN: Self::ColumnType;
-    const RESOURCE_NAME_SINGULAR: &str;
-    const RESOURCE_NAME_PLURAL: &str;
+    const RESOURCE_NAME_SINGULAR: &str; // How the resource is represented in errors, docs, etc as a singular
+    const RESOURCE_NAME_PLURAL: &str; // How the resource is represented in errors, docs, etc as a plural
+    const RESOURCE_DESCRIPTION: &'static str = ""; // A description of the resource, what is it, how it can be used,
+                                                   // etc, can be used to populate within OpenAPI documentation.
 
     async fn get_all(
         db: &DatabaseConnection,

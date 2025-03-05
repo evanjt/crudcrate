@@ -15,13 +15,16 @@ macro_rules! crud_handlers {
         use sea_orm::{DbErr, SqlErr};
         use uuid::Uuid;
 
+
         #[utoipa::path(
             get,
             path = "/{id}",
             responses(
                 (status = 200, description = "The requested resource", body = $resource),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
-            )
+            ),
+            summary = format!("Get one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Retrieves one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn get_one_handler(
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
@@ -41,7 +44,9 @@ macro_rules! crud_handlers {
             path = "/",
             responses(
                 (status = 200, description = "List of resources", body = [$resource])
-            )
+            ),
+            summary = format!("Get all {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!("Retrieves all {}.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn get_all_handler(
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
@@ -70,7 +75,9 @@ macro_rules! crud_handlers {
             responses(
                 (status = 204, description = "Resource deleted successfully"),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
-            )
+            ),
+            summary = format!("Delete one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Deletes one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn delete_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -96,7 +103,9 @@ macro_rules! crud_handlers {
                     status = 201, description = "Resource created successfully",
                     body = $resource
                 ),
-            )
+            ),
+            summary = format!("Create one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Creates a new {}.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn create_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -124,7 +133,9 @@ macro_rules! crud_handlers {
             path = "/",
             responses(
                 (status = 204, description = "Resources deleted successfully", body = [String])
-            )
+            ),
+            summary = format!("Delete many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!("Deletes many {} by their IDs.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn delete_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -148,7 +159,9 @@ macro_rules! crud_handlers {
             responses(
                 (status = 200, description = "Resource updated successfully", body = $resource),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
-            )
+            ),
+            summary = format!("Update one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Updates one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn update_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
