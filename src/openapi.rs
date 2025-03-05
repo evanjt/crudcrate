@@ -7,7 +7,7 @@ macro_rules! crud_handlers {
         use crudcrate::sort::generic_sort;
 
         use axum::{
-            // extract::{Path, Query, State},
+            extract::{Path, Query, State},
             http::StatusCode,
             Json,
         };
