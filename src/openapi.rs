@@ -23,6 +23,7 @@ macro_rules! crud_handlers {
                 (status = 200, description = "The requested resource", body = $resource),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
             ),
+            operation_id = format!("get_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Get one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             description = format!("Retrieves one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
@@ -45,8 +46,24 @@ macro_rules! crud_handlers {
             responses(
                 (status = 200, description = "List of resources", body = [$resource])
             ),
+            params(crudcrate::models::FilterOptions),
+            operation_id = format!("get_all_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             summary = format!("Get all {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            description = format!("Retrieves all {}.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            description = format!(
+                "Retrieves all {}.\n\n{}\n\nAdditional sortable columns: {}.\n\nAdditional filterable columns: {}.",
+                <$resource as CRUDResource>::RESOURCE_NAME_PLURAL,
+                <$resource as CRUDResource>::RESOURCE_DESCRIPTION,
+                <$resource as CRUDResource>::sortable_columns()
+                    .iter()
+                    .map(|(name, _)| format!("\n- {}", name))
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+                <$resource as CRUDResource>::filterable_columns()
+                    .iter()
+                    .map(|(name, _)| format!("\n- {}", name))
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            )
         )]
         pub async fn get_all_handler(
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
@@ -76,6 +93,7 @@ macro_rules! crud_handlers {
                 (status = 204, description = "Resource deleted successfully"),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
             ),
+            operation_id = format!("delete_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Delete one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             description = format!("Deletes one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
@@ -104,6 +122,7 @@ macro_rules! crud_handlers {
                     body = $resource
                 ),
             ),
+            operation_id = format!("create_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Create one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             description = format!("Creates a new {}.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
@@ -134,6 +153,7 @@ macro_rules! crud_handlers {
             responses(
                 (status = 204, description = "Resources deleted successfully", body = [String])
             ),
+            operation_id = format!("delete_many_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             summary = format!("Delete many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             description = format!("Deletes many {} by their IDs.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
@@ -160,6 +180,7 @@ macro_rules! crud_handlers {
                 (status = 200, description = "Resource updated successfully", body = $resource),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
             ),
+            operation_id = format!("update_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Update one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             description = format!("Updates one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
