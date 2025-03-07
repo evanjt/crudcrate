@@ -20,8 +20,9 @@ macro_rules! crud_handlers {
             get,
             path = "/{id}",
             responses(
-                (status = 200, description = "The requested resource", body = $resource),
-                (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
+                (status = axum::http::StatusCode::OK, description = "The requested resource", body = $resource),
+                (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
+                (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
             operation_id = format!("get_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Get one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
@@ -44,7 +45,8 @@ macro_rules! crud_handlers {
             get,
             path = "/",
             responses(
-                (status = 200, description = "List of resources", body = [$resource])
+                (status = axum::http::StatusCode::OK, description = "List of resources", body = [$resource]),
+                (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
             params(crudcrate::models::FilterOptions),
             operation_id = format!("get_all_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
@@ -90,8 +92,9 @@ macro_rules! crud_handlers {
             delete,
             path = "/{id}",
             responses(
-                (status = 204, description = "Resource deleted successfully"),
-                (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
+                (status = axum::http::StatusCode::NO_CONTENT, description = "Resource deleted successfully"),
+                (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
+                (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
             operation_id = format!("delete_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Delete one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
@@ -104,11 +107,17 @@ macro_rules! crud_handlers {
             <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, path.0)
                 .await
                 .map(|_| axum::http::StatusCode::NO_CONTENT)
-                .map_err(|_| {
-                    (
-                        axum::http::StatusCode::NOT_FOUND,
-                        axum::Json("Not Found".to_string()),
-                    )
+                .map_err(|err| {
+                    match err {
+                        sea_orm::DbErr::RecordNotFound(_) => (
+                            axum::http::StatusCode::NOT_FOUND,
+                            axum::Json("Not Found".to_string()),
+                        ),
+                        _ => (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            axum::Json("Internal Server Error".to_string()),
+                        ),
+                    }
                 })
         }
 
@@ -118,9 +127,15 @@ macro_rules! crud_handlers {
             request_body = $create_model,
             responses(
                 (
-                    status = 201, description = "Resource created successfully",
+                    status =  axum::http::StatusCode::CREATED,
+                    description = "Resource created successfully",
                     body = $resource
                 ),
+                (
+                    status = axum::http::StatusCode::CONFLICT,
+                    description = "Duplicate record",
+                    body = String
+                )
             ),
             operation_id = format!("create_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Create one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
@@ -139,11 +154,18 @@ macro_rules! crud_handlers {
             <$resource as crudcrate::traits::CRUDResource>::create(&state.0, json.0)
                 .await
                 .map(|res| (axum::http::StatusCode::CREATED, axum::Json(res)))
-                .map_err(|_| {
-                    (
-                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        axum::Json("Internal Server Error".to_string()),
-                    )
+                .map_err(|err| {
+                    if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                        (
+                            axum::http::StatusCode::CONFLICT,
+                            axum::Json(format!("Conflict: {}", detail)),
+                        )
+                    } else {
+                        (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            axum::Json("Internal Server Error".to_string()),
+                        )
+                    }
                 })
         }
 
@@ -151,7 +173,8 @@ macro_rules! crud_handlers {
             delete,
             path = "/",
             responses(
-                (status = 204, description = "Resources deleted successfully", body = [String])
+                (status = axum::http::StatusCode::NO_CONTENT, description = "Resources deleted successfully", body = [String]),
+                (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
             ),
             operation_id = format!("delete_many_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             summary = format!("Delete many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
@@ -177,8 +200,9 @@ macro_rules! crud_handlers {
             path = "/{id}",
             request_body = $update_model,
             responses(
-                (status = 200, description = "Resource updated successfully", body = $resource),
-                (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found")
+            (status =  axum::http::StatusCode::OK, description = "Resource updated successfully", body = $resource),
+            (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
+            (status =  axum::http::StatusCode::CONFLICT, description = "Duplicate record", body = String)
             ),
             operation_id = format!("update_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
             summary = format!("Update one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
@@ -190,14 +214,21 @@ macro_rules! crud_handlers {
             json: axum::Json<$update_model>,
         ) -> Result<axum::Json<<$resource as crudcrate::traits::CRUDResource>::ApiModel>, (axum::http::StatusCode, axum::Json<String>)> {
             <$resource as crudcrate::traits::CRUDResource>::update(&state.0, path.0, json.0)
-                .await
-                .map(axum::Json)
-                .map_err(|_| {
-                    (
-                        axum::http::StatusCode::NOT_FOUND,
-                        axum::Json("Not Found".to_string()),
-                    )
-                })
+            .await
+            .map(axum::Json)
+            .map_err(|err| {
+                if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                (
+                    axum::http::StatusCode::CONFLICT,
+                    axum::Json(format!("Conflict: {}", detail)),
+                )
+                } else {
+                (
+                    axum::http::StatusCode::NOT_FOUND,
+                    axum::Json("Not Found".to_string()),
+                )
+                }
+            })
         }
     };
 }

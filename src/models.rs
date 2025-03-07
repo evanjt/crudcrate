@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
 
 /// Query parameters for filtering, pagination, and sorting resources.
@@ -55,7 +54,7 @@ pub struct FilterOptions {
     /// Example: `[0,9]`
     #[param(example = "[0,9]")]
     pub range: Option<String>,
-    /// Sort order for the results in the format '["column", "order"]'.
+    /// Sort order for the results in the format `["column", "order"]`.
     ///
     /// Example: `["id", "ASC"]`
     #[param(example = r#"["id", "ASC"]"#)]
