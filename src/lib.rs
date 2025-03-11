@@ -1,9 +1,10 @@
 pub mod filter;
 pub mod models;
-pub mod openapi;
 pub mod pagination;
+pub mod routes;
 pub mod sort;
 pub mod traits;
 
 pub use crudcrate_derive::*; // Export the proc macros
+pub use serde_with;
 pub use traits::CRUDResource;
