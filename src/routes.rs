@@ -172,7 +172,7 @@ macro_rules! crud_handlers {
 
         #[utoipa::path(
             delete,
-            path = "/",
+            path = "/batch",
             responses(
                 (status = axum::http::StatusCode::NO_CONTENT, description = "Resources deleted successfully", body = [String]),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
