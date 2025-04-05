@@ -1,32 +1,35 @@
 use async_trait::async_trait;
 use sea_orm::{
-    entity::prelude::*, Condition, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    entity::prelude::*, Condition, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
+    PaginatorTrait, QueryOrder, QuerySelect,
 };
 use uuid::Uuid;
+
+pub trait MergeIntoActiveModel<ActiveModelType> {
+    fn merge_into_activemodel(self, existing: ActiveModelType) -> ActiveModelType;
+}
 
 #[async_trait]
 pub trait CRUDResource: Sized + Send + Sync
 where
     Self::EntityType: EntityTrait + Sync,
     Self::ActiveModelType: ActiveModelTrait + ActiveModelBehavior + Send + Sync,
-    <Self::EntityType as EntityTrait>::Model: Sync,
-    <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<uuid::Uuid>,
+    <Self::EntityType as EntityTrait>::Model: Sync + IntoActiveModel<Self::ActiveModelType>,
+    <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+    Self: From<<Self::EntityType as EntityTrait>::Model>,
 {
     type EntityType: EntityTrait + Sync;
     type ColumnType: ColumnTrait + std::fmt::Debug;
-    type ModelType: ModelTrait;
-    type ActiveModelType: sea_orm::ActiveModelTrait<Entity = Self::EntityType>;
-    type ApiModel: From<Self::ModelType>;
+    type ActiveModelType: ActiveModelTrait<Entity = Self::EntityType>;
     type CreateModel: Into<Self::ActiveModelType> + Send;
-    type UpdateModel: Send + Sync;
+    type UpdateModel: Send + Sync + MergeIntoActiveModel<Self::ActiveModelType>;
 
     const ID_COLUMN: Self::ColumnType;
-    const RESOURCE_NAME_SINGULAR: &str; // How the resource is represented in errors, docs, etc as a singular
-    const RESOURCE_NAME_PLURAL: &str; // How the resource is represented in errors, docs, etc as a plural
-    const RESOURCE_DESCRIPTION: &'static str = ""; // A description of the resource, what is it, how it can be used,
-                                                   // etc, can be used to populate within OpenAPI documentation.
+    const RESOURCE_NAME_SINGULAR: &str;
+    const RESOURCE_NAME_PLURAL: &str;
+    const RESOURCE_DESCRIPTION: &'static str = "";
 
     async fn get_all(
         db: &DatabaseConnection,
@@ -35,36 +38,59 @@ where
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self::ApiModel>, DbErr>;
+    ) -> Result<Vec<Self>, DbErr> {
+        let models = Self::EntityType::find()
+            .filter(condition)
+            .order_by(order_column, order_direction)
+            .offset(offset)
+            .limit(limit)
+            .all(db)
+            .await?;
+        Ok(models.into_iter().map(Self::from).collect())
+    }
 
-    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self::ApiModel, DbErr>;
+    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, DbErr> {
+        let model =
+            Self::EntityType::find_by_id(id)
+                .one(db)
+                .await?
+                .ok_or(DbErr::RecordNotFound(format!(
+                    "{} not found",
+                    Self::RESOURCE_NAME_SINGULAR
+                )))?;
+        Ok(Self::from(model))
+    }
 
     async fn create(
         db: &DatabaseConnection,
         create_model: Self::CreateModel,
-    ) -> Result<Self::ApiModel, DbErr> {
+    ) -> Result<Self, DbErr> {
         let active_model: Self::ActiveModelType = create_model.into();
-        let result = <Self::EntityType as EntityTrait>::insert(active_model)
-            .exec(db)
-            .await?;
-        match Self::get_one(db, result.last_insert_id.into()).await {
-            Ok(obj) => Ok(obj),
-            Err(_) => Err(DbErr::RecordNotFound(format!(
-                "{} not created",
-                Self::RESOURCE_NAME_SINGULAR
-            ))),
-        }
+        let result = Self::EntityType::insert(active_model).exec(db).await?;
+        Self::get_one(db, result.last_insert_id.into()).await
     }
+
     async fn update(
         db: &DatabaseConnection,
         id: Uuid,
         update_model: Self::UpdateModel,
-    ) -> Result<Self::ApiModel, DbErr>;
+    ) -> Result<Self, DbErr> {
+        let model =
+            Self::EntityType::find_by_id(id)
+                .one(db)
+                .await?
+                .ok_or(DbErr::RecordNotFound(format!(
+                    "{} not found",
+                    Self::RESOURCE_NAME_PLURAL
+                )))?;
+        let existing: Self::ActiveModelType = model.into_active_model();
+        let updated_model = update_model.merge_into_activemodel(existing);
+        let updated = updated_model.update(db).await?;
+        Ok(Self::from(updated))
+    }
 
     async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
-        let res = <Self::EntityType as EntityTrait>::delete_by_id(id)
-            .exec(db)
-            .await?;
+        let res = Self::EntityType::delete_by_id(id).exec(db).await?;
         match res.rows_affected {
             0 => Err(DbErr::RecordNotFound(format!(
                 "{} not found",
@@ -83,19 +109,17 @@ where
     }
 
     async fn total_count(db: &DatabaseConnection, condition: Condition) -> u64 {
-        let query = <Self::EntityType as EntityTrait>::find().filter(condition);
+        let query = Self::EntityType::find().filter(condition);
         PaginatorTrait::count(query, db).await.unwrap()
     }
 
     #[must_use]
     fn default_index_column() -> Self::ColumnType {
-        // Default to the ID column
         Self::ID_COLUMN
     }
 
     #[must_use]
     fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-        // Default sort at least for the ID column
         vec![("id", Self::ID_COLUMN)]
     }
 

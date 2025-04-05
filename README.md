@@ -153,9 +153,7 @@ use uuid::Uuid;
 impl CRUDResource for Todo {
     type EntityType = super::db::Entity;
     type ColumnType = super::db::Column;
-    type ModelType = super::db::Model;
     type ActiveModelType = super::db::ActiveModel;
-    type ApiModel = Todo;
     type CreateModel = TodoCreate;
     type UpdateModel = TodoUpdate;
 
@@ -163,54 +161,6 @@ impl CRUDResource for Todo {
     const RESOURCE_NAME_SINGULAR: &'static str = "todo";
     const RESOURCE_NAME_PLURAL: &'static str = "todos";
     const RESOURCE_DESCRIPTION: &'static str = "A simple todo item that includes a title and completion status.";
-
-    async fn get_all(
-        db: &DatabaseConnection,
-        condition: Condition,
-        order_column: Self::ColumnType,
-        order_direction: Order,
-        offset: u64,
-        limit: u64,
-    ) -> Result<Vec<Self::ApiModel>, DbErr> {
-        let models = Self::EntityType::find()
-            .filter(condition)
-            .order_by(order_column, order_direction)
-            .offset(offset)
-            .limit(limit)
-            .all(db)
-            .await?;
-        Ok(models.into_iter().map(Self::ApiModel::from).collect())
-    }
-
-    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self::ApiModel, DbErr> {
-        let model = Self::EntityType::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or(DbErr::RecordNotFound(format!(
-                "{} not found",
-                Self::RESOURCE_NAME_SINGULAR
-            )))?;
-        Ok(Self::ApiModel::from(model))
-    }
-
-    async fn update(
-        db: &DatabaseConnection,
-        id: Uuid,
-        update_data: Self::UpdateModel,
-    ) -> Result<Self::ApiModel, DbErr> {
-        let existing: Self::ActiveModelType = Self::EntityType::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or(DbErr::RecordNotFound(format!(
-                "{} not found",
-                Self::RESOURCE_NAME_PLURAL
-            )))?
-            .into();
-
-        let updated_model = update_data.merge_into_activemodel(existing);
-        let updated = updated_model.update(db).await?;
-        Ok(Self::ApiModel::from(updated))
-    }
 
     fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![
@@ -229,6 +179,7 @@ impl CRUDResource for Todo {
     }
 }
 ```
+
 
 **Key Points:**
 

@@ -148,7 +148,7 @@ macro_rules! crud_handlers {
         ) -> Result<
             (
                 axum::http::StatusCode,
-                axum::Json<<$resource as crudcrate::traits::CRUDResource>::ApiModel>,
+                axum::Json<$resource>,
             ),
             (axum::http::StatusCode, axum::Json<String>),
         > {
@@ -172,7 +172,7 @@ macro_rules! crud_handlers {
 
         #[utoipa::path(
             delete,
-            path = "/",
+            path = "/batch",
             responses(
                 (status = axum::http::StatusCode::NO_CONTENT, description = "Resources deleted successfully", body = [String]),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
@@ -213,7 +213,7 @@ macro_rules! crud_handlers {
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             path: axum::extract::Path<uuid::Uuid>,
             json: axum::Json<$update_model>,
-        ) -> Result<axum::Json<<$resource as crudcrate::traits::CRUDResource>::ApiModel>, (axum::http::StatusCode, axum::Json<String>)> {
+        ) -> Result<axum::Json<$resource>, (axum::http::StatusCode, axum::Json<String>)>{
             <$resource as crudcrate::traits::CRUDResource>::update(&state.0, path.0, json.0)
             .await
             .map(axum::Json)
