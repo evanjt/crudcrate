@@ -39,6 +39,8 @@ pub fn apply_filters(
                     condition = condition
                         .add(Expr::col(Alias::new(&*key)).ilike(format!("%{trimmed_value}%")));
                 }
+            } else if let Some(value_int) = value.as_i64() {
+                condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_int));
             } else if let Some(value_array) = value.as_array() {
                 let mut or_conditions = Condition::any();
                 for id in value_array {
