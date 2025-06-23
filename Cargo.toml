@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 description = "Rust traits and functions to aid in building CRUD APIs in Axum and Sea-ORM"
 license = "MIT"
