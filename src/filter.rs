@@ -1,9 +1,76 @@
 use sea_orm::{
     sea_query::{extension::postgres::PgExpr, Alias, Expr},
-    Condition,
+    Condition, ColumnTrait, ColumnType,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
+
+/// Check if a column type is likely an enum by examining its type name
+fn is_enum_column<C: ColumnTrait>(column: &C) -> bool {
+    let column_def = column.def();
+    let column_type = column_def.get_column_type();
+    
+    // Add some debug logging to see what we're getting
+    eprintln!("DEBUG: Column type: {:?}", column_type);
+    
+    match column_type {
+        // Standard SQL types that are definitely NOT enums
+        ColumnType::Char(_) | 
+        ColumnType::String(_) | 
+        ColumnType::Text |
+        ColumnType::TinyInteger |
+        ColumnType::SmallInteger |
+        ColumnType::Integer |
+        ColumnType::BigInteger |
+        ColumnType::TinyUnsigned |
+        ColumnType::SmallUnsigned |
+        ColumnType::Unsigned |
+        ColumnType::BigUnsigned |
+        ColumnType::Float |
+        ColumnType::Double |
+        ColumnType::Decimal(_) |
+        ColumnType::DateTime |
+        ColumnType::Timestamp |
+        ColumnType::TimestampWithTimeZone |
+        ColumnType::Time |
+        ColumnType::Date |
+        ColumnType::Year |
+        ColumnType::Interval(_, _) |
+        ColumnType::Binary(_) |
+        ColumnType::VarBinary(_) |
+        ColumnType::Bit(_) |
+        ColumnType::VarBit(_) |
+        ColumnType::Blob |
+        ColumnType::Boolean |
+        ColumnType::Money(_) |
+        ColumnType::Json |
+        ColumnType::JsonBinary |
+        ColumnType::Uuid |
+        ColumnType::Array(_) |
+        ColumnType::Cidr |
+        ColumnType::Inet |
+        ColumnType::MacAddr => {
+            eprintln!("DEBUG: Identified as standard type, NOT enum");
+            false
+        },
+        // Custom types are likely enums
+        ColumnType::Custom(type_name) => {
+            eprintln!("DEBUG: Custom type '{:?}' - treating as enum", type_name);
+            true
+        },
+        // Enum types
+        ColumnType::Enum { .. } => {
+            eprintln!("DEBUG: Explicit enum type - treating as enum");
+            true
+        },
+        // Any other type we don't recognize - be conservative and treat as enum
+        _ => {
+            eprintln!("DEBUG: Unknown type - treating as enum");
+            true
+        }
+    }
+}
+
 pub fn apply_filters(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -36,8 +103,31 @@ pub fn apply_filters(
                 if let Ok(uuid) = Uuid::parse_str(&trimmed_value) {
                     condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
                 } else {
-                    condition = condition
-                        .add(Expr::col(Alias::new(&*key)).ilike(format!("%{trimmed_value}%")));
+                    // Check if this column is an enum by looking up its type
+                    let column_info = searchable_columns
+                        .iter()
+                        .find(|(col_name, _)| *col_name == key);
+                    
+                    if let Some((_, col)) = column_info {
+                        let is_enum = is_enum_column(col);
+                        eprintln!("DEBUG: Column '{}' is_enum: {}", key, is_enum);
+                        
+                        if is_enum {
+                            // Use exact matching for enum columns, but cast the enum to text for comparison
+                            eprintln!("DEBUG: Using exact match for column '{}' with text cast", key);
+                            condition = condition.add(Expr::col(Alias::new(&*key)).cast_as(Alias::new("text")).eq(trimmed_value));
+                        } else {
+                            // Use ILIKE for text columns
+                            eprintln!("DEBUG: Using ILIKE for column '{}'", key);
+                            condition = condition
+                                .add(Expr::col(Alias::new(&*key)).ilike(format!("%{trimmed_value}%")));
+                        }
+                    } else {
+                        eprintln!("DEBUG: Column '{}' not found in searchable_columns, using ILIKE", key);
+                        // Column not found in searchable columns, default to ILIKE
+                        condition = condition
+                            .add(Expr::col(Alias::new(&*key)).ilike(format!("%{trimmed_value}%")));
+                    }
                 }
             } else if let Some(value_int) = value.as_i64() {
                 condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_int));
