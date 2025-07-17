@@ -4,6 +4,8 @@
 
 🚀 **NEW**: The `EntityToModels` macro now generates complete CRUD APIs directly from your Sea-ORM entities with **function injection** support for custom logic!
 
+⚡ **Ultra-Fast Development**: Create a complete CRUD API with OpenAPI documentation in **under 60 lines** of code (including imports and server setup)!
+
 ---
 
 ## 📚 Table of Contents
@@ -24,7 +26,9 @@
 
 ## ✨ Features
 
+- **⚡ Ultra-Minimal Setup**: Complete CRUD API in under 60 lines of code (no migrations required!)
 - **🎯 EntityToModels Macro**: Generate complete CRUD APIs from Sea-ORM entities.
+- **🚀 Auto-Router Generation**: Single `generate_router` attribute eliminates all router boilerplate.
 - **🔧 Function Injection**: Override any CRUD operation with custom business logic.
 - **📊 Smart Defaults**: Auto-generate primary keys, timestamps, and resource metadata.
 - **🔍 Sortable/Filterable**: Built-in support for sorting and filtering columns.
@@ -163,6 +167,9 @@ See the Quick Start example above for basic usage.
     non_db_attr = true,              // Field not in database (default: false)
     default = vec![],                // Default value for non-DB fields
                                      // ⚠️  Requires #[sea_orm(ignore)] when using DeriveEntityModel
+    
+    // 🚀 Router Generation
+    generate_router,                 // Auto-generate router function (no parameters needed!)
 )]
 ```
 
@@ -196,6 +203,41 @@ pub struct Model {
 ```
 
 > **⚠️ Important**: When using non-DB fields, you'll typically need to implement custom endpoint overrides (at minimum for `get_one` and likely `update`) to populate or handle these fields. See [Function Injection](#function-injection) below.
+
+### Automatic Router Generation
+
+The `generate_router` attribute completely eliminates router boilerplate by automatically generating a `router()` function:
+
+```rust
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
+#[sea_orm(table_name = "todos")]
+#[crudcrate(
+    description = "Simple todo management",
+    generate_router  // ← This single attribute generates everything!
+)]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    #[crudcrate(primary_key, create_model = false, update_model = false)]
+    pub id: Uuid,
+    pub title: String,
+    pub completed: bool,
+}
+
+// Router function is automatically generated - use it like this:
+let app = OpenApiRouter::new()
+    .nest("/todos", router(&db))  // ← router() function auto-generated!
+    .with_state(db.clone());
+```
+
+**What gets generated:**
+- ✅ Complete `router()` function with all CRUD endpoints
+- ✅ All CRUD handlers (`get_one_handler`, `get_all_handler`, etc.)
+- ✅ Proper OpenAPI integration with `utoipa_axum::routes!()`
+- ✅ Database state management
+
+**Before vs After:**
+- **Before**: ~30 lines of router boilerplate per entity
+- **After**: 1 attribute (`generate_router`)
 
 ### Function Injection
 
@@ -288,8 +330,10 @@ fn_delete_many:
 
 ### Complete Example
 
-See the [crudcrate-example](https://github.com/evanjt/crudcrate-example) 
-repository for a complete working example.
+## Examples
+
+- **[Minimal Example](../crudcrate-example-minimal)**: Complete CRUD API in under 60 lines
+- **[Full Example](https://github.com/evanjt/crudcrate-example)**: Production-ready API with migrations and advanced features
 
 ---
 
@@ -445,7 +489,8 @@ defeat the bots by contributing! 🤓
 ## 🔗 Related Crates
 
 - **[crudcrate-derive](https://crates.io/crates/crudcrate-derive)**: Procedural macros (implementation detail)
-- **[crudcrate-example](https://github.com/evanjt/crudcrate-example)**: Complete working example
+- **[Minimal Example](../crudcrate-example-minimal)**: Complete CRUD API in under 60 lines
+- **[Full Example](https://github.com/evanjt/crudcrate-example)**: Production-ready API with migrations and advanced features
 - **[SeaORM](https://crates.io/crates/sea-orm)**: Database ORM integration
 - **[Axum](https://crates.io/crates/axum)**: Web framework integration
 - **[Utoipa](https://crates.io/crates/utoipa)**: OpenAPI documentation
