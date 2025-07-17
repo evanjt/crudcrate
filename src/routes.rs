@@ -60,12 +60,12 @@ macro_rules! crud_handlers {
                     .iter()
                     .map(|(name, _)| format!("\n- {}", name))
                     .collect::<Vec<String>>()
-                    .join("\n"),
+                    .join(""),
                 <$resource as CRUDResource>::filterable_columns()
                     .iter()
                     .map(|(name, _)| format!("\n- {}", name))
                     .collect::<Vec<String>>()
-                    .join("\n")
+                    .join("")
             )
         )]
         pub async fn get_all_handler(
