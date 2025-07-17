@@ -14,7 +14,6 @@ macro_rules! crud_handlers {
 
         use hyper::HeaderMap;
         use sea_orm::{DbErr, SqlErr};
-        use uuid::Uuid;
 
 
         #[utoipa::path(
@@ -230,6 +229,51 @@ macro_rules! crud_handlers {
                 )
                 }
             })
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! generate_crud_router {
+    ($model:ty, $api_struct:ty, $create_model:ty, $update_model:ty) => {
+        crudcrate::crud_handlers!($api_struct, $update_model, $create_model);
+
+        pub fn router(db: &sea_orm::DatabaseConnection) -> utoipa_axum::router::OpenApiRouter
+        where
+            $api_struct: crudcrate::traits::CRUDResource,
+        {
+            use utoipa_axum::{router::OpenApiRouter, routes};
+
+            OpenApiRouter::new()
+                .routes(routes!(get_one_handler))
+                .routes(routes!(get_all_handler))
+                .routes(routes!(create_one_handler))
+                .routes(routes!(update_one_handler))
+                .routes(routes!(delete_one_handler))
+                .routes(routes!(delete_many_handler))
+                .with_state(db.clone())
+        }
+    };
+    ($model:ty, $api_struct:ty, $create_model:ty, $update_model:ty, $($extra_routes:expr),* $(,)?) => {
+        crudcrate::crud_handlers!($api_struct, $update_model, $create_model);
+
+        pub fn router(db: &sea_orm::DatabaseConnection) -> utoipa_axum::router::OpenApiRouter
+        where
+            $api_struct: crudcrate::traits::CRUDResource,
+        {
+            use utoipa_axum::{router::OpenApiRouter, routes};
+
+            OpenApiRouter::new()
+                .routes(routes!(get_one_handler))
+                .routes(routes!(get_all_handler))
+                .routes(routes!(create_one_handler))
+                .routes(routes!(update_one_handler))
+                .routes(routes!(delete_one_handler))
+                .routes(routes!(delete_many_handler))
+                $(
+                    .routes($extra_routes)
+                )*
+                .with_state(db.clone())
         }
     };
 }
