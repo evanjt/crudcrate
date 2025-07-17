@@ -162,8 +162,40 @@ See the Quick Start example above for basic usage.
     // 💾 Non-Database Fields
     non_db_attr = true,              // Field not in database (default: false)
     default = vec![],                // Default value for non-DB fields
+                                     // ⚠️  Requires #[sea_orm(ignore)] when using DeriveEntityModel
 )]
 ```
+
+### Non-Database Fields (Enhanced API Models)
+
+Add fields to your API that don't exist in the database for computed values, metadata, or auxiliary data:
+
+```rust
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
+#[sea_orm(table_name = "todo")]
+#[crudcrate(description = "Manages todo items", generate_router)]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    #[crudcrate(primary_key, create_model = false, update_model = false)]
+    pub id: Uuid,
+    pub title: String,
+    
+    // Non-database field - excluded from DB but included in API
+    #[sea_orm(ignore)]    // ← Required: tells Sea-ORM to skip this field
+    #[crudcrate(          // ← Includes in API with default value
+        non_db_attr = true, 
+        default = vec![]
+    )]  
+    pub tags: Vec<String>,
+    
+    // Another example: computed field
+    #[sea_orm(ignore)]
+    #[crudcrate(non_db_attr = true, default = 0)]
+    pub comment_count: i32,
+}
+```
+
+> **⚠️ Important**: When using non-DB fields, you'll typically need to implement custom endpoint overrides (at minimum for `get_one` and likely `update`) to populate or handle these fields. See [Function Injection](#function-injection) below.
 
 ### Function Injection
 
