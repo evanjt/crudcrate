@@ -1,6 +1,6 @@
 # crudcrate
 
-**`crudcrate`** provides powerful procedural macros that dramatically reduce CRUD API boilerplate in Rust. It seamlessly integrates with **[SeaORM](https://crates.io/crates/sea-orm)** for database interactions and **[Axum](https://crates.io/crates/axum)** for building web services.
+**`crudcrate`** provides procedural macros that reduce CRUD API boilerplate in Rust. It seamlessly integrates with **[SeaORM](https://crates.io/crates/sea-orm)** for database interactions and **[Axum](https://crates.io/crates/axum)** for building web services.
 
 🚀 **NEW**: The `EntityToModels` macro now generates complete CRUD APIs directly from your Sea-ORM entities with **function injection** support for custom logic!
 
@@ -10,17 +10,17 @@
 
 ## 📚 Table of Contents
 
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [EntityToModels Macro (Recommended)](#entitytomodels-macro-recommended)
+- [Features](#✨-features)
+- [Installation](#🚀-installation)
+- [Quick Start](#⚡-quick-start)
+- [EntityToModels Macro (Recommended)](#🎯-entitytomodels-macro-recommended)
   - [Basic Usage](#basic-usage)
   - [All Available Attributes](#all-available-attributes)
   - [Function Injection](#function-injection)
   - [Complete Example](#complete-example)
-- [Traditional Approach](#traditional-approach)
-- [CRUD Handlers](#crud-handlers)
-- [License](#license-and-disclaimer)
+- [Traditional Approach](#🔧-traditional-approach)
+- [CRUD Handlers](#✅-crud-handlers)
+- [License](#📜-license-and-disclaimer)
 
 ---
 
@@ -59,8 +59,9 @@ crudcrate = "0.4.0"
 
 Transform this verbose manual approach:
 
+📝 BEFORE: Manual structs
+
 ```rust
-// 📝 BEFORE: Manual structs (100+ lines of boilerplate)
 #[derive(ToSchema, Serialize, Deserialize)]
 pub struct Todo { /* manual field definitions */ }
 
@@ -81,11 +82,12 @@ impl CRUDResource for Todo {
 }
 ```
 
+
 Into this single macro (SeaORM generated entity model with some additions):
 
-```rust
-// ✨ AFTER: EntityToModels macro 
+✨ AFTER: EntityToModels macro
 
+```rust
 use chrono::{DateTime, Utc};
 use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
@@ -106,6 +108,8 @@ pub struct Model {
     pub last_updated: DateTime<Utc>,
 }
 ```
+
+
 
 **That's it!** This generates:
 - `Todo` API struct with all fields
@@ -332,7 +336,7 @@ fn_delete_many:
 
 ## Examples
 
-- **[Minimal Example](../crudcrate-example-minimal)**: Complete CRUD API in under 60 lines
+- **[Minimal Example](https://github.com/evanjt/crudcrate-example-minimal)**: Complete CRUD API in under 60 lines
 - **[Full Example](https://github.com/evanjt/crudcrate-example)**: Production-ready API with migrations and advanced features
 
 ---
@@ -454,7 +458,7 @@ async fn say_hi_handler() -> &'static str {
 
 ## 🎯 Benefits
 
-- **🚀 95% Less Boilerplate**: Single macro replaces 100+ lines of manual code
+- **🚀 95% Less Boilerplate**: Single macro replaces significant amount of duplicated manual code
 - **🔗 Full IDE Linking**: Navigate to functions, expressions, and types
 - **🔧 Function Injection**: Bypass or override any operation with custom logic
 - **📊 React-Admin Ready**: Built-in sorting, filtering, pagination
@@ -489,7 +493,7 @@ defeat the bots by contributing! 🤓
 ## 🔗 Related Crates
 
 - **[crudcrate-derive](https://crates.io/crates/crudcrate-derive)**: Procedural macros (implementation detail)
-- **[Minimal Example](../crudcrate-example-minimal)**: Complete CRUD API in under 60 lines
+- **[Minimal Example](https://github.com/evanjt/crudcrate-example-minimal)**: Complete CRUD API in under 60 lines
 - **[Full Example](https://github.com/evanjt/crudcrate-example)**: Production-ready API with migrations and advanced features
 - **[SeaORM](https://crates.io/crates/sea-orm)**: Database ORM integration
 - **[Axum](https://crates.io/crates/axum)**: Web framework integration
