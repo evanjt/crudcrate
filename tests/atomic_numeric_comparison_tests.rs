@@ -254,7 +254,7 @@ async fn test_filter_score_gt_float_10() {
     for task in &tasks {
         assert!(task.score > 10.0, "Task '{}' has score {} which is <= 10.0", task.title, task.score);
     }
-    assert_eq!(tasks.len(), 3, "Should find 3 tasks with score > 10.0, found {}", tasks.len());
+    assert_eq!(tasks.len(), 4, "Should find 4 tasks with score > 10.0 (Low=10.5, Medium=50.0, High=95.7, Boundary=75.0), found {}", tasks.len());
 }
 
 #[tokio::test]

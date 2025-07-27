@@ -127,4 +127,11 @@ where
     fn filterable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![("id", Self::ID_COLUMN)]
     }
+
+    /// Indicates whether enum filtering should be case-sensitive.
+    /// Default is false (case-insensitive).
+    #[must_use]
+    fn enum_case_sensitive() -> bool {
+        false
+    }
 }

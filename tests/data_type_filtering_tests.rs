@@ -185,7 +185,7 @@ async fn test_filter_by_enum_priority() {
 
     create_diverse_test_tasks(&app).await;
 
-    // Test filtering by priority = "urgent"
+    // Test filtering by priority = "urgent" (case insensitive)
     let filter_param = url_escape::encode_component("{\"priority\":\"urgent\"}");
     let request = Request::builder()
         .method("GET")
@@ -211,13 +211,68 @@ async fn test_filter_by_enum_priority() {
 }
 
 #[tokio::test]
+async fn test_case_insensitive_enum_filtering() {
+    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let app = setup_task_app(db);
+
+    create_diverse_test_tasks(&app).await;
+
+    // Test various case combinations for enum filtering
+    let test_cases = vec![
+        ("urgent", 2),    // lowercase
+        ("URGENT", 2),    // uppercase
+        ("Urgent", 2),    // proper case
+        ("uRgEnT", 2),    // mixed case
+        ("high", 1),      // lowercase
+        ("HIGH", 1),      // uppercase  
+        ("High", 1),      // proper case
+        ("done", 2),      // lowercase status
+        ("DONE", 2),      // uppercase status
+        ("Done", 2),      // proper case status
+        ("inprogress", 1), // lowercase compound
+        ("INPROGRESS", 1), // uppercase compound
+        ("InProgress", 1), // proper case compound
+    ];
+
+    for (priority_value, expected_count) in test_cases {
+        let filter = if priority_value.to_lowercase().contains("done") || 
+                       priority_value.to_lowercase().contains("progress") ||
+                       priority_value.to_lowercase().contains("cancelled") ||
+                       priority_value.to_lowercase().contains("todo") {
+            format!("{{\"status\":\"{}\"}}", priority_value)
+        } else {
+            format!("{{\"priority\":\"{}\"}}", priority_value)
+        };
+        
+        let filter_param = url_escape::encode_component(&filter);
+        let request = Request::builder()
+            .method("GET")
+            .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
+        
+        assert_eq!(tasks.len(), expected_count, 
+            "Case-insensitive filter '{}' should find {} tasks, found {}", 
+            priority_value, expected_count, tasks.len());
+    }
+}
+
+#[tokio::test]
 async fn test_filter_by_enum_status() {
     let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_diverse_test_tasks(&app).await;
 
-    // Test filtering by status = "done"
+    // Test filtering by status = "done" (case insensitive)
     let filter_param = url_escape::encode_component("{\"status\":\"done\"}");
     let request = Request::builder()
         .method("GET")
@@ -443,7 +498,7 @@ async fn test_complex_multi_type_filtering() {
 
     create_diverse_test_tasks(&app).await;
 
-    // Test complex filter: completed = false AND priority = "low"
+    // Test complex filter: completed = false AND priority = "low" (case insensitive)
     let filter_param = url_escape::encode_component("{\"completed\":false,\"priority\":\"low\"}");
     let request = Request::builder()
         .method("GET")
@@ -476,7 +531,7 @@ async fn test_complex_enum_and_numeric_filtering() {
 
     create_diverse_test_tasks(&app).await;
 
-    // Test complex filter: status = "done" AND points = 100
+    // Test complex filter: status = "done" AND points = 100 (case insensitive)
     let filter_param = url_escape::encode_component("{\"status\":\"done\",\"points\":100}");
     let request = Request::builder()
         .method("GET")

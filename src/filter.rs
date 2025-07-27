@@ -1,58 +1,70 @@
 use sea_orm::{
-    sea_query::{extension::postgres::PgExpr, Alias, Expr},
-    ColumnTrait, ColumnType, Condition,
+    sea_query::{Alias, Expr},
+    Condition,
 };
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Check if a column type is likely an enum by examining its type name
-fn is_enum_column<C: ColumnTrait>(column: &C) -> bool {
-    let column_def = column.def();
-    let column_type = column_def.get_column_type();
+/// Determine if a field should use substring matching (for text search) or exact matching
+fn is_text_field(field_name: &str) -> bool {
+    // Common text field patterns that should support substring search
+    matches!(field_name, 
+        "title" | "name" | "description" | "content" | "text" | "message" | 
+        "comment" | "note" | "summary" | "body" | "bio" | "about" |
+        "address" | "location" | "email" | "username" | "first_name" | "last_name"
+    ) || field_name.ends_with("_name") 
+      || field_name.ends_with("_title") 
+      || field_name.ends_with("_description")
+      || field_name.ends_with("_text")
+      || field_name.ends_with("_content")
+}
 
-    match column_type {
-        // Standard SQL types that are definitely NOT enums
-        ColumnType::Char(_)
-        | ColumnType::String(_)
-        | ColumnType::Text
-        | ColumnType::TinyInteger
-        | ColumnType::SmallInteger
-        | ColumnType::Integer
-        | ColumnType::BigInteger
-        | ColumnType::TinyUnsigned
-        | ColumnType::SmallUnsigned
-        | ColumnType::Unsigned
-        | ColumnType::BigUnsigned
-        | ColumnType::Float
-        | ColumnType::Double
-        | ColumnType::Decimal(_)
-        | ColumnType::DateTime
-        | ColumnType::Timestamp
-        | ColumnType::TimestampWithTimeZone
-        | ColumnType::Time
-        | ColumnType::Date
-        | ColumnType::Year
-        | ColumnType::Interval(_, _)
-        | ColumnType::Binary(_)
-        | ColumnType::VarBinary(_)
-        | ColumnType::Bit(_)
-        | ColumnType::VarBit(_)
-        | ColumnType::Blob
-        | ColumnType::Boolean
-        | ColumnType::Money(_)
-        | ColumnType::Json
-        | ColumnType::JsonBinary
-        | ColumnType::Uuid
-        | ColumnType::Array(_)
-        | ColumnType::Cidr
-        | ColumnType::Inet
-        | ColumnType::MacAddr => false,
-        // Any other type we don't recognize - be conservative and treat as enum
-        _ => true,
+/// Parse React Admin comparison operator suffixes
+/// Returns (base_field_name, sql_operator) if a suffix is found
+fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
+    if let Some(base_field) = field_name.strip_suffix("_gte") {
+        Some((base_field, ">="))
+    } else if let Some(base_field) = field_name.strip_suffix("_lte") {
+        Some((base_field, "<="))
+    } else if let Some(base_field) = field_name.strip_suffix("_gt") {
+        Some((base_field, ">"))
+    } else if let Some(base_field) = field_name.strip_suffix("_lt") {
+        Some((base_field, "<"))
+    } else if let Some(base_field) = field_name.strip_suffix("_neq") {
+        Some((base_field, "!="))
+    } else {
+        None
     }
 }
 
-pub fn apply_filters(
+/// Apply numeric comparison for integer values
+fn apply_numeric_comparison(field_name: &str, operator: &str, value: i64) -> sea_orm::sea_query::SimpleExpr {
+    let column = Expr::col(Alias::new(field_name));
+    match operator {
+        ">=" => column.gte(value),
+        "<=" => column.lte(value),
+        ">" => column.gt(value),
+        "<" => column.lt(value),
+        "!=" => column.ne(value),
+        _ => column.eq(value), // fallback to equality
+    }
+}
+
+/// Apply numeric comparison for float values
+fn apply_float_comparison(field_name: &str, operator: &str, value: f64) -> sea_orm::sea_query::SimpleExpr {
+    let column = Expr::col(Alias::new(field_name));
+    match operator {
+        ">=" => column.gte(value),
+        "<=" => column.lte(value),
+        ">" => column.gt(value),
+        "<" => column.lt(value),
+        "!=" => column.ne(value),
+        _ => column.eq(value), // fallback to equality
+    }
+}
+
+
+pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
 ) -> Condition {
@@ -70,56 +82,121 @@ pub fn apply_filters(
             let mut or_conditions = Condition::any();
             for (_col_name, col) in searchable_columns {
                 or_conditions =
-                    or_conditions.add(Expr::col(*col).ilike(format!("%{q_value_str}%")));
+                    or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
             }
             condition = condition.add(or_conditions);
         }
     } else {
         // Iterate over all filters to build conditions
         for (key, value) in filters {
+            // Check if field exists in filterable columns (handle comparison operators and special cases)
+            let base_field_name = if let Some((base_field, _)) = parse_comparison_operator(&key) {
+                base_field
+            } else if key.ends_with("_eq") {
+                key.strip_suffix("_eq").unwrap_or(&key)
+            } else {
+                &key
+            };
+            
+            let field_exists = key == "ids" || searchable_columns.iter().any(|(col_name, _)| *col_name == base_field_name);
+            if !field_exists {
+                // Skip nonexistent fields - don't apply any filter condition
+                continue;
+            }
             if let Some(value_str) = value.as_str() {
                 let trimmed_value = value_str.trim().to_string();
+                
+                // Handle empty strings
+                if trimmed_value.is_empty() {
+                    // For empty strings, match fields that are exactly empty
+                    condition = condition.add(Expr::col(Alias::new(&*key)).eq(""));
+                    continue;
+                }
 
                 // Check if the value is a UUID
                 if let Ok(uuid) = Uuid::parse_str(&trimmed_value) {
                     condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
                 } else {
-                    // Check if this column is an enum by looking up its type
-                    let column_info = searchable_columns
-                        .iter()
-                        .find(|(col_name, _)| *col_name == key);
-
-                    if let Some((_, col)) = column_info {
-                        let is_enum = is_enum_column(col);
-
-                        if is_enum {
-                            // Use exact matching for enum columns, but cast the enum to text for comparison
-                            condition = condition.add(
-                                Expr::col(Alias::new(&*key))
-                                    .cast_as(Alias::new("text"))
-                                    .eq(trimmed_value),
-                            );
+                    // Handle React Admin string filtering patterns
+                    if let Some(base_field) = key.strip_suffix("_eq") {
+                        // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
+                        condition = condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
+                    } else if is_text_field(&key) {
+                        // Default substring matching for text fields: {"title": "Alpha"}
+                        condition = condition.add(Expr::col(Alias::new(&*key)).like(format!("%{}%", trimmed_value)));
+                    } else {
+                        // Enum and other field matching with configurable case sensitivity
+                        if T::enum_case_sensitive() {
+                            // Case-sensitive exact matching: {"priority": "High"} matches only "High"
+                            condition = condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
                         } else {
-                            // Use ILIKE for text columns
+                            // Case-insensitive matching: {"priority": "high"} matches "High"
+                            // Use UPPER() function for case-insensitive comparison
+                            use sea_orm::sea_query::SimpleExpr;
                             condition = condition.add(
-                                Expr::col(Alias::new(&*key)).ilike(format!("%{trimmed_value}%")),
+                                SimpleExpr::FunctionCall(
+                                    sea_orm::sea_query::Func::upper(Expr::col(Alias::new(&*key)))
+                                ).eq(trimmed_value.to_uppercase())
                             );
                         }
                     }
                 }
             } else if let Some(value_int) = value.as_i64() {
-                condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_int));
+                // Handle numeric comparison operators for integers
+                if let Some((base_field, operator)) = parse_comparison_operator(&key) {
+                    condition = condition.add(apply_numeric_comparison(base_field, operator, value_int));
+                } else {
+                    condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_int));
+                }
+            } else if let Some(value_bool) = value.as_bool() {
+                // Handle boolean comparison operators and regular boolean values
+                if let Some((base_field, operator)) = parse_comparison_operator(&key) {
+                    if operator == "!=" {
+                        // Support boolean_neq for React Admin
+                        condition = condition.add(Expr::col(Alias::new(base_field)).ne(value_bool));
+                    } else {
+                        // Other operators don't make sense for booleans, treat as regular
+                        condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_bool));
+                    }
+                } else {
+                    condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_bool));
+                }
+            } else if let Some(value_float) = value.as_f64() {
+                // Handle numeric comparison operators for floats
+                if let Some((base_field, operator)) = parse_comparison_operator(&key) {
+                    condition = condition.add(apply_float_comparison(base_field, operator, value_float));
+                } else {
+                    condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_float));
+                }
+            } else if value.is_null() {
+                // Handle null values for optional fields (no comparison operators for null)
+                condition = condition.add(Expr::col(Alias::new(&*key)).is_null());
             } else if let Some(value_array) = value.as_array() {
-                let mut or_conditions = Condition::any();
-                for id in value_array {
-                    if let Some(id_str) = id.as_str() {
-                        if let Ok(uuid) = Uuid::parse_str(id_str) {
-                            or_conditions =
-                                or_conditions.add(Expr::col(Alias::new(&*key)).eq(uuid));
+                if key == "ids" {
+                    // React Admin GetMany format: {"ids": [uuid1, uuid2, uuid3]}
+                    // Filter on the 'id' field for any of the provided UUIDs
+                    let mut or_conditions = Condition::any();
+                    for id in value_array {
+                        if let Some(id_str) = id.as_str() {
+                            if let Ok(uuid) = Uuid::parse_str(id_str) {
+                                or_conditions = or_conditions.add(Expr::col(Alias::new("id")).eq(uuid));
+                            }
                         }
                     }
+                    condition = condition.add(or_conditions);
+                } else {
+                    // Regular array filtering for other fields
+                    let mut or_conditions = Condition::any();
+                    for id in value_array {
+                        if let Some(id_str) = id.as_str() {
+                            if let Ok(uuid) = Uuid::parse_str(id_str) {
+                                or_conditions =
+                                    or_conditions.add(Expr::col(Alias::new(&*key)).eq(uuid));
+                            }
+                        }
+                    }
+                    condition = condition.add(or_conditions);
                 }
-                condition = condition.add(or_conditions);
             }
         }
     }

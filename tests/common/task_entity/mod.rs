@@ -11,26 +11,26 @@ use async_trait::async_trait;
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum Priority {
-    #[sea_orm(string_value = "low")]
+    #[sea_orm(string_value = "Low")]
     Low,
-    #[sea_orm(string_value = "medium")]
+    #[sea_orm(string_value = "Medium")]
     Medium,
-    #[sea_orm(string_value = "high")]
+    #[sea_orm(string_value = "High")]
     High,
-    #[sea_orm(string_value = "urgent")]
+    #[sea_orm(string_value = "Urgent")]
     Urgent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum Status {
-    #[sea_orm(string_value = "todo")]
+    #[sea_orm(string_value = "Todo")]
     Todo,
-    #[sea_orm(string_value = "in_progress")]
+    #[sea_orm(string_value = "InProgress")]
     InProgress,
-    #[sea_orm(string_value = "done")]
+    #[sea_orm(string_value = "Done")]
     Done,
-    #[sea_orm(string_value = "cancelled")]
+    #[sea_orm(string_value = "Cancelled")]
     Cancelled,
 }
 
