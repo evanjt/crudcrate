@@ -1,4 +1,4 @@
-use sea_orm::{sea_query::Order, ColumnTrait};
+use sea_orm::{ColumnTrait, sea_query::Order};
 
 pub fn generic_sort<C>(
     sort: Option<String>,

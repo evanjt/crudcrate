@@ -1,10 +1,10 @@
-use axum::http::{Request, StatusCode};
 use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db_with_tasks, setup_task_app, task_entity::Task};
+use common::{setup_task_app, setup_test_db_with_tasks, task_entity::Task};
 
 /// Comprehensive tests for React Admin numeric comparison operators
 /// Testing: _gte, _lte, _gt, _lt, _neq operators for all numeric types
@@ -20,7 +20,7 @@ async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
             "priority": "Low",
             "status": "Todo",
             "score": 10.5,           // Low score
-            "points": 5,             // Low points  
+            "points": 5,             // Low points
             "estimated_hours": 1.0,  // Low hours
             "assignee_count": 1,     // Min assignees
             "is_public": true
@@ -40,7 +40,7 @@ async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
         }),
         // Task with high values
         json!({
-            "title": "High Value Task", 
+            "title": "High Value Task",
             "description": "Task with maximum values",
             "completed": true,
             "priority": "High",
@@ -91,21 +91,25 @@ async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
 
         let app_clone = app.clone();
         let response = app_clone.oneshot(request).await.unwrap();
-        
+
         let status = response.status();
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
-        
+
         if !status.is_success() {
-            panic!("Task creation failed with status {}: {}", status, String::from_utf8_lossy(&body));
+            panic!(
+                "Task creation failed with status {}: {}",
+                status,
+                String::from_utf8_lossy(&body)
+            );
         }
-        
+
         let body_str = String::from_utf8_lossy(&body);
         if body_str.is_empty() {
             panic!("Empty response body from task creation");
         }
-        
+
         let task: Task = serde_json::from_slice(&body)
             .map_err(|e| format!("Failed to parse task JSON '{}': {}", body_str, e))
             .unwrap();
@@ -119,7 +123,9 @@ async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
 
 #[tokio::test]
 async fn test_filter_score_gte_float() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -139,19 +145,31 @@ async fn test_filter_score_gte_float() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with score >= 50.0
     for task in &tasks {
-        assert!(task.score >= 50.0, "Task '{}' has score {} which is < 50.0", task.title, task.score);
+        assert!(
+            task.score >= 50.0,
+            "Task '{}' has score {} which is < 50.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 3 tasks: Medium (50.0), High (95.7), Boundary (75.0)
-    assert_eq!(tasks.len(), 3, "Should find 3 tasks with score >= 50.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        3,
+        "Should find 3 tasks with score >= 50.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_points_gte_integer() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -171,19 +189,31 @@ async fn test_filter_points_gte_integer() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with points >= 50
     for task in &tasks {
-        assert!(task.points >= 50, "Task '{}' has points {} which is < 50", task.title, task.points);
+        assert!(
+            task.points >= 50,
+            "Task '{}' has points {} which is < 50",
+            task.title,
+            task.points
+        );
     }
-    
+
     // Should find 3 tasks: Medium (50), High (100), Boundary (75)
-    assert_eq!(tasks.len(), 3, "Should find 3 tasks with points >= 50, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        3,
+        "Should find 3 tasks with points >= 50, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_assignee_count_gte_small_integer() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -203,21 +233,33 @@ async fn test_filter_assignee_count_gte_small_integer() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with assignee_count >= 3
     for task in &tasks {
-        assert!(task.assignee_count >= 3, "Task '{}' has assignee_count {} which is < 3", task.title, task.assignee_count);
+        assert!(
+            task.assignee_count >= 3,
+            "Task '{}' has assignee_count {} which is < 3",
+            task.title,
+            task.assignee_count
+        );
     }
-    
+
     // Should find 3 tasks: Medium (3), High (10), Boundary (5)
-    assert_eq!(tasks.len(), 3, "Should find 3 tasks with assignee_count >= 3, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        3,
+        "Should find 3 tasks with assignee_count >= 3, found {}",
+        tasks.len()
+    );
 }
 
 // ===== LESS THAN OR EQUAL (_lte) TESTS =====
 
 #[tokio::test]
 async fn test_filter_score_lte_float() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -237,19 +279,31 @@ async fn test_filter_score_lte_float() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with score <= 50.0
     for task in &tasks {
-        assert!(task.score <= 50.0, "Task '{}' has score {} which is > 50.0", task.title, task.score);
+        assert!(
+            task.score <= 50.0,
+            "Task '{}' has score {} which is > 50.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 3 tasks: Low (10.5), Medium (50.0), Zero (0.0)
-    assert_eq!(tasks.len(), 3, "Should find 3 tasks with score <= 50.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        3,
+        "Should find 3 tasks with score <= 50.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_points_lte_integer() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -269,21 +323,33 @@ async fn test_filter_points_lte_integer() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with points <= 50
     for task in &tasks {
-        assert!(task.points <= 50, "Task '{}' has points {} which is > 50", task.title, task.points);
+        assert!(
+            task.points <= 50,
+            "Task '{}' has points {} which is > 50",
+            task.title,
+            task.points
+        );
     }
-    
+
     // Should find 3 tasks: Low (5), Medium (50), Zero (0)
-    assert_eq!(tasks.len(), 3, "Should find 3 tasks with points <= 50, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        3,
+        "Should find 3 tasks with points <= 50, found {}",
+        tasks.len()
+    );
 }
 
 // ===== GREATER THAN (_gt) TESTS =====
 
 #[tokio::test]
 async fn test_filter_score_gt_float() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -303,19 +369,31 @@ async fn test_filter_score_gt_float() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with score > 50.0 (NOT equal to 50.0)
     for task in &tasks {
-        assert!(task.score > 50.0, "Task '{}' has score {} which is <= 50.0", task.title, task.score);
+        assert!(
+            task.score > 50.0,
+            "Task '{}' has score {} which is <= 50.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 2 tasks: High (95.7), Boundary (75.0) - NOT Medium (50.0)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with score > 50.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with score > 50.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_points_gt_integer() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -335,21 +413,33 @@ async fn test_filter_points_gt_integer() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with points > 50 (NOT equal to 50)
     for task in &tasks {
-        assert!(task.points > 50, "Task '{}' has points {} which is <= 50", task.title, task.points);
+        assert!(
+            task.points > 50,
+            "Task '{}' has points {} which is <= 50",
+            task.title,
+            task.points
+        );
     }
-    
+
     // Should find 2 tasks: High (100), Boundary (75) - NOT Medium (50)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with points > 50, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with points > 50, found {}",
+        tasks.len()
+    );
 }
 
 // ===== LESS THAN (_lt) TESTS =====
 
 #[tokio::test]
 async fn test_filter_score_lt_float() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -369,19 +459,31 @@ async fn test_filter_score_lt_float() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with score < 50.0 (NOT equal to 50.0)
     for task in &tasks {
-        assert!(task.score < 50.0, "Task '{}' has score {} which is >= 50.0", task.title, task.score);
+        assert!(
+            task.score < 50.0,
+            "Task '{}' has score {} which is >= 50.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 2 tasks: Low (10.5), Zero (0.0) - NOT Medium (50.0)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with score < 50.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with score < 50.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_assignee_count_lt_small_integer() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -401,21 +503,33 @@ async fn test_filter_assignee_count_lt_small_integer() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with assignee_count < 3 (NOT equal to 3)
     for task in &tasks {
-        assert!(task.assignee_count < 3, "Task '{}' has assignee_count {} which is >= 3", task.title, task.assignee_count);
+        assert!(
+            task.assignee_count < 3,
+            "Task '{}' has assignee_count {} which is >= 3",
+            task.title,
+            task.assignee_count
+        );
     }
-    
+
     // Should find 2 tasks: Low (1), Zero (0) - NOT Medium (3)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with assignee_count < 3, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with assignee_count < 3, found {}",
+        tasks.len()
+    );
 }
 
 // ===== NOT EQUAL (_neq) TESTS =====
 
 #[tokio::test]
 async fn test_filter_score_neq_float() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -435,19 +549,31 @@ async fn test_filter_score_neq_float() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with score != 50.0
     for task in &tasks {
-        assert!(task.score != 50.0, "Task '{}' has score {} which equals 50.0", task.title, task.score);
+        assert!(
+            task.score != 50.0,
+            "Task '{}' has score {} which equals 50.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 4 tasks: Low (10.5), High (95.7), Boundary (75.0), Zero (0.0) - NOT Medium (50.0)
-    assert_eq!(tasks.len(), 4, "Should find 4 tasks with score != 50.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        4,
+        "Should find 4 tasks with score != 50.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_points_neq_integer() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -467,19 +593,31 @@ async fn test_filter_points_neq_integer() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with points != 50
     for task in &tasks {
-        assert!(task.points != 50, "Task '{}' has points {} which equals 50", task.title, task.points);
+        assert!(
+            task.points != 50,
+            "Task '{}' has points {} which equals 50",
+            task.title,
+            task.points
+        );
     }
-    
+
     // Should find 4 tasks: Low (5), High (100), Boundary (75), Zero (0) - NOT Medium (50)
-    assert_eq!(tasks.len(), 4, "Should find 4 tasks with points != 50, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        4,
+        "Should find 4 tasks with points != 50, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_boolean_neq() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -499,21 +637,32 @@ async fn test_filter_boolean_neq() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with completed != false (i.e., completed = true)
     for task in &tasks {
-        assert!(task.completed, "Task '{}' should be completed (completed != false)", task.title);
+        assert!(
+            task.completed,
+            "Task '{}' should be completed (completed != false)",
+            task.title
+        );
     }
-    
+
     // Should find 2 tasks: High (true), Boundary (true)
-    assert_eq!(tasks.len(), 2, "Should find 2 completed tasks (completed != false), found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 completed tasks (completed != false), found {}",
+        tasks.len()
+    );
 }
 
 // ===== RANGE QUERIES (BETWEEN) TESTS =====
 
 #[tokio::test]
 async fn test_filter_score_range_between() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -533,21 +682,32 @@ async fn test_filter_score_range_between() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with 25.0 <= score <= 80.0
     for task in &tasks {
-        assert!(task.score >= 25.0 && task.score <= 80.0, 
-            "Task '{}' has score {} which is not between 25.0 and 80.0", task.title, task.score);
+        assert!(
+            task.score >= 25.0 && task.score <= 80.0,
+            "Task '{}' has score {} which is not between 25.0 and 80.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 2 tasks: Medium (50.0), Boundary (75.0)
     // NOT Low (10.5), NOT High (95.7), NOT Zero (0.0)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with score between 25.0 and 80.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with score between 25.0 and 80.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_points_range_between() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -567,23 +727,34 @@ async fn test_filter_points_range_between() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with 20 <= points <= 80
     for task in &tasks {
-        assert!(task.points >= 20 && task.points <= 80, 
-            "Task '{}' has points {} which is not between 20 and 80", task.title, task.points);
+        assert!(
+            task.points >= 20 && task.points <= 80,
+            "Task '{}' has points {} which is not between 20 and 80",
+            task.title,
+            task.points
+        );
     }
-    
+
     // Should find 2 tasks: Medium (50), Boundary (75)
     // NOT Low (5), NOT High (100), NOT Zero (0)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with points between 20 and 80, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with points between 20 and 80, found {}",
+        tasks.len()
+    );
 }
 
 // ===== NULLABLE FIELD COMPARISON TESTS =====
 
 #[tokio::test]
 async fn test_filter_estimated_hours_gte_nullable() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -603,32 +774,48 @@ async fn test_filter_estimated_hours_gte_nullable() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks with estimated_hours >= 10.0 (ignoring null values)
     for task in &tasks {
         match task.estimated_hours {
-            Some(hours) => assert!(hours >= 10.0, 
-                "Task '{}' has estimated_hours {} which is < 10.0", task.title, hours),
-            None => panic!("Task '{}' has null estimated_hours, should be filtered out", task.title),
+            Some(hours) => assert!(
+                hours >= 10.0,
+                "Task '{}' has estimated_hours {} which is < 10.0",
+                task.title,
+                hours
+            ),
+            None => panic!(
+                "Task '{}' has null estimated_hours, should be filtered out",
+                task.title
+            ),
         }
     }
-    
+
     // Should find 2 tasks: High (40.0), Boundary (20.0)
     // NOT Low (1.0), NOT Medium (8.0), NOT Zero (null)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks with estimated_hours >= 10.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks with estimated_hours >= 10.0, found {}",
+        tasks.len()
+    );
 }
 
 // ===== COMBINATION TESTS =====
 
 #[tokio::test]
 async fn test_filter_multiple_comparison_operators() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
 
     // Test complex filter: score_gte=40.0 AND points_lte=80 AND assignee_count_neq=10
-    let filter_param = url_escape::encode_component("{\"score_gte\":40.0,\"points_lte\":80,\"assignee_count_neq\":10}");
+    let filter_param = url_escape::encode_component(
+        "{\"score_gte\":40.0,\"points_lte\":80,\"assignee_count_neq\":10}",
+    );
     let request = Request::builder()
         .method("GET")
         .uri(&format!("/api/v1/tasks?filter={}", filter_param))
@@ -642,24 +829,46 @@ async fn test_filter_multiple_comparison_operators() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find tasks that match ALL conditions
     for task in &tasks {
-        assert!(task.score >= 40.0, "Task '{}' has score {} which is < 40.0", task.title, task.score);
-        assert!(task.points <= 80, "Task '{}' has points {} which is > 80", task.title, task.points);
-        assert!(task.assignee_count != 10, "Task '{}' has assignee_count {} which equals 10", task.title, task.assignee_count);
+        assert!(
+            task.score >= 40.0,
+            "Task '{}' has score {} which is < 40.0",
+            task.title,
+            task.score
+        );
+        assert!(
+            task.points <= 80,
+            "Task '{}' has points {} which is > 80",
+            task.title,
+            task.points
+        );
+        assert!(
+            task.assignee_count != 10,
+            "Task '{}' has assignee_count {} which equals 10",
+            task.title,
+            task.assignee_count
+        );
     }
-    
+
     // Should find 2 tasks: Medium (score=50.0, points=50, assignee_count=3), Boundary (score=75.0, points=75, assignee_count=5)
     // NOT Low (score=10.5 < 40.0), NOT High (assignee_count=10), NOT Zero (score=0.0 < 40.0)
-    assert_eq!(tasks.len(), 2, "Should find 2 tasks matching all conditions, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        2,
+        "Should find 2 tasks matching all conditions, found {}",
+        tasks.len()
+    );
 }
 
 // ===== EDGE CASE TESTS =====
 
 #[tokio::test]
 async fn test_filter_zero_boundary_values() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -679,19 +888,31 @@ async fn test_filter_zero_boundary_values() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap();
-    
+
     // Should find all tasks except the zero task
     for task in &tasks {
-        assert!(task.score > 0.0, "Task '{}' has score {} which is <= 0.0", task.title, task.score);
+        assert!(
+            task.score > 0.0,
+            "Task '{}' has score {} which is <= 0.0",
+            task.title,
+            task.score
+        );
     }
-    
+
     // Should find 4 tasks: Low (10.5), Medium (50.0), High (95.7), Boundary (75.0) - NOT Zero (0.0)
-    assert_eq!(tasks.len(), 4, "Should find 4 tasks with score > 0.0, found {}", tasks.len());
+    assert_eq!(
+        tasks.len(),
+        4,
+        "Should find 4 tasks with score > 0.0, found {}",
+        tasks.len()
+    );
 }
 
 #[tokio::test]
 async fn test_filter_invalid_comparison_operator() {
-    let db = setup_test_db_with_tasks().await.expect("Failed to setup test database");
+    let db = setup_test_db_with_tasks()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_task_app(db);
 
     create_numeric_test_tasks(&app).await;
@@ -705,7 +926,7 @@ async fn test_filter_invalid_comparison_operator() {
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
-    
+
     // This should either:
     // 1. Return all tasks (filter ignored)
     // 2. Return no tasks (field doesn't exist)
@@ -714,11 +935,11 @@ async fn test_filter_invalid_comparison_operator() {
         .await
         .unwrap();
     let tasks: Vec<Task> = serde_json::from_slice(&body).unwrap_or_default();
-    
+
     // The exact behavior depends on how crudcrate handles invalid operators
     // This test documents the current behavior
     println!("Invalid operator returned {} tasks", tasks.len());
-    
+
     // For now, we just verify it doesn't crash
     assert!(tasks.len() <= 5, "Should not return more tasks than exist");
 }

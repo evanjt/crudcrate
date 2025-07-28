@@ -1,6 +1,6 @@
 use sea_orm::{
-    sea_query::{Alias, Expr},
     Condition,
+    sea_query::{Alias, Expr},
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -8,15 +8,31 @@ use uuid::Uuid;
 /// Determine if a field should use substring matching (for text search) or exact matching
 fn is_text_field(field_name: &str) -> bool {
     // Common text field patterns that should support substring search
-    matches!(field_name, 
-        "title" | "name" | "description" | "content" | "text" | "message" | 
-        "comment" | "note" | "summary" | "body" | "bio" | "about" |
-        "address" | "location" | "email" | "username" | "first_name" | "last_name"
-    ) || field_name.ends_with("_name") 
-      || field_name.ends_with("_title") 
-      || field_name.ends_with("_description")
-      || field_name.ends_with("_text")
-      || field_name.ends_with("_content")
+    matches!(
+        field_name,
+        "title"
+            | "name"
+            | "description"
+            | "content"
+            | "text"
+            | "message"
+            | "comment"
+            | "note"
+            | "summary"
+            | "body"
+            | "bio"
+            | "about"
+            | "address"
+            | "location"
+            | "email"
+            | "username"
+            | "first_name"
+            | "last_name"
+    ) || field_name.ends_with("_name")
+        || field_name.ends_with("_title")
+        || field_name.ends_with("_description")
+        || field_name.ends_with("_text")
+        || field_name.ends_with("_content")
 }
 
 /// Parse React Admin comparison operator suffixes
@@ -38,7 +54,11 @@ fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
 }
 
 /// Apply numeric comparison for integer values
-fn apply_numeric_comparison(field_name: &str, operator: &str, value: i64) -> sea_orm::sea_query::SimpleExpr {
+fn apply_numeric_comparison(
+    field_name: &str,
+    operator: &str,
+    value: i64,
+) -> sea_orm::sea_query::SimpleExpr {
     let column = Expr::col(Alias::new(field_name));
     match operator {
         ">=" => column.gte(value),
@@ -51,7 +71,11 @@ fn apply_numeric_comparison(field_name: &str, operator: &str, value: i64) -> sea
 }
 
 /// Apply numeric comparison for float values
-fn apply_float_comparison(field_name: &str, operator: &str, value: f64) -> sea_orm::sea_query::SimpleExpr {
+fn apply_float_comparison(
+    field_name: &str,
+    operator: &str,
+    value: f64,
+) -> sea_orm::sea_query::SimpleExpr {
     let column = Expr::col(Alias::new(field_name));
     match operator {
         ">=" => column.gte(value),
@@ -62,7 +86,6 @@ fn apply_float_comparison(field_name: &str, operator: &str, value: f64) -> sea_o
         _ => column.eq(value), // fallback to equality
     }
 }
-
 
 pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
@@ -81,8 +104,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
         if let Some(q_value_str) = q_value.as_str() {
             let mut or_conditions = Condition::any();
             for (_col_name, col) in searchable_columns {
-                or_conditions =
-                    or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
+                or_conditions = or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
             }
             condition = condition.add(or_conditions);
         }
@@ -97,15 +119,18 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             } else {
                 &key
             };
-            
-            let field_exists = key == "ids" || searchable_columns.iter().any(|(col_name, _)| *col_name == base_field_name);
+
+            let field_exists = key == "ids"
+                || searchable_columns
+                    .iter()
+                    .any(|(col_name, _)| *col_name == base_field_name);
             if !field_exists {
                 // Skip nonexistent fields - don't apply any filter condition
                 continue;
             }
             if let Some(value_str) = value.as_str() {
                 let trimmed_value = value_str.trim().to_string();
-                
+
                 // Handle empty strings
                 if trimmed_value.is_empty() {
                     // For empty strings, match fields that are exactly empty
@@ -120,23 +145,27 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     // Handle React Admin string filtering patterns
                     if let Some(base_field) = key.strip_suffix("_eq") {
                         // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
-                        condition = condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
+                        condition =
+                            condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
                     } else if is_text_field(&key) {
                         // Default substring matching for text fields: {"title": "Alpha"}
-                        condition = condition.add(Expr::col(Alias::new(&*key)).like(format!("%{}%", trimmed_value)));
+                        condition = condition
+                            .add(Expr::col(Alias::new(&*key)).like(format!("%{}%", trimmed_value)));
                     } else {
                         // Enum and other field matching with configurable case sensitivity
                         if T::enum_case_sensitive() {
                             // Case-sensitive exact matching: {"priority": "High"} matches only "High"
-                            condition = condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                            condition =
+                                condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
                         } else {
                             // Case-insensitive matching: {"priority": "high"} matches "High"
                             // Use UPPER() function for case-insensitive comparison
                             use sea_orm::sea_query::SimpleExpr;
                             condition = condition.add(
-                                SimpleExpr::FunctionCall(
-                                    sea_orm::sea_query::Func::upper(Expr::col(Alias::new(&*key)))
-                                ).eq(trimmed_value.to_uppercase())
+                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                    Expr::col(Alias::new(&*key)),
+                                ))
+                                .eq(trimmed_value.to_uppercase()),
                             );
                         }
                     }
@@ -144,7 +173,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             } else if let Some(value_int) = value.as_i64() {
                 // Handle numeric comparison operators for integers
                 if let Some((base_field, operator)) = parse_comparison_operator(&key) {
-                    condition = condition.add(apply_numeric_comparison(base_field, operator, value_int));
+                    condition =
+                        condition.add(apply_numeric_comparison(base_field, operator, value_int));
                 } else {
                     condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_int));
                 }
@@ -164,7 +194,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             } else if let Some(value_float) = value.as_f64() {
                 // Handle numeric comparison operators for floats
                 if let Some((base_field, operator)) = parse_comparison_operator(&key) {
-                    condition = condition.add(apply_float_comparison(base_field, operator, value_float));
+                    condition =
+                        condition.add(apply_float_comparison(base_field, operator, value_float));
                 } else {
                     condition = condition.add(Expr::col(Alias::new(&*key)).eq(value_float));
                 }
@@ -179,7 +210,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     for id in value_array {
                         if let Some(id_str) = id.as_str() {
                             if let Ok(uuid) = Uuid::parse_str(id_str) {
-                                or_conditions = or_conditions.add(Expr::col(Alias::new("id")).eq(uuid));
+                                or_conditions =
+                                    or_conditions.add(Expr::col(Alias::new("id")).eq(uuid));
                             }
                         }
                     }
@@ -220,12 +252,13 @@ pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
 /// Parse pagination from FilterOptions, supporting both React Admin and standard REST formats
 #[must_use]
 pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
-    // If standard REST pagination parameters are provided, use them
-    if let Some(page) = params.page {
+    // If ANY standard REST pagination parameters are provided, use them
+    if params.page.is_some() || params.per_page.is_some() {
+        let page = params.page.unwrap_or(0);
         let per_page = params.per_page.unwrap_or(10);
         let offset = page * per_page; // 0-based pagination
         (offset, per_page)
-    } 
+    }
     // Otherwise fall back to React Admin range format
     else {
         parse_range(params.range.clone())

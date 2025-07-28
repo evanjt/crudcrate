@@ -1,5 +1,5 @@
-use axum::http::{Request, StatusCode, HeaderName};
 use axum::body::Body;
+use axum::http::{HeaderName, Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 use url::Url;
@@ -12,7 +12,9 @@ use common::{setup_test_app, setup_test_db, todo_entity::Todo};
 
 #[tokio::test]
 async fn test_getlist_with_pagination_range() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create test data
@@ -42,7 +44,7 @@ async fn test_getlist_with_pagination_range() {
     // Check Content-Range header is present (required by React Admin)
     let headers = response.headers().clone();
     assert!(headers.contains_key("content-range"));
-    
+
     let content_range = headers.get("content-range").unwrap().to_str().unwrap();
     // Should be in format: "todos 0-4/10"
     assert!(content_range.contains("todos"));
@@ -53,9 +55,9 @@ async fn test_getlist_with_pagination_range() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 5); // Should return 5 items (0-4 inclusive)
-    
+
     // Verify each item has an id (required by React Admin)
     for todo in &todos {
         assert!(!todo.id.is_nil());
@@ -64,7 +66,9 @@ async fn test_getlist_with_pagination_range() {
 
 #[tokio::test]
 async fn test_getlist_with_sorting_react_admin_format() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create test data with different titles
@@ -97,7 +101,7 @@ async fn test_getlist_with_sorting_react_admin_format() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     // Verify sorting: Alpha, Beta, Charlie, Zebra
     assert_eq!(todos[0].title, "Alpha");
     assert_eq!(todos[1].title, "Beta");
@@ -107,7 +111,9 @@ async fn test_getlist_with_sorting_react_admin_format() {
 
 #[tokio::test]
 async fn test_getlist_with_filter_react_admin_format() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create test data
@@ -142,14 +148,16 @@ async fn test_getlist_with_filter_react_admin_format() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 2); // Only incomplete todos
     assert!(todos.iter().all(|todo| !todo.completed));
 }
 
 #[tokio::test]
 async fn test_getmany_with_ids_filter() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create test data and collect IDs
@@ -165,7 +173,7 @@ async fn test_getmany_with_ids_filter() {
 
         let app_clone = app.clone();
         let response = app_clone.oneshot(request).await.unwrap();
-        
+
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
@@ -178,7 +186,7 @@ async fn test_getmany_with_ids_filter() {
     let filter = json!({"ids": selected_ids});
     let filter_str = serde_json::to_string(&filter).unwrap();
     let encoded_filter = url_escape::encode_component(&filter_str);
-    
+
     let request = Request::builder()
         .method("GET")
         .uri(&format!("/api/v1/todos?filter={}", encoded_filter))
@@ -192,9 +200,9 @@ async fn test_getmany_with_ids_filter() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 3);
-    
+
     // Verify we got the correct todos
     let returned_ids: Vec<_> = todos.iter().map(|t| t.id).collect();
     for id in selected_ids {
@@ -204,7 +212,9 @@ async fn test_getmany_with_ids_filter() {
 
 #[tokio::test]
 async fn test_getone_react_admin_compatible() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo
@@ -218,7 +228,7 @@ async fn test_getone_react_admin_compatible() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -238,7 +248,7 @@ async fn test_getone_react_admin_compatible() {
         .await
         .unwrap();
     let retrieved_todo: Todo = serde_json::from_slice(&body).unwrap();
-    
+
     // Verify it has an id and matches created todo
     assert_eq!(retrieved_todo.id, created_todo.id);
     assert_eq!(retrieved_todo.title, "Test Todo");
@@ -247,7 +257,9 @@ async fn test_getone_react_admin_compatible() {
 
 #[tokio::test]
 async fn test_create_react_admin_compatible() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Test create: POST /resource
@@ -266,7 +278,7 @@ async fn test_create_react_admin_compatible() {
         .await
         .unwrap();
     let todo: Todo = serde_json::from_slice(&body).unwrap();
-    
+
     // Verify returned object has id (required by React Admin)
     assert!(!todo.id.is_nil());
     assert_eq!(todo.title, "New Todo");
@@ -275,7 +287,9 @@ async fn test_create_react_admin_compatible() {
 
 #[tokio::test]
 async fn test_update_react_admin_compatible() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo first
@@ -289,7 +303,7 @@ async fn test_update_react_admin_compatible() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -311,7 +325,7 @@ async fn test_update_react_admin_compatible() {
         .await
         .unwrap();
     let updated_todo: Todo = serde_json::from_slice(&body).unwrap();
-    
+
     // Verify returned object has same id and updated fields
     assert_eq!(updated_todo.id, created_todo.id);
     assert_eq!(updated_todo.title, "Updated Title");
@@ -320,7 +334,9 @@ async fn test_update_react_admin_compatible() {
 
 #[tokio::test]
 async fn test_delete_react_admin_compatible() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo first
@@ -334,7 +350,7 @@ async fn test_delete_react_admin_compatible() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -354,7 +370,9 @@ async fn test_delete_react_admin_compatible() {
 
 #[tokio::test]
 async fn test_complex_query_combination() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create diverse test data
@@ -385,7 +403,10 @@ async fn test_complex_query_combination() {
     let range_param = url_escape::encode_component("[0,1]");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?filter={}&sort={}&range={}", filter_param, sort_param, range_param))
+        .uri(&format!(
+            "/api/v1/todos?filter={}&sort={}&range={}",
+            filter_param, sort_param, range_param
+        ))
         .body(Body::empty())
         .unwrap();
 
@@ -400,7 +421,7 @@ async fn test_complex_query_combination() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 2); // Range [0,1] = 2 items
     assert!(todos.iter().all(|todo| !todo.completed)); // All should be incomplete
     // Should be sorted: Alpha Work, Charlie Work
@@ -410,7 +431,9 @@ async fn test_complex_query_combination() {
 
 #[tokio::test]
 async fn test_cors_headers_for_react_admin() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create some test data
@@ -434,17 +457,19 @@ async fn test_cors_headers_for_react_admin() {
 
     let response = app.clone().oneshot(list_request).await.unwrap();
     let headers = response.headers().clone();
-    
+
     // Content-Range must be present for React Admin pagination
     assert!(headers.contains_key("content-range"));
-    
+
     // In a real app, you'd also check for Access-Control-Expose-Headers
     // but that's typically handled by CORS middleware
 }
 
 #[tokio::test]
 async fn test_error_handling_react_admin_compatible() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Test 404 for non-existent resource

@@ -1,14 +1,16 @@
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sea_orm::{entity::prelude::*, FromQueryResult, ActiveValue, DeriveActiveEnum};
+use crudcrate::traits::{CRUDResource, MergeIntoActiveModel};
+use crudcrate::{ToCreateModel, ToUpdateModel, crud_handlers};
+use sea_orm::{ActiveValue, DeriveActiveEnum, FromQueryResult, entity::prelude::*};
 use sea_orm_migration::sea_query::StringLen;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crudcrate::{ToCreateModel, ToUpdateModel, crud_handlers};
-use crudcrate::traits::{CRUDResource, MergeIntoActiveModel};
-use async_trait::async_trait;
 
 // Define enums for testing
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum Priority {
     #[sea_orm(string_value = "Low")]
@@ -21,7 +23,9 @@ pub enum Priority {
     Urgent,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum Status {
     #[sea_orm(string_value = "Todo")]
@@ -166,5 +170,7 @@ impl CRUDResource for Task {
 crud_handlers!(Task, TaskUpdate, TaskCreate);
 
 pub mod prelude {
-    pub use super::{ActiveModel, Column, Entity, Model, Task, TaskCreate, TaskUpdate, Priority, Status};
+    pub use super::{
+        ActiveModel, Column, Entity, Model, Priority, Status, Task, TaskCreate, TaskUpdate,
+    };
 }

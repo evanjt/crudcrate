@@ -1,5 +1,5 @@
-use axum::http::{Request, StatusCode};
 use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -8,7 +8,9 @@ use common::{setup_test_app, setup_test_db, todo_entity::Todo};
 
 #[tokio::test]
 async fn test_create_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let create_data = json!({
@@ -37,7 +39,9 @@ async fn test_create_todo() {
 
 #[tokio::test]
 async fn test_get_todo_by_id() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // First create a todo
@@ -55,7 +59,7 @@ async fn test_get_todo_by_id() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -82,7 +86,9 @@ async fn test_get_todo_by_id() {
 
 #[tokio::test]
 async fn test_update_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // First create a todo
@@ -100,7 +106,7 @@ async fn test_update_todo() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -134,7 +140,9 @@ async fn test_update_todo() {
 
 #[tokio::test]
 async fn test_partial_update_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo
@@ -152,7 +160,7 @@ async fn test_partial_update_todo() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -183,7 +191,9 @@ async fn test_partial_update_todo() {
 
 #[tokio::test]
 async fn test_delete_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // First create a todo
@@ -201,7 +211,7 @@ async fn test_delete_todo() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -231,7 +241,9 @@ async fn test_delete_todo() {
 
 #[tokio::test]
 async fn test_list_todos() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create multiple todos
@@ -267,13 +279,15 @@ async fn test_list_todos() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 3);
 }
 
 #[tokio::test]
 async fn test_get_nonexistent_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let random_id = uuid::Uuid::new_v4();
@@ -289,7 +303,9 @@ async fn test_get_nonexistent_todo() {
 
 #[tokio::test]
 async fn test_create_todo_invalid_data() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Missing required field (title)
@@ -310,7 +326,9 @@ async fn test_create_todo_invalid_data() {
 
 #[tokio::test]
 async fn test_update_nonexistent_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let random_id = uuid::Uuid::new_v4();

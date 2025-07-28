@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use sea_orm::{
-    entity::prelude::*, Condition, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
-    PaginatorTrait, QueryOrder, QuerySelect,
+    Condition, DatabaseConnection, EntityTrait, IntoActiveModel, Order, PaginatorTrait, QueryOrder,
+    QuerySelect, entity::prelude::*,
 };
 use uuid::Uuid;
 
