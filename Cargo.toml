@@ -19,7 +19,7 @@ axum = { version = "0.8.4", features = ["macros"] }
 hyper = "1.6.0"
 serde_json = "1.0.140"
 serde_with = "3.14.0"
-crudcrate-derive = "0.2.0"
+crudcrate-derive = { path = "../crudcrate-derive" }
 
 [lib]
 proc-macro = false

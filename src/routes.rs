@@ -1,10 +1,10 @@
 #[macro_export]
 macro_rules! crud_handlers {
     ($resource:ty, $update_model:ty, $create_model:ty) => {
-        use crudcrate::filter::{apply_filters, parse_range};
+        use crudcrate::filter::{apply_filters, parse_pagination};
         use crudcrate::models::FilterOptions;
         use crudcrate::pagination::calculate_content_range;
-        use crudcrate::sort::generic_sort;
+        use crudcrate::sort::parse_sorting;
 
         use axum::{
             extract::{Path, Query, State},
@@ -71,10 +71,10 @@ macro_rules! crud_handlers {
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
         ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$resource>>), (axum::http::StatusCode, String)> {
-            let (offset, limit) = crudcrate::filter::parse_range(params.range.clone());
+            let (offset, limit) = crudcrate::filter::parse_pagination(&params);
             let condition = crudcrate::filter::apply_filters::<$resource>(params.filter.clone(), &<$resource as CRUDResource>::filterable_columns());
-            let (order_column, order_direction) = crudcrate::sort::generic_sort(
-                params.sort.clone(),
+            let (order_column, order_direction) = crudcrate::sort::parse_sorting(
+                &params,
                 &<$resource as crudcrate::traits::CRUDResource>::sortable_columns(),
                 <$resource as crudcrate::traits::CRUDResource>::default_index_column(),
             );
@@ -217,16 +217,28 @@ macro_rules! crud_handlers {
             .await
             .map(axum::Json)
             .map_err(|err| {
-                if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
-                (
-                    axum::http::StatusCode::CONFLICT,
-                    axum::Json(format!("Conflict: {}", detail)),
-                )
-                } else {
-                (
-                    axum::http::StatusCode::NOT_FOUND,
-                    axum::Json("Not Found".to_string()),
-                )
+                match err {
+                    sea_orm::DbErr::Custom(msg) => (
+                        axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                        axum::Json(msg),
+                    ),
+                    sea_orm::DbErr::RecordNotFound(_) => (
+                        axum::http::StatusCode::NOT_FOUND,
+                        axum::Json("Not Found".to_string()),
+                    ),
+                    _ => {
+                        if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                            (
+                                axum::http::StatusCode::CONFLICT,
+                                axum::Json(format!("Conflict: {}", detail)),
+                            )
+                        } else {
+                            (
+                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                axum::Json("Internal Server Error".to_string()),
+                            )
+                        }
+                    }
                 }
             })
         }

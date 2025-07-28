@@ -6,7 +6,7 @@ use sea_orm::{
 use uuid::Uuid;
 
 pub trait MergeIntoActiveModel<ActiveModelType> {
-    fn merge_into_activemodel(self, existing: ActiveModelType) -> ActiveModelType;
+    fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, DbErr>;
 }
 
 #[async_trait]
@@ -84,7 +84,7 @@ where
                     Self::RESOURCE_NAME_PLURAL
                 )))?;
         let existing: Self::ActiveModelType = model.into_active_model();
-        let updated_model = update_model.merge_into_activemodel(existing);
+        let updated_model = update_model.merge_into_activemodel(existing)?;
         let updated = updated_model.update(db).await?;
         Ok(Self::from(updated))
     }

@@ -1,5 +1,5 @@
-use axum::http::{Request, StatusCode};
 use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -8,7 +8,9 @@ use common::{setup_test_app, setup_test_db, todo_entity::Todo};
 
 #[tokio::test]
 async fn test_create_with_null_fields() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Test creating with explicit null (should use default)
@@ -36,7 +38,9 @@ async fn test_create_with_null_fields() {
 
 #[tokio::test]
 async fn test_update_with_null_to_unset() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo
@@ -54,7 +58,7 @@ async fn test_update_with_null_to_unset() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -74,14 +78,16 @@ async fn test_update_with_null_to_unset() {
         .unwrap();
 
     let update_response = app.oneshot(update_request).await.unwrap();
-    
+
     // This should fail because title is required and cannot be null
     assert_eq!(update_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
 async fn test_empty_string_title() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Test creating with empty string title
@@ -110,7 +116,9 @@ async fn test_empty_string_title() {
 
 #[tokio::test]
 async fn test_very_long_title() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Test with a very long title
@@ -139,7 +147,9 @@ async fn test_very_long_title() {
 
 #[tokio::test]
 async fn test_malformed_json() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let malformed_json = r#"{"title": "Test", "completed": false"#; // Missing closing brace
@@ -157,11 +167,13 @@ async fn test_malformed_json() {
 
 #[tokio::test]
 async fn test_invalid_uuid_format() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let invalid_uuid = "not-a-uuid";
-    
+
     let request = Request::builder()
         .method("GET")
         .uri(&format!("/api/v1/todos/{}", invalid_uuid))
@@ -174,7 +186,9 @@ async fn test_invalid_uuid_format() {
 
 #[tokio::test]
 async fn test_wrong_content_type() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let create_data = json!({
@@ -195,7 +209,9 @@ async fn test_wrong_content_type() {
 
 #[tokio::test]
 async fn test_concurrent_updates() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo
@@ -213,7 +229,7 @@ async fn test_concurrent_updates() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -261,19 +277,23 @@ async fn test_concurrent_updates() {
         .unwrap();
 
     let get_response = app.oneshot(get_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(get_response.into_body(), usize::MAX)
         .await
         .unwrap();
     let final_todo: Todo = serde_json::from_slice(&body).unwrap();
-    
+
     // The title should be one of the two updates
-    assert!(final_todo.title == "Updated by Request 1" || final_todo.title == "Updated by Request 2");
+    assert!(
+        final_todo.title == "Updated by Request 1" || final_todo.title == "Updated by Request 2"
+    );
 }
 
 #[tokio::test]
 async fn test_special_characters_in_title() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Test with special characters
@@ -302,11 +322,14 @@ async fn test_special_characters_in_title() {
 
 #[tokio::test]
 async fn test_pagination_out_of_bounds() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
-    // Create only 3 todos
-    for i in 0..3 {
+    let amount_to_create = 5;
+    // Create only 5 todos
+    for i in 0..amount_to_create {
         let todo_data = json!({"title": format!("Todo {}", i), "completed": false});
         let request = Request::builder()
             .method("POST")
@@ -328,11 +351,17 @@ async fn test_pagination_out_of_bounds() {
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
-    assert_eq!(todos.len(), 0); // Should return empty results
+
+    assert_eq!(
+        todos.len(),
+        0,
+        "Expected empty results, got: {:} out of {:} total, expected: 0",
+        todos.len(),
+        amount_to_create
+    ); // Should return empty results
 }

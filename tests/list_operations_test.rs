@@ -155,7 +155,7 @@ async fn test_list_with_filtering() {
     // Test filtering by completed status
     let request = Request::builder()
         .method("GET")
-        .uri("/api/v1/todos?filter={\"completed\":true}")
+        .uri("/api/v1/todos?filter=%7B%22completed%22%3Atrue%7D")
         .body(Body::empty())
         .unwrap();
 
@@ -173,7 +173,7 @@ async fn test_list_with_filtering() {
     // Test filtering by title (contains)
     let request = Request::builder()
         .method("GET")
-        .uri("/api/v1/todos?filter={\"title\":\"Beta\"}")
+        .uri("/api/v1/todos?filter=%7B%22title%22%3A%22Beta%22%7D")
         .body(Body::empty())
         .unwrap();
 
@@ -198,7 +198,7 @@ async fn test_list_with_combined_operations() {
     // Test filtering + sorting + pagination
     let request = Request::builder()
         .method("GET")
-        .uri("/api/v1/todos?filter={\"completed\":false}&sort=title&order=DESC&page=0&per_page=2")
+        .uri("/api/v1/todos?filter=%7B%22completed%22%3Afalse%7D&sort=title&order=DESC&page=0&per_page=2")
         .body(Body::empty())
         .unwrap();
 

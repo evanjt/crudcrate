@@ -213,6 +213,21 @@ pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
         let limit = end - start + 1;
         (start, limit)
     } else {
-        (0, 25)
+        (0, 10)
+    }
+}
+
+/// Parse pagination from FilterOptions, supporting both React Admin and standard REST formats
+#[must_use]
+pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
+    // If standard REST pagination parameters are provided, use them
+    if let Some(page) = params.page {
+        let per_page = params.per_page.unwrap_or(10);
+        let offset = page * per_page; // 0-based pagination
+        (offset, per_page)
+    } 
+    // Otherwise fall back to React Admin range format
+    else {
+        parse_range(params.range.clone())
     }
 }
