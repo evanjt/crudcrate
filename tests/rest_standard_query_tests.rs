@@ -523,7 +523,7 @@ async fn test_conflicting_sort_formats() {
     // Test that when both REST and React Admin sort formats are provided,
     // REST format takes precedence
     // Create a React Admin sort parameter that would sort DESC
-    let react_sort = url_escape::encode_component(r#"["title","DESC"]"#);
+    let _react_sort = url_escape::encode_component(r#"["title","DESC"]"#);
 
     // Build URL with React Admin sort in the sort parameter position
     // Since we can't have two "sort" params, we simulate by putting React format in range
@@ -631,7 +631,7 @@ async fn test_precedence_documentation() {
 
     // Test all conflicting parameters at once
     let range = url_escape::encode_component("[5,9]"); // Would get items 6-10
-    let react_sort = url_escape::encode_component(r#"["title","DESC"]"#);
+    let _react_sort = url_escape::encode_component(r#"["title","DESC"]"#);
 
     // Construct a request with conflicts
     // Note: Since we can't have duplicate query params, we test what we can

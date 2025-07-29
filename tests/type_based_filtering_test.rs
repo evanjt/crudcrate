@@ -4,7 +4,7 @@ use axum::body::Body;
 use axum::http::Request;
 use chrono::{DateTime, Utc};
 use common::{Migrator, setup_test_db};
-use crudcrate::{EntityToModels, CRUDResource};
+use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm_migration::MigratorTrait;
 use serde_json::json;
@@ -157,11 +157,11 @@ async fn create_test_products(app: &axum::Router) {
 }
 
 #[tokio::test]
-async fn test_string_field_uses_substring_matching() {
+async fn test_string_field_uses_like_by_default() {
     let app = setup_test_app_with_products().await;
     create_test_products(&app).await;
 
-    // Test substring matching for 'name' field (String type)
+    // Test default LIKE behavior for string fields
     // Should find "Wireless Mouse" when searching for "Mouse"
     let filter = url_escape::encode_component(r#"{"name":"Mouse"}"#);
     let request = Request::builder()
@@ -183,12 +183,12 @@ async fn test_string_field_uses_substring_matching() {
 }
 
 #[tokio::test]
-async fn test_string_field_description_uses_substring_matching() {
+async fn test_string_field_description_uses_like_by_default() {
     let app = setup_test_app_with_products().await;
     create_test_products(&app).await;
 
-    // Test substring matching for 'description' field (String type)
-    // Should find products with "wireless" in description
+    // Test default LIKE behavior for string fields
+    // Should find products with "wireless" in description  
     let filter = url_escape::encode_component(r#"{"description":"wireless"}"#);
     let request = Request::builder()
         .method("GET")

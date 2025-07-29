@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use crudcrate::traits::{CRUDResource, MergeIntoActiveModel};
+use crudcrate::traits::CRUDResource;
 use crudcrate::{ToCreateModel, ToUpdateModel, crud_handlers};
-use sea_orm::{ActiveValue, FromQueryResult, Set, entity::prelude::*};
+use sea_orm::{ActiveValue, FromQueryResult, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -84,10 +84,14 @@ impl CRUDResource for Todo {
     fn filterable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![("title", Column::Title), ("completed", Column::Completed)]
     }
+
+    fn like_filterable_columns() -> Vec<&'static str> {
+        vec!["title"]  // Only title should use LIKE queries, completed (bool) uses exact
+    }
 }
 
 crud_handlers!(Todo, TodoUpdate, TodoCreate);
 
 pub mod prelude {
-    pub use super::{ActiveModel, Column, Entity, Model, Todo, TodoCreate, TodoUpdate};
+    
 }

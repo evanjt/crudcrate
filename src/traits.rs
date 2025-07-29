@@ -134,4 +134,12 @@ where
     fn enum_case_sensitive() -> bool {
         false
     }
+
+    /// Returns a list of field names that should use LIKE queries (substring matching).
+    /// Other string fields will use exact matching.
+    /// Default is empty - no fields use LIKE by default.
+    #[must_use]
+    fn like_filterable_columns() -> Vec<&'static str> {
+        vec![]
+    }
 }

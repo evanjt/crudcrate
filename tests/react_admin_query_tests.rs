@@ -1,8 +1,7 @@
 use axum::body::Body;
-use axum::http::{HeaderName, Request, StatusCode};
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
-use url::Url;
 
 mod common;
 use common::{setup_test_app, setup_test_db, todo_entity::Todo};

@@ -5,36 +5,6 @@ use sea_orm::{
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Determine if a field should use substring matching (for text search) or exact matching
-fn is_text_field(field_name: &str) -> bool {
-    // Common text field patterns that should support substring search
-    matches!(
-        field_name,
-        "title"
-            | "name"
-            | "description"
-            | "content"
-            | "text"
-            | "message"
-            | "comment"
-            | "note"
-            | "summary"
-            | "body"
-            | "bio"
-            | "about"
-            | "address"
-            | "location"
-            | "email"
-            | "username"
-            | "first_name"
-            | "last_name"
-    ) || field_name.ends_with("_name")
-        || field_name.ends_with("_title")
-        || field_name.ends_with("_description")
-        || field_name.ends_with("_text")
-        || field_name.ends_with("_content")
-}
-
 /// Parse React Admin comparison operator suffixes
 /// Returns (base_field_name, sql_operator) if a suffix is found
 fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
@@ -147,26 +117,42 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                         // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
                         condition =
                             condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
-                    } else if is_text_field(&key) {
-                        // Default substring matching for text fields: {"title": "Alpha"}
-                        condition = condition
-                            .add(Expr::col(Alias::new(&*key)).like(format!("%{}%", trimmed_value)));
                     } else {
-                        // Enum and other field matching with configurable case sensitivity
-                        if T::enum_case_sensitive() {
-                            // Case-sensitive exact matching: {"priority": "High"} matches only "High"
-                            condition =
-                                condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                        // Check if this field should use LIKE queries
+                        let use_like = T::like_filterable_columns().contains(&key.as_str());
+                        
+                        if use_like {
+                            // Use LIKE queries for text fields (substring matching)
+                            if T::enum_case_sensitive() {
+                                // Case-sensitive substring matching
+                                condition = condition
+                                    .add(Expr::col(Alias::new(&*key)).like(format!("%{}%", trimmed_value)));
+                            } else {
+                                // Case-insensitive substring matching using UPPER()
+                                use sea_orm::sea_query::SimpleExpr;
+                                condition = condition.add(
+                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                        Expr::col(Alias::new(&*key)),
+                                    ))
+                                    .like(format!("%{}%", trimmed_value.to_uppercase()))
+                                );
+                            }
                         } else {
-                            // Case-insensitive matching: {"priority": "high"} matches "High"
-                            // Use UPPER() function for case-insensitive comparison
-                            use sea_orm::sea_query::SimpleExpr;
-                            condition = condition.add(
-                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                    Expr::col(Alias::new(&*key)),
-                                ))
-                                .eq(trimmed_value.to_uppercase()),
-                            );
+                            // Use exact matching for enum and other fields
+                            if T::enum_case_sensitive() {
+                                // Case-sensitive exact matching
+                                condition =
+                                    condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                            } else {
+                                // Case-insensitive exact matching using UPPER()
+                                use sea_orm::sea_query::SimpleExpr;
+                                condition = condition.add(
+                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                        Expr::col(Alias::new(&*key)),
+                                    ))
+                                    .eq(trimmed_value.to_uppercase()),
+                                );
+                            }
                         }
                     }
                 }
