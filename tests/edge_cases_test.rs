@@ -33,7 +33,7 @@ async fn test_create_with_null_fields() {
         .await
         .unwrap();
     let todo: Todo = serde_json::from_slice(&body).unwrap();
-    assert_eq!(todo.completed, false); // Should use default value
+    assert!(!todo.completed); // Should use default value
 }
 
 #[tokio::test]
@@ -72,7 +72,7 @@ async fn test_update_with_null_to_unset() {
 
     let update_request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
@@ -176,7 +176,7 @@ async fn test_invalid_uuid_format() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", invalid_uuid))
+        .uri(format!("/api/v1/todos/{invalid_uuid}"))
         .body(Body::empty())
         .unwrap();
 
@@ -246,14 +246,14 @@ async fn test_concurrent_updates() {
 
     let update_request1 = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data1).unwrap()))
         .unwrap();
 
     let update_request2 = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data2).unwrap()))
         .unwrap();
@@ -272,7 +272,7 @@ async fn test_concurrent_updates() {
     // Check final state
     let get_request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 

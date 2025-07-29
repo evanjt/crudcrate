@@ -266,9 +266,8 @@ async fn test_rest_sorting_with_filtering() {
     let filter = url_escape::encode_component(r#"{"completed":false}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!(
-            "/api/v1/todos?filter={}&sort=title&order=DESC",
-            filter
+        .uri(format!(
+            "/api/v1/todos?filter={filter}&sort=title&order=DESC"
         ))
         .body(Body::empty())
         .unwrap();
@@ -341,7 +340,7 @@ async fn test_mixed_format_pagination() {
     let range = url_escape::encode_component("[5,9]");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?page=0&per_page=3&range={}", range))
+        .uri(format!("/api/v1/todos?page=0&per_page=3&range={range}"))
         .body(Body::empty())
         .unwrap();
 
@@ -452,9 +451,8 @@ async fn test_complex_rest_query() {
     let filter = url_escape::encode_component(r#"{"completed":false}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!(
-            "/api/v1/todos?filter={}&sort=title&order=DESC&page=0&per_page=3",
-            filter
+        .uri(format!(
+            "/api/v1/todos?filter={filter}&sort=title&order=DESC&page=0&per_page=3"
         ))
         .body(Body::empty())
         .unwrap();
@@ -489,9 +487,8 @@ async fn test_conflicting_pagination_formats() {
     let range = url_escape::encode_component("[0,9]"); // Would get 10 items
     let request = Request::builder()
         .method("GET")
-        .uri(&format!(
-            "/api/v1/todos?page=0&per_page=3&range={}&sort=title&order=ASC",
-            range
+        .uri(format!(
+            "/api/v1/todos?page=0&per_page=3&range={range}&sort=title&order=ASC"
         ))
         .body(Body::empty())
         .unwrap();
@@ -530,7 +527,7 @@ async fn test_conflicting_sort_formats() {
     // to show the parsing logic handles precedence correctly
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?sort=title&order=ASC&per_page=3"))
+        .uri("/api/v1/todos?sort=title&order=ASC&per_page=3".to_string())
         .body(Body::empty())
         .unwrap();
 
@@ -563,7 +560,7 @@ async fn test_react_admin_format_alone() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?range={}&sort={}", range, sort))
+        .uri(format!("/api/v1/todos?range={range}&sort={sort}"))
         .body(Body::empty())
         .unwrap();
 
@@ -596,7 +593,7 @@ async fn test_mixed_rest_and_react_admin() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?page=1&per_page=4&sort={}", sort))
+        .uri(format!("/api/v1/todos?page=1&per_page=4&sort={sort}"))
         .body(Body::empty())
         .unwrap();
 
@@ -637,9 +634,8 @@ async fn test_precedence_documentation() {
     // Note: Since we can't have duplicate query params, we test what we can
     let request = Request::builder()
         .method("GET")
-        .uri(&format!(
-            "/api/v1/todos?page=0&per_page=2&range={}&sort=title&order=ASC",
-            range
+        .uri(format!(
+            "/api/v1/todos?page=0&per_page=2&range={range}&sort=title&order=ASC"
         ))
         .body(Body::empty())
         .unwrap();

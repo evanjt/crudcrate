@@ -96,17 +96,13 @@ async fn create_diverse_test_tasks(app: &axum::Router) -> Vec<Task> {
             .await
             .unwrap();
         
-        if !status.is_success() {
-            panic!("Task creation failed with status {}: {}", status, String::from_utf8_lossy(&body));
-        }
+        assert!(status.is_success(), "Task creation failed with status {}: {}", status, String::from_utf8_lossy(&body));
         
         let body_str = String::from_utf8_lossy(&body);
-        if body_str.is_empty() {
-            panic!("Empty response body from task creation");
-        }
+        assert!(!body_str.is_empty(), "Empty response body from task creation");
         
         let task: Task = serde_json::from_slice(&body)
-            .map_err(|e| format!("Failed to parse task JSON '{}': {}", body_str, e))
+            .map_err(|e| format!("Failed to parse task JSON '{body_str}': {e}"))
             .unwrap();
         created_tasks.push(task);
     }
@@ -125,7 +121,7 @@ async fn test_filter_by_boolean_completed() {
     let filter_param = url_escape::encode_component("{\"completed\":true}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -157,7 +153,7 @@ async fn test_filter_by_boolean_is_public() {
     let filter_param = url_escape::encode_component("{\"is_public\":false}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -189,7 +185,7 @@ async fn test_filter_by_enum_priority() {
     let filter_param = url_escape::encode_component("{\"priority\":\"urgent\"}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -239,15 +235,15 @@ async fn test_case_insensitive_enum_filtering() {
                        priority_value.to_lowercase().contains("progress") ||
                        priority_value.to_lowercase().contains("cancelled") ||
                        priority_value.to_lowercase().contains("todo") {
-            format!("{{\"status\":\"{}\"}}", priority_value)
+            format!("{{\"status\":\"{priority_value}\"}}")
         } else {
-            format!("{{\"priority\":\"{}\"}}", priority_value)
+            format!("{{\"priority\":\"{priority_value}\"}}")
         };
         
         let filter_param = url_escape::encode_component(&filter);
         let request = Request::builder()
             .method("GET")
-            .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+            .uri(format!("/api/v1/tasks?filter={filter_param}"))
             .body(Body::empty())
             .unwrap();
 
@@ -276,7 +272,7 @@ async fn test_filter_by_enum_status() {
     let filter_param = url_escape::encode_component("{\"status\":\"done\"}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -308,7 +304,7 @@ async fn test_filter_by_string_title() {
     let filter_param = url_escape::encode_component("{\"title\":\"authentication\"}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -341,7 +337,7 @@ async fn test_filter_by_float_score() {
     let filter_param = url_escape::encode_component("{\"score\":95.5}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -374,7 +370,7 @@ async fn test_filter_by_integer_points() {
     let filter_param = url_escape::encode_component("{\"points\":100}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -406,7 +402,7 @@ async fn test_filter_by_small_integer_assignee_count() {
     let filter_param = url_escape::encode_component("{\"assignee_count\":1}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -438,7 +434,7 @@ async fn test_filter_by_nullable_field_estimated_hours() {
     let filter_param = url_escape::encode_component("{\"estimated_hours\":null}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -470,7 +466,7 @@ async fn test_filter_by_nullable_field_description() {
     let filter_param = url_escape::encode_component("{\"description\":null}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -502,7 +498,7 @@ async fn test_complex_multi_type_filtering() {
     let filter_param = url_escape::encode_component("{\"completed\":false,\"priority\":\"low\"}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -535,7 +531,7 @@ async fn test_complex_enum_and_numeric_filtering() {
     let filter_param = url_escape::encode_component("{\"status\":\"done\",\"points\":100}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -568,7 +564,7 @@ async fn test_sorting_with_different_data_types() {
     let sort_param = url_escape::encode_component("[\"score\",\"DESC\"]");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?sort={}", sort_param))
+        .uri(format!("/api/v1/tasks?sort={sort_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -603,7 +599,7 @@ async fn test_sorting_by_enum_priority() {
     let sort_param = url_escape::encode_component("[\"priority\",\"ASC\"]");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?sort={}", sort_param))
+        .uri(format!("/api/v1/tasks?sort={sort_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -617,7 +613,7 @@ async fn test_sorting_by_enum_priority() {
     
     // Should be sorted by priority (alphabetically in this case)
     // Expected order: high, low, medium, urgent, urgent
-    let expected_priorities = vec![Priority::High, Priority::Low, Priority::Medium, Priority::Urgent, Priority::Urgent];
+    let expected_priorities = [Priority::High, Priority::Low, Priority::Medium, Priority::Urgent, Priority::Urgent];
     
     for (i, task) in tasks.iter().enumerate() {
         assert_eq!(task.priority, expected_priorities[i], 
@@ -639,7 +635,7 @@ async fn test_invalid_enum_value_filtering() {
     let filter_param = url_escape::encode_component("{\"priority\":\"invalid_priority\"}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 

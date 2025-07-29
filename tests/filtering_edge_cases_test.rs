@@ -83,7 +83,7 @@ async fn filter_tasks(app: &axum::Router, filter_json: &str) -> (StatusCode, Vec
     let filter_param = url_escape::encode_component(filter_json);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -142,14 +142,14 @@ async fn test_uuid_values_in_filterable_fields_use_exact_matching() {
 
     // Test that fake UUID strings in title don't match anything
     let fake_uuid = "12345678-1234-1234-1234-123456789012";
-    let (status, tasks) = filter_tasks(&app, &format!(r#"{{"title":"{}"}}"#, fake_uuid)).await;
+    let (status, tasks) = filter_tasks(&app, &format!(r#"{{"title":"{fake_uuid}"}}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tasks.len(), 0, "Fake UUID in title should not match any tasks");
     
     // Test the `ids` special case for actual UUID filtering (this works even if id is not in filterable_columns)
     let first_task_id = &all_tasks[0].id;
     let uuid_str = first_task_id.to_string();
-    let (status, tasks) = filter_tasks(&app, &format!(r#"{{"ids":["{}"]}}"#, uuid_str)).await;
+    let (status, tasks) = filter_tasks(&app, &format!(r#"{{"ids":["{uuid_str}"]}}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tasks.len(), 1, "IDs array filter should work for UUID matching");
     assert_eq!(tasks[0].id, *first_task_id);
@@ -165,7 +165,7 @@ async fn test_id_field_not_filterable_by_default() {
     let uuid_str = first_task_id.to_string();
 
     // Test that filtering by 'id' field doesn't work because it's not in filterable_columns
-    let (status, tasks) = filter_tasks(&app, &format!(r#"{{"id":"{}"}}"#, uuid_str)).await;
+    let (status, tasks) = filter_tasks(&app, &format!(r#"{{"id":"{uuid_str}"}}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tasks.len(), 4, "ID field filter should be ignored, returning all tasks");
 }

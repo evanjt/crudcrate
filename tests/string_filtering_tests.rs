@@ -71,7 +71,7 @@ async fn filter_tasks_by_string(app: &axum::Router, filter_json: &str) -> Vec<Ta
     let filter_param = url_escape::encode_component(filter_json);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 

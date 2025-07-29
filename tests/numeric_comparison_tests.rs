@@ -8,7 +8,7 @@ use common::{setup_task_app, setup_test_db_with_tasks, task_entity::Task};
 
 /// Comprehensive tests for React Admin numeric comparison operators
 /// Testing: _gte, _lte, _gt, _lt, _neq operators for all numeric types
-/// Based on React Admin filtering conventions: https://marmelab.com/react-admin/FilteringTutorial.html
+/// Based on React Admin filtering conventions: <https://marmelab.com/react-admin/FilteringTutorial.html>
 
 async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
     let test_tasks = vec![
@@ -97,21 +97,17 @@ async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
             .await
             .unwrap();
 
-        if !status.is_success() {
-            panic!(
+        assert!(status.is_success(), 
                 "Task creation failed with status {}: {}",
                 status,
                 String::from_utf8_lossy(&body)
             );
-        }
 
         let body_str = String::from_utf8_lossy(&body);
-        if body_str.is_empty() {
-            panic!("Empty response body from task creation");
-        }
+        assert!(!body_str.is_empty(), "Empty response body from task creation");
 
         let task: Task = serde_json::from_slice(&body)
-            .map_err(|e| format!("Failed to parse task JSON '{}': {}", body_str, e))
+            .map_err(|e| format!("Failed to parse task JSON '{body_str}': {e}"))
             .unwrap();
         created_tasks.push(task);
     }
@@ -134,7 +130,7 @@ async fn test_filter_score_gte_float() {
     let filter_param = url_escape::encode_component("{\"score_gte\":50.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -178,7 +174,7 @@ async fn test_filter_points_gte_integer() {
     let filter_param = url_escape::encode_component("{\"points_gte\":50}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -222,7 +218,7 @@ async fn test_filter_assignee_count_gte_small_integer() {
     let filter_param = url_escape::encode_component("{\"assignee_count_gte\":3}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -268,7 +264,7 @@ async fn test_filter_score_lte_float() {
     let filter_param = url_escape::encode_component("{\"score_lte\":50.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -312,7 +308,7 @@ async fn test_filter_points_lte_integer() {
     let filter_param = url_escape::encode_component("{\"points_lte\":50}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -358,7 +354,7 @@ async fn test_filter_score_gt_float() {
     let filter_param = url_escape::encode_component("{\"score_gt\":50.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -402,7 +398,7 @@ async fn test_filter_points_gt_integer() {
     let filter_param = url_escape::encode_component("{\"points_gt\":50}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -448,7 +444,7 @@ async fn test_filter_score_lt_float() {
     let filter_param = url_escape::encode_component("{\"score_lt\":50.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -492,7 +488,7 @@ async fn test_filter_assignee_count_lt_small_integer() {
     let filter_param = url_escape::encode_component("{\"assignee_count_lt\":3}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -538,7 +534,7 @@ async fn test_filter_score_neq_float() {
     let filter_param = url_escape::encode_component("{\"score_neq\":50.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -582,7 +578,7 @@ async fn test_filter_points_neq_integer() {
     let filter_param = url_escape::encode_component("{\"points_neq\":50}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -626,7 +622,7 @@ async fn test_filter_boolean_neq() {
     let filter_param = url_escape::encode_component("{\"completed_neq\":false}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -671,7 +667,7 @@ async fn test_filter_score_range_between() {
     let filter_param = url_escape::encode_component("{\"score_gte\":25.0,\"score_lte\":80.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -716,7 +712,7 @@ async fn test_filter_points_range_between() {
     let filter_param = url_escape::encode_component("{\"points_gte\":20,\"points_lte\":80}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -763,7 +759,7 @@ async fn test_filter_estimated_hours_gte_nullable() {
     let filter_param = url_escape::encode_component("{\"estimated_hours_gte\":10.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -818,7 +814,7 @@ async fn test_filter_multiple_comparison_operators() {
     );
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -877,7 +873,7 @@ async fn test_filter_zero_boundary_values() {
     let filter_param = url_escape::encode_component("{\"score_gt\":0.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -921,7 +917,7 @@ async fn test_filter_invalid_comparison_operator() {
     let filter_param = url_escape::encode_component("{\"score_invalid\":50.0}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 

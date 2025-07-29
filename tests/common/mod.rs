@@ -80,7 +80,7 @@ pub struct CreateTodoTable;
 
 #[async_trait::async_trait]
 impl MigrationName for CreateTodoTable {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "m20240101_000001_create_todo_table"
     }
 }
@@ -150,7 +150,7 @@ impl Iden for TodoColumn {
                 Self::UpdatedAt => "updated_at",
             }
         )
-        .unwrap()
+        .unwrap();
     }
 }
 
@@ -159,7 +159,7 @@ pub struct TodoEntity;
 
 impl Iden for TodoEntity {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "todos").unwrap()
+        write!(s, "todos").unwrap();
     }
 }
 
@@ -177,7 +177,7 @@ pub struct CreateTaskTable;
 
 #[async_trait::async_trait]
 impl MigrationName for CreateTaskTable {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "m20240101_000002_create_task_table"
     }
 }
@@ -301,7 +301,7 @@ impl Iden for TaskColumn {
                 Self::UpdatedAt => "updated_at",
             }
         )
-        .unwrap()
+        .unwrap();
     }
 }
 
@@ -310,6 +310,6 @@ pub struct TaskEntity;
 
 impl Iden for TaskEntity {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "tasks").unwrap()
+        write!(s, "tasks").unwrap();
     }
 }

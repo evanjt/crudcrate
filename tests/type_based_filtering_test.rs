@@ -85,7 +85,7 @@ async fn setup_test_app_with_products() -> axum::Router {
     // Create the products table
     let create_table_stmt = sea_orm::Statement::from_string(
         db.get_database_backend(),
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS products (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -95,7 +95,7 @@ async fn setup_test_app_with_products() -> axum::Router {
             category TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
-        "#
+        "
         .to_owned(),
     );
 
@@ -166,7 +166,7 @@ async fn test_string_field_uses_like_by_default() {
     let filter = url_escape::encode_component(r#"{"name":"Mouse"}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/products?filter={}", filter))
+        .uri(format!("/products?filter={filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -192,7 +192,7 @@ async fn test_string_field_description_uses_like_by_default() {
     let filter = url_escape::encode_component(r#"{"description":"wireless"}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/products?filter={}", filter))
+        .uri(format!("/products?filter={filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -216,7 +216,7 @@ async fn test_numeric_field_uses_exact_matching() {
     let filter = url_escape::encode_component(r#"{"price":2500}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/products?filter={}", filter))
+        .uri(format!("/products?filter={filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -242,7 +242,7 @@ async fn test_boolean_field_uses_exact_matching() {
     let filter = url_escape::encode_component(r#"{"in_stock":false}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/products?filter={}", filter))
+        .uri(format!("/products?filter={filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -256,7 +256,7 @@ async fn test_boolean_field_uses_exact_matching() {
 
     assert_eq!(products.len(), 1);
     assert_eq!(products[0].name, "T-Shirt");
-    assert_eq!(products[0].in_stock, false);
+    assert!(!products[0].in_stock);
 }
 
 #[tokio::test]
@@ -269,7 +269,7 @@ async fn test_enum_field_uses_case_insensitive_exact_matching() {
     let filter = url_escape::encode_component(r#"{"category":"electronics"}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/products?filter={}", filter))
+        .uri(format!("/products?filter={filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -298,7 +298,7 @@ async fn test_string_exact_matching_with_eq_suffix() {
     let filter = url_escape::encode_component(r#"{"name_eq":"Mouse"}"#);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/products?filter={}", filter))
+        .uri(format!("/products?filter={filter}"))
         .body(Body::empty())
         .unwrap();
 

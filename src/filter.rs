@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Parse React Admin comparison operator suffixes
-/// Returns (base_field_name, sql_operator) if a suffix is found
+/// Returns (`base_field_name`, `sql_operator`) if a suffix is found
 fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
     if let Some(base_field) = field_name.strip_suffix("_gte") {
         Some((base_field, ">="))
@@ -16,11 +16,7 @@ fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
         Some((base_field, ">"))
     } else if let Some(base_field) = field_name.strip_suffix("_lt") {
         Some((base_field, "<"))
-    } else if let Some(base_field) = field_name.strip_suffix("_neq") {
-        Some((base_field, "!="))
-    } else {
-        None
-    }
+    } else { field_name.strip_suffix("_neq").map(|base_field| (base_field, "!=")) }
 }
 
 /// Apply numeric comparison for integer values
@@ -126,7 +122,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                             if T::enum_case_sensitive() {
                                 // Case-sensitive substring matching
                                 condition = condition
-                                    .add(Expr::col(Alias::new(&*key)).like(format!("%{}%", trimmed_value)));
+                                    .add(Expr::col(Alias::new(&*key)).like(format!("%{trimmed_value}%")));
                             } else {
                                 // Case-insensitive substring matching using UPPER()
                                 use sea_orm::sea_query::SimpleExpr;
@@ -235,7 +231,7 @@ pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
     }
 }
 
-/// Parse pagination from FilterOptions, supporting both React Admin and standard REST formats
+/// Parse pagination from `FilterOptions`, supporting both React Admin and standard REST formats
 #[must_use]
 pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     // If ANY standard REST pagination parameters are provided, use them

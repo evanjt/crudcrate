@@ -65,7 +65,7 @@ async fn filter_tasks_case_sensitive(app: &axum::Router, filter_json: &str) -> V
     let filter_param = url_escape::encode_component(filter_json);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -83,7 +83,7 @@ async fn filter_tasks_case_insensitive(app: &axum::Router, filter_json: &str) ->
     let filter_param = url_escape::encode_component(filter_json);
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/tasks?filter={}", filter_param))
+        .uri(format!("/api/v1/tasks?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -208,7 +208,7 @@ async fn test_comprehensive_case_scenarios() {
     ];
 
     for (priority_value, expected_count) in test_cases {
-        let filter = format!(r#"{{"priority":"{}"}}"#, priority_value);
+        let filter = format!(r#"{{"priority":"{priority_value}"}}"#);
         let tasks = filter_tasks_case_insensitive(&app, &filter).await;
 
         assert_eq!(

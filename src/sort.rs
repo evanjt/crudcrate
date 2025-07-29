@@ -51,7 +51,7 @@ where
     (order_column, order_direction)
 }
 
-/// Parse sorting from FilterOptions, supporting both React Admin and standard REST formats
+/// Parse sorting from `FilterOptions`, supporting both React Admin and standard REST formats
 pub fn parse_sorting<C>(
     params: &crate::models::FilterOptions,
     order_column_logic: &[(&str, C)],

@@ -89,7 +89,7 @@ async fn test_getlist_with_sorting_react_admin_format() {
     let sort_param = url_escape::encode_component("[\"title\",\"ASC\"]");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?sort={}", sort_param))
+        .uri(format!("/api/v1/todos?sort={sort_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -136,7 +136,7 @@ async fn test_getlist_with_filter_react_admin_format() {
     let filter_param = url_escape::encode_component("{\"completed\":false}");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?filter={}", filter_param))
+        .uri(format!("/api/v1/todos?filter={filter_param}"))
         .body(Body::empty())
         .unwrap();
 
@@ -188,7 +188,7 @@ async fn test_getmany_with_ids_filter() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos?filter={}", encoded_filter))
+        .uri(format!("/api/v1/todos?filter={encoded_filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -236,7 +236,7 @@ async fn test_getone_react_admin_compatible() {
     // Test getOne: GET /resource/id
     let get_request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -281,7 +281,7 @@ async fn test_create_react_admin_compatible() {
     // Verify returned object has id (required by React Admin)
     assert!(!todo.id.is_nil());
     assert_eq!(todo.title, "New Todo");
-    assert_eq!(todo.completed, false);
+    assert!(!todo.completed);
 }
 
 #[tokio::test]
@@ -312,7 +312,7 @@ async fn test_update_react_admin_compatible() {
     let update_data = json!({"title": "Updated Title", "completed": true});
     let update_request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
@@ -328,7 +328,7 @@ async fn test_update_react_admin_compatible() {
     // Verify returned object has same id and updated fields
     assert_eq!(updated_todo.id, created_todo.id);
     assert_eq!(updated_todo.title, "Updated Title");
-    assert_eq!(updated_todo.completed, true);
+    assert!(updated_todo.completed);
 }
 
 #[tokio::test]
@@ -358,7 +358,7 @@ async fn test_delete_react_admin_compatible() {
     // Test delete: DELETE /resource/id
     let delete_request = Request::builder()
         .method("DELETE")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -402,9 +402,8 @@ async fn test_complex_query_combination() {
     let range_param = url_escape::encode_component("[0,1]");
     let request = Request::builder()
         .method("GET")
-        .uri(&format!(
-            "/api/v1/todos?filter={}&sort={}&range={}",
-            filter_param, sort_param, range_param
+        .uri(format!(
+            "/api/v1/todos?filter={filter_param}&sort={sort_param}&range={range_param}"
         ))
         .body(Body::empty())
         .unwrap();
@@ -474,7 +473,7 @@ async fn test_error_handling_react_admin_compatible() {
     // Test 404 for non-existent resource
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", uuid::Uuid::new_v4()))
+        .uri(format!("/api/v1/todos/{}", uuid::Uuid::new_v4()))
         .body(Body::empty())
         .unwrap();
 

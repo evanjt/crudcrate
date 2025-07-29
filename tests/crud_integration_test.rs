@@ -33,7 +33,7 @@ async fn test_create_todo() {
         .unwrap();
     let todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(todo.title, "Test Todo");
-    assert_eq!(todo.completed, false);
+    assert!(!todo.completed);
     assert!(!todo.id.is_nil());
 }
 
@@ -68,7 +68,7 @@ async fn test_get_todo_by_id() {
     // Now get the todo by ID
     let get_request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -81,7 +81,7 @@ async fn test_get_todo_by_id() {
     let retrieved_todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(retrieved_todo.id, created_todo.id);
     assert_eq!(retrieved_todo.title, "Get Test Todo");
-    assert_eq!(retrieved_todo.completed, true);
+    assert!(retrieved_todo.completed);
 }
 
 #[tokio::test]
@@ -120,7 +120,7 @@ async fn test_update_todo() {
 
     let update_request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
@@ -134,7 +134,7 @@ async fn test_update_todo() {
     let updated_todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(updated_todo.id, created_todo.id);
     assert_eq!(updated_todo.title, "Updated Title");
-    assert_eq!(updated_todo.completed, true);
+    assert!(updated_todo.completed);
     assert!(updated_todo.updated_at > created_todo.updated_at);
 }
 
@@ -173,7 +173,7 @@ async fn test_partial_update_todo() {
 
     let update_request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
@@ -186,7 +186,7 @@ async fn test_partial_update_todo() {
         .unwrap();
     let updated_todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(updated_todo.title, "Partial Update Test"); // Title should remain unchanged
-    assert_eq!(updated_todo.completed, true); // Only completed should be updated
+    assert!(updated_todo.completed); // Only completed should be updated
 }
 
 #[tokio::test]
@@ -220,7 +220,7 @@ async fn test_delete_todo() {
     // Delete the todo
     let delete_request = Request::builder()
         .method("DELETE")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -231,7 +231,7 @@ async fn test_delete_todo() {
     // Verify it's deleted by trying to get it
     let get_request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -293,7 +293,7 @@ async fn test_get_nonexistent_todo() {
     let random_id = uuid::Uuid::new_v4();
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", random_id))
+        .uri(format!("/api/v1/todos/{random_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -338,7 +338,7 @@ async fn test_update_nonexistent_todo() {
 
     let request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", random_id))
+        .uri(format!("/api/v1/todos/{random_id}"))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
