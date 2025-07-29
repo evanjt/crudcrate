@@ -1,5 +1,10 @@
 # crudcrate
 
+[![Tests](https://github.com/evanjt/crudcrate/actions/workflows/test.yml/badge.svg)](https://github.com/evanjt/crudcrate/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/evanjt/crudcrate/branch/main/graph/badge.svg)](https://codecov.io/gh/evanjt/crudcrate)
+[![Crates.io](https://img.shields.io/crates/v/crudcrate.svg)](https://crates.io/crates/crudcrate)
+[![Documentation](https://docs.rs/crudcrate/badge.svg)](https://docs.rs/crudcrate)
+
 **`crudcrate`** provides procedural macros that reduce CRUD API boilerplate in Rust. It seamlessly integrates with **[SeaORM](https://crates.io/crates/sea-orm)** for database interactions and **[Axum](https://crates.io/crates/axum)** for building web services.
 
 🚀 **NEW**: The `EntityToModels` macro now generates complete CRUD APIs directly from your Sea-ORM entities with **function injection** support for custom logic!
