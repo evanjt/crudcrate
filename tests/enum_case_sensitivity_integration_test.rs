@@ -61,6 +61,7 @@ impl CRUDResource for CaseSensitiveTask {
 }
 
 /// Helper function to filter tasks using case-sensitive wrapper
+#[allow(dead_code)]
 async fn filter_tasks_case_sensitive(app: &axum::Router, filter_json: &str) -> Vec<Task> {
     let filter_param = url_escape::encode_component(filter_json);
     let request = Request::builder()

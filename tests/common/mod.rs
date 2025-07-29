@@ -5,6 +5,7 @@ use sea_orm_migration::prelude::*;
 pub mod task_entity;
 pub mod todo_entity;
 
+#[allow(dead_code)]
 pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let db = Database::connect("sqlite::memory:").await?;
 
@@ -14,6 +15,7 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     Ok(db)
 }
 
+#[allow(dead_code)]
 pub async fn setup_test_db_with_tasks() -> Result<DatabaseConnection, DbErr> {
     let db = Database::connect("sqlite::memory:").await?;
 
@@ -23,6 +25,7 @@ pub async fn setup_test_db_with_tasks() -> Result<DatabaseConnection, DbErr> {
     Ok(db)
 }
 
+#[allow(dead_code)]
 pub fn setup_test_app(db: DatabaseConnection) -> Router {
     use todo_entity::{
         create_one_handler, delete_one_handler, get_all_handler, get_one_handler,
@@ -45,6 +48,7 @@ pub fn setup_test_app(db: DatabaseConnection) -> Router {
     Router::new().nest("/api/v1", api)
 }
 
+#[allow(dead_code)]
 pub fn setup_task_app(db: DatabaseConnection) -> Router {
     use task_entity::{
         create_one_handler, delete_one_handler, get_all_handler, get_one_handler,
@@ -67,6 +71,7 @@ pub fn setup_task_app(db: DatabaseConnection) -> Router {
     Router::new().nest("/api/v1", api)
 }
 
+#[allow(dead_code)]
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -164,6 +169,7 @@ impl Iden for TodoEntity {
 }
 
 // Task migrations
+#[allow(dead_code)]
 pub struct TaskMigrator;
 
 #[async_trait::async_trait]
