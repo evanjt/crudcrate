@@ -72,7 +72,7 @@ macro_rules! crud_handlers {
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
         ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$resource>>), (axum::http::StatusCode, String)> {
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
-            let condition = crudcrate::filter::apply_filters::<$resource>(params.filter.clone(), &<$resource as CRUDResource>::filterable_columns());
+            let condition = crudcrate::filter::apply_filters::<$resource>(params.filter.clone(), &<$resource as CRUDResource>::filterable_columns(), db.get_database_backend());
             let (order_column, order_direction) = crudcrate::sort::parse_sorting(
                 &params,
                 &<$resource as crudcrate::traits::CRUDResource>::sortable_columns(),

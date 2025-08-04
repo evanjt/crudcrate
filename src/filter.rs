@@ -1,9 +1,35 @@
 use sea_orm::{
-    Condition,
-    sea_query::{Alias, Expr},
+    Condition, DatabaseBackend,
+    sea_query::{Alias, Expr, SimpleExpr},
 };
 use std::collections::HashMap;
 use uuid::Uuid;
+
+// Basic safety limits
+const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
+const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
+
+/// Simple sanitization for search queries
+fn sanitize_search_query(query: &str) -> String {
+    if query.len() > MAX_SEARCH_QUERY_LENGTH {
+        query[..MAX_SEARCH_QUERY_LENGTH].trim().to_string()
+    } else {
+        query.trim().to_string()
+    }
+}
+
+/// Basic field name validation
+fn is_valid_field_name(field_name: &str) -> bool {
+    !field_name.is_empty()
+        && field_name.len() <= 100
+        && !field_name.starts_with('_')
+        && !field_name.contains("..")
+}
+
+/// Basic value length check
+fn validate_field_value(value: &str) -> bool {
+    value.len() <= MAX_FIELD_VALUE_LENGTH
+}
 
 /// Parse React Admin comparison operator suffixes
 /// Returns (`base_field_name`, `sql_operator`) if a suffix is found
@@ -53,30 +79,138 @@ fn apply_float_comparison(
     }
 }
 
+/// Build fulltext search condition with database-specific optimizations
+fn build_fulltext_condition<T: crate::traits::CRUDResource>(
+    query: &str,
+    backend: DatabaseBackend,
+) -> Option<SimpleExpr> {
+    let fulltext_columns = T::fulltext_searchable_columns();
+    
+    if fulltext_columns.is_empty() {
+        return None;
+    }
+
+    // Log a warning if using fallback on large datasets
+    if fulltext_columns.len() > 3 && backend != DatabaseBackend::Postgres {
+        eprintln!("Warning: Using inefficient fulltext search fallback for {} columns. Consider PostgreSQL for better performance.", fulltext_columns.len());
+    }
+
+    match &backend {
+        DatabaseBackend::Postgres => {
+            build_postgres_fulltext_condition(query, &fulltext_columns)
+        }
+        _ => {
+            build_fallback_fulltext_condition(query, &fulltext_columns)
+        }
+    }
+}
+
+/// Build PostgreSQL-specific fulltext search using tsvector
+fn build_postgres_fulltext_condition(
+    query: &str,
+    columns: &[(&'static str, impl sea_orm::ColumnTrait)],
+) -> Option<SimpleExpr> {
+    if columns.is_empty() {
+        return None;
+    }
+
+    // For PostgreSQL, build a custom SQL expression for fulltext search
+    // We'll concatenate all columns and use to_tsvector/plainto_tsquery
+    let mut concat_parts = Vec::new();
+    
+    for (name, _column) in columns {
+        // COALESCE(column_name::text, '')
+        concat_parts.push(format!("COALESCE({name}::text, '')"));
+    }
+    
+    let concat_sql = concat_parts.join(" || ' ' || ");
+    // Additional security: validate and sanitize query
+    let sanitized_query = sanitize_search_query(query);
+    let fulltext_sql = format!(
+        "to_tsvector('english', {}) @@ plainto_tsquery('english', '{}')",
+        concat_sql,
+        sanitized_query.replace('\'', "''") // Escape single quotes
+    );
+    
+    // Use custom SQL expression
+    Some(SimpleExpr::Custom(fulltext_sql))
+}
+
+/// Build fallback fulltext search using LIKE concatenation for other databases
+fn build_fallback_fulltext_condition(
+    query: &str,
+    columns: &[(&'static str, impl sea_orm::ColumnTrait)],
+) -> Option<SimpleExpr> {
+    if columns.is_empty() {
+        return None;
+    }
+
+    // For SQLite and MySQL, use concatenation with LIKE
+    let mut concat_parts = Vec::new();
+    
+    for (name, _column) in columns {
+        concat_parts.push(format!("CAST({name} AS TEXT)"));
+    }
+    
+    let concat_sql = concat_parts.join(" || ' ' || ");
+    // Additional security: validate and sanitize query
+    let sanitized_query = sanitize_search_query(query);
+    let like_sql = format!(
+        "UPPER({}) LIKE UPPER('%{}%')",
+        concat_sql,
+        sanitized_query.replace('\'', "''").replace('%', "\\%").replace('_', "\\_") // Escape SQL LIKE wildcards
+    );
+    
+    // Use custom SQL expression
+    Some(SimpleExpr::Custom(like_sql))
+}
+
+#[allow(clippy::too_many_lines)]
 pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
+    backend: DatabaseBackend,
 ) -> Condition {
+    
     // Parse the filter string into a HashMap
     let filters: HashMap<String, serde_json::Value> = if let Some(filter) = filter_str {
-        serde_json::from_str(&filter).unwrap_or_default()
+        match serde_json::from_str(&filter) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                eprintln!("Warning: Invalid JSON in filter string: {e}");
+                HashMap::new()
+            }
+        }
     } else {
         HashMap::new()
     };
+
 
     let mut condition = Condition::all();
     // Check if there is a free-text search ("q") parameter
     if let Some(q_value) = filters.get("q") {
         if let Some(q_value_str) = q_value.as_str() {
-            let mut or_conditions = Condition::any();
-            for (_col_name, col) in searchable_columns {
-                or_conditions = or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
+            // Try fulltext search first
+            if let Some(fulltext_condition) = build_fulltext_condition::<T>(q_value_str, backend) {
+                condition = condition.add(fulltext_condition);
+            } else {
+                // Fallback to original LIKE search on regular searchable columns
+                let mut or_conditions = Condition::any();
+                for (_col_name, col) in searchable_columns {
+                    or_conditions = or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
+                }
+                condition = condition.add(or_conditions);
             }
-            condition = condition.add(or_conditions);
         }
     } else {
         // Iterate over all filters to build conditions
         for (key, value) in filters {
+            // Security validation: check field name
+            if !is_valid_field_name(&key) {
+                eprintln!("Warning: Invalid field name rejected: {key}");
+                continue;
+            }
+            
             // Check if field exists in filterable columns (handle comparison operators and special cases)
             let base_field_name = if let Some((base_field, _)) = parse_comparison_operator(&key) {
                 base_field
@@ -95,6 +229,12 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 continue;
             }
             if let Some(value_str) = value.as_str() {
+                // Security validation: check field value length
+                if !validate_field_value(value_str) {
+                    eprintln!("Warning: Field value too long, rejected: {} chars", value_str.len());
+                    continue;
+                }
+                
                 let trimmed_value = value_str.trim().to_string();
 
                 // Handle empty strings
