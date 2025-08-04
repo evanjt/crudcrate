@@ -11,7 +11,6 @@ use common::{
 
 /// Comprehensive tests for filtering by different data types
 /// Including: boolean, enum, string, float, integer, nullable fields
-
 async fn create_diverse_test_tasks(app: &axum::Router) -> Vec<Task> {
     let test_tasks = vec![
         // Task 1: Basic completed task

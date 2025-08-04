@@ -11,7 +11,8 @@ use crudcrate::{
     traits::CRUDResource,
 };
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
-use sea_orm_migration::{prelude::*, sea_query::{ColumnDef, Alias, Table}};
+use sea_orm_migration::{prelude::*, sea_query::{ColumnDef, Alias, Table, Index}};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 /// Test entity with various field types for index analysis
@@ -159,8 +160,7 @@ fn get_test_database_url() -> String {
 }
 
 // Global mutex for PostgreSQL setup to avoid race conditions
-use std::sync::Mutex;
-static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::new(());
+static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::const_new(());
 
 // Helper function for comprehensive database cleanup
 async fn cleanup_test_database(db: &DatabaseConnection) {
@@ -197,7 +197,7 @@ async fn setup_test_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
         Ok(db)
     } else if database_url.starts_with("postgres") {
         // Serialize PostgreSQL setup to avoid race conditions
-        let _lock = POSTGRES_SETUP_MUTEX.lock().unwrap();
+        let _lock = POSTGRES_SETUP_MUTEX.lock().await;
         let db = Database::connect(&database_url).await?;
         cleanup_test_database(&db).await;
         IndexTestMigrator::up(&db, None).await?;
@@ -556,7 +556,6 @@ async fn test_no_recommendations_with_existing_indexes() {
     .expect("Failed to create table");
 
     // Add indexes for all filterable/sortable fields using Sea-Query for database compatibility
-    use sea_orm_migration::sea_query::Index;
     
     let index_columns = vec![
         ("idx_index_test_posts_title", "title"),

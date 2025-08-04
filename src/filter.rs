@@ -259,52 +259,51 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     continue;
                 }
 
-                // Check if the value is a UUID
-                if let Ok(uuid) = Uuid::parse_str(&trimmed_value) {
-                    condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
+                // Handle React Admin string filtering patterns
+                if let Some(base_field) = key.strip_suffix("_eq") {
+                    // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
+                    condition =
+                        condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
                 } else {
-                    // Handle React Admin string filtering patterns
-                    if let Some(base_field) = key.strip_suffix("_eq") {
-                        // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
-                        condition =
-                            condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
-                    } else {
-                        // Check if this field should use LIKE queries
-                        let use_like = T::like_filterable_columns().contains(&key.as_str());
+                    // Check if this field should use LIKE queries
+                    let use_like = T::like_filterable_columns().contains(&key.as_str());
 
-                        if use_like {
-                            // Use LIKE queries for text fields (substring matching)
-                            if T::enum_case_sensitive() {
-                                // Case-sensitive substring matching
-                                condition = condition.add(
-                                    Expr::col(Alias::new(&*key)).like(format!("%{trimmed_value}%")),
-                                );
-                            } else {
-                                // Case-insensitive substring matching using UPPER()
-                                use sea_orm::sea_query::SimpleExpr;
-                                condition = condition.add(
-                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                        Expr::col(Alias::new(&*key)),
-                                    ))
-                                    .like(format!("%{}%", trimmed_value.to_uppercase())),
-                                );
-                            }
+                    if use_like {
+                        // Use LIKE queries for text fields (substring matching)
+                        // Always treat as string, even if it looks like a UUID
+                        if T::enum_case_sensitive() {
+                            // Case-sensitive substring matching
+                            condition = condition.add(
+                                Expr::col(Alias::new(&*key)).like(format!("%{trimmed_value}%")),
+                            );
                         } else {
-                            // Use exact matching for enum and other fields
-                            if T::enum_case_sensitive() {
-                                // Case-sensitive exact matching
-                                condition =
-                                    condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
-                            } else {
-                                // Case-insensitive exact matching using UPPER()
-                                use sea_orm::sea_query::SimpleExpr;
-                                condition = condition.add(
-                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                        Expr::col(Alias::new(&*key)),
-                                    ))
-                                    .eq(trimmed_value.to_uppercase()),
-                                );
-                            }
+                            // Case-insensitive substring matching using UPPER()
+                            use sea_orm::sea_query::SimpleExpr;
+                            condition = condition.add(
+                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                    Expr::col(Alias::new(&*key)),
+                                ))
+                                .like(format!("%{}%", trimmed_value.to_uppercase())),
+                            );
+                        }
+                    } else {
+                        // Use exact matching for enum and other fields
+                        // Check if the value is a UUID only for non-LIKE fields
+                        if let Ok(uuid) = Uuid::parse_str(&trimmed_value) {
+                            condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
+                        } else if T::enum_case_sensitive() {
+                            // Case-sensitive exact matching
+                            condition =
+                                condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                        } else {
+                            // Case-insensitive exact matching using UPPER()
+                            use sea_orm::sea_query::SimpleExpr;
+                            condition = condition.add(
+                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                    Expr::col(Alias::new(&*key)),
+                                ))
+                                .eq(trimmed_value.to_uppercase()),
+                            );
                         }
                     }
                 }

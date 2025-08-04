@@ -131,7 +131,7 @@ fn test_generic_sort_case_sensitivity() {
 /// Test `OpenAPI` schema generation to improve models.rs coverage
 #[test]
 fn test_filter_options_schema_generation() {
-    use utoipa::{OpenApi, ToSchema};
+    use utoipa::OpenApi;
 
     // This exercises the ToSchema derive by using it in an OpenAPI context
     #[derive(OpenApi)]

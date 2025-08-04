@@ -33,7 +33,7 @@ use axum::{
     http::{Method, Request},
 };
 use chrono::{DateTime, Utc};
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use crudcrate::{EntityToModels, crud_handlers, traits::CRUDResource};
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use sea_orm_migration::{prelude::*, sea_query::ColumnDef};
@@ -394,8 +394,8 @@ async fn setup_benchmark_db(record_count: usize) -> Result<DatabaseConnection, s
             },
             published: i % 2 == 0,
             category: format!("Category{}", i % 5), // 5 different categories
-            view_count: (i * 10) as i32,
-            priority: (i % 10) as i32,
+            view_count: <i32 as std::convert::TryFrom<_>>::try_from(i * 10).unwrap_or(i32::MAX),
+            priority: <i32 as std::convert::TryFrom<_>>::try_from(i % 10).unwrap_or(0),
         };
 
         BenchmarkPost::create(&db, post).await?;
@@ -565,7 +565,7 @@ fn bench_crud_operations(c: &mut Criterion) {
 
         // Simple GET all benchmark
         group.bench_with_input(BenchmarkId::new("get_all", size), &size, |b, _| {
-            b.iter(|| rt.block_on(black_box(benchmark_get_all(app.clone()))));
+            b.iter(|| rt.block_on(std::hint::black_box(benchmark_get_all(app.clone()))));
         });
 
         // Filtered queries benchmark
@@ -582,7 +582,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                 &filter,
                 |b, filter| {
                     b.iter(|| {
-                        rt.block_on(black_box(benchmark_filtered_query(app.clone(), filter)))
+                        rt.block_on(std::hint::black_box(benchmark_filtered_query(
+                            app.clone(),
+                            filter,
+                        )))
                     });
                 },
             );
@@ -602,7 +605,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                 &query,
                 |b, query| {
                     b.iter(|| {
-                        rt.block_on(black_box(benchmark_fulltext_search(app.clone(), query)))
+                        rt.block_on(std::hint::black_box(benchmark_fulltext_search(
+                            app.clone(),
+                            query,
+                        )))
                     });
                 },
             );
@@ -622,7 +628,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                 &(field, order),
                 |b, (field, order)| {
                     b.iter(|| {
-                        rt.block_on(black_box(benchmark_sorted_query(app.clone(), field, order)))
+                        rt.block_on(std::hint::black_box(benchmark_sorted_query(
+                            app.clone(),
+                            field,
+                            order,
+                        )))
                     });
                 },
             );
@@ -636,7 +646,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 &page_size,
                 |b, page_size| {
                     b.iter(|| {
-                        rt.block_on(black_box(benchmark_paginated_query(
+                        rt.block_on(std::hint::black_box(benchmark_paginated_query(
                             app.clone(),
                             0,
                             *page_size,
@@ -648,7 +658,7 @@ fn bench_crud_operations(c: &mut Criterion) {
 
         // Complex query benchmark (combines multiple operations)
         group.bench_with_input(BenchmarkId::new("complex_query", size), &size, |b, _| {
-            b.iter(|| rt.block_on(black_box(benchmark_complex_query(app.clone()))));
+            b.iter(|| rt.block_on(std::hint::black_box(benchmark_complex_query(app.clone()))));
         });
 
         group.finish();
@@ -692,7 +702,7 @@ fn bench_create_operations(c: &mut Criterion) {
             &initial_size,
             |b, _| {
                 b.iter(|| {
-                    rt.block_on(black_box(benchmark_create_post(
+                    rt.block_on(std::hint::black_box(benchmark_create_post(
                         app.clone(),
                         create_data.clone(),
                     )))
@@ -735,7 +745,12 @@ fn bench_stress_operations(c: &mut Criterion) {
             BenchmarkId::new("stress_fulltext", query),
             &query,
             |b, query| {
-                b.iter(|| rt.block_on(black_box(benchmark_fulltext_search(app.clone(), query))));
+                b.iter(|| {
+                    rt.block_on(std::hint::black_box(benchmark_fulltext_search(
+                        app.clone(),
+                        query,
+                    )))
+                });
             },
         );
     }
@@ -748,7 +763,7 @@ fn bench_stress_operations(c: &mut Criterion) {
             &page_size,
             |b, page_size| {
                 b.iter(|| {
-                    rt.block_on(black_box(benchmark_paginated_query(
+                    rt.block_on(std::hint::black_box(benchmark_paginated_query(
                         app.clone(),
                         0,
                         *page_size,

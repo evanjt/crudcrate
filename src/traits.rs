@@ -6,6 +6,11 @@ use sea_orm::{
 use uuid::Uuid;
 
 pub trait MergeIntoActiveModel<ActiveModelType> {
+    /// Merge this update model into an existing active model
+    /// 
+    /// # Errors
+    /// 
+    /// Returns a `DbErr` if the merge operation fails due to data conversion issues.
     fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, DbErr>;
 }
 

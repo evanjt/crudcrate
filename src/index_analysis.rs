@@ -47,6 +47,10 @@ struct ExistingIndex {
 }
 
 /// Analyze database indexes and provide recommendations for CRUD resources
+/// 
+/// # Errors
+/// 
+/// Returns a `sea_orm::DbErr` if database queries fail or connection issues occur.
 pub async fn analyze_indexes_for_resource<T: crate::traits::CRUDResource>(
     db: &DatabaseConnection,
 ) -> Result<Vec<IndexRecommendation>, sea_orm::DbErr> {
@@ -107,7 +111,7 @@ pub async fn analyze_indexes_for_resource<T: crate::traits::CRUDResource>(
                 index_type: match backend {
                     DatabaseBackend::Postgres => IndexType::GIN,
                     DatabaseBackend::MySql => IndexType::Fulltext,
-                    _ => IndexType::BTree,
+                    DatabaseBackend::Sqlite => IndexType::BTree,
                 },
                 reason: format!(
                     "Fulltext search on {} columns without proper index",
@@ -318,7 +322,7 @@ fn check_fulltext_index_exists(
                 .iter()
                 .any(|idx| idx.index_type.to_lowercase().contains("fulltext"))
         }
-        _ => {
+        DatabaseBackend::Sqlite => {
             // For SQLite, just check if the columns are indexed
             fulltext_columns
                 .iter()
@@ -336,13 +340,7 @@ fn generate_btree_index_sql(
     let index_name = format!("idx_{table_name}_{column_name}");
 
     match backend {
-        DatabaseBackend::Postgres => {
-            format!("CREATE INDEX {index_name} ON {table_name} ({column_name});")
-        }
-        DatabaseBackend::MySql => {
-            format!("CREATE INDEX {index_name} ON {table_name} ({column_name});")
-        }
-        DatabaseBackend::Sqlite => {
+        DatabaseBackend::Postgres | DatabaseBackend::MySql | DatabaseBackend::Sqlite => {
             format!("CREATE INDEX {index_name} ON {table_name} ({column_name});")
         }
     }

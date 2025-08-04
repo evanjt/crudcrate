@@ -1,10 +1,10 @@
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 // Global mutex to serialize database setup for PostgreSQL to avoid race conditions
-static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::new(());
+static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::const_new(());
 
 pub mod task_entity;
 pub mod todo_entity;
@@ -15,15 +15,6 @@ fn get_test_database_url() -> String {
         .unwrap_or_else(|_| "sqlite::memory:".to_string())
 }
 
-// Helper function to generate unique table prefix for test isolation
-fn get_test_table_prefix() -> String {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-    
-    let count = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let pid = std::process::id();
-    format!("test_{}_{}", pid, count)
-}
 
 // Cleanup function for persistent databases
 async fn cleanup_test_tables(db: &DatabaseConnection) {
@@ -60,7 +51,9 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     
     // Serialize PostgreSQL setup to avoid race conditions with custom types
     if database_url.starts_with("postgres") {
-        let _lock = POSTGRES_SETUP_MUTEX.lock().unwrap();
+        // We need to serialize the entire PostgreSQL setup process to prevent
+        // race conditions when creating custom types during migrations
+        let _lock = POSTGRES_SETUP_MUTEX.lock().await;
         let db = Database::connect(&database_url).await?;
         cleanup_test_tables(&db).await;
         Migrator::up(&db, None).await?;
@@ -86,7 +79,9 @@ pub async fn setup_test_db_with_tasks() -> Result<DatabaseConnection, DbErr> {
     
     // Serialize PostgreSQL setup to avoid race conditions with custom types
     if database_url.starts_with("postgres") {
-        let _lock = POSTGRES_SETUP_MUTEX.lock().unwrap();
+        // We need to serialize the entire PostgreSQL setup process to prevent
+        // race conditions when creating custom types during migrations
+        let _lock = POSTGRES_SETUP_MUTEX.lock().await;
         let db = Database::connect(&database_url).await?;
         cleanup_test_tables(&db).await;
         TaskMigrator::up(&db, None).await?;

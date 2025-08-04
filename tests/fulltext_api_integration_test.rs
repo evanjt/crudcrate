@@ -495,7 +495,7 @@ async fn test_empty_fulltext_search() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let posts: Vec<BlogPost> = serde_json::from_slice(&body).unwrap();
+    let _posts: Vec<BlogPost> = serde_json::from_slice(&body).unwrap();
 
     // Empty search should handle gracefully
     // Note: length is always >= 0, this just verifies no panic occurred

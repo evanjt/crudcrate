@@ -86,7 +86,7 @@ jobs:
         
     - name: Run tests (PostgreSQL/MySQL)
       if: '!matrix.coverage'
-      run: cargo test --workspace
+      run: cargo test --workspace -- --test-threads=1
       env:
         DATABASE_URL: ${{ matrix.database_url }}
     

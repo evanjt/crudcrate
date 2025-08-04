@@ -522,7 +522,12 @@ async fn test_filter_score_neq_float_50() {
 
     for task in &tasks {
         assert!(
-            task.score != 50.0,
+            {
+                #[allow(clippy::float_cmp)]
+                {
+                    task.score != 50.0
+                }
+            },
             "Task '{}' has score {} which equals 50.0",
             task.title,
             task.score

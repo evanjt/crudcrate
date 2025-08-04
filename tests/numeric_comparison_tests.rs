@@ -9,7 +9,6 @@ use common::{setup_task_app, setup_test_db_with_tasks, task_entity::Task};
 /// Comprehensive tests for React Admin numeric comparison operators
 /// Testing: _gte, _lte, _gt, _lt, _neq operators for all numeric types
 /// Based on React Admin filtering conventions: <https://marmelab.com/react-admin/FilteringTutorial.html>
-
 async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
     let test_tasks = vec![
         // Task with very low values
@@ -553,7 +552,12 @@ async fn test_filter_score_neq_float() {
     // Should find tasks with score != 50.0
     for task in &tasks {
         assert!(
-            task.score != 50.0,
+            {
+                #[allow(clippy::float_cmp)]
+                {
+                    task.score != 50.0
+                }
+            },
             "Task '{}' has score {} which equals 50.0",
             task.title,
             task.score
