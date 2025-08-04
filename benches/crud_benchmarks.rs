@@ -324,6 +324,10 @@ async fn setup_benchmark_db(record_count: usize) -> Result<DatabaseConnection, s
     // Run migrations
     BenchmarkMigrator::up(&db, None).await?;
     
+    // Run index analysis on first setup (commented out to avoid spam during benchmarks)
+    // Uncomment to see index recommendations:
+    // BenchmarkPost::analyze_and_display_indexes(&db).await?;
+    
     // Insert sample data for benchmarking
     for i in 0..record_count {
         let post = BenchmarkPostCreate {

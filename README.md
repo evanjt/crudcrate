@@ -26,10 +26,10 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, create_model = false, update_model = false)]
     pub id: Uuid,
-    
+
     #[crudcrate(filterable, sortable)]
     pub title: String,
-    
+
     #[crudcrate(filterable)]
     pub completed: bool,
 }
@@ -38,7 +38,11 @@ pub struct Model {
 ```
 
 Use the generated router:
+
 ```rust
+// During application startup - analyze indexes for optimization recommendations
+Todo::analyze_and_display_indexes(&db).await?;
+
 let app = Router::new()
     .nest("/api/todos", router(&db))  // Generated router function
     .with_state(db);
@@ -47,6 +51,7 @@ let app = Router::new()
 ## Core Features
 
 ### Entity Generation
+
 Generate API structs, CRUD operations, and handlers from Sea-ORM entities.
 
 ```rust
@@ -54,13 +59,14 @@ Generate API structs, CRUD operations, and handlers from Sea-ORM entities.
 ```
 
 ### Field Attributes
+
 Control how fields behave in the generated API. [See all field attributes](#advanced-field-control)
 
 ```rust
 #[crudcrate(
     primary_key,                    // Mark as primary key
     filterable,                     // Enable filtering
-    sortable,                       // Enable sorting  
+    sortable,                       // Enable sorting
     fulltext,                       // Include in fulltext search
     create_model = false,           // Exclude from create operations
     update_model = false,           // Exclude from update operations
@@ -70,13 +76,14 @@ Control how fields behave in the generated API. [See all field attributes](#adva
 ```
 
 ### Fulltext Search
+
 Multi-field search with database optimizations. [See fulltext search architecture](#fulltext-search-architecture)
 
 ```rust
 #[crudcrate(fulltext)]
 pub title: String,
 
-#[crudcrate(fulltext)]  
+#[crudcrate(fulltext)]
 pub content: String,
 ```
 
@@ -85,13 +92,14 @@ GET /api/todos?filter={"q":"search term"}
 ```
 
 ### Filtering & Sorting
+
 React Admin compatible query parameters.
 
 ```bash
 # Filtering
 GET /api/todos?filter={"completed":false,"priority":"high"}
 
-# Sorting  
+# Sorting
 GET /api/todos?sort=created_at&order=DESC
 
 # Pagination
@@ -99,6 +107,7 @@ GET /api/todos?page=0&per_page=20
 ```
 
 ### Function Injection
+
 Override default CRUD operations with custom logic. [See custom function injection](#custom-function-injection)
 
 ```rust
@@ -115,7 +124,7 @@ async fn custom_get_one(db: &DatabaseConnection, id: Uuid) -> Result<Todo, DbErr
 The `EntityToModels` macro generates:
 
 - **API Struct**: `Todo` with all public fields
-- **Create Model**: `TodoCreate` for POST requests  
+- **Create Model**: `TodoCreate` for POST requests
 - **Update Model**: `TodoUpdate` with `Option<Option<T>>` pattern
 - **CRUD Handlers**: Complete HTTP handlers for all operations
 - **Router Function**: `router(db)` with all endpoints configured
@@ -136,11 +145,44 @@ See `tests/external_security_integration_test.rs` for a complete example.
 ## Performance
 
 Sub-millisecond responses for typical operations:
+
 - GET requests: ~200-300µs (both backends)
 - Fulltext search: ~400µs (SQLite), ~2-100ms (PostgreSQL with network)
 - CREATE operations: ~110-175µs (both backends)
 
 [See detailed performance characteristics](#performance-characteristics)
+
+### Index Analysis
+
+`crudcrate` automatically analyzes your database and recommends missing indexes at startup:
+
+```rust
+// During application startup
+MyResource::analyze_and_display_indexes(&db).await?;
+```
+
+Output:
+
+```
+🔍 crudcrate Index Analysis
+═══════════════════════════
+
+⚠️  High Priority
+┌─ Table: todos
+│  Column(s): title, content
+│  Reason: Fulltext search on 2 columns without proper index
+│  Suggested SQL:
+│    CREATE INDEX idx_todos_fulltext ON todos USING GIN (to_tsvector('english', title || ' ' || content));
+└─
+
+💡 Medium Priority
+┌─ Table: todos
+│  Column(s): completed
+│  Reason: Field 'completed' is filterable but not indexed
+│  Suggested SQL:
+│    CREATE INDEX idx_todos_completed ON todos (completed);
+└─
+```
 
 ### Running Benchmarks
 
@@ -192,7 +234,7 @@ pub struct TodoCreate {   // POST request body
     // id excluded automatically
 }
 
-pub struct TodoUpdate {   // PUT request body  
+pub struct TodoUpdate {   // PUT request body
     pub title: Option<String>,              // Some("new") = update, None = don't change
     pub completed: Option<Option<bool>>,    // Some(Some(true)) = set true, Some(None) = set null, None = don't change
 }
@@ -203,6 +245,7 @@ pub struct TodoUpdate {   // PUT request body
 Field attributes give you precise control over how each field behaves in different contexts:
 
 #### Core Attributes
+
 ```rust
 #[crudcrate(
     primary_key,                    // Marks this field as the primary identifier (only one per struct)
@@ -213,6 +256,7 @@ Field attributes give you precise control over how each field behaves in differe
 ```
 
 #### Model Generation Control
+
 ```rust
 #[crudcrate(
     create_model = false,           // Excludes from TodoCreate struct (default: true)
@@ -221,6 +265,7 @@ Field attributes give you precise control over how each field behaves in differe
 ```
 
 #### Auto-Generation
+
 ```rust
 #[crudcrate(
     on_create = Uuid::new_v4(),     // Expression to run on create operations
@@ -229,6 +274,7 @@ Field attributes give you precise control over how each field behaves in differe
 ```
 
 #### Non-Database Fields
+
 ```rust
 #[crudcrate(
     non_db_attr = true,             // Field not in database (default: false)
@@ -238,6 +284,7 @@ Field attributes give you precise control over how each field behaves in differe
 ```
 
 #### Type-Specific Attributes
+
 ```rust
 #[crudcrate(
     enum_case_sensitive,            // Enable case-sensitive enum matching (default: case-insensitive)
@@ -245,6 +292,7 @@ Field attributes give you precise control over how each field behaves in differe
 ```
 
 #### Struct-Level Attributes
+
 Applied to the entire struct:
 
 ```rust
@@ -254,7 +302,7 @@ Applied to the entire struct:
     name_plural = "todos",          // Resource name plural (default: singular + "s")
     description = "Manages todos",  // Resource description for OpenAPI docs
     generate_router,                // Auto-generate router function
-    
+
     // Function injection - override default CRUD operations
     fn_get_one = self::custom_get_one,       // Custom get_one function
     fn_get_all = self::custom_get_all,       // Custom get_all function
@@ -270,6 +318,7 @@ Applied to the entire struct:
 Fulltext search automatically optimizes based on your database backend:
 
 **PostgreSQL**: Uses native `tsvector` and `plainto_tsquery` with GIN indexes for high-performance text search
+
 ```sql
 -- Generated query for PostgreSQL (with GIN index support)
 WHERE to_tsvector('english', title || ' ' || content) @@ plainto_tsquery('english', 'search terms')
@@ -279,8 +328,9 @@ CREATE INDEX idx_posts_fulltext ON posts USING GIN (to_tsvector('english', title
 ```
 
 **SQLite**: Falls back to case-insensitive LIKE queries across all fulltext fields
+
 ```sql
--- Generated query for SQLite  
+-- Generated query for SQLite
 WHERE (UPPER(title) LIKE UPPER('%search%') OR UPPER(content) LIKE UPPER('%terms%'))
 ```
 
@@ -317,17 +367,19 @@ let app = Router::new()
 - **Minimal allocations**: Zero-copy deserialization where possible
 
 Benchmark your setup:
+
 ```bash
 # Quick SQLite benchmark
 cargo bench --bench crud_benchmarks -- --verbose
 
-# Compare SQLite vs PostgreSQL performance  
+# Compare SQLite vs PostgreSQL performance
 docker run --name benchmark-postgres -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=benchmark -p 5432:5432 -d postgres:16
 BENCHMARK_DATABASE_URL=postgres://postgres:pass@localhost/benchmark cargo bench --bench crud_benchmarks -- --verbose
 docker stop benchmark-postgres && docker rm benchmark-postgres
 ```
 
 **Performance Differences**:
+
 - **SQLite**: Faster for small datasets (~400µs fulltext search), no network overhead, ideal for development
 - **PostgreSQL**: Better for production with proper GIN indexes (~2-100ms), scales better with dataset size and concurrent users
 - **Network Impact**: PostgreSQL has network latency but superior concurrent performance
@@ -343,13 +395,13 @@ GET    /api/todos                    // List with pagination
 GET    /api/todos?filter={"completed":false}  // Filtered list
 GET    /api/todos/123                // Get one
 POST   /api/todos                    // Create
-PUT    /api/todos/123                // Update  
+PUT    /api/todos/123                // Update
 DELETE /api/todos/123                // Delete
 
 // Pagination parameters
 GET /api/todos?page=0&per_page=25
 
-// Sorting parameters  
+// Sorting parameters
 GET /api/todos?sort=created_at&order=DESC
 
 // Complex filtering
@@ -370,10 +422,10 @@ async fn custom_get_todo(db: &DatabaseConnection, id: Uuid) -> Result<Todo, DbEr
         .filter(Column::UserId.eq(current_user_id()))  // Permission check
         .one(db)
         .await?;
-        
+
     // Log access for audit trail
     audit::log_access("todo", id, current_user_id()).await;
-    
+
     todo.ok_or(DbErr::RecordNotFound("Todo not found"))
 }
 ```
@@ -409,8 +461,6 @@ impl MigrationTrait for Migration {
 
 Development of `crudcrate` and `crudcrate-derive` has occasionally been powered by the questionable wisdom of large language models. They have been consulted for prototyping, code suggestions, test generation, and the overuse of emojis in documentation. This has resulted in perhaps more verbose and less optimal implementations.
 
-All testing, code review, and final approval has had human oversight to ensure functionality and safety.
-
 If you find this project useful and have a way to improve it, please help defeat the bots by contributing! 🤓
 
 ## License & Disclaimer
@@ -422,7 +472,7 @@ If you find this project useful and have a way to improve it, please help defeat
 ## Related Crates
 
 - **[sea-orm](https://crates.io/crates/sea-orm)**: Database ORM and query builder
-- **[axum](https://crates.io/crates/axum)**: Web application framework  
+- **[axum](https://crates.io/crates/axum)**: Web application framework
 - **[utoipa](https://crates.io/crates/utoipa)**: OpenAPI documentation generation
 - **[serde](https://crates.io/crates/serde)**: Serialization framework
 - **[tower-http](https://crates.io/crates/tower-http)**: HTTP middleware for production security

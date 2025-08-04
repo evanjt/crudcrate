@@ -150,4 +150,105 @@ where
     fn fulltext_searchable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![]
     }
+
+    /// Analyze database indexes and display recommendations for optimal performance.
+    /// This should be called once during application startup to help identify missing indexes.
+    /// 
+    /// # Usage
+    /// 
+    /// Call this method during application startup for any CRUD resource:
+    /// 
+    /// ```rust
+    /// use crudcrate::{traits::CRUDResource, EntityToModels};
+    /// use sea_orm::{entity::prelude::*, Database};
+    /// use sea_orm_migration::{prelude::*, sea_query::ColumnDef};
+    /// use uuid::Uuid;
+    /// 
+    /// // Define a simple test entity with filterable and sortable fields
+    /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    /// #[sea_orm(table_name = "test_items")]
+    /// #[crudcrate(api_struct = "TestItem", active_model = "ActiveModel")]
+    /// pub struct Model {
+    ///     #[sea_orm(primary_key, auto_increment = false)]
+    ///     #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+    ///     pub id: Uuid,
+    ///     #[crudcrate(filterable, sortable)]  // This should trigger index recommendation
+    ///     pub name: String,
+    ///     #[crudcrate(filterable)]  // This should trigger index recommendation
+    ///     pub active: bool,
+    /// }
+    /// 
+    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    /// pub enum Relation {}
+    /// impl ActiveModelBehavior for ActiveModel {}
+    /// 
+    /// // Simple migration to create the table WITHOUT indexes
+    /// pub struct TestMigrator;
+    /// #[async_trait::async_trait]
+    /// impl MigratorTrait for TestMigrator {
+    ///     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+    ///         vec![Box::new(CreateTestTable)]
+    ///     }
+    /// }
+    /// pub struct CreateTestTable;
+    /// #[async_trait::async_trait]
+    /// impl MigrationName for CreateTestTable {
+    ///     fn name(&self) -> &'static str { "create_test_table" }
+    /// }
+    /// #[async_trait::async_trait]
+    /// impl MigrationTrait for CreateTestTable {
+    ///     async fn up(&self, manager: &SchemaManager) -> Result<(), sea_orm::DbErr> {
+    ///         manager.create_table(
+    ///             Table::create().table(TestEntity).if_not_exists()
+    ///                 .col(ColumnDef::new(TestColumn::Id).uuid().not_null().primary_key())
+    ///                 .col(ColumnDef::new(TestColumn::Name).string().not_null())
+    ///                 .col(ColumnDef::new(TestColumn::Active).boolean().not_null())
+    ///                 .to_owned()
+    ///         ).await
+    ///     }
+    ///     async fn down(&self, manager: &SchemaManager) -> Result<(), sea_orm::DbErr> {
+    ///         manager.drop_table(Table::drop().table(TestEntity).to_owned()).await
+    ///     }
+    /// }
+    /// #[derive(Debug)] pub enum TestColumn { Id, Name, Active }
+    /// impl Iden for TestColumn {
+    ///     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+    ///         write!(s, "{}", match self {
+    ///             Self::Id => "id", Self::Name => "name", Self::Active => "active"
+    ///         }).unwrap();
+    ///     }
+    /// }
+    /// #[derive(Debug)] pub struct TestEntity;
+    /// impl Iden for TestEntity {
+    ///     fn unquoted(&self, s: &mut dyn std::fmt::Write) { write!(s, "test_items").unwrap(); }
+    /// }
+    /// 
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), sea_orm::DbErr> {
+    ///     let db = Database::connect("sqlite::memory:").await?;
+    ///     TestMigrator::up(&db, None).await?;
+    ///     
+    ///     // This will analyze the database and recommend indexes for 'name' and 'active' fields
+    ///     TestItem::analyze_and_display_indexes(&db).await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    /// 
+    /// This will display colorized recommendations like:
+    /// ```text
+    /// 🔍 crudcrate Index Analysis
+    /// ═══════════════════════════
+    /// 
+    /// ⚠️  High Priority
+    /// ┌─ Table: todos
+    /// │  Reason: Fulltext search on 2 columns without proper index
+    /// │  Suggested SQL:
+    /// │    CREATE INDEX idx_todos_fulltext ON todos USING GIN (...);
+    /// └─
+    /// ```
+    async fn analyze_and_display_indexes(db: &DatabaseConnection) -> Result<(), DbErr> {
+        let recommendations = crate::index_analysis::analyze_indexes_for_resource::<Self>(db).await?;
+        crate::index_analysis::display_index_recommendations(&recommendations);
+        Ok(())
+    }
 }
