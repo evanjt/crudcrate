@@ -245,7 +245,7 @@ async fn test_basic_fulltext_search() {
     // Test basic fulltext search for "rust programming"
     let filter = r#"{"q": "rust programming"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/blog_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -263,7 +263,7 @@ async fn test_basic_fulltext_search() {
 
     // Should find posts with "rust" and "programming" in title, content, or tags
     assert!(
-        posts.len() >= 1,
+        !posts.is_empty(),
         "Should find at least one post matching 'rust programming'"
     );
 
@@ -274,7 +274,7 @@ async fn test_basic_fulltext_search() {
             || post
                 .tags
                 .as_ref()
-                .map_or(false, |tags| tags.to_lowercase().contains("rust"))
+                .is_some_and(|tags| tags.to_lowercase().contains("rust"))
     });
     assert!(found_rust_post, "Should find posts containing 'rust'");
 }
@@ -289,7 +289,7 @@ async fn test_author_search() {
     // Test searching for author name
     let filter = r#"{"q": "Jane Smith"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/blog_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -307,7 +307,7 @@ async fn test_author_search() {
 
     // Should find the post by Jane Smith
     assert!(
-        posts.len() >= 1,
+        !posts.is_empty(),
         "Should find at least one post by Jane Smith"
     );
 
@@ -325,7 +325,7 @@ async fn test_numeric_field_search() {
     // Test searching for numeric content (view_count is included in fulltext)
     let filter = r#"{"q": "1500"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/blog_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -342,7 +342,7 @@ async fn test_numeric_field_search() {
     let posts: Vec<BlogPost> = serde_json::from_slice(&body).unwrap();
 
     // Should find the post with view_count 1500
-    assert!(posts.len() >= 1, "Should find post with view count 1500");
+    assert!(!posts.is_empty(), "Should find post with view count 1500");
 
     let found_1500_views = posts.iter().any(|post| post.view_count == 1500);
     assert!(found_1500_views, "Should find post with 1500 views");
@@ -358,7 +358,7 @@ async fn test_combined_filter_and_fulltext() {
     // Test combining fulltext search with regular filters
     let filter = r#"{"q": "web development", "published": true}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/blog_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -382,7 +382,7 @@ async fn test_combined_filter_and_fulltext() {
             || post.title.to_lowercase().contains("development")
             || post.content.to_lowercase().contains("web")
             || post.content.to_lowercase().contains("development")
-            || post.tags.as_ref().map_or(false, |tags| {
+            || post.tags.as_ref().is_some_and(|tags| {
                 tags.to_lowercase().contains("web") || tags.to_lowercase().contains("development")
             });
 
@@ -404,10 +404,7 @@ async fn test_fulltext_with_pagination() {
     // Test fulltext search with pagination
     let filter = r#"{"q": "learning"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!(
-        "/api/v1/blog_posts?filter={}&page=0&per_page=2",
-        encoded_filter
-    );
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}&page=0&per_page=2");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -447,10 +444,7 @@ async fn test_fulltext_with_sorting() {
     // Test fulltext search with sorting by title
     let filter = r#"{"q": "rust web"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!(
-        "/api/v1/blog_posts?filter={}&sort=title&order=ASC",
-        encoded_filter
-    );
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}&sort=title&order=ASC");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -487,7 +481,7 @@ async fn test_empty_fulltext_search() {
     // Test empty search query
     let filter = r#"{"q": ""}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/blog_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -517,7 +511,7 @@ async fn test_fulltext_search_no_results() {
     // Test search for something that doesn't exist
     let filter = r#"{"q": "nonexistent term xyz123"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/blog_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/blog_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)

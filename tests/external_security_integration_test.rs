@@ -308,7 +308,7 @@ async fn test_fulltext_search_still_works_with_security() {
     // Test that fulltext search still works with all security layers
     let filter = r#"{"q": "secure api"}"#;
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/secure_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/secure_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -325,7 +325,7 @@ async fn test_fulltext_search_still_works_with_security() {
     let posts: Vec<SecurePost> = serde_json::from_slice(&body).unwrap();
 
     // Should find the post about "Secure API Best Practices"
-    assert!(posts.len() >= 1, "Should find posts matching 'secure api'");
+    assert!(!posts.is_empty(), "Should find posts matching 'secure api'");
     let found_secure_post = posts.iter().any(|post| {
         post.title.to_lowercase().contains("secure") || post.content.to_lowercase().contains("api")
     });

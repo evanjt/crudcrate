@@ -167,12 +167,10 @@ impl CRUDResource for Task {
     }
 
     fn like_filterable_columns() -> Vec<&'static str> {
-        vec!["title", "description"]  // Text fields use LIKE, enums/numbers use exact
+        vec!["title", "description"] // Text fields use LIKE, enums/numbers use exact
     }
 }
 
 crud_handlers!(Task, TaskUpdate, TaskCreate);
 
-pub mod prelude {
-    
-}
+pub mod prelude {}

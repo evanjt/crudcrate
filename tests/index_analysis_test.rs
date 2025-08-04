@@ -293,10 +293,7 @@ async fn test_filterable_columns_recommendations() {
         assert_eq!(rec.index_type, IndexType::BTree);
     }
 
-    println!(
-        "✅ Filterable columns test passed: {} recommendations",
-        filterable_count
-    );
+    println!("✅ Filterable columns test passed: {filterable_count} recommendations");
 }
 
 #[tokio::test]
@@ -353,10 +350,7 @@ async fn test_sortable_columns_recommendations() {
         assert_eq!(rec.index_type, IndexType::BTree);
     }
 
-    println!(
-        "✅ Sortable columns test passed: {} recommendations",
-        sortable_count
-    );
+    println!("✅ Sortable columns test passed: {sortable_count} recommendations");
 }
 
 #[tokio::test]
@@ -453,7 +447,7 @@ async fn test_priority_levels() {
         "Should have high priority recommendations"
     );
 
-    println!("✅ Priority levels test passed: {:?}", priority_counts);
+    println!("✅ Priority levels test passed: {priority_counts:?}");
 }
 
 #[tokio::test]

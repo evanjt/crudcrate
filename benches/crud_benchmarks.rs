@@ -184,104 +184,109 @@ impl MigrationTrait for CreateBenchmarkIndexes {
         let db = manager.get_connection();
 
         // Detect database backend to create appropriate indexes
-        match db.get_database_backend() {
-            sea_orm::DatabaseBackend::Postgres => {
-                // PostgreSQL: Create GIN indexes for fulltext search
-                // This creates a combined fulltext search index
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_fulltext ON benchmark_posts USING GIN (to_tsvector('english', title || ' ' || content || ' ' || author || ' ' || COALESCE(tags, '')))"
-                    )
-                    .await?;
+        if db.get_database_backend() == sea_orm::DatabaseBackend::Postgres {
+            // PostgreSQL: Create GIN indexes for fulltext search
+            // This creates a combined fulltext search index
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_fulltext ON benchmark_posts USING GIN (to_tsvector('english', title || ' ' || content || ' ' || author || ' ' || COALESCE(tags, '')))"
+                )
+                .await?;
 
-                // Regular B-tree indexes for filtering and sorting
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_published ON benchmark_posts (published)",
-                    )
-                    .await?;
+            // Regular B-tree indexes for filtering and sorting
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_published ON benchmark_posts (published)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_category ON benchmark_posts (category)",
-                    )
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_category ON benchmark_posts (category)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared("CREATE INDEX idx_benchmark_posts_view_count ON benchmark_posts (view_count)")
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_view_count ON benchmark_posts (view_count)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_priority ON benchmark_posts (priority)",
-                    )
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_priority ON benchmark_posts (priority)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared("CREATE INDEX idx_benchmark_posts_created_at ON benchmark_posts (created_at)")
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_created_at ON benchmark_posts (created_at)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_author ON benchmark_posts (author)",
-                    )
-                    .await?;
-            }
-            _ => {
-                // SQLite: Create regular indexes (SQLite doesn't have native fulltext in our setup)
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_published ON benchmark_posts (published)",
-                    )
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_author ON benchmark_posts (author)",
+                )
+                .await?;
+        } else {
+            // SQLite: Create regular indexes (SQLite doesn't have native fulltext in our setup)
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_published ON benchmark_posts (published)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_category ON benchmark_posts (category)",
-                    )
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_category ON benchmark_posts (category)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared("CREATE INDEX idx_benchmark_posts_view_count ON benchmark_posts (view_count)")
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_view_count ON benchmark_posts (view_count)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_priority ON benchmark_posts (priority)",
-                    )
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_priority ON benchmark_posts (priority)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared("CREATE INDEX idx_benchmark_posts_created_at ON benchmark_posts (created_at)")
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_created_at ON benchmark_posts (created_at)",
+                )
+                .await?;
 
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_author ON benchmark_posts (author)",
-                    )
-                    .await?;
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_author ON benchmark_posts (author)",
+                )
+                .await?;
 
-                // SQLite individual field indexes for text searches
-                manager
-                    .get_connection()
-                    .execute_unprepared(
-                        "CREATE INDEX idx_benchmark_posts_title ON benchmark_posts (title)",
-                    )
-                    .await?;
-            }
+            // SQLite individual field indexes for text searches
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_title ON benchmark_posts (title)",
+                )
+                .await?;
         }
 
         Ok(())
@@ -304,7 +309,7 @@ impl MigrationTrait for CreateBenchmarkIndexes {
             // Ignore errors when dropping indexes (some may not exist depending on backend)
             let _ = manager
                 .get_connection()
-                .execute_unprepared(&format!("DROP INDEX IF EXISTS {}", index))
+                .execute_unprepared(&format!("DROP INDEX IF EXISTS {index}"))
                 .await;
         }
 
@@ -377,10 +382,9 @@ async fn setup_benchmark_db(record_count: usize) -> Result<DatabaseConnection, s
     // Insert sample data for benchmarking
     for i in 0..record_count {
         let post = BenchmarkPostCreate {
-            title: format!("Benchmark Post Title {}", i),
+            title: format!("Benchmark Post Title {i}"),
             content: format!(
-                "This is benchmark content for post {}. It contains various keywords like performance, testing, database, queries, and optimization to test fulltext search capabilities.",
-                i
+                "This is benchmark content for post {i}. It contains various keywords like performance, testing, database, queries, and optimization to test fulltext search capabilities."
             ),
             author: format!("Author{}", i % 10), // 10 different authors
             tags: if i % 3 == 0 {
@@ -437,7 +441,7 @@ async fn benchmark_filtered_query(
     filter: &str,
 ) -> Result<Vec<BenchmarkPost>, Box<dyn std::error::Error>> {
     let encoded_filter = url_escape::encode_component(filter);
-    let uri = format!("/api/v1/benchmark_posts?filter={}", encoded_filter);
+    let uri = format!("/api/v1/benchmark_posts?filter={encoded_filter}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -455,7 +459,7 @@ async fn benchmark_fulltext_search(
     app: Router,
     query: &str,
 ) -> Result<Vec<BenchmarkPost>, Box<dyn std::error::Error>> {
-    let filter = format!("{{\"q\":\"{}\"}}", query);
+    let filter = format!("{{\"q\":\"{query}\"}}");
     benchmark_filtered_query(app, &filter).await
 }
 
@@ -465,10 +469,7 @@ async fn benchmark_sorted_query(
     sort_field: &str,
     order: &str,
 ) -> Result<Vec<BenchmarkPost>, Box<dyn std::error::Error>> {
-    let uri = format!(
-        "/api/v1/benchmark_posts?sort={}&order={}",
-        sort_field, order
-    );
+    let uri = format!("/api/v1/benchmark_posts?sort={sort_field}&order={order}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -487,10 +488,7 @@ async fn benchmark_paginated_query(
     page: usize,
     per_page: usize,
 ) -> Result<Vec<BenchmarkPost>, Box<dyn std::error::Error>> {
-    let uri = format!(
-        "/api/v1/benchmark_posts?page={}&per_page={}",
-        page, per_page
-    );
+    let uri = format!("/api/v1/benchmark_posts?page={page}&per_page={per_page}");
 
     let request = Request::builder()
         .method(Method::GET)
@@ -529,8 +527,7 @@ async fn benchmark_complex_query(
     let filter = r#"{"published":true,"priority_gte":5}"#;
     let encoded_filter = url_escape::encode_component(filter);
     let uri = format!(
-        "/api/v1/benchmark_posts?filter={}&sort=view_count&order=DESC&page=0&per_page=20",
-        encoded_filter
+        "/api/v1/benchmark_posts?filter={encoded_filter}&sort=view_count&order=DESC&page=0&per_page=20"
     );
 
     let request = Request::builder()
@@ -562,10 +559,8 @@ fn bench_crud_operations(c: &mut Criterion) {
         let db = rt.block_on(setup_benchmark_db(size)).unwrap();
         let app = setup_benchmark_app(db);
 
-        let mut group = c.benchmark_group(format!(
-            "CRUD Operations {} ({}records)",
-            backend_name, size
-        ));
+        let mut group =
+            c.benchmark_group(format!("CRUD Operations {backend_name} ({size}records)"));
         group.measurement_time(Duration::from_secs(10));
 
         // Simple GET all benchmark
@@ -623,7 +618,7 @@ fn bench_crud_operations(c: &mut Criterion) {
 
         for (field, order) in sort_operations {
             group.bench_with_input(
-                BenchmarkId::new("sorted_query", format!("{}_{}", field, order)),
+                BenchmarkId::new("sorted_query", format!("{field}_{order}")),
                 &(field, order),
                 |b, (field, order)| {
                     b.iter(|| {
@@ -671,7 +666,7 @@ fn bench_create_operations(c: &mut Criterion) {
         "SQLite"
     };
 
-    let mut group = c.benchmark_group(format!("Create Operations {}", backend_name));
+    let mut group = c.benchmark_group(format!("Create Operations {backend_name}"));
     group.measurement_time(Duration::from_secs(8));
 
     // Test creating posts in clean databases of different sizes
@@ -720,7 +715,7 @@ fn bench_stress_operations(c: &mut Criterion) {
         "SQLite"
     };
 
-    let mut group = c.benchmark_group(format!("Stress Operations {}", backend_name));
+    let mut group = c.benchmark_group(format!("Stress Operations {backend_name}"));
     group.measurement_time(Duration::from_secs(15));
     group.sample_size(10); // Fewer samples for stress tests
 

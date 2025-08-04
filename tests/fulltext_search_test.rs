@@ -109,14 +109,13 @@ async fn test_fulltext_search_with_different_data_types() {
     ];
 
     for term in search_terms {
-        let filter_json = format!(r#"{{"q": "{}"}}"#, term);
+        let filter_json = format!(r#"{{"q": "{term}"}}"#);
         let condition =
             apply_filters::<Article>(Some(filter_json), &Article::filterable_columns(), backend);
 
         assert!(
             !condition.is_empty(),
-            "Condition should not be empty for term: {}",
-            term
+            "Condition should not be empty for term: {term}"
         );
     }
 }

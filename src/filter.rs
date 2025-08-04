@@ -45,7 +45,11 @@ fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
         Some((base_field, ">"))
     } else if let Some(base_field) = field_name.strip_suffix("_lt") {
         Some((base_field, "<"))
-    } else { field_name.strip_suffix("_neq").map(|base_field| (base_field, "!=")) }
+    } else {
+        field_name
+            .strip_suffix("_neq")
+            .map(|base_field| (base_field, "!="))
+    }
 }
 
 /// Apply numeric comparison for integer values
@@ -88,26 +92,26 @@ fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     backend: DatabaseBackend,
 ) -> Option<SimpleExpr> {
     let fulltext_columns = T::fulltext_searchable_columns();
-    
+
     if fulltext_columns.is_empty() {
         return None;
     }
 
     // Show warning once if using fallback on large datasets
-    if fulltext_columns.len() > 3 && backend != DatabaseBackend::Postgres {
-        if !FULLTEXT_WARNING_SHOWN.load(Ordering::Relaxed) {
-            eprintln!("Warning: Using inefficient fulltext search fallback for {} columns. Consider PostgreSQL for better performance.", fulltext_columns.len());
-            FULLTEXT_WARNING_SHOWN.store(true, Ordering::Relaxed);
-        }
+    if fulltext_columns.len() > 3
+        && backend != DatabaseBackend::Postgres
+        && !FULLTEXT_WARNING_SHOWN.load(Ordering::Relaxed)
+    {
+        eprintln!(
+            "Warning: Using inefficient fulltext search fallback for {} columns. Consider PostgreSQL for better performance.",
+            fulltext_columns.len()
+        );
+        FULLTEXT_WARNING_SHOWN.store(true, Ordering::Relaxed);
     }
 
     match &backend {
-        DatabaseBackend::Postgres => {
-            build_postgres_fulltext_condition(query, &fulltext_columns)
-        }
-        _ => {
-            build_fallback_fulltext_condition(query, &fulltext_columns)
-        }
+        DatabaseBackend::Postgres => build_postgres_fulltext_condition(query, &fulltext_columns),
+        _ => build_fallback_fulltext_condition(query, &fulltext_columns),
     }
 }
 
@@ -123,12 +127,12 @@ fn build_postgres_fulltext_condition(
     // For PostgreSQL, build a custom SQL expression for fulltext search
     // We'll concatenate all columns and use to_tsvector/plainto_tsquery
     let mut concat_parts = Vec::new();
-    
+
     for (name, _column) in columns {
         // COALESCE(column_name::text, '')
         concat_parts.push(format!("COALESCE({name}::text, '')"));
     }
-    
+
     let concat_sql = concat_parts.join(" || ' ' || ");
     // Additional security: validate and sanitize query
     let sanitized_query = sanitize_search_query(query);
@@ -137,7 +141,7 @@ fn build_postgres_fulltext_condition(
         concat_sql,
         sanitized_query.replace('\'', "''") // Escape single quotes
     );
-    
+
     // Use custom SQL expression
     Some(SimpleExpr::Custom(fulltext_sql))
 }
@@ -153,20 +157,23 @@ fn build_fallback_fulltext_condition(
 
     // For SQLite and MySQL, use concatenation with LIKE
     let mut concat_parts = Vec::new();
-    
+
     for (name, _column) in columns {
         concat_parts.push(format!("CAST({name} AS TEXT)"));
     }
-    
+
     let concat_sql = concat_parts.join(" || ' ' || ");
     // Additional security: validate and sanitize query
     let sanitized_query = sanitize_search_query(query);
     let like_sql = format!(
         "UPPER({}) LIKE UPPER('%{}%')",
         concat_sql,
-        sanitized_query.replace('\'', "''").replace('%', "\\%").replace('_', "\\_") // Escape SQL LIKE wildcards
+        sanitized_query
+            .replace('\'', "''")
+            .replace('%', "\\%")
+            .replace('_', "\\_") // Escape SQL LIKE wildcards
     );
-    
+
     // Use custom SQL expression
     Some(SimpleExpr::Custom(like_sql))
 }
@@ -177,7 +184,6 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
     backend: DatabaseBackend,
 ) -> Condition {
-    
     // Parse the filter string into a HashMap
     let filters: HashMap<String, serde_json::Value> = if let Some(filter) = filter_str {
         match serde_json::from_str(&filter) {
@@ -191,7 +197,6 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
         HashMap::new()
     };
 
-
     let mut condition = Condition::all();
     // Check if there is a free-text search ("q") parameter
     if let Some(q_value) = filters.get("q") {
@@ -203,7 +208,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 // Fallback to original LIKE search on regular searchable columns
                 let mut or_conditions = Condition::any();
                 for (_col_name, col) in searchable_columns {
-                    or_conditions = or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
+                    or_conditions =
+                        or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
                 }
                 condition = condition.add(or_conditions);
             }
@@ -216,7 +222,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 eprintln!("Warning: Invalid field name rejected: {key}");
                 continue;
             }
-            
+
             // Check if field exists in filterable columns (handle comparison operators and special cases)
             let base_field_name = if let Some((base_field, _)) = parse_comparison_operator(&key) {
                 base_field
@@ -237,10 +243,13 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             if let Some(value_str) = value.as_str() {
                 // Security validation: check field value length
                 if !validate_field_value(value_str) {
-                    eprintln!("Warning: Field value too long, rejected: {} chars", value_str.len());
+                    eprintln!(
+                        "Warning: Field value too long, rejected: {} chars",
+                        value_str.len()
+                    );
                     continue;
                 }
-                
+
                 let trimmed_value = value_str.trim().to_string();
 
                 // Handle empty strings
@@ -262,13 +271,14 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     } else {
                         // Check if this field should use LIKE queries
                         let use_like = T::like_filterable_columns().contains(&key.as_str());
-                        
+
                         if use_like {
                             // Use LIKE queries for text fields (substring matching)
                             if T::enum_case_sensitive() {
                                 // Case-sensitive substring matching
-                                condition = condition
-                                    .add(Expr::col(Alias::new(&*key)).like(format!("%{trimmed_value}%")));
+                                condition = condition.add(
+                                    Expr::col(Alias::new(&*key)).like(format!("%{trimmed_value}%")),
+                                );
                             } else {
                                 // Case-insensitive substring matching using UPPER()
                                 use sea_orm::sea_query::SimpleExpr;
@@ -276,7 +286,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                                     SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                         Expr::col(Alias::new(&*key)),
                                     ))
-                                    .like(format!("%{}%", trimmed_value.to_uppercase()))
+                                    .like(format!("%{}%", trimmed_value.to_uppercase())),
                                 );
                             }
                         } else {

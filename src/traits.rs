@@ -153,17 +153,17 @@ where
 
     /// Analyze database indexes and display recommendations for optimal performance.
     /// This should be called once during application startup to help identify missing indexes.
-    /// 
+    ///
     /// # Usage
-    /// 
+    ///
     /// Call this method during application startup for any CRUD resource:
-    /// 
+    ///
     /// ```rust
     /// use crudcrate::{traits::CRUDResource, EntityToModels};
     /// use sea_orm::{entity::prelude::*, Database};
     /// use sea_orm_migration::{prelude::*, sea_query::ColumnDef};
     /// use uuid::Uuid;
-    /// 
+    ///
     /// // Define a simple test entity with filterable and sortable fields
     /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     /// #[sea_orm(table_name = "test_items")]
@@ -177,11 +177,11 @@ where
     ///     #[crudcrate(filterable)]  // This should trigger index recommendation
     ///     pub active: bool,
     /// }
-    /// 
+    ///
     /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
     /// pub enum Relation {}
     /// impl ActiveModelBehavior for ActiveModel {}
-    /// 
+    ///
     /// // Simple migration to create the table WITHOUT indexes
     /// pub struct TestMigrator;
     /// #[async_trait::async_trait]
@@ -222,7 +222,7 @@ where
     /// impl Iden for TestEntity {
     ///     fn unquoted(&self, s: &mut dyn std::fmt::Write) { write!(s, "test_items").unwrap(); }
     /// }
-    /// 
+    ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), sea_orm::DbErr> {
     ///     let db = Database::connect("sqlite::memory:").await?;
@@ -233,12 +233,12 @@ where
     ///     Ok(())
     /// }
     /// ```
-    /// 
+    ///
     /// This will display colorized recommendations like:
     /// ```text
     /// 🔍 crudcrate Index Analysis
     /// ═══════════════════════════
-    /// 
+    ///
     /// ⚠️  High Priority
     /// ┌─ Table: todos
     /// │  Reason: Fulltext search on 2 columns without proper index
@@ -247,7 +247,8 @@ where
     /// └─
     /// ```
     async fn analyze_and_display_indexes(db: &DatabaseConnection) -> Result<(), DbErr> {
-        let recommendations = crate::index_analysis::analyze_indexes_for_resource::<Self>(db).await?;
+        let recommendations =
+            crate::index_analysis::analyze_indexes_for_resource::<Self>(db).await?;
         crate::index_analysis::display_index_recommendations(&recommendations);
         Ok(())
     }

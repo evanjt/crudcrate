@@ -97,14 +97,18 @@ async fn create_numeric_test_tasks(app: &axum::Router) -> Vec<Task> {
             .await
             .unwrap();
 
-        assert!(status.is_success(), 
-                "Task creation failed with status {}: {}",
-                status,
-                String::from_utf8_lossy(&body)
-            );
+        assert!(
+            status.is_success(),
+            "Task creation failed with status {}: {}",
+            status,
+            String::from_utf8_lossy(&body)
+        );
 
         let body_str = String::from_utf8_lossy(&body);
-        assert!(!body_str.is_empty(), "Empty response body from task creation");
+        assert!(
+            !body_str.is_empty(),
+            "Empty response body from task creation"
+        );
 
         let task: Task = serde_json::from_slice(&body)
             .map_err(|e| format!("Failed to parse task JSON '{body_str}': {e}"))

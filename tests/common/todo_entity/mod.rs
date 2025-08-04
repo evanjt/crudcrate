@@ -86,12 +86,10 @@ impl CRUDResource for Todo {
     }
 
     fn like_filterable_columns() -> Vec<&'static str> {
-        vec!["title"]  // Only title should use LIKE queries, completed (bool) uses exact
+        vec!["title"] // Only title should use LIKE queries, completed (bool) uses exact
     }
 }
 
 crud_handlers!(Todo, TodoUpdate, TodoCreate);
 
-pub mod prelude {
-    
-}
+pub mod prelude {}

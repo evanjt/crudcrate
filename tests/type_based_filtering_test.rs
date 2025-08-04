@@ -188,7 +188,7 @@ async fn test_string_field_description_uses_like_by_default() {
     create_test_products(&app).await;
 
     // Test default LIKE behavior for string fields
-    // Should find products with "wireless" in description  
+    // Should find products with "wireless" in description
     let filter = url_escape::encode_component(r#"{"description":"wireless"}"#);
     let request = Request::builder()
         .method("GET")
