@@ -38,8 +38,10 @@ pub enum Priority {
 
 #[derive(Debug)]
 struct ExistingIndex {
+    #[allow(dead_code)]
     table_name: String,
     column_name: String,
+    #[allow(dead_code)]
     index_name: String,
     index_type: String,
 }
