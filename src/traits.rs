@@ -142,4 +142,12 @@ where
     fn like_filterable_columns() -> Vec<&'static str> {
         vec![]
     }
+
+    /// Returns a list of field names and their column types that should be included in fulltext search.
+    /// These fields will be concatenated and searched when the 'q' parameter is used.
+    /// Default is empty - no fields are included in fulltext search by default.
+    #[must_use]
+    fn fulltext_searchable_columns() -> Vec<(&'static str, Self::ColumnType)> {
+        vec![]
+    }
 }
