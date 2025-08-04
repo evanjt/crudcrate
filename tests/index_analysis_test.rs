@@ -1,7 +1,7 @@
 /*!
 # Index Analysis Integration Test
 
-Tests the database-agnostic index analysis functionality.
+Tests the database-agnostic index analysis functionality with different database backends.
 */
 
 use chrono::{DateTime, Utc};
@@ -11,7 +11,7 @@ use crudcrate::{
     traits::CRUDResource,
 };
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
-use sea_orm_migration::{prelude::*, sea_query::ColumnDef};
+use sea_orm_migration::{prelude::*, sea_query::{ColumnDef, Alias, Table}};
 use uuid::Uuid;
 
 /// Test entity with various field types for index analysis
@@ -152,10 +152,124 @@ impl Iden for IndexTestEntity {
     }
 }
 
+// Helper function to get database URL from environment or default to SQLite
+fn get_test_database_url() -> String {
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite::memory:".to_string())
+}
+
+// Global mutex for PostgreSQL setup to avoid race conditions
+use std::sync::Mutex;
+static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::new(());
+
+// Helper function for comprehensive database cleanup
+async fn cleanup_test_database(db: &DatabaseConnection) {
+    let database_url = get_test_database_url();
+    
+    // Drop test tables
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS index_test_posts").await;
+    
+    // PostgreSQL-specific cleanup
+    if database_url.starts_with("postgres") {
+        // Drop any custom types that might conflict
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS status CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS priority CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS task_status CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS task_priority CASCADE").await;
+        
+        // Drop the migrations table to allow fresh migrations
+        let _ = db.execute_unprepared("DROP TABLE IF EXISTS seaql_migrations CASCADE").await;
+    }
+    
+    // MySQL-specific cleanup
+    if database_url.starts_with("mysql") {
+        let _ = db.execute_unprepared("DROP TABLE IF EXISTS seaql_migrations").await;
+    }
+}
+
+// Helper function for migration-based setup (for tests that need Sea-ORM migrations)
 async fn setup_test_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
-    IndexTestMigrator::up(&db, None).await?;
-    Ok(db)
+    let database_url = get_test_database_url();
+    
+    if database_url.starts_with("sqlite::memory:") {
+        let db = Database::connect(&database_url).await?;
+        IndexTestMigrator::up(&db, None).await?;
+        Ok(db)
+    } else if database_url.starts_with("postgres") {
+        // Serialize PostgreSQL setup to avoid race conditions
+        let _lock = POSTGRES_SETUP_MUTEX.lock().unwrap();
+        let db = Database::connect(&database_url).await?;
+        cleanup_test_database(&db).await;
+        IndexTestMigrator::up(&db, None).await?;
+        Ok(db)
+    } else {
+        // MySQL and other databases
+        let db = Database::connect(&database_url).await?;
+        cleanup_test_database(&db).await;
+        IndexTestMigrator::up(&db, None).await?;
+        Ok(db)
+    }
+}
+
+// Cleanup function for persistent databases
+async fn cleanup_test_table(db: &DatabaseConnection, table_name: &str) {
+    use sea_orm_migration::sea_query::Table;
+    
+    let drop_table = Table::drop()
+        .table(Alias::new(table_name))
+        .if_exists()
+        .to_owned();
+    let statement = db.get_database_backend().build(&drop_table);
+    let _ = db.execute(statement).await;
+}
+
+// Helper function to create the test table using Sea-Query for database compatibility
+async fn create_test_table(db: &DatabaseConnection, table_name: &str) -> Result<(), sea_orm::DbErr> {
+    use sea_orm_migration::sea_query::{Table, ColumnDef};
+    
+    // Clean up any existing table first
+    let drop_table = Table::drop()
+        .table(Alias::new(table_name))
+        .if_exists()
+        .to_owned();
+    let drop_statement = db.get_database_backend().build(&drop_table);
+    let _ = db.execute(drop_statement).await;
+    
+    // Create table using Sea-Query for database compatibility
+    let create_table = Table::create()
+        .table(Alias::new(table_name))
+        .if_not_exists()
+        .col(
+            ColumnDef::new(Alias::new("id"))
+                .uuid()
+                .not_null()
+                .primary_key(),
+        )
+        .col(ColumnDef::new(Alias::new("title")).string().not_null())
+        .col(ColumnDef::new(Alias::new("content")).text().not_null())
+        .col(ColumnDef::new(Alias::new("author")).string().not_null())
+        .col(
+            ColumnDef::new(Alias::new("published"))
+                .boolean()
+                .not_null()
+                .default(false),
+        )
+        .col(
+            ColumnDef::new(Alias::new("view_count"))
+                .integer()
+                .not_null()
+                .default(0),
+        )
+        .col(
+            ColumnDef::new(Alias::new("created_at"))
+                .timestamp_with_time_zone()
+                .not_null(),
+        )
+        .to_owned();
+    
+    let statement = db.get_database_backend().build(&create_table);
+    db.execute(statement).await?;
+    Ok(())
 }
 
 #[tokio::test]
@@ -241,24 +355,11 @@ async fn test_display_index_recommendations() {
 
 #[tokio::test]
 async fn test_filterable_columns_recommendations() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("Failed to connect to database");
-
-    // Create table without indexes - using direct SQL to avoid Sea-ORM conflicts
-    db.execute_unprepared(
-        "CREATE TABLE index_test_posts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            author TEXT NOT NULL,
-            published BOOLEAN NOT NULL,
-            view_count INTEGER NOT NULL,
-            created_at DATETIME NOT NULL
-        )",
-    )
-    .await
-    .expect("Failed to create table");
+    let database_url = get_test_database_url();
+    let db = Database::connect(&database_url).await.expect("Failed to connect to database");
+    
+    // Create test table
+    create_test_table(&db, "index_test_posts").await.expect("Failed to create table");
 
     let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
         .await
@@ -293,29 +394,19 @@ async fn test_filterable_columns_recommendations() {
         assert_eq!(rec.index_type, IndexType::BTree);
     }
 
+    // Clean up
+    cleanup_test_table(&db, "index_test_posts").await;
+    
     println!("✅ Filterable columns test passed: {filterable_count} recommendations");
 }
 
 #[tokio::test]
 async fn test_sortable_columns_recommendations() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("Failed to connect to database");
-
-    // Create table without indexes
-    db.execute_unprepared(
-        "CREATE TABLE index_test_posts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            author TEXT NOT NULL,
-            published BOOLEAN NOT NULL,
-            view_count INTEGER NOT NULL,
-            created_at DATETIME NOT NULL
-        )",
-    )
-    .await
-    .expect("Failed to create table");
+    let database_url = get_test_database_url();
+    let db = Database::connect(&database_url).await.expect("Failed to connect to database");
+    
+    // Create test table
+    create_test_table(&db, "index_test_posts").await.expect("Failed to create table");
 
     let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
         .await
@@ -350,29 +441,19 @@ async fn test_sortable_columns_recommendations() {
         assert_eq!(rec.index_type, IndexType::BTree);
     }
 
+    // Clean up
+    cleanup_test_table(&db, "index_test_posts").await;
+    
     println!("✅ Sortable columns test passed: {sortable_count} recommendations");
 }
 
 #[tokio::test]
 async fn test_fulltext_columns_recommendations() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("Failed to connect to database");
-
-    // Create table without indexes
-    db.execute_unprepared(
-        "CREATE TABLE index_test_posts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            author TEXT NOT NULL,
-            published BOOLEAN NOT NULL,
-            view_count INTEGER NOT NULL,
-            created_at DATETIME NOT NULL
-        )",
-    )
-    .await
-    .expect("Failed to create table");
+    let database_url = get_test_database_url();
+    let db = Database::connect(&database_url).await.expect("Failed to connect to database");
+    
+    // Create test table
+    create_test_table(&db, "index_test_posts").await.expect("Failed to create table");
 
     let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
         .await
@@ -393,11 +474,24 @@ async fn test_fulltext_columns_recommendations() {
 
     let fulltext_rec = &fulltext_recs[0];
     assert_eq!(fulltext_rec.priority, Priority::High);
-    assert_eq!(fulltext_rec.index_type, IndexType::BTree); // SQLite fallback
+    
+    // Check expected index type based on database backend
+    let expected_index_type = if database_url.starts_with("postgres") {
+        IndexType::GIN
+    } else if database_url.starts_with("mysql") {
+        IndexType::Fulltext
+    } else {
+        IndexType::BTree // SQLite fallback
+    };
+    assert_eq!(fulltext_rec.index_type, expected_index_type);
+    
     assert!(fulltext_rec.reason.contains("Fulltext search on 2 columns")); // content, author
     assert!(fulltext_rec.column_name.contains("content"));
     assert!(fulltext_rec.column_name.contains("author"));
 
+    // Clean up
+    cleanup_test_table(&db, "index_test_posts").await;
+    
     println!(
         "✅ Fulltext columns test passed: {} recommendations",
         fulltext_recs.len()
@@ -406,24 +500,11 @@ async fn test_fulltext_columns_recommendations() {
 
 #[tokio::test]
 async fn test_priority_levels() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("Failed to connect to database");
-
-    // Create table without indexes
-    db.execute_unprepared(
-        "CREATE TABLE index_test_posts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            author TEXT NOT NULL,
-            published BOOLEAN NOT NULL,
-            view_count INTEGER NOT NULL,
-            created_at DATETIME NOT NULL
-        )",
-    )
-    .await
-    .expect("Failed to create table");
+    let database_url = get_test_database_url();
+    let db = Database::connect(&database_url).await.expect("Failed to connect to database");
+    
+    // Create test table
+    create_test_table(&db, "index_test_posts").await.expect("Failed to create table");
 
     let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
         .await
@@ -447,6 +528,9 @@ async fn test_priority_levels() {
         "Should have high priority recommendations"
     );
 
+    // Clean up
+    cleanup_test_table(&db, "index_test_posts").await;
+    
     println!("✅ Priority levels test passed: {priority_counts:?}");
 }
 
@@ -471,28 +555,28 @@ async fn test_no_recommendations_with_existing_indexes() {
     .await
     .expect("Failed to create table");
 
-    // Add indexes for all filterable/sortable fields
-    db.execute_unprepared("CREATE INDEX idx_index_test_posts_title ON index_test_posts (title)")
-        .await
-        .expect("Failed to create title index");
-    db.execute_unprepared("CREATE INDEX idx_index_test_posts_author ON index_test_posts (author)")
-        .await
-        .expect("Failed to create author index");
-    db.execute_unprepared(
-        "CREATE INDEX idx_index_test_posts_published ON index_test_posts (published)",
-    )
-    .await
-    .expect("Failed to create published index");
-    db.execute_unprepared(
-        "CREATE INDEX idx_index_test_posts_view_count ON index_test_posts (view_count)",
-    )
-    .await
-    .expect("Failed to create view_count index");
-    db.execute_unprepared(
-        "CREATE INDEX idx_index_test_posts_created_at ON index_test_posts (created_at)",
-    )
-    .await
-    .expect("Failed to create created_at index");
+    // Add indexes for all filterable/sortable fields using Sea-Query for database compatibility
+    use sea_orm_migration::sea_query::Index;
+    
+    let index_columns = vec![
+        ("idx_index_test_posts_title", "title"),
+        ("idx_index_test_posts_author", "author"),
+        ("idx_index_test_posts_published", "published"),
+        ("idx_index_test_posts_view_count", "view_count"),
+        ("idx_index_test_posts_created_at", "created_at"),
+    ];
+    
+    for (index_name, column_name) in index_columns {
+        let create_index = Index::create()
+            .if_not_exists()
+            .name(index_name)
+            .table(Alias::new("index_test_posts"))
+            .col(Alias::new(column_name))
+            .to_owned();
+        
+        let statement = db.get_database_backend().build(&create_index);
+        db.execute(statement).await.expect("Failed to create index");
+    }
 
     let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
         .await
@@ -522,6 +606,9 @@ async fn test_no_recommendations_with_existing_indexes() {
         "Should still have fulltext recommendation"
     );
 
+    // Clean up
+    cleanup_test_table(&db, "index_test_posts").await;
+    
     println!(
         "✅ Existing indexes test passed: {} non-fulltext recommendations",
         non_fulltext_recs.len()
@@ -530,24 +617,11 @@ async fn test_no_recommendations_with_existing_indexes() {
 
 #[tokio::test]
 async fn test_combined_field_attributes() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("Failed to connect to database");
-
-    // Create table without indexes
-    db.execute_unprepared(
-        "CREATE TABLE index_test_posts (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            author TEXT NOT NULL,
-            published BOOLEAN NOT NULL,
-            view_count INTEGER NOT NULL,
-            created_at DATETIME NOT NULL
-        )",
-    )
-    .await
-    .expect("Failed to create table");
+    let database_url = get_test_database_url();
+    let db = Database::connect(&database_url).await.expect("Failed to connect to database");
+    
+    // Create test table
+    create_test_table(&db, "index_test_posts").await.expect("Failed to create table");
 
     let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
         .await
@@ -581,5 +655,8 @@ async fn test_combined_field_attributes() {
         "Should have recommendation involving author field"
     );
 
+    // Clean up
+    cleanup_test_table(&db, "index_test_posts").await;
+    
     println!("✅ Combined field attributes test passed");
 }

@@ -184,6 +184,99 @@ Output:
 └─
 ```
 
+## Testing
+
+`crudcrate` includes a comprehensive test suite with multi-database support to ensure compatibility across different database backends.
+
+### Quick Testing
+
+```bash
+# Run all tests with SQLite (default, fastest)
+cargo test
+
+# Run specific test categories
+cargo test --test crud_integration_test
+cargo test --test fulltext_search_test  
+cargo test --test index_analysis_test
+```
+
+### Multi-Database Testing
+
+Test your application against multiple database backends to ensure compatibility:
+
+> **Note**: If you encounter test failures with PostgreSQL/MySQL due to schema conflicts, add `-- --test-threads=1` to run tests sequentially.
+
+```bash
+# PostgreSQL testing (requires running PostgreSQL instance)
+DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test
+
+# MySQL testing (requires running MySQL instance)  
+DATABASE_URL=mysql://root:pass@localhost/test_db cargo test
+
+# Test specific functionality on PostgreSQL
+DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test --test fulltext_search_test
+```
+
+### Database Setup for Testing
+
+#### PostgreSQL
+```bash
+# Using Docker
+docker run --name test-postgres \
+  -e POSTGRES_PASSWORD=pass \
+  -e POSTGRES_DB=test_db \  
+  -p 5432:5432 -d postgres:16
+
+# Run tests
+DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test
+
+# Cleanup
+docker stop test-postgres && docker rm test-postgres
+```
+
+#### MySQL
+```bash
+# Using Docker
+docker run --name test-mysql \
+  -e MYSQL_ROOT_PASSWORD=pass \
+  -e MYSQL_DATABASE=test_db \
+  -p 3306:3306 -d mysql:8
+
+# Run tests
+DATABASE_URL=mysql://root:pass@localhost/test_db cargo test
+
+# Cleanup
+docker stop test-mysql && docker rm test-mysql
+```
+
+### Test Categories
+
+The test suite covers multiple areas:
+
+- **Integration Tests**: Full HTTP API testing with realistic scenarios
+- **CRUD Operations**: Create, Read, Update, Delete functionality
+- **Filtering & Search**: Query parameter handling and fulltext search
+- **Data Type Tests**: Comprehensive coverage of all Rust/SQL data types
+- **Edge Cases**: Error handling, malformed requests, boundary conditions
+- **Performance**: Response time and throughput characteristics
+- **Security**: SQL injection prevention and input validation
+- **Multi-Database**: Compatibility across SQLite, PostgreSQL, and MySQL
+
+### Database-Specific Features Testing
+
+Some tests demonstrate database-specific optimizations:
+
+```bash
+# Test PostgreSQL GIN index recommendations
+DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test test_fulltext_columns_recommendations -- --nocapture
+
+# Test SQLite fallback behavior
+cargo test test_fulltext_search_sqlite_fallback
+
+# Test MySQL fulltext capabilities
+DATABASE_URL=mysql://root:pass@localhost/test_db cargo test test_fulltext_search_with_different_data_types
+```
+
 ### Running Benchmarks
 
 ```bash

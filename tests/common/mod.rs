@@ -1,28 +1,109 @@
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;
+use std::sync::Mutex;
+
+// Global mutex to serialize database setup for PostgreSQL to avoid race conditions
+static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::new(());
 
 pub mod task_entity;
 pub mod todo_entity;
 
+// Helper function to get database URL from environment or default to SQLite
+fn get_test_database_url() -> String {
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite::memory:".to_string())
+}
+
+// Helper function to generate unique table prefix for test isolation
+fn get_test_table_prefix() -> String {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    
+    let count = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let pid = std::process::id();
+    format!("test_{}_{}", pid, count)
+}
+
+// Cleanup function for persistent databases
+async fn cleanup_test_tables(db: &DatabaseConnection) {
+    let database_url = get_test_database_url();
+    
+    // Drop tables in reverse dependency order to avoid foreign key issues
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS todos").await;
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS tasks").await;
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS index_test_posts").await;
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS benchmark_posts").await;
+    
+    // PostgreSQL-specific cleanup: drop custom enum types that Sea-ORM creates
+    if database_url.starts_with("postgres") {
+        // Drop custom enum types used by Sea-ORM (these may exist from previous test runs)
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS status CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS priority CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS task_status CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS task_priority CASCADE").await;
+        
+        // Drop the Sea-ORM migrations table to allow fresh migrations
+        let _ = db.execute_unprepared("DROP TABLE IF EXISTS seaql_migrations CASCADE").await;
+    }
+    
+    // MySQL-specific cleanup
+    if database_url.starts_with("mysql") {
+        // MySQL doesn't have the same enum issues, but ensure clean migrations
+        let _ = db.execute_unprepared("DROP TABLE IF EXISTS seaql_migrations").await;
+    }
+}
+
 #[allow(dead_code)]
 pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let database_url = get_test_database_url();
+    
+    // Serialize PostgreSQL setup to avoid race conditions with custom types
+    if database_url.starts_with("postgres") {
+        let _lock = POSTGRES_SETUP_MUTEX.lock().unwrap();
+        let db = Database::connect(&database_url).await?;
+        cleanup_test_tables(&db).await;
+        Migrator::up(&db, None).await?;
+        Ok(db)
+    } else {
+        let db = Database::connect(&database_url).await?;
+        
+        // For persistent databases, clean up any existing tables
+        if !database_url.starts_with("sqlite::memory:") {
+            cleanup_test_tables(&db).await;
+        }
 
-    // Run migrations
-    Migrator::up(&db, None).await?;
-
-    Ok(db)
+        // Run migrations
+        Migrator::up(&db, None).await?;
+        
+        Ok(db)
+    }
 }
 
 #[allow(dead_code)]
 pub async fn setup_test_db_with_tasks() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let database_url = get_test_database_url();
+    
+    // Serialize PostgreSQL setup to avoid race conditions with custom types
+    if database_url.starts_with("postgres") {
+        let _lock = POSTGRES_SETUP_MUTEX.lock().unwrap();
+        let db = Database::connect(&database_url).await?;
+        cleanup_test_tables(&db).await;
+        TaskMigrator::up(&db, None).await?;
+        Ok(db)
+    } else {
+        let db = Database::connect(&database_url).await?;
+        
+        // For persistent databases, clean up any existing tables
+        if !database_url.starts_with("sqlite::memory:") {
+            cleanup_test_tables(&db).await;
+        }
 
-    // Run migrations
-    TaskMigrator::up(&db, None).await?;
-
-    Ok(db)
+        // Run migrations
+        TaskMigrator::up(&db, None).await?;
+        
+        Ok(db)
+    }
 }
 
 #[allow(dead_code)]

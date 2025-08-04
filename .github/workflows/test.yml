@@ -7,7 +7,49 @@ on:
 
 jobs:
   test:
+    name: Test on ${{ matrix.database }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        database: [sqlite, postgresql, mysql]
+        include:
+          - database: sqlite
+            database_url: "sqlite::memory:"
+            coverage: true
+          - database: postgresql
+            database_url: "postgres://postgres:password@localhost:5432/test_db"
+            coverage: false
+          - database: mysql
+            database_url: "mysql://root:password@localhost:3306/test_db"
+            coverage: false
+      
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -17,12 +59,39 @@ jobs:
         components: llvm-tools-preview
     
     - name: Install cargo-llvm-cov
+      if: matrix.coverage
       uses: taiki-e/install-action@cargo-llvm-cov
     
-    - name: Run tests with coverage
+    - name: Wait for PostgreSQL
+      if: matrix.database == 'postgresql'
+      run: |
+        until pg_isready -h localhost -p 5432 -U postgres; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+        
+    - name: Wait for MySQL
+      if: matrix.database == 'mysql'
+      run: |
+        until mysqladmin ping -h localhost -P 3306 -u root -ppassword --silent; do
+          echo "Waiting for MySQL..."
+          sleep 2
+        done
+    
+    - name: Run tests with coverage (SQLite)
+      if: matrix.coverage
       run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      env:
+        DATABASE_URL: ${{ matrix.database_url }}
+        
+    - name: Run tests (PostgreSQL/MySQL)
+      if: '!matrix.coverage'
+      run: cargo test --workspace
+      env:
+        DATABASE_URL: ${{ matrix.database_url }}
     
     - name: Upload coverage to Codecov
+      if: matrix.coverage
       uses: codecov/codecov-action@v4
       with:
         file: lcov.info
@@ -30,3 +99,15 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
+        
+  benchmark:
+    name: Benchmark Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Run benchmark compilation test
+      run: cargo bench --bench crud_benchmarks --no-run
