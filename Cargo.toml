@@ -31,7 +31,7 @@ utoipa-axum = "0.2.0"
 utoipa = { version = "5.4.0", features = ["uuid", "chrono"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 sea-orm-migration = "1.1.13"
-sea-orm = { version = "1.1.13", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
+sea-orm = { version = "1.1.13", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 url = "2.4.1"
 url-escape = "0.1.1"
 
@@ -40,6 +40,10 @@ tower-http = { version = "0.6.4", features = ["cors", "trace"] }
 tower_governor = "0.7.0"
 axum-helmet = "0.1.0"
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "crud_benchmarks"
+harness = false
 
 [lints.clippy]
 pedantic = "warn"

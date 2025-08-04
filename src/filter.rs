@@ -3,7 +3,10 @@ use sea_orm::{
     sea_query::{Alias, Expr, SimpleExpr},
 };
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
+
+static FULLTEXT_WARNING_SHOWN: AtomicBool = AtomicBool::new(false);
 
 // Basic safety limits
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
@@ -90,9 +93,12 @@ fn build_fulltext_condition<T: crate::traits::CRUDResource>(
         return None;
     }
 
-    // Log a warning if using fallback on large datasets
+    // Show warning once if using fallback on large datasets
     if fulltext_columns.len() > 3 && backend != DatabaseBackend::Postgres {
-        eprintln!("Warning: Using inefficient fulltext search fallback for {} columns. Consider PostgreSQL for better performance.", fulltext_columns.len());
+        if !FULLTEXT_WARNING_SHOWN.load(Ordering::Relaxed) {
+            eprintln!("Warning: Using inefficient fulltext search fallback for {} columns. Consider PostgreSQL for better performance.", fulltext_columns.len());
+            FULLTEXT_WARNING_SHOWN.store(true, Ordering::Relaxed);
+        }
     }
 
     match &backend {
