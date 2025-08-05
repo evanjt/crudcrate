@@ -294,8 +294,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                             condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
                         } else if T::enum_case_sensitive() {
                             // Case-sensitive exact matching - cast enum fields to TEXT for database compatibility
-                            let is_enum_field = T::enum_fields().contains(&key.as_str());
-                            if is_enum_field {
+                            if T::is_enum_field(&key) {
                                 // Cast enum to TEXT for universal database compatibility
                                 condition = condition.add(
                                     Expr::expr(Expr::cast_as(Expr::col(Alias::new(&*key)), Alias::new("TEXT")))
@@ -307,8 +306,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                             }
                         } else {
                             // Case-insensitive matching using UPPER() - cast enum fields to TEXT first
-                            let is_enum_field = T::enum_fields().contains(&key.as_str());
-                            if is_enum_field {
+                            if T::is_enum_field(&key) {
                                 // Cast enum to TEXT then apply UPPER() for case-insensitive matching
                                 use sea_orm::sea_query::Func;
                                 condition = condition.add(

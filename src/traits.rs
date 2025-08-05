@@ -140,21 +140,14 @@ where
         false
     }
 
-    /// Returns enum mappings for this resource's table.
-    /// This provides all enum values for enum columns, enabling case-insensitive filtering.
-    /// Returns a vector of (column_name, enum_values) pairs.
-    /// Default implementation returns empty vector.
-    #[must_use]
-    fn enum_mappings() -> Vec<(&'static str, Vec<&'static str>)> {
-        vec![]
-    }
     
-    /// Returns list of fields that are enum types.
+    /// Check if a specific field is an enum type at runtime.
     /// This is used to determine which fields need special enum handling.
-    /// Default implementation returns empty vector.
-    #[must_use]
-    fn enum_fields() -> Vec<&'static str> {
-        vec![]
+    /// Default implementation returns false.
+    #[must_use]  
+    fn is_enum_field(field_name: &str) -> bool {
+        let _ = field_name;
+        false
     }
     
     /// Normalizes an enum value for case-insensitive matching.

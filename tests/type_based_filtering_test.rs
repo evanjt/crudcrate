@@ -42,7 +42,7 @@ pub struct Model {
     pub in_stock: bool,
 
     // Enum field - should use case-insensitive exact matching
-    #[crudcrate(filterable)]
+    #[crudcrate(filterable, enum_field)]
     pub category: ProductCategory,
 
     #[crudcrate(sortable, create_model = false, update_model = false, on_create = chrono::Utc::now())]
@@ -359,15 +359,6 @@ async fn test_enum_field_exact_matching() {
     assert_eq!(products.len(), 0);
 }
 
-#[tokio::test]
-async fn test_debug_products_enum_fields() {
-    let enum_fields = Products::enum_fields();
-    println!("Products enum fields: {:?}", enum_fields);
-    let enum_mappings = Products::enum_mappings();
-    println!("Products enum mappings: {:?}", enum_mappings);
-    let case_sensitive = Products::enum_case_sensitive();
-    println!("Products enum case sensitive: {}", case_sensitive);
-}
 
 #[tokio::test]
 async fn test_string_exact_matching_with_eq_suffix() {

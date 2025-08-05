@@ -380,9 +380,26 @@ Field attributes give you precise control over how each field behaves in differe
 
 ```rust
 #[crudcrate(
+    enum_field,                     // Mark field as enum for filtering (required for enum filtering)
     enum_case_sensitive,            // Enable case-sensitive enum matching (default: case-insensitive)
 )]
 ```
+
+**Enum Field Requirements**: For enum fields to work with filtering, you must explicitly mark them with `enum_field`:
+
+```rust
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+#[sea_orm(table_name = "products")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: Uuid,
+    
+    #[crudcrate(filterable, enum_field)]  // ← Required for enum filtering
+    pub category: ProductCategory,        // Sea-ORM enum type
+}
+```
+
+This enables case-insensitive enum filtering where users can search for "elec" to find "Electronics".
 
 #### Struct-Level Attributes
 
