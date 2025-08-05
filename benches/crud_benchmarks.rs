@@ -107,7 +107,7 @@ pub struct CreateBenchmarkTable;
 #[async_trait::async_trait]
 impl MigrationName for CreateBenchmarkTable {
     fn name(&self) -> &'static str {
-        "m20240101_000001_create_benchmark_table"
+        "m20241201_000001_create_benchmark_table"
     }
 }
 
@@ -174,7 +174,7 @@ pub struct CreateBenchmarkIndexes;
 #[async_trait::async_trait]
 impl MigrationName for CreateBenchmarkIndexes {
     fn name(&self) -> &'static str {
-        "m20240101_000002_create_benchmark_indexes"
+        "m20241201_000002_create_benchmark_indexes"
     }
 }
 
@@ -415,15 +415,37 @@ impl Iden for BenchmarkEntity {
 
 // Helper function to get database URL from environment or default to SQLite
 fn get_database_url() -> String {
-    std::env::var("DATABASE_URL")
+    let url = std::env::var("DATABASE_URL")
         .or_else(|_| std::env::var("BENCHMARK_DATABASE_URL"))
-        .unwrap_or_else(|_| "sqlite::memory:".to_string())
+        .unwrap_or_else(|_| "sqlite::memory:".to_string());
+    
+    // For non-SQLite databases, use a benchmark-specific database to avoid conflicts
+    if url.starts_with("postgres") {
+        url.replace("/test_db", "/benchmark_db")
+    } else if url.starts_with("mysql") {
+        url.replace("/test_db", "/benchmark_db")
+    } else {
+        url
+    }
 }
 
 // Helper function to set up benchmark database with various data sizes
 async fn setup_benchmark_db(record_count: usize) -> Result<DatabaseConnection, sea_orm::DbErr> {
     let database_url = get_database_url();
     let db = Database::connect(&database_url).await?;
+
+    // Create benchmark database if it doesn't exist (MySQL specific)
+    if database_url.starts_with("mysql") && database_url.contains("/benchmark_db") {
+        // Connect to MySQL without specifying database to create it
+        let root_url = database_url
+            .replace("/benchmark_db", "")
+            .replace("mysql://", "mysql://");
+        if let Ok(root_db) = Database::connect(&root_url).await {
+            let _ = root_db
+                .execute_unprepared("CREATE DATABASE IF NOT EXISTS benchmark_db")
+                .await;
+        }
+    }
 
     // Run migrations
     BenchmarkMigrator::up(&db, None).await?;
