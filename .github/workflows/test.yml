@@ -6,23 +6,37 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  test:
-    name: Test on ${{ matrix.database }}
+  test_sqlite:
+    name: Test on SQLite
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        database: [sqlite, postgresql, mysql]
-        include:
-          - database: sqlite
-            database_url: "sqlite::memory:"
-            coverage: true
-          - database: postgresql
-            database_url: "postgres://postgres:password@localhost:5432/test_db"
-            coverage: false
-          - database: mysql
-            database_url: "mysql://root:password@localhost:3306/test_db"
-            coverage: false
-      
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: llvm-tools-preview
+    
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+    
+    - name: Run tests with coverage (SQLite)
+      run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      env:
+        DATABASE_URL: "sqlite::memory:"
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  test_postgresql:
+    name: Test on PostgreSQL
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
@@ -36,69 +50,68 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-          
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: test_db
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-        ports:
-          - 3306:3306
-    
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install PostgreSQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+    
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      with:
-        components: llvm-tools-preview
-    
-    - name: Install cargo-llvm-cov
-      if: matrix.coverage
-      uses: taiki-e/install-action@cargo-llvm-cov
     
     - name: Wait for PostgreSQL
-      if: matrix.database == 'postgresql'
       run: |
         until pg_isready -h localhost -p 5432 -U postgres; do
           echo "Waiting for PostgreSQL..."
           sleep 2
         done
         
-    - name: Wait for MySQL
-      if: matrix.database == 'mysql'
-      run: |
-        until mysqladmin ping -h localhost -P 3306 -u root -ppassword --silent; do
-          echo "Waiting for MySQL..."
-          sleep 2
-        done
-    
-    - name: Run tests with coverage (SQLite)
-      if: matrix.coverage
-      run: cargo llvm-cov --workspace --lcov --output-path lcov.info
-      env:
-        DATABASE_URL: ${{ matrix.database_url }}
-        
-    - name: Run tests (PostgreSQL/MySQL)
-      if: '!matrix.coverage'
+    - name: Run tests (PostgreSQL)
       run: cargo test --workspace -- --test-threads=1
       env:
-        DATABASE_URL: ${{ matrix.database_url }}
+        DATABASE_URL: "postgres://postgres:password@localhost:5432/test_db"
+
+  test_mysql:
+    name: Test on MySQL
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -ppassword --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+        ports:
+          - 3306:3306
+    steps:
+    - uses: actions/checkout@v4
     
-    - name: Upload coverage to Codecov
-      if: matrix.coverage
-      uses: codecov/codecov-action@v4
-      with:
-        file: lcov.info
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Install MySQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mysql-client
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Wait for MySQL
+      run: |
+        for i in {1..30}; do
+          if mysqladmin ping -h localhost -u root -ppassword --silent 2>/dev/null; then
+            break
+          fi
+          sleep 2
+        done
+        mysql -h localhost -u root -ppassword -e "SELECT 1;" test_db
+        
+    - name: Run tests (MySQL)
+      run: DATABASE_URL="mysql://root:password@localhost:3306/test_db" cargo test --workspace -- --test-threads=1
         
   benchmark:
     name: Benchmark Tests
