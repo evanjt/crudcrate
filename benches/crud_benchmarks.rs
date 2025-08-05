@@ -236,6 +236,57 @@ impl MigrationTrait for CreateBenchmarkIndexes {
                     "CREATE INDEX idx_benchmark_posts_author ON benchmark_posts (author)",
                 )
                 .await?;
+        } else if db.get_database_backend() == sea_orm::DatabaseBackend::MySql {
+            // MySQL: Create FULLTEXT indexes for fulltext search
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE FULLTEXT INDEX idx_benchmark_posts_fulltext ON benchmark_posts (title, content, author, tags)",
+                )
+                .await?;
+
+            // Regular B-tree indexes for filtering and sorting
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_published ON benchmark_posts (published)",
+                )
+                .await?;
+
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_category ON benchmark_posts (category)",
+                )
+                .await?;
+
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_view_count ON benchmark_posts (view_count)",
+                )
+                .await?;
+
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_priority ON benchmark_posts (priority)",
+                )
+                .await?;
+
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_created_at ON benchmark_posts (created_at)",
+                )
+                .await?;
+
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "CREATE INDEX idx_benchmark_posts_author ON benchmark_posts (author)",
+                )
+                .await?;
         } else {
             // SQLite: Create regular indexes (SQLite doesn't have native fulltext in our setup)
             manager
@@ -364,7 +415,9 @@ impl Iden for BenchmarkEntity {
 
 // Helper function to get database URL from environment or default to SQLite
 fn get_database_url() -> String {
-    std::env::var("BENCHMARK_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string())
+    std::env::var("DATABASE_URL")
+        .or_else(|_| std::env::var("BENCHMARK_DATABASE_URL"))
+        .unwrap_or_else(|_| "sqlite::memory:".to_string())
 }
 
 // Helper function to set up benchmark database with various data sizes
@@ -548,6 +601,8 @@ fn bench_crud_operations(c: &mut Criterion) {
     let database_url = get_database_url();
     let backend_name = if database_url.starts_with("postgres") {
         "PostgreSQL"
+    } else if database_url.starts_with("mysql") {
+        "MySQL"
     } else {
         "SQLite"
     };
@@ -672,6 +727,8 @@ fn bench_create_operations(c: &mut Criterion) {
     let database_url = get_database_url();
     let backend_name = if database_url.starts_with("postgres") {
         "PostgreSQL"
+    } else if database_url.starts_with("mysql") {
+        "MySQL"
     } else {
         "SQLite"
     };
@@ -721,6 +778,8 @@ fn bench_stress_operations(c: &mut Criterion) {
     let database_url = get_database_url();
     let backend_name = if database_url.starts_with("postgres") {
         "PostgreSQL"
+    } else if database_url.starts_with("mysql") {
+        "MySQL"
     } else {
         "SQLite"
     };
