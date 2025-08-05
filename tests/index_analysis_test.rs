@@ -160,6 +160,8 @@ fn get_test_database_url() -> String {
 }
 
 // Global mutex for PostgreSQL setup to avoid race conditions
+// Note: This prevents parallel test execution but ensures database consistency.
+// Alternative would be per-test unique schemas/tables, but adds complexity.
 static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::const_new(());
 
 // Helper function for comprehensive database cleanup

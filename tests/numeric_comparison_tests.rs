@@ -551,17 +551,15 @@ async fn test_filter_score_neq_float() {
 
     // Should find tasks with score != 50.0
     for task in &tasks {
-        assert!(
-            {
-                #[allow(clippy::float_cmp)]
-                {
-                    task.score != 50.0
-                }
-            },
-            "Task '{}' has score {} which equals 50.0",
-            task.title,
-            task.score
-        );
+        #[allow(clippy::float_cmp)]
+        {
+            assert!(
+                task.score != 50.0,
+                "Task '{}' has score {} which equals 50.0",
+                task.title,
+                task.score
+            );
+        }
     }
 
     // Should find 4 tasks: Low (10.5), High (95.7), Boundary (75.0), Zero (0.0) - NOT Medium (50.0)

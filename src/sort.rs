@@ -35,8 +35,8 @@ where
         )
     };
 
-    // Determine order direction
-    let order_direction = if sort_order == "ASC" {
+    // Determine order direction (case-insensitive)
+    let order_direction = if sort_order.to_uppercase() == "ASC" {
         Order::Asc
     } else {
         Order::Desc

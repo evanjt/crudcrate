@@ -123,9 +123,9 @@ fn test_generic_sort_case_sensitivity() {
         TodoColumn::Id,
     );
 
-    // generic_sort should be case sensitive for ASC, so "asc" != "ASC"
-    // Should fallback to DESC for non-"ASC" values
-    assert_eq!(order, Order::Desc);
+    // generic_sort should be case-insensitive for ASC/DESC, so "asc" == "ASC"
+    // Should accept case variants of "ASC" 
+    assert_eq!(order, Order::Asc);
 }
 
 /// Test `OpenAPI` schema generation to improve models.rs coverage

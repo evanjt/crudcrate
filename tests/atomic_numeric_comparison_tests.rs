@@ -521,17 +521,15 @@ async fn test_filter_score_neq_float_50() {
     let tasks = filter_tasks_with_comparison(&app, "{\"score_neq\":50.0}").await;
 
     for task in &tasks {
-        assert!(
-            {
-                #[allow(clippy::float_cmp)]
-                {
-                    task.score != 50.0
-                }
-            },
-            "Task '{}' has score {} which equals 50.0",
-            task.title,
-            task.score
-        );
+        #[allow(clippy::float_cmp)]
+        {
+            assert!(
+                task.score != 50.0,
+                "Task '{}' has score {} which equals 50.0",
+                task.title,
+                task.score
+            );
+        }
     }
     assert_eq!(
         tasks.len(),
