@@ -178,7 +178,7 @@ impl MigrationTrait for CreateTodoTable {
                     .not_null()
                     .primary_key(),
             )
-            .col(ColumnDef::new(TodoColumn::Title).string().not_null())
+            .col(ColumnDef::new(TodoColumn::Title).text().not_null())
             .col(
                 ColumnDef::new(TodoColumn::Completed)
                     .boolean()
@@ -276,7 +276,7 @@ impl MigrationTrait for CreateTaskTable {
                     .not_null()
                     .primary_key(),
             )
-            .col(ColumnDef::new(TaskColumn::Title).string().not_null())
+            .col(ColumnDef::new(TaskColumn::Title).text().not_null())
             .col(ColumnDef::new(TaskColumn::Description).text().null())
             .col(
                 ColumnDef::new(TaskColumn::Completed)

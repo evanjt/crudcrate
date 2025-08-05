@@ -43,7 +43,7 @@ pub struct Model {
     #[crudcrate(filterable)]
     pub in_stock: bool,
 
-    // Enum field - should use case-insensitive exact matching
+    // Enum field - should use case-sensitive exact matching 
     #[crudcrate(filterable, enum_field)]
     pub category: ProductCategory,
 
@@ -78,7 +78,7 @@ pub enum ProductCategory {
 }
 
 async fn setup_test_app_with_products() -> axum::Router {
-    let database_url =
+    let _database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
 
     let db = common::setup_test_db()
@@ -91,7 +91,7 @@ async fn setup_test_app_with_products() -> axum::Router {
         .expect("Failed to run migrations");
 
     // For PostgreSQL, we need to handle enum types properly
-    if database_url.starts_with("postgres") {
+    if _database_url.starts_with("postgres") {
         // Drop and recreate the enum type to ensure it's clean
         let _ = db
             .execute_unprepared("DROP TYPE IF EXISTS product_category CASCADE")
@@ -121,13 +121,13 @@ async fn setup_test_app_with_products() -> axum::Router {
                 .not_null()
                 .primary_key(),
         )
-        .col(ColumnDef::new(Alias::new("name")).string().not_null())
-        .col(ColumnDef::new(Alias::new("description")).string())
+        .col(ColumnDef::new(Alias::new("name")).text().not_null())
+        .col(ColumnDef::new(Alias::new("description")).text())
         .col(ColumnDef::new(Alias::new("price")).integer().not_null())
         .col(ColumnDef::new(Alias::new("in_stock")).boolean().not_null());
 
     // Handle category column differently for each database
-    if database_url.starts_with("postgres") {
+    if _database_url.starts_with("postgres") {
         // For PostgreSQL, use custom enum type
         create_table.col(
             ColumnDef::new(Alias::new("category"))
@@ -135,8 +135,8 @@ async fn setup_test_app_with_products() -> axum::Router {
                 .not_null(),
         );
     } else {
-        // For other databases, use string
-        create_table.col(ColumnDef::new(Alias::new("category")).string().not_null());
+        // For other databases, use text (MySQL and SQLite handle enums as strings)
+        create_table.col(ColumnDef::new(Alias::new("category")).text().not_null());
     }
 
     create_table.col(

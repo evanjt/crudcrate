@@ -112,6 +112,10 @@ async fn test_update_todo() {
         .unwrap();
     let created_todo: Todo = serde_json::from_slice(&body).unwrap();
 
+    // Small delay to ensure updated_at timestamp is different across all database backends
+    // (MySQL has second precision, while SQLite/PostgreSQL have microsecond precision)
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
     // Update the todo
     let update_data = json!({
         "title": "Updated Title",

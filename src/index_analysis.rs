@@ -215,14 +215,14 @@ async fn get_existing_indexes(
             format!(
                 r"
                 SELECT 
-                    table_name,
-                    column_name,
-                    index_name,
-                    index_type
+                    TABLE_NAME as table_name,
+                    COLUMN_NAME as column_name,
+                    INDEX_NAME as index_name,
+                    INDEX_TYPE as index_type
                 FROM information_schema.statistics 
-                WHERE table_name = '{table_name}' 
-                AND table_schema = DATABASE()
-                ORDER BY table_name, index_name
+                WHERE TABLE_NAME = '{table_name}' 
+                AND TABLE_SCHEMA = DATABASE()
+                ORDER BY TABLE_NAME, INDEX_NAME
                 "
             )
         }

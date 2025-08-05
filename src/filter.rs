@@ -294,31 +294,67 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                         } else if T::enum_case_sensitive() {
                             // Case-sensitive exact matching - cast enum fields to TEXT for database compatibility
                             if T::is_enum_field(&key) {
-                                // Cast enum to TEXT for universal database compatibility
-                                condition = condition.add(
-                                    Expr::expr(Expr::cast_as(
-                                        Expr::col(Alias::new(&*key)),
-                                        Alias::new("TEXT"),
-                                    ))
-                                    .eq(trimmed_value.clone()),
-                                );
+                                // Database-aware enum handling
+                                match backend {
+                                    DatabaseBackend::Postgres => {
+                                        // PostgreSQL supports CAST operations on enums
+                                        condition = condition.add(
+                                            Expr::expr(Expr::cast_as(
+                                                Expr::col(Alias::new(&*key)),
+                                                Alias::new("TEXT"),
+                                            ))
+                                            .eq(trimmed_value.clone()),
+                                        );
+                                    }
+                                    DatabaseBackend::MySql => {
+                                        // MySQL: Use BINARY for case-sensitive comparison (enums stored as strings)
+                                        use sea_orm::sea_query::Func;
+                                        condition = condition.add(
+                                            SimpleExpr::FunctionCall(Func::cust("BINARY").arg(Expr::col(Alias::new(&*key))))
+                                                .eq(trimmed_value.clone())
+                                        );
+                                    }
+                                    DatabaseBackend::Sqlite => {
+                                        // SQLite: direct string comparison (case-sensitive by default)
+                                        condition =
+                                            condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value.clone()));
+                                    }
+                                }
                             } else {
                                 // Regular exact matching for non-enum fields
                                 condition =
                                     condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
                             }
                         } else {
-                            // Case-insensitive matching using UPPER() - cast enum fields to TEXT first
+                            // Case-insensitive matching using UPPER() - database-aware enum handling
                             if T::is_enum_field(&key) {
-                                // Cast enum to TEXT then apply UPPER() for case-insensitive matching
                                 use sea_orm::sea_query::Func;
-                                condition = condition.add(
-                                    SimpleExpr::FunctionCall(Func::upper(Expr::cast_as(
-                                        Expr::col(Alias::new(&*key)),
-                                        Alias::new("TEXT"),
-                                    )))
-                                    .eq(trimmed_value.to_uppercase()),
-                                );
+                                match backend {
+                                    DatabaseBackend::Postgres => {
+                                        // PostgreSQL: Cast enum to TEXT then apply UPPER()
+                                        condition = condition.add(
+                                            SimpleExpr::FunctionCall(Func::upper(Expr::cast_as(
+                                                Expr::col(Alias::new(&*key)),
+                                                Alias::new("TEXT"),
+                                            )))
+                                            .eq(trimmed_value.to_uppercase()),
+                                        );
+                                    }
+                                    DatabaseBackend::MySql => {
+                                        // MySQL: Apply UPPER() for case-insensitive matching (enums stored as strings)
+                                        condition = condition.add(
+                                            SimpleExpr::FunctionCall(Func::upper(Expr::col(Alias::new(&*key))))
+                                                .eq(trimmed_value.to_uppercase()),
+                                        );
+                                    }
+                                    DatabaseBackend::Sqlite => {
+                                        // SQLite: Apply UPPER() for case-insensitive matching
+                                        condition = condition.add(
+                                            SimpleExpr::FunctionCall(Func::upper(Expr::col(Alias::new(&*key))))
+                                                .eq(trimmed_value.to_uppercase()),
+                                        );
+                                    }
+                                }
                             } else {
                                 // Regular case-insensitive matching for non-enum fields
                                 use sea_orm::sea_query::Func;

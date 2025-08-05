@@ -211,7 +211,7 @@ Test your application against multiple database backends to ensure compatibility
 DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test
 
 # MySQL testing (requires running MySQL instance)  
-DATABASE_URL=mysql://root:pass@localhost/test_db cargo test
+DATABASE_URL=mysql://root:pass@127.0.0.1:3306/test_db cargo test -- --test-threads=1
 
 # Test specific functionality on PostgreSQL
 DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test --test fulltext_search_test
@@ -242,12 +242,21 @@ docker run --name test-mysql \
   -e MYSQL_DATABASE=test_db \
   -p 3306:3306 -d mysql:8
 
-# Run tests
-DATABASE_URL=mysql://root:pass@localhost/test_db cargo test
+# Wait for MySQL to fully initialize (important!)
+echo "Waiting for MySQL to initialize..."
+sleep 20
+
+# Verify connection works
+mysql -h 127.0.0.1 -P 3306 -u root -ppass -e "SELECT 1;" test_db
+
+# Run tests (use single thread to avoid migration conflicts)
+DATABASE_URL=mysql://root:pass@127.0.0.1:3306/test_db cargo test -- --test-threads=1
 
 # Cleanup
 docker stop test-mysql && docker rm test-mysql
 ```
+
+> **Note**: MySQL requires additional startup time and single-threaded testing to avoid migration conflicts. The `sleep 20` ensures MySQL is fully ready, and `--test-threads=1` prevents race conditions with database migrations.
 
 ### Test Categories
 
@@ -274,7 +283,7 @@ DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test test_fulltext
 cargo test test_fulltext_search_sqlite_fallback
 
 # Test MySQL fulltext capabilities
-DATABASE_URL=mysql://root:pass@localhost/test_db cargo test test_fulltext_search_with_different_data_types
+DATABASE_URL=mysql://root:pass@127.0.0.1:3306/test_db cargo test test_fulltext_search_with_different_data_types -- --test-threads=1
 ```
 
 ### Running Benchmarks
