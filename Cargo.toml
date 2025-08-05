@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 description = "Rust traits and functions to aid in building CRUD APIs in Axum and Sea-ORM"
 license = "MIT"
@@ -9,31 +9,45 @@ repository = "https://github.com/evanjt/crudcrate"
 keywords = ["crud", "api", "axum", "sea-orm"]
 categories = ["web-programming", "database"]
 
+[features]
+default = ["sqlite"]
+mysql = ["sea-orm/sqlx-mysql"]
+postgresql = ["sea-orm/sqlx-postgres"]
+sqlite = ["sea-orm/sqlx-sqlite"]
+
 [dependencies]
 async-trait = "0.1.88"
-sea-orm = "1.1.13"
-uuid = { version = "1.17.0", features = ["serde", "v4"] }
-serde = { version = "1.0.219", features = ["derive"] }
-utoipa = "5.4.0"
 axum = { version = "0.8.4", features = ["macros"] }
+crudcrate-derive = { version = "0.2.3" }
 hyper = "1.6.0"
-serde_json = "1.0.140"
+sea-orm = { version = "1.1.14", features = ["runtime-tokio-rustls", "macros", "with-uuid"], default-features = false }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.142"
 serde_with = "3.14.0"
-crudcrate-derive = "0.2.0"
+utoipa = "5.4.0"
+uuid = { version = "1.17.0", features = ["serde", "v4"] }
 
 [lib]
 proc-macro = false
 
 [dev-dependencies]
-tokio = { version = "1.45.0", features = ["full"] }
-tower = { version = "0.5.2", features = ["util"] }
-utoipa-axum = "0.2.0"
-utoipa = { version = "5.4.0", features = ["uuid", "chrono"] }
+axum-helmet = "0.2.0"
 chrono = { version = "0.4.41", features = ["serde"] }
-sea-orm-migration = "1.1.13"
-sea-orm = { version = "1.1.13", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
-url = "2.4.1"
+criterion = { version = "0.7.0", features = ["html_reports"] }
+sea-orm = { version = "1.1.14", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = "1.1.14"
+tokio = { version = "1.47.1", features = ["full"] }
+tower = { version = "0.5.2", features = ["util"] }
+tower-http = { version = "0.6.6", features = ["cors", "trace"] }
+tower_governor = "0.7.0"
+url = "2.5.4"
 url-escape = "0.1.1"
+utoipa = { version = "5.4.0", features = ["uuid", "chrono"] }
+utoipa-axum = "0.2.0"
+
+[[bench]]
+name = "crud_benchmarks"
+harness = false
 
 [lints.clippy]
 pedantic = "warn"

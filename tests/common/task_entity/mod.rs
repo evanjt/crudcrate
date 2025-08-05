@@ -1,36 +1,40 @@
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sea_orm::{entity::prelude::*, FromQueryResult, ActiveValue, DeriveActiveEnum};
+use crudcrate::traits::CRUDResource;
+use crudcrate::{ToCreateModel, ToUpdateModel, crud_handlers};
+use sea_orm::{ActiveValue, DeriveActiveEnum, FromQueryResult, entity::prelude::*};
 use sea_orm_migration::sea_query::StringLen;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crudcrate::{ToCreateModel, ToUpdateModel, crud_handlers};
-use crudcrate::traits::{CRUDResource, MergeIntoActiveModel};
-use async_trait::async_trait;
 
 // Define enums for testing
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum Priority {
-    #[sea_orm(string_value = "low")]
+    #[sea_orm(string_value = "Low")]
     Low,
-    #[sea_orm(string_value = "medium")]
+    #[sea_orm(string_value = "Medium")]
     Medium,
-    #[sea_orm(string_value = "high")]
+    #[sea_orm(string_value = "High")]
     High,
-    #[sea_orm(string_value = "urgent")]
+    #[sea_orm(string_value = "Urgent")]
     Urgent,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum Status {
-    #[sea_orm(string_value = "todo")]
+    #[sea_orm(string_value = "Todo")]
     Todo,
-    #[sea_orm(string_value = "in_progress")]
+    #[sea_orm(string_value = "InProgress")]
     InProgress,
-    #[sea_orm(string_value = "done")]
+    #[sea_orm(string_value = "Done")]
     Done,
-    #[sea_orm(string_value = "cancelled")]
+    #[sea_orm(string_value = "Cancelled")]
     Cancelled,
 }
 
@@ -161,10 +165,12 @@ impl CRUDResource for Task {
             ("is_public", Column::IsPublic),
         ]
     }
+
+    fn like_filterable_columns() -> Vec<&'static str> {
+        vec!["title", "description"] // Text fields use LIKE, enums/numbers use exact
+    }
 }
 
 crud_handlers!(Task, TaskUpdate, TaskCreate);
 
-pub mod prelude {
-    pub use super::{ActiveModel, Column, Entity, Model, Task, TaskCreate, TaskUpdate, Priority, Status};
-}
+pub mod prelude {}

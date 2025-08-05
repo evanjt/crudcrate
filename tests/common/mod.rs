@@ -1,28 +1,107 @@
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;
+use tokio::sync::Mutex;
+
+// Global mutex to serialize database setup for PostgreSQL to avoid race conditions
+static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::const_new(());
 
 pub mod task_entity;
 pub mod todo_entity;
 
+// Helper function to get database URL from environment or default to SQLite
+fn get_test_database_url() -> String {
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite::memory:".to_string())
+}
+
+
+// Cleanup function for persistent databases
+async fn cleanup_test_tables(db: &DatabaseConnection) {
+    let database_url = get_test_database_url();
+    
+    // Drop tables in reverse dependency order to avoid foreign key issues
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS todos").await;
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS tasks").await;
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS index_test_posts").await;
+    let _ = db.execute_unprepared("DROP TABLE IF EXISTS benchmark_posts").await;
+    
+    // PostgreSQL-specific cleanup: drop custom enum types that Sea-ORM creates
+    if database_url.starts_with("postgres") {
+        // Drop custom enum types used by Sea-ORM (these may exist from previous test runs)
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS status CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS priority CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS task_status CASCADE").await;
+        let _ = db.execute_unprepared("DROP TYPE IF EXISTS task_priority CASCADE").await;
+        
+        // Drop the Sea-ORM migrations table to allow fresh migrations
+        let _ = db.execute_unprepared("DROP TABLE IF EXISTS seaql_migrations CASCADE").await;
+    }
+    
+    // MySQL-specific cleanup
+    if database_url.starts_with("mysql") {
+        // MySQL doesn't have the same enum issues, but ensure clean migrations
+        let _ = db.execute_unprepared("DROP TABLE IF EXISTS seaql_migrations").await;
+    }
+}
+
+#[allow(dead_code)]
 pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let database_url = get_test_database_url();
+    
+    // Serialize PostgreSQL setup to avoid race conditions with custom types
+    if database_url.starts_with("postgres") {
+        // We need to serialize the entire PostgreSQL setup process to prevent
+        // race conditions when creating custom types during migrations
+        let _lock = POSTGRES_SETUP_MUTEX.lock().await;
+        let db = Database::connect(&database_url).await?;
+        cleanup_test_tables(&db).await;
+        Migrator::up(&db, None).await?;
+        Ok(db)
+    } else {
+        let db = Database::connect(&database_url).await?;
+        
+        // For persistent databases, clean up any existing tables
+        if !database_url.starts_with("sqlite::memory:") {
+            cleanup_test_tables(&db).await;
+        }
 
-    // Run migrations
-    Migrator::up(&db, None).await?;
-
-    Ok(db)
+        // Run migrations
+        Migrator::up(&db, None).await?;
+        
+        Ok(db)
+    }
 }
 
+#[allow(dead_code)]
 pub async fn setup_test_db_with_tasks() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let database_url = get_test_database_url();
+    
+    // Serialize PostgreSQL setup to avoid race conditions with custom types
+    if database_url.starts_with("postgres") {
+        // We need to serialize the entire PostgreSQL setup process to prevent
+        // race conditions when creating custom types during migrations
+        let _lock = POSTGRES_SETUP_MUTEX.lock().await;
+        let db = Database::connect(&database_url).await?;
+        cleanup_test_tables(&db).await;
+        TaskMigrator::up(&db, None).await?;
+        Ok(db)
+    } else {
+        let db = Database::connect(&database_url).await?;
+        
+        // For persistent databases, clean up any existing tables
+        if !database_url.starts_with("sqlite::memory:") {
+            cleanup_test_tables(&db).await;
+        }
 
-    // Run migrations
-    TaskMigrator::up(&db, None).await?;
-
-    Ok(db)
+        // Run migrations
+        TaskMigrator::up(&db, None).await?;
+        
+        Ok(db)
+    }
 }
 
+#[allow(dead_code)]
 pub fn setup_test_app(db: DatabaseConnection) -> Router {
     use todo_entity::{
         create_one_handler, delete_one_handler, get_all_handler, get_one_handler,
@@ -45,6 +124,7 @@ pub fn setup_test_app(db: DatabaseConnection) -> Router {
     Router::new().nest("/api/v1", api)
 }
 
+#[allow(dead_code)]
 pub fn setup_task_app(db: DatabaseConnection) -> Router {
     use task_entity::{
         create_one_handler, delete_one_handler, get_all_handler, get_one_handler,
@@ -67,6 +147,7 @@ pub fn setup_task_app(db: DatabaseConnection) -> Router {
     Router::new().nest("/api/v1", api)
 }
 
+#[allow(dead_code)]
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -80,7 +161,7 @@ pub struct CreateTodoTable;
 
 #[async_trait::async_trait]
 impl MigrationName for CreateTodoTable {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "m20240101_000001_create_todo_table"
     }
 }
@@ -97,7 +178,7 @@ impl MigrationTrait for CreateTodoTable {
                     .not_null()
                     .primary_key(),
             )
-            .col(ColumnDef::new(TodoColumn::Title).string().not_null())
+            .col(ColumnDef::new(TodoColumn::Title).text().not_null())
             .col(
                 ColumnDef::new(TodoColumn::Completed)
                     .boolean()
@@ -150,7 +231,7 @@ impl Iden for TodoColumn {
                 Self::UpdatedAt => "updated_at",
             }
         )
-        .unwrap()
+        .unwrap();
     }
 }
 
@@ -159,11 +240,12 @@ pub struct TodoEntity;
 
 impl Iden for TodoEntity {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "todos").unwrap()
+        write!(s, "todos").unwrap();
     }
 }
 
 // Task migrations
+#[allow(dead_code)]
 pub struct TaskMigrator;
 
 #[async_trait::async_trait]
@@ -177,7 +259,7 @@ pub struct CreateTaskTable;
 
 #[async_trait::async_trait]
 impl MigrationName for CreateTaskTable {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "m20240101_000002_create_task_table"
     }
 }
@@ -194,7 +276,7 @@ impl MigrationTrait for CreateTaskTable {
                     .not_null()
                     .primary_key(),
             )
-            .col(ColumnDef::new(TaskColumn::Title).string().not_null())
+            .col(ColumnDef::new(TaskColumn::Title).text().not_null())
             .col(ColumnDef::new(TaskColumn::Description).text().null())
             .col(
                 ColumnDef::new(TaskColumn::Completed)
@@ -301,7 +383,7 @@ impl Iden for TaskColumn {
                 Self::UpdatedAt => "updated_at",
             }
         )
-        .unwrap()
+        .unwrap();
     }
 }
 
@@ -310,6 +392,6 @@ pub struct TaskEntity;
 
 impl Iden for TaskEntity {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "tasks").unwrap()
+        write!(s, "tasks").unwrap();
     }
 }

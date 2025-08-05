@@ -1,5 +1,5 @@
-use axum::http::{Request, StatusCode};
 use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -27,7 +27,7 @@ async fn create_test_todos(app: &axum::Router) -> Vec<Todo> {
 
         let app_clone = app.clone();
         let response = app_clone.oneshot(request).await.unwrap();
-        
+
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
@@ -40,7 +40,9 @@ async fn create_test_todos(app: &axum::Router) -> Vec<Todo> {
 
 #[tokio::test]
 async fn test_list_with_pagination() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     create_test_todos(&app).await;
@@ -61,7 +63,7 @@ async fn test_list_with_pagination() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 2);
     // Check Content-Range header for pagination info
     assert!(headers.contains_key("content-range"));
@@ -75,12 +77,12 @@ async fn test_list_with_pagination() {
 
     let app_clone = app.clone();
     let response = app_clone.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 2);
 
     // Test last page
@@ -91,18 +93,20 @@ async fn test_list_with_pagination() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 1);
 }
 
 #[tokio::test]
 async fn test_list_with_sorting() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     create_test_todos(&app).await;
@@ -116,12 +120,12 @@ async fn test_list_with_sorting() {
 
     let app_clone = app.clone();
     let response = app_clone.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos[0].title, "Alpha Todo");
     assert_eq!(todos[1].title, "Beta Todo");
     assert_eq!(todos[2].title, "Delta Todo");
@@ -134,12 +138,12 @@ async fn test_list_with_sorting() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos[0].title, "Gamma Todo");
     assert_eq!(todos[1].title, "Epsilon Todo");
     assert_eq!(todos[2].title, "Delta Todo");
@@ -147,7 +151,9 @@ async fn test_list_with_sorting() {
 
 #[tokio::test]
 async fn test_list_with_filtering() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     create_test_todos(&app).await;
@@ -155,42 +161,44 @@ async fn test_list_with_filtering() {
     // Test filtering by completed status
     let request = Request::builder()
         .method("GET")
-        .uri("/api/v1/todos?filter={\"completed\":true}")
+        .uri("/api/v1/todos?filter=%7B%22completed%22%3Atrue%7D")
         .body(Body::empty())
         .unwrap();
 
     let app_clone = app.clone();
     let response = app_clone.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 2);
     assert!(todos.iter().all(|todo| todo.completed));
 
     // Test filtering by title (contains)
     let request = Request::builder()
         .method("GET")
-        .uri("/api/v1/todos?filter={\"title\":\"Beta\"}")
+        .uri("/api/v1/todos?filter=%7B%22title%22%3A%22Beta%22%7D")
         .body(Body::empty())
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 1);
     assert_eq!(todos[0].title, "Beta Todo");
 }
 
 #[tokio::test]
 async fn test_list_with_combined_operations() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     create_test_todos(&app).await;
@@ -198,17 +206,17 @@ async fn test_list_with_combined_operations() {
     // Test filtering + sorting + pagination
     let request = Request::builder()
         .method("GET")
-        .uri("/api/v1/todos?filter={\"completed\":false}&sort=title&order=DESC&page=0&per_page=2")
+        .uri("/api/v1/todos?filter=%7B%22completed%22%3Afalse%7D&sort=title&order=DESC&page=0&per_page=2")
         .body(Body::empty())
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 2);
     // Only 3 incomplete todos total
     assert_eq!(todos[0].title, "Gamma Todo");
@@ -219,7 +227,9 @@ async fn test_list_with_combined_operations() {
 
 #[tokio::test]
 async fn test_list_with_invalid_sort_field() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     create_test_todos(&app).await;
@@ -233,18 +243,20 @@ async fn test_list_with_invalid_sort_field() {
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 5);
 }
 
 #[tokio::test]
 async fn test_list_empty_results() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Don't create any todos
@@ -257,18 +269,20 @@ async fn test_list_empty_results() {
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 0);
 }
 
 #[tokio::test]
 async fn test_list_default_pagination() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create many todos to test default pagination
@@ -293,11 +307,11 @@ async fn test_list_default_pagination() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 10); // Default per_page should be 10
 }

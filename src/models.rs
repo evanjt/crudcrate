@@ -23,10 +23,9 @@ use utoipa::{IntoParams, ToSchema};
 ///   ```
 ///
 /// # Pagination
-/// The `range` parameter should be a JSON array with two numbers representing the start and end indices, for example:
-/// ```json
-/// [0,9]
-/// ```
+/// Two pagination formats are supported:
+/// - **React Admin format:** Use the `range` parameter with JSON array format, for example: `[0,9]`
+/// - **Standard REST format:** Use `page` and `per_page` parameters, for example: `page=1&per_page=10`
 ///
 /// # Sorting
 /// The `sort` parameter should be a JSON array with the column name and sort order, for example:
@@ -54,9 +53,29 @@ pub struct FilterOptions {
     /// Example: `[0,9]`
     #[param(example = "[0,9]")]
     pub range: Option<String>,
+    /// Page number for standard REST pagination (1-based).
+    ///
+    /// Example: `1`
+    #[param(example = 1)]
+    pub page: Option<u64>,
+    /// Number of items per page for standard REST pagination.
+    ///
+    /// Example: `10`
+    #[param(example = 10)]
+    pub per_page: Option<u64>,
     /// Sort order for the results in the format `["column", "order"]`.
     ///
     /// Example: `["id", "ASC"]`
     #[param(example = r#"["id", "ASC"]"#)]
     pub sort: Option<String>,
+    /// Sort column for standard REST format.
+    ///
+    /// Example: `title`
+    #[param(example = "title")]
+    pub sort_by: Option<String>,
+    /// Sort order for standard REST format (ASC or DESC).
+    ///
+    /// Example: `ASC`
+    #[param(example = "ASC")]
+    pub order: Option<String>,
 }

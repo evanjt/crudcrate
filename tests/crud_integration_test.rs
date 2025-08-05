@@ -1,5 +1,5 @@
-use axum::http::{Request, StatusCode};
 use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -8,7 +8,9 @@ use common::{setup_test_app, setup_test_db, todo_entity::Todo};
 
 #[tokio::test]
 async fn test_create_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let create_data = json!({
@@ -31,13 +33,15 @@ async fn test_create_todo() {
         .unwrap();
     let todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(todo.title, "Test Todo");
-    assert_eq!(todo.completed, false);
+    assert!(!todo.completed);
     assert!(!todo.id.is_nil());
 }
 
 #[tokio::test]
 async fn test_get_todo_by_id() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // First create a todo
@@ -55,7 +59,7 @@ async fn test_get_todo_by_id() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -64,7 +68,7 @@ async fn test_get_todo_by_id() {
     // Now get the todo by ID
     let get_request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -77,12 +81,14 @@ async fn test_get_todo_by_id() {
     let retrieved_todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(retrieved_todo.id, created_todo.id);
     assert_eq!(retrieved_todo.title, "Get Test Todo");
-    assert_eq!(retrieved_todo.completed, true);
+    assert!(retrieved_todo.completed);
 }
 
 #[tokio::test]
 async fn test_update_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // First create a todo
@@ -100,11 +106,15 @@ async fn test_update_todo() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
     let created_todo: Todo = serde_json::from_slice(&body).unwrap();
+
+    // Small delay to ensure updated_at timestamp is different across all database backends
+    // (MySQL has second precision, while SQLite/PostgreSQL have microsecond precision)
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Update the todo
     let update_data = json!({
@@ -114,7 +124,7 @@ async fn test_update_todo() {
 
     let update_request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
@@ -128,13 +138,15 @@ async fn test_update_todo() {
     let updated_todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(updated_todo.id, created_todo.id);
     assert_eq!(updated_todo.title, "Updated Title");
-    assert_eq!(updated_todo.completed, true);
+    assert!(updated_todo.completed);
     assert!(updated_todo.updated_at > created_todo.updated_at);
 }
 
 #[tokio::test]
 async fn test_partial_update_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create a todo
@@ -152,7 +164,7 @@ async fn test_partial_update_todo() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -165,7 +177,7 @@ async fn test_partial_update_todo() {
 
     let update_request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
@@ -178,12 +190,14 @@ async fn test_partial_update_todo() {
         .unwrap();
     let updated_todo: Todo = serde_json::from_slice(&body).unwrap();
     assert_eq!(updated_todo.title, "Partial Update Test"); // Title should remain unchanged
-    assert_eq!(updated_todo.completed, true); // Only completed should be updated
+    assert!(updated_todo.completed); // Only completed should be updated
 }
 
 #[tokio::test]
 async fn test_delete_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // First create a todo
@@ -201,7 +215,7 @@ async fn test_delete_todo() {
 
     let app_clone = app.clone();
     let create_response = app_clone.oneshot(create_request).await.unwrap();
-    
+
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -210,7 +224,7 @@ async fn test_delete_todo() {
     // Delete the todo
     let delete_request = Request::builder()
         .method("DELETE")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -221,7 +235,7 @@ async fn test_delete_todo() {
     // Verify it's deleted by trying to get it
     let get_request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", created_todo.id))
+        .uri(format!("/api/v1/todos/{}", created_todo.id))
         .body(Body::empty())
         .unwrap();
 
@@ -231,7 +245,9 @@ async fn test_delete_todo() {
 
 #[tokio::test]
 async fn test_list_todos() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Create multiple todos
@@ -267,19 +283,21 @@ async fn test_list_todos() {
         .await
         .unwrap();
     let todos: Vec<Todo> = serde_json::from_slice(&body).unwrap();
-    
+
     assert_eq!(todos.len(), 3);
 }
 
 #[tokio::test]
 async fn test_get_nonexistent_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let random_id = uuid::Uuid::new_v4();
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/api/v1/todos/{}", random_id))
+        .uri(format!("/api/v1/todos/{random_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -289,7 +307,9 @@ async fn test_get_nonexistent_todo() {
 
 #[tokio::test]
 async fn test_create_todo_invalid_data() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     // Missing required field (title)
@@ -310,7 +330,9 @@ async fn test_create_todo_invalid_data() {
 
 #[tokio::test]
 async fn test_update_nonexistent_todo() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(db);
 
     let random_id = uuid::Uuid::new_v4();
@@ -320,7 +342,7 @@ async fn test_update_nonexistent_todo() {
 
     let request = Request::builder()
         .method("PUT")
-        .uri(&format!("/api/v1/todos/{}", random_id))
+        .uri(format!("/api/v1/todos/{random_id}"))
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_string(&update_data).unwrap()))
         .unwrap();
