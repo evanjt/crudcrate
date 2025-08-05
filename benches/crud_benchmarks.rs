@@ -765,25 +765,24 @@ fn bench_create_operations(c: &mut Criterion) {
         let db = rt.block_on(setup_benchmark_db(initial_size)).unwrap();
         let app = setup_benchmark_app(db);
 
-        let create_data = BenchmarkPostCreate {
-            title: "New Benchmark Post".to_string(),
-            content: "This is new content for benchmarking create operations with various field types and lengths.".to_string(),
-            author: "BenchmarkAuthor".to_string(),
-            tags: Some("new, benchmark, create".to_string()),
-            published: true,
-            category: "NewCategory".to_string(),
-            view_count: 0,
-            priority: 5,
-        };
-
         group.bench_with_input(
             BenchmarkId::new("create_post", initial_size),
             &initial_size,
             |b, _| {
                 b.iter(|| {
+                    let create_data = BenchmarkPostCreate {
+                        title: "New Benchmark Post".to_string(),
+                        content: "This is new content for benchmarking create operations with various field types and lengths.".to_string(),
+                        author: "BenchmarkAuthor".to_string(),
+                        tags: Some("new, benchmark, create".to_string()),
+                        published: true,
+                        category: "NewCategory".to_string(),
+                        view_count: 0,
+                        priority: 5,
+                    };
                     rt.block_on(std::hint::black_box(benchmark_create_post(
                         app.clone(),
-                        create_data.clone(),
+                        create_data,
                     )))
                 });
             },
