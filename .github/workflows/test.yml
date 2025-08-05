@@ -7,8 +7,8 @@ name: Tests
     branches: [ main, develop ]
 
 jobs:
-  sqlite-test-benchmark:
-    name: SQLite - Test & Benchmark
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -18,23 +18,95 @@ jobs:
       with:
         components: llvm-tools-preview
     
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target/
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-
+
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
-        
+
+    - name: Build tests
+      run: cargo test --workspace --no-run
+
+    - name: Build benchmarks
+      run: cargo bench --bench crud_benchmarks --no-run
+
+    # Store the exact binary paths for later use
+    - name: Find test binaries
+      run: |
+        find target/debug/deps -name "*crudcrate*" -executable -type f | head -20
+        find target/release/deps -name "*crud_benchmarks*" -executable -type f | head -10
+        # Create a simple marker file to ensure cache works
+        echo "build-$(date +%s)" > target/build-marker.txt
+
+  test-sqlite:
+    name: SQLite - Test & Benchmark  
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: llvm-tools-preview
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target/
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-
+
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Verify build cache
+      run: |
+        ls -la target/build-marker.txt || echo "Build cache miss"
+        find target/debug/deps -name "*crudcrate*" -executable -type f | wc -l
+        find target/release/deps -name "*crud_benchmarks*" -executable -type f | wc -l
+
     - name: Run tests with coverage
       run: cargo llvm-cov --workspace --lcov --output-path lcov.info
       env:
         DATABASE_URL: "sqlite::memory:"
-        
+
     - name: Run benchmarks
       run: |
         echo "Running benchmarks on SQLite..."
-        cargo bench --bench crud_benchmarks --no-run
         timeout 60s cargo bench --bench crud_benchmarks -- --test || true
       env:
         DATABASE_URL: "sqlite::memory:"
         BENCHMARK_DATABASE_URL: "sqlite::memory:"
-        
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
@@ -44,9 +116,10 @@ jobs:
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  postgresql-test-benchmark:
+  test-postgresql:
     name: PostgreSQL - Test & Benchmark
     runs-on: ubuntu-latest
+    needs: build
     services:
       postgres:
         image: postgres:16
@@ -61,12 +134,31 @@ jobs:
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-    
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target/
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-
+
     - name: Install PostgreSQL client
       run: |
         sudo apt-get update
         sudo apt-get install -y postgresql-client
-    
+
     - name: Wait for PostgreSQL
       run: |
         until pg_isready -h localhost -p 5432 -U postgres; do
@@ -75,24 +167,28 @@ jobs:
         done
         # Create benchmark database for benchmarks
         PGPASSWORD=password createdb -h localhost -p 5432 -U postgres benchmark_db || true
-        
-    - name: Run tests
+
+    - name: Verify build cache
+      run: |
+        ls -la target/build-marker.txt || echo "Build cache miss"
+
+    - name: Run tests (using pre-built binaries)
       run: cargo test --workspace -- --test-threads=1
       env:
         DATABASE_URL: "postgres://postgres:password@localhost:5432/test_db"
-        
-    - name: Run benchmarks
+
+    - name: Run benchmarks (using pre-built binaries)
       run: |
         echo "Running benchmarks on PostgreSQL..."
-        cargo bench --bench crud_benchmarks --no-run
         timeout 60s cargo bench --bench crud_benchmarks -- --test || true
       env:
-        DATABASE_URL: "postgres://postgres:password@localhost:5432/test_db"
-        BENCHMARK_DATABASE_URL: "postgres://postgres:password@localhost:5432/test_db"
+        DATABASE_URL: "postgres://postgres:password@localhost:5432/benchmark_db"
+        BENCHMARK_DATABASE_URL: "postgres://postgres:password@localhost:5432/benchmark_db"
 
-  mysql-test-benchmark:
+  test-mysql:
     name: MySQL - Test & Benchmark
     runs-on: ubuntu-latest
+    needs: build
     services:
       mysql:
         image: mysql:8.0
@@ -107,12 +203,31 @@ jobs:
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-    
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target/
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-
+
     - name: Install MySQL client
       run: |
         sudo apt-get update
         sudo apt-get install -y mysql-client
-    
+
     - name: Wait for MySQL
       run: |
         # Wait for MySQL to fully initialize (important!)
@@ -122,17 +237,20 @@ jobs:
         mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "SELECT 1;" test_db
         # Create benchmark database for benchmarks
         mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "CREATE DATABASE IF NOT EXISTS benchmark_db;"
-        
-    - name: Run tests
+
+    - name: Verify build cache
+      run: |
+        ls -la target/build-marker.txt || echo "Build cache miss"
+
+    - name: Run tests (using pre-built binaries)
       run: cargo test --workspace -- --test-threads=1
       env:
         DATABASE_URL: "mysql://root:password@127.0.0.1:3306/test_db"
-        
-    - name: Run benchmarks
+
+    - name: Run benchmarks (using pre-built binaries)
       run: |
         echo "Running benchmarks on MySQL..."
-        cargo bench --bench crud_benchmarks --no-run
         timeout 60s cargo bench --bench crud_benchmarks -- --test || true
       env:
-        DATABASE_URL: "mysql://root:password@127.0.0.1:3306/test_db"
-        BENCHMARK_DATABASE_URL: "mysql://root:password@127.0.0.1:3306/test_db"
+        DATABASE_URL: "mysql://root:password@127.0.0.1:3306/benchmark_db"
+        BENCHMARK_DATABASE_URL: "mysql://root:password@127.0.0.1:3306/benchmark_db"
