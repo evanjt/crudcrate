@@ -103,15 +103,15 @@ jobs:
     - name: Wait for MySQL
       run: |
         for i in {1..30}; do
-          if mysqladmin ping -h localhost -P 3306 -u root -ppassword --silent 2>/dev/null; then
+          if mysqladmin ping -h 127.0.0.1 -P 3306 -u root -ppassword --silent 2>/dev/null; then
             break
           fi
           sleep 2
         done
-        mysql -h localhost -P 3306 -u root -ppassword -e "SELECT 1;" test_db
+        mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "SELECT 1;" test_db
         
     - name: Run tests (MySQL)
-      run: DATABASE_URL="mysql://root:password@localhost:3306/test_db" cargo test --workspace -- --test-threads=1
+      run: DATABASE_URL="mysql://root:password@127.0.0.1:3306/test_db" cargo test --workspace -- --test-threads=1
         
   benchmark:
     name: Benchmark Tests
