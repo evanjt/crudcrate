@@ -459,6 +459,6 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     }
     // Otherwise fall back to React Admin range format
     else {
-        parse_range(params.range.clone())
+        parse_range(params.range.as_ref().cloned())
     }
 }

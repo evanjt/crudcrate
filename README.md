@@ -15,6 +15,23 @@
 cargo add crudcrate
 ```
 
+### Database Support
+
+Choose your database drivers to optimize binary size:
+
+```toml
+# Default: SQLite only
+crudcrate = "0.4.1"
+
+# Single database (smallest binary)
+crudcrate = { version = "0.4.1", features = ["mysql"], default-features = false }
+
+# Multiple databases (runtime flexibility)
+crudcrate = { version = "0.4.1", features = ["mysql", "postgresql"] }
+```
+
+Available features: `sqlite` (default), `mysql`, `postgresql`
+
 ```rust
 use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;

@@ -38,14 +38,14 @@ where
 
     async fn get_all(
         db: &DatabaseConnection,
-        condition: Condition,
+        condition: &Condition,
         order_column: Self::ColumnType,
         order_direction: Order,
         offset: u64,
         limit: u64,
     ) -> Result<Vec<Self>, DbErr> {
         let models = Self::EntityType::find()
-            .filter(condition)
+            .filter(condition.clone())
             .order_by(order_column, order_direction)
             .offset(offset)
             .limit(limit)
@@ -113,8 +113,8 @@ where
         Ok(ids)
     }
 
-    async fn total_count(db: &DatabaseConnection, condition: Condition) -> u64 {
-        let query = Self::EntityType::find().filter(condition);
+    async fn total_count(db: &DatabaseConnection, condition: &Condition) -> u64 {
+        let query = Self::EntityType::find().filter(condition.clone());
         PaginatorTrait::count(query, db).await.unwrap()
     }
 

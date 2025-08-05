@@ -9,12 +9,18 @@ repository = "https://github.com/evanjt/crudcrate"
 keywords = ["crud", "api", "axum", "sea-orm"]
 categories = ["web-programming", "database"]
 
+[features]
+default = ["sqlite"]
+mysql = ["sea-orm/sqlx-mysql"]
+postgresql = ["sea-orm/sqlx-postgres"]
+sqlite = ["sea-orm/sqlx-sqlite"]
+
 [dependencies]
 async-trait = "0.1.88"
 axum = { version = "0.8.4", features = ["macros"] }
 crudcrate-derive = { version = "0.2.2" }
 hyper = "1.6.0"
-sea-orm = "1.1.14"
+sea-orm = { version = "1.1.14", features = ["runtime-tokio-rustls", "macros", "with-uuid"], default-features = false }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 serde_with = "3.14.0"
