@@ -5,7 +5,7 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.1] - 2025-08-04
+## [0.4.1] - 2025-08-05
 
 ### Added
 
@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive benchmark suite with performance testing across database backends
 - Security integration tests for SQL injection protection
 - Coverage reporting with Codecov integration
+- Database feature flags for selective driver compilation (`mysql`, `postgresql`, `sqlite`)
+- Binary size optimization through conditional database driver inclusion
 
 ### Changed
 
@@ -23,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated README with minimal examples and comprehensive testing documentation
 - Restructured test infrastructure to support multiple database backends
 - Improved error handling in filter parsing with better validation
+- Removed Clone requirement from generated API structs (Create/Update models)
+- Optimized trait methods to use references instead of owned values where possible
+- Sea-ORM dependency now uses `default-features = false` with selective feature enabling
+- Enhanced README with database feature selection examples
 
 ### Fixed
 
@@ -35,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dependencies
 
 - **derive**: Updated to 0.2.1 with full-text search support and enhanced router generation capabilities
+- **derive**: Removed Clone derives from generated structs to reduce memory overhead
 
 ## [0.4.0] - 2025-07-17
 
