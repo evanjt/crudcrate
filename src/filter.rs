@@ -263,8 +263,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 // Handle React Admin string filtering patterns
                 if let Some(base_field) = key.strip_suffix("_eq") {
                     // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
-                    condition =
-                        condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
+                    condition = condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
                 } else {
                     // Check if this field should use LIKE queries
                     let use_like = T::like_filterable_columns().contains(&key.as_str());
@@ -297,12 +296,16 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                             if T::is_enum_field(&key) {
                                 // Cast enum to TEXT for universal database compatibility
                                 condition = condition.add(
-                                    Expr::expr(Expr::cast_as(Expr::col(Alias::new(&*key)), Alias::new("TEXT")))
-                                        .eq(trimmed_value.clone())
+                                    Expr::expr(Expr::cast_as(
+                                        Expr::col(Alias::new(&*key)),
+                                        Alias::new("TEXT"),
+                                    ))
+                                    .eq(trimmed_value.clone()),
                                 );
                             } else {
                                 // Regular exact matching for non-enum fields
-                                condition = condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                                condition =
+                                    condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
                             }
                         } else {
                             // Case-insensitive matching using UPPER() - cast enum fields to TEXT first
@@ -310,15 +313,20 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                                 // Cast enum to TEXT then apply UPPER() for case-insensitive matching
                                 use sea_orm::sea_query::Func;
                                 condition = condition.add(
-                                    SimpleExpr::FunctionCall(Func::upper(Expr::cast_as(Expr::col(Alias::new(&*key)), Alias::new("TEXT"))))
-                                        .eq(trimmed_value.to_uppercase())
+                                    SimpleExpr::FunctionCall(Func::upper(Expr::cast_as(
+                                        Expr::col(Alias::new(&*key)),
+                                        Alias::new("TEXT"),
+                                    )))
+                                    .eq(trimmed_value.to_uppercase()),
                                 );
                             } else {
                                 // Regular case-insensitive matching for non-enum fields
                                 use sea_orm::sea_query::Func;
                                 condition = condition.add(
-                                    SimpleExpr::FunctionCall(Func::upper(Expr::col(Alias::new(&*key))))
-                                        .eq(trimmed_value.to_uppercase())
+                                    SimpleExpr::FunctionCall(Func::upper(Expr::col(Alias::new(
+                                        &*key,
+                                    ))))
+                                    .eq(trimmed_value.to_uppercase()),
                                 );
                             }
                         }
