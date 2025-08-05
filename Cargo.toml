@@ -12,7 +12,7 @@ categories = ["web-programming", "database"]
 [dependencies]
 async-trait = "0.1.88"
 axum = { version = "0.8.4", features = ["macros"] }
-crudcrate-derive = "0.2.1"
+crudcrate-derive = { path = "../crudcrate-derive" }
 hyper = "1.6.0"
 sea-orm = "1.1.14"
 serde = { version = "1.0.219", features = ["derive"] }

@@ -184,6 +184,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
     backend: DatabaseBackend,
 ) -> Condition {
+    // Simple approach: cast enum fields to TEXT for universal database compatibility
     // Parse the filter string into a HashMap
     let filters: HashMap<String, serde_json::Value> = if let Some(filter) = filter_str {
         match serde_json::from_str(&filter) {
@@ -292,18 +293,36 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                         if let Ok(uuid) = Uuid::parse_str(&trimmed_value) {
                             condition = condition.add(Expr::col(Alias::new(&*key)).eq(uuid));
                         } else if T::enum_case_sensitive() {
-                            // Case-sensitive exact matching
-                            condition =
-                                condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                            // Case-sensitive exact matching - cast enum fields to TEXT for database compatibility
+                            let is_enum_field = T::enum_fields().contains(&key.as_str());
+                            if is_enum_field {
+                                // Cast enum to TEXT for universal database compatibility
+                                condition = condition.add(
+                                    Expr::expr(Expr::cast_as(Expr::col(Alias::new(&*key)), Alias::new("TEXT")))
+                                        .eq(trimmed_value.clone())
+                                );
+                            } else {
+                                // Regular exact matching for non-enum fields
+                                condition = condition.add(Expr::col(Alias::new(&*key)).eq(trimmed_value));
+                            }
                         } else {
-                            // Case-insensitive exact matching using UPPER()
-                            use sea_orm::sea_query::SimpleExpr;
-                            condition = condition.add(
-                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                    Expr::col(Alias::new(&*key)),
-                                ))
-                                .eq(trimmed_value.to_uppercase()),
-                            );
+                            // Case-insensitive matching using UPPER() - cast enum fields to TEXT first
+                            let is_enum_field = T::enum_fields().contains(&key.as_str());
+                            if is_enum_field {
+                                // Cast enum to TEXT then apply UPPER() for case-insensitive matching
+                                use sea_orm::sea_query::Func;
+                                condition = condition.add(
+                                    SimpleExpr::FunctionCall(Func::upper(Expr::cast_as(Expr::col(Alias::new(&*key)), Alias::new("TEXT"))))
+                                        .eq(trimmed_value.to_uppercase())
+                                );
+                            } else {
+                                // Regular case-insensitive matching for non-enum fields
+                                use sea_orm::sea_query::Func;
+                                condition = condition.add(
+                                    SimpleExpr::FunctionCall(Func::upper(Expr::col(Alias::new(&*key))))
+                                        .eq(trimmed_value.to_uppercase())
+                                );
+                            }
                         }
                     }
                 }

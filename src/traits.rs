@@ -140,6 +140,32 @@ where
         false
     }
 
+    /// Returns enum mappings for this resource's table.
+    /// This provides all enum values for enum columns, enabling case-insensitive filtering.
+    /// Returns a vector of (column_name, enum_values) pairs.
+    /// Default implementation returns empty vector.
+    #[must_use]
+    fn enum_mappings() -> Vec<(&'static str, Vec<&'static str>)> {
+        vec![]
+    }
+    
+    /// Returns list of fields that are enum types.
+    /// This is used to determine which fields need special enum handling.
+    /// Default implementation returns empty vector.
+    #[must_use]
+    fn enum_fields() -> Vec<&'static str> {
+        vec![]
+    }
+    
+    /// Normalizes an enum value for case-insensitive matching.
+    /// This is used for enum types that don't support case-insensitive operations.
+    /// Default implementation returns None, indicating no enum normalization is available.
+    /// Override this method to provide enum value mapping for specific fields.
+    #[must_use]
+    fn normalize_enum_value(_field_name: &str, _value: &str) -> Option<String> {
+        None
+    }
+
     /// Returns a list of field names that should use LIKE queries (substring matching).
     /// Other string fields will use exact matching.
     /// Default is empty - no fields use LIKE by default.
