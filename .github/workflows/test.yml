@@ -6,8 +6,8 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  test:
-    name: Test & Benchmark on ${{ matrix.database }}
+  test-and-benchmark:
+    name: ${{ matrix.database }} - Test & Benchmark
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -47,21 +47,21 @@ jobs:
             coverage: false
     services:
       postgres:
-        image: ${{ matrix.database == 'postgresql' && 'postgres:16' || '' }}
+        image: ${{ matrix.database == 'postgresql' && 'postgres:16' || null }}
         env:
-          POSTGRES_PASSWORD: ${{ matrix.database == 'postgresql' && 'password' || '' }}
-          POSTGRES_DB: ${{ matrix.database == 'postgresql' && 'test_db' || '' }}
-        options: ${{ matrix.database == 'postgresql' && '--health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5' || '' }}
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        options: ${{ matrix.database == 'postgresql' && '--health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5' || null }}
         ports:
-          - ${{ matrix.database == 'postgresql' && '5432:5432' || '' }}
+          - ${{ matrix.database == 'postgresql' && '5432:5432' || null }}
       mysql:
-        image: ${{ matrix.database == 'mysql' && 'mysql:8.0' || '' }}
+        image: ${{ matrix.database == 'mysql' && 'mysql:8.0' || null }}
         env:
-          MYSQL_ROOT_PASSWORD: ${{ matrix.database == 'mysql' && 'password' || '' }}
-          MYSQL_DATABASE: ${{ matrix.database == 'mysql' && 'test_db' || '' }}
-        options: ${{ matrix.database == 'mysql' && '--health-cmd="mysqladmin ping -h localhost -u root -ppassword --silent" --health-interval=10s --health-timeout=5s --health-retries=10' || '' }}
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+        options: ${{ matrix.database == 'mysql' && '--health-cmd="mysqladmin ping -h localhost -u root -ppassword --silent" --health-interval=10s --health-timeout=5s --health-retries=10' || null }}
         ports:
-          - ${{ matrix.database == 'mysql' && '3306:3306' || '' }}
+          - ${{ matrix.database == 'mysql' && '3306:3306' || null }}
     steps:
     - uses: actions/checkout@v4
     
@@ -113,3 +113,4 @@ jobs:
         name: codecov-umbrella-${{ matrix.database }}
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
+
