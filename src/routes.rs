@@ -1,6 +1,19 @@
 #[macro_export]
 macro_rules! crud_handlers {
+    // New version with ListModel
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
+        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model);
+    };
+    
+    // Backward compatibility - use Self as ListModel
     ($resource:ty, $update_model:ty, $create_model:ty) => {
+        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $resource);
+    };
+}
+
+#[macro_export]
+macro_rules! crud_handlers_impl {
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
         use crudcrate::filter::{apply_filters, parse_pagination};
         use crudcrate::models::FilterOptions;
         use crudcrate::pagination::calculate_content_range;
@@ -45,7 +58,7 @@ macro_rules! crud_handlers {
             get,
             path = "/",
             responses(
-                (status = axum::http::StatusCode::OK, description = "List of resources", body = [$resource]),
+                (status = axum::http::StatusCode::OK, description = "List of resources", body = [$list_model]),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
             params(crudcrate::models::FilterOptions),
@@ -70,7 +83,7 @@ macro_rules! crud_handlers {
         pub async fn get_all_handler(
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
-        ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$resource>>), (axum::http::StatusCode, String)> {
+        ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$list_model>>), (axum::http::StatusCode, String)> {
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
             let condition = crudcrate::filter::apply_filters::<$resource>(params.filter.clone(), &<$resource as CRUDResource>::filterable_columns(), db.get_database_backend());
             let (order_column, order_direction) = crudcrate::sort::parse_sorting(
@@ -78,7 +91,7 @@ macro_rules! crud_handlers {
                 &<$resource as crudcrate::traits::CRUDResource>::sortable_columns(),
                 <$resource as crudcrate::traits::CRUDResource>::default_index_column(),
             );
-            let items = match <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit).await {
+            let items = match <$resource as crudcrate::traits::CRUDResource>::get_all_list(&db, &condition, order_column, order_direction, offset, limit).await {
                 Ok(items) => items,
                 Err(err) => return Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string())),
             };

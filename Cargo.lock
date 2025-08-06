@@ -655,8 +655,6 @@ dependencies = [
 [[package]]
 name = "crudcrate-derive"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "336b017f1a05fde7f50eef49942369797f2c4c429a639abf4e6b04ad3f333abf"
 dependencies = [
  "convert_case",
  "proc-macro2",

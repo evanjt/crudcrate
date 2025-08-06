@@ -30,6 +30,7 @@ where
     type ActiveModelType: ActiveModelTrait<Entity = Self::EntityType>;
     type CreateModel: Into<Self::ActiveModelType> + Send;
     type UpdateModel: Send + Sync + MergeIntoActiveModel<Self::ActiveModelType>;
+    type ListModel: From<Self> + Send + Sync;
 
     const ID_COLUMN: Self::ColumnType;
     const RESOURCE_NAME_SINGULAR: &str;
@@ -52,6 +53,25 @@ where
             .all(db)
             .await?;
         Ok(models.into_iter().map(Self::from).collect())
+    }
+
+    /// Get all resources as list models (optimized for collection views)
+    async fn get_all_list(
+        db: &DatabaseConnection,
+        condition: &Condition,
+        order_column: Self::ColumnType,
+        order_direction: Order,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<Self::ListModel>, DbErr> {
+        let models = Self::EntityType::find()
+            .filter(condition.clone())
+            .order_by(order_column, order_direction)
+            .offset(offset)
+            .limit(limit)
+            .all(db)
+            .await?;
+        Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
     }
 
     async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, DbErr> {
