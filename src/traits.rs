@@ -64,6 +64,9 @@ where
         offset: u64,
         limit: u64,
     ) -> Result<Vec<Self::ListModel>, DbErr> {
+        // Default implementation: fetch full models and convert
+        // Resources can override this method to implement selective column fetching
+        // for better performance when ListModel excludes expensive fields
         let models = Self::EntityType::find()
             .filter(condition.clone())
             .order_by(order_column, order_direction)
