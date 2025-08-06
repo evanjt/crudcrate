@@ -66,6 +66,7 @@ impl CRUDResource for Todo {
     type ActiveModelType = ActiveModel;
     type CreateModel = TodoCreate;
     type UpdateModel = TodoUpdate;
+    type ListModel = Todo; // No optimization for this legacy test entity
 
     const ID_COLUMN: Self::ColumnType = Column::Id;
     const RESOURCE_NAME_SINGULAR: &'static str = "todo";

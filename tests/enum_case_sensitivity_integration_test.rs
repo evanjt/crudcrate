@@ -40,6 +40,7 @@ impl CRUDResource for CaseSensitiveTask {
     type ActiveModelType = <Task as CRUDResource>::ActiveModelType;
     type CreateModel = <Task as CRUDResource>::CreateModel;
     type UpdateModel = <Task as CRUDResource>::UpdateModel;
+    type ListModel = CaseSensitiveTask; // Use itself as ListModel since it's just a wrapper
 
     const ID_COLUMN: Self::ColumnType = <Task as CRUDResource>::ID_COLUMN;
     const RESOURCE_NAME_SINGULAR: &'static str = "case_sensitive_task";

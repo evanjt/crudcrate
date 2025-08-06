@@ -55,7 +55,7 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 // Generate CRUD handlers
-crud_handlers!(SecurePost, SecurePostUpdate, SecurePostCreate);
+crud_handlers!(SecurePost, SecurePostUpdate, SecurePostCreate, SecurePostList);
 
 // Migration setup
 pub struct SecurePostMigrator;

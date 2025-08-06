@@ -49,7 +49,7 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 // Generate CRUD handlers using the macro
-crud_handlers!(BlogPost, BlogPostUpdate, BlogPostCreate);
+crud_handlers!(BlogPost, BlogPostUpdate, BlogPostCreate, BlogPostList);
 
 // Migration for the test database
 pub struct BlogPostMigrator;

@@ -129,6 +129,7 @@ impl CRUDResource for Task {
     type ActiveModelType = ActiveModel;
     type CreateModel = TaskCreate;
     type UpdateModel = TaskUpdate;
+    type ListModel = Task; // No optimization for this legacy test entity
 
     const ID_COLUMN: Self::ColumnType = Column::Id;
     const RESOURCE_NAME_SINGULAR: &'static str = "task";

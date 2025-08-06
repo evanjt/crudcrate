@@ -399,7 +399,7 @@ async fn test_filterable_columns_recommendations() {
     // Clean up
     cleanup_test_table(&db, "index_test_posts").await;
     
-    println!("✅ Filterable columns test passed: {filterable_count} recommendations");
+    // Test passed - found appropriate filterable column recommendations
 }
 
 #[tokio::test]
@@ -446,7 +446,7 @@ async fn test_sortable_columns_recommendations() {
     // Clean up
     cleanup_test_table(&db, "index_test_posts").await;
     
-    println!("✅ Sortable columns test passed: {sortable_count} recommendations");
+    // Test passed - found appropriate sortable column recommendations
 }
 
 #[tokio::test]
@@ -533,7 +533,7 @@ async fn test_priority_levels() {
     // Clean up
     cleanup_test_table(&db, "index_test_posts").await;
     
-    println!("✅ Priority levels test passed: {priority_counts:?}");
+    // Test passed - priority levels distributed correctly
 }
 
 #[tokio::test]
@@ -659,5 +659,5 @@ async fn test_combined_field_attributes() {
     // Clean up
     cleanup_test_table(&db, "index_test_posts").await;
     
-    println!("✅ Combined field attributes test passed");
+    // Test passed - combined field attributes handled correctly
 }
