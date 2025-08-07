@@ -44,29 +44,7 @@ where
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self>, DbErr> {
-        let models = Self::EntityType::find()
-            .filter(condition.clone())
-            .order_by(order_column, order_direction)
-            .offset(offset)
-            .limit(limit)
-            .all(db)
-            .await?;
-        Ok(models.into_iter().map(Self::from).collect())
-    }
-
-    /// Get all resources as list models (optimized for collection views)
-    async fn get_all_list(
-        db: &DatabaseConnection,
-        condition: &Condition,
-        order_column: Self::ColumnType,
-        order_direction: Order,
-        offset: u64,
-        limit: u64,
     ) -> Result<Vec<Self::ListModel>, DbErr> {
-        // Default implementation: fetch full models and convert
-        // Resources can override this method to implement selective column fetching
-        // for better performance when ListModel excludes expensive fields
         let models = Self::EntityType::find()
             .filter(condition.clone())
             .order_by(order_column, order_direction)
@@ -76,6 +54,7 @@ where
             .await?;
         Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
     }
+
 
     async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, DbErr> {
         let model =

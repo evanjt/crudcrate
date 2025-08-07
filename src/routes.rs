@@ -91,7 +91,7 @@ macro_rules! crud_handlers_impl {
                 &<$resource as crudcrate::traits::CRUDResource>::sortable_columns(),
                 <$resource as crudcrate::traits::CRUDResource>::default_index_column(),
             );
-            let items = match <$resource as crudcrate::traits::CRUDResource>::get_all_list(&db, &condition, order_column, order_direction, offset, limit).await {
+            let items = match <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit).await {
                 Ok(items) => items,
                 Err(err) => return Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string())),
             };
