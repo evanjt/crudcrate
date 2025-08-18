@@ -138,8 +138,7 @@ mod tests {
     use super::*;
     use crudcrate::traits::MergeIntoActiveModel;
     use plate_configuration::{
-        ActiveModel as PlateConfigurationActiveModel, PlateConfiguration, PlateConfigurationCreate,
-        PlateConfigurationList, PlateConfigurationUpdate,
+        PlateConfiguration, PlateConfigurationCreate, PlateConfigurationUpdate,
     };
     use simple_item::{
         ActiveModel as SimpleItemActiveModel, SimpleItem, SimpleItemCreate, SimpleItemUpdate,
