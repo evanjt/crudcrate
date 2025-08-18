@@ -87,7 +87,12 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 // Generate CRUD handlers
-crud_handlers!(BenchmarkPost, BenchmarkPostUpdate, BenchmarkPostCreate);
+crud_handlers!(
+    BenchmarkPost,
+    BenchmarkPostUpdate,
+    BenchmarkPostCreate,
+    BenchmarkPostList
+);
 
 // Migration for the benchmark database
 pub struct BenchmarkMigrator;
@@ -418,7 +423,7 @@ fn get_database_url() -> String {
     let url = std::env::var("DATABASE_URL")
         .or_else(|_| std::env::var("BENCHMARK_DATABASE_URL"))
         .unwrap_or_else(|_| "sqlite::memory:".to_string());
-    
+
     // For non-SQLite databases, use a benchmark-specific database to avoid conflicts
     if url.starts_with("postgres") {
         url.replace("/test_db", "/benchmark_db")
