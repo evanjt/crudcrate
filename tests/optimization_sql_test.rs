@@ -1,13 +1,13 @@
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::{QuerySelect, QueryFilter, QueryOrder, QueryTrait, Order, Condition, DatabaseBackend, Database, Set};
+use sea_orm::{Database, Set};
 use uuid::Uuid;
 use axum::{Router, body::Body, http::Request};
 use tower::ServiceExt;
 use sea_orm_migration::{prelude::*, sea_query::{ColumnDef, Table, Iden}};
 
 // Test entity with list model exclusions
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "test_products")]
 #[crudcrate(
     api_struct = "TestProduct",
@@ -210,8 +210,9 @@ async fn test_real_api_list_endpoint_optimization() {
     };
     test_product.insert(&db).await.unwrap();
     
-    // Build the router with generated routes  
-    let app: Router = router(&db).into();
+    // Build the router with generated routes mounted at the correct path
+    let app = axum::Router::new()
+        .nest("/test_products", router(&db).into());
     
     // Make request to list endpoint
     let request = Request::builder()
@@ -221,13 +222,16 @@ async fn test_real_api_list_endpoint_optimization() {
         .unwrap();
     
     let response = app.oneshot(request).await.unwrap();
-    
-    // Verify successful response
-    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let status = response.status();
     
     // Get response body
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
+    
+    // Debug if not OK
+    if status != axum::http::StatusCode::OK {
+        panic!("Expected 200 OK, got {} with body: {}", status, body_str);
+    }
     
     // Parse JSON to verify structure
     let products: Vec<TestProductList> = serde_json::from_str(&body_str).unwrap();
@@ -264,15 +268,15 @@ async fn test_crudcrate_generates_optimized_get_all_list() {
     };
     test_product.insert(&db).await.unwrap();
     
-    // Test that crudcrate generated the optimized get_all_list method
+    // Test that crudcrate generated the get_all method returning ListModel
     // This proves the macro generated the selective column query implementation
-    let list_products = TestProduct::get_all_list(
+    let list_products = TestProduct::get_all(
         &db,
-        None,      // filter
-        None,      // sort
-        None,      // order  
-        Some(0),   // page
-        Some(10),  // per_page
+        &sea_orm::Condition::all(),  // condition
+        TestProduct::default_index_column(),  // order_column
+        sea_orm::Order::Asc,         // order_direction
+        0,         // offset
+        10,        // limit
     ).await.unwrap();
     
     // Verify we got TestProductList items (not full TestProduct)
@@ -290,24 +294,7 @@ async fn test_crudcrate_generates_optimized_get_all_list() {
     // 2. It returns TestProductList (not TestProduct)
     // 3. The optimization code path is being used
     
-    // Compare with regular get_all which should return full TestProduct
-    let full_products = TestProduct::get_all(
-        &db,
-        None,      // filter
-        None,      // sort
-        None,      // order
-        Some(0),   // page  
-        Some(10),  // per_page
-    ).await.unwrap();
-    
-    assert_eq!(full_products.len(), 1, "Should return one full product");
-    let full_product = &full_products[0];
-    
-    // Full product should have all fields including the excluded ones
-    assert!(!full_product.created_at.to_string().is_empty(), "Full product should have created_at");
-    assert!(!full_product.last_updated.to_string().is_empty(), "Full product should have last_updated");
-    
-    // This proves crudcrate is generating TWO different methods:
-    // - get_all: returns full TestProduct with all fields
-    // - get_all_list: returns optimized TestProductList with only required fields
+    // Note: The new API design has get_all return ListModel objects directly
+    // This is more efficient as it only selects the columns defined in the list model
+    // rather than fetching all columns and then converting
 }

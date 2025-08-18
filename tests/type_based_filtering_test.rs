@@ -151,7 +151,8 @@ async fn setup_test_app_with_products() -> axum::Router {
         .await
         .expect("Failed to create products table");
 
-    router(&db).into()
+    axum::Router::new()
+        .nest("/products", router(&db).into())
 }
 
 async fn create_test_products(app: &axum::Router) {
