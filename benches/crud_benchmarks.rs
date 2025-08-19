@@ -185,6 +185,7 @@ impl MigrationName for CreateBenchmarkIndexes {
 
 #[async_trait::async_trait]
 impl MigrationTrait for CreateBenchmarkIndexes {
+    #[allow(clippy::too_many_lines)]
     async fn up(&self, manager: &SchemaManager) -> Result<(), sea_orm::DbErr> {
         let db = manager.get_connection();
 
@@ -425,9 +426,7 @@ fn get_database_url() -> String {
         .unwrap_or_else(|_| "sqlite::memory:".to_string());
 
     // For non-SQLite databases, use a benchmark-specific database to avoid conflicts
-    if url.starts_with("postgres") {
-        url.replace("/test_db", "/benchmark_db")
-    } else if url.starts_with("mysql") {
+    if url.starts_with("postgres") || url.starts_with("mysql") {
         url.replace("/test_db", "/benchmark_db")
     } else {
         url
@@ -442,9 +441,7 @@ async fn setup_benchmark_db(record_count: usize) -> Result<DatabaseConnection, s
     // Create benchmark database if it doesn't exist (MySQL specific)
     if database_url.starts_with("mysql") && database_url.contains("/benchmark_db") {
         // Connect to MySQL without specifying database to create it
-        let root_url = database_url
-            .replace("/benchmark_db", "")
-            .replace("mysql://", "mysql://");
+        let root_url = database_url.replace("/benchmark_db", "");
         if let Ok(root_db) = Database::connect(&root_url).await {
             let _ = root_db
                 .execute_unprepared("CREATE DATABASE IF NOT EXISTS benchmark_db")
@@ -645,106 +642,153 @@ fn bench_crud_operations(c: &mut Criterion) {
             c.benchmark_group(format!("CRUD Operations {backend_name} ({size}records)"));
         group.measurement_time(Duration::from_secs(10));
 
-        // Simple GET all benchmark
-        group.bench_with_input(BenchmarkId::new("get_all", size), &size, |b, _| {
-            b.iter(|| rt.block_on(std::hint::black_box(benchmark_get_all(app.clone()))));
-        });
-
-        // Filtered queries benchmark
-        let filters = vec![
-            r#"{"published":true}"#,
-            r#"{"author":"Author1"}"#,
-            r#"{"category":"Category2"}"#,
-            r#"{"view_count_gte":500}"#,
-        ];
-
-        for filter in filters {
-            group.bench_with_input(
-                BenchmarkId::new("filtered_query", filter),
-                &filter,
-                |b, filter| {
-                    b.iter(|| {
-                        rt.block_on(std::hint::black_box(benchmark_filtered_query(
-                            app.clone(),
-                            filter,
-                        )))
-                    });
-                },
-            );
-        }
-
-        // Fulltext search benchmark
-        let search_queries = vec![
-            "performance",
-            "benchmark content",
-            "database optimization",
-            "testing queries",
-        ];
-
-        for query in search_queries {
-            group.bench_with_input(
-                BenchmarkId::new("fulltext_search", query),
-                &query,
-                |b, query| {
-                    b.iter(|| {
-                        rt.block_on(std::hint::black_box(benchmark_fulltext_search(
-                            app.clone(),
-                            query,
-                        )))
-                    });
-                },
-            );
-        }
-
-        // Sorting benchmark
-        let sort_operations = vec![
-            ("title", "ASC"),
-            ("view_count", "DESC"),
-            ("created_at", "DESC"),
-            ("priority", "ASC"),
-        ];
-
-        for (field, order) in sort_operations {
-            group.bench_with_input(
-                BenchmarkId::new("sorted_query", format!("{field}_{order}")),
-                &(field, order),
-                |b, (field, order)| {
-                    b.iter(|| {
-                        rt.block_on(std::hint::black_box(benchmark_sorted_query(
-                            app.clone(),
-                            field,
-                            order,
-                        )))
-                    });
-                },
-            );
-        }
-
-        // Pagination benchmark
-        let pagination_sizes = vec![10, 50, 100];
-        for page_size in pagination_sizes {
-            group.bench_with_input(
-                BenchmarkId::new("paginated_query", page_size),
-                &page_size,
-                |b, page_size| {
-                    b.iter(|| {
-                        rt.block_on(std::hint::black_box(benchmark_paginated_query(
-                            app.clone(),
-                            0,
-                            *page_size,
-                        )))
-                    });
-                },
-            );
-        }
-
-        // Complex query benchmark (combines multiple operations)
-        group.bench_with_input(BenchmarkId::new("complex_query", size), &size, |b, _| {
-            b.iter(|| rt.block_on(std::hint::black_box(benchmark_complex_query(app.clone()))));
-        });
+        bench_get_all(&mut group, &rt, &app, size);
+        bench_filtered_queries(&mut group, &rt, &app);
+        bench_fulltext_searches(&mut group, &rt, &app);
+        bench_sorted_queries(&mut group, &rt, &app);
+        bench_paginated_queries(&mut group, &rt, &app);
+        bench_complex_query(&mut group, &rt, &app, size);
 
         group.finish();
     }
+}
+
+fn bench_get_all(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    rt: &Runtime,
+    app: &Router,
+    size: usize,
+) {
+    group.bench_with_input(
+        criterion::BenchmarkId::new("get_all", size),
+        &size,
+        |b, _| {
+            b.iter(|| rt.block_on(std::hint::black_box(benchmark_get_all(app.clone()))));
+        },
+    );
+}
+
+fn bench_filtered_queries(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    rt: &Runtime,
+    app: &Router,
+) {
+    let filters = vec![
+        r#"{"published":true}"#,
+        r#"{"author":"Author1"}"#,
+        r#"{"category":"Category2"}"#,
+        r#"{"view_count_gte":500}"#,
+    ];
+
+    for filter in filters {
+        group.bench_with_input(
+            criterion::BenchmarkId::new("filtered_query", filter),
+            &filter,
+            |b, filter| {
+                b.iter(|| {
+                    rt.block_on(std::hint::black_box(benchmark_filtered_query(
+                        app.clone(),
+                        filter,
+                    )))
+                });
+            },
+        );
+    }
+}
+
+fn bench_fulltext_searches(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    rt: &Runtime,
+    app: &Router,
+) {
+    let search_queries = vec![
+        "performance",
+        "benchmark content",
+        "database optimization",
+        "testing queries",
+    ];
+
+    for query in search_queries {
+        group.bench_with_input(
+            criterion::BenchmarkId::new("fulltext_search", query),
+            &query,
+            |b, query| {
+                b.iter(|| {
+                    rt.block_on(std::hint::black_box(benchmark_fulltext_search(
+                        app.clone(),
+                        query,
+                    )))
+                });
+            },
+        );
+    }
+}
+
+fn bench_sorted_queries(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    rt: &Runtime,
+    app: &Router,
+) {
+    let sort_operations = vec![
+        ("title", "ASC"),
+        ("view_count", "DESC"),
+        ("created_at", "DESC"),
+        ("priority", "ASC"),
+    ];
+
+    for (field, order) in sort_operations {
+        group.bench_with_input(
+            criterion::BenchmarkId::new("sorted_query", format!("{field}_{order}")),
+            &(field, order),
+            |b, (field, order)| {
+                b.iter(|| {
+                    rt.block_on(std::hint::black_box(benchmark_sorted_query(
+                        app.clone(),
+                        field,
+                        order,
+                    )))
+                });
+            },
+        );
+    }
+}
+
+fn bench_paginated_queries(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    rt: &Runtime,
+    app: &Router,
+) {
+    let pagination_sizes = vec![10, 50, 100];
+    for page_size in pagination_sizes {
+        group.bench_with_input(
+            criterion::BenchmarkId::new("paginated_query", page_size),
+            &page_size,
+            |b, page_size| {
+                b.iter(|| {
+                    rt.block_on(std::hint::black_box(benchmark_paginated_query(
+                        app.clone(),
+                        0,
+                        *page_size,
+                    )))
+                });
+            },
+        );
+    }
+}
+
+fn bench_complex_query(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    rt: &Runtime,
+    app: &Router,
+    size: usize,
+) {
+    group.bench_with_input(
+        criterion::BenchmarkId::new("complex_query", size),
+        &size,
+        |b, _| {
+            b.iter(|| rt.block_on(std::hint::black_box(benchmark_complex_query(app.clone()))));
+        },
+    );
 }
 
 fn bench_create_operations(c: &mut Criterion) {

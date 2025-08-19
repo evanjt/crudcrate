@@ -5,6 +5,23 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2025-08-19
+
+### Added
+
+- **Testing**: Integration tests for `create_model=false` compatibility with `non_db_attr`
+- **Testing**: Comprehensive test suite for `use_target_models` functionality with cross-model referencing
+
+### Fixed
+
+- **derive**: Resolved lingering compilation errors from List model update
+- **derive**: Fixed test compatibility issues following List model integration
+- **Filter system**: Minor improvements to filtering logic consistency
+
+### Dependencies
+
+- **derive**: Updated to latest version with enhanced List model support and improved compatibility
+
 ## [0.4.2] - 2025-08-18
 
 ### Added
@@ -245,6 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.4.3]: https://github.com/evanjt/crudcrate/compare/0.4.2...0.4.3
 [0.4.2]: https://github.com/evanjt/crudcrate/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/evanjt/crudcrate/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/evanjt/crudcrate/compare/0.3.3...0.4.0

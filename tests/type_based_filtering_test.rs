@@ -43,7 +43,7 @@ pub struct Model {
     #[crudcrate(filterable)]
     pub in_stock: bool,
 
-    // Enum field - should use case-sensitive exact matching 
+    // Enum field - should use case-sensitive exact matching
     #[crudcrate(filterable, enum_field)]
     pub category: ProductCategory,
 
@@ -78,7 +78,7 @@ pub enum ProductCategory {
 }
 
 async fn setup_test_app_with_products() -> axum::Router {
-    let _database_url =
+    let database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
 
     let db = common::setup_test_db()
@@ -91,7 +91,7 @@ async fn setup_test_app_with_products() -> axum::Router {
         .expect("Failed to run migrations");
 
     // For PostgreSQL, we need to handle enum types properly
-    if _database_url.starts_with("postgres") {
+    if database_url.starts_with("postgres") {
         // Drop and recreate the enum type to ensure it's clean
         let _ = db
             .execute_unprepared("DROP TYPE IF EXISTS product_category CASCADE")
@@ -127,7 +127,7 @@ async fn setup_test_app_with_products() -> axum::Router {
         .col(ColumnDef::new(Alias::new("in_stock")).boolean().not_null());
 
     // Handle category column differently for each database
-    if _database_url.starts_with("postgres") {
+    if database_url.starts_with("postgres") {
         // For PostgreSQL, use custom enum type
         create_table.col(
             ColumnDef::new(Alias::new("category"))
@@ -151,8 +151,7 @@ async fn setup_test_app_with_products() -> axum::Router {
         .await
         .expect("Failed to create products table");
 
-    axum::Router::new()
-        .nest("/products", router(&db).into())
+    axum::Router::new().nest("/products", router(&db).into())
 }
 
 async fn create_test_products(app: &axum::Router) {
