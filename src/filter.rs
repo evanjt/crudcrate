@@ -406,24 +406,22 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     // Filter on the 'id' field for any of the provided UUIDs
                     let mut or_conditions = Condition::any();
                     for id in value_array {
-                        if let Some(id_str) = id.as_str() {
-                            if let Ok(uuid) = Uuid::parse_str(id_str) {
+                        if let Some(id_str) = id.as_str()
+                            && let Ok(uuid) = Uuid::parse_str(id_str) {
                                 or_conditions =
                                     or_conditions.add(Expr::col(Alias::new("id")).eq(uuid));
                             }
-                        }
                     }
                     condition = condition.add(or_conditions);
                 } else {
                     // Regular array filtering for other fields
                     let mut or_conditions = Condition::any();
                     for id in value_array {
-                        if let Some(id_str) = id.as_str() {
-                            if let Ok(uuid) = Uuid::parse_str(id_str) {
+                        if let Some(id_str) = id.as_str()
+                            && let Ok(uuid) = Uuid::parse_str(id_str) {
                                 or_conditions =
                                     or_conditions.add(Expr::col(Alias::new(&*key)).eq(uuid));
                             }
-                        }
                     }
                     condition = condition.add(or_conditions);
                 }
@@ -459,6 +457,6 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     }
     // Otherwise fall back to React Admin range format
     else {
-        parse_range(params.range.as_ref().cloned())
+        parse_range(params.range.clone())
     }
 }

@@ -5,6 +5,35 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2025-08-18
+
+### Added
+
+- **List Model Support**: New `List` model generation capability for customizing fields returned in list/getAll endpoints, similar to Create and Update models
+- Generated List model behavior with field deselection support
+- Built-in `getAll` query optimization to only return fields specified in List model
+- **derive**: Support for reserved field names using `r#` syntax (e.g., `r#type`)
+- **derive**: Enhanced target model usage with CRUDResource structs for cross-model referencing
+- **derive**: Automatic `From<>` trait generation for List structs from Sea-ORM DB models
+
+### Changed
+
+- **derive**: Improved trait compatibility by re-adding `PartialEq`, `Eq`, `Debug`, and `Clone` derives to models for Sea-ORM compatibility
+- **derive**: Route generation now uses root-level paths instead of prefixed routes for better user control
+- **derive**: Enhanced `use_target_models` functionality for better cross-model integration
+
+### Fixed
+
+- **derive**: Fixed ActiveModel generation when create model excludes keys
+- **derive**: Fixed `create_model=false` compatibility with `non_db_attr`
+- **derive**: Improved function linking in crudcrate function overrides
+- **derive**: Fixed trait signature for Condition in get_all operations
+- **derive**: Various clippy warnings resolved
+
+### Dependencies
+
+- **derive**: Updated to 0.2.6 with List model support, reserved field handling, and enhanced model generation capabilities
+
 ## [0.4.1] - 2025-08-05
 
 ### Added
@@ -216,6 +245,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.4.2]: https://github.com/evanjt/crudcrate/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/evanjt/crudcrate/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/evanjt/crudcrate/compare/0.3.3...0.4.0
 [0.3.3]: https://github.com/evanjt/crudcrate/compare/0.3.2...0.3.3
