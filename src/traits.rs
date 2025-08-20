@@ -35,7 +35,9 @@ where
     const ID_COLUMN: Self::ColumnType;
     const RESOURCE_NAME_SINGULAR: &str;
     const RESOURCE_NAME_PLURAL: &str;
+    const TABLE_NAME: &'static str;
     const RESOURCE_DESCRIPTION: &'static str = "";
+    const FULLTEXT_LANGUAGE: &'static str = "english";
 
     async fn get_all(
         db: &DatabaseConnection,

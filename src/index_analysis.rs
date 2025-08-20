@@ -59,7 +59,7 @@ struct ExistingIndex {
 pub async fn analyse_indexes_for_resource<T: crate::traits::CRUDResource>(
     db: &DatabaseConnection,
 ) -> Result<Vec<IndexRecommendation>, sea_orm::DbErr> {
-    let table_name = T::RESOURCE_NAME_PLURAL;
+    let table_name = T::TABLE_NAME;
     let backend = db.get_database_backend();
 
     // Get existing indexes for this table
@@ -123,7 +123,7 @@ pub async fn analyse_indexes_for_resource<T: crate::traits::CRUDResource>(
                     fulltext_columns.len()
                 ),
                 priority: Priority::High,
-                suggested_sql: generate_fulltext_index_sql(backend, table_name, &fulltext_columns),
+                suggested_sql: generate_fulltext_index_sql(backend, table_name, &fulltext_columns, T::FULLTEXT_LANGUAGE),
             });
         }
     }
@@ -157,11 +157,14 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
     println!("═══════════════════════════");
 
     let mut by_priority: HashMap<Priority, Vec<&IndexRecommendation>> = HashMap::new();
+    let mut all_sql_commands: Vec<String> = Vec::new();
+    
     for rec in recommendations {
         by_priority
             .entry(rec.priority.clone())
             .or_default()
             .push(rec);
+        all_sql_commands.push(rec.suggested_sql.clone());
     }
 
     // Display by priority with compact single-line format
@@ -184,20 +187,28 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
                 for rec in recs {
                     // Compact single-line format: table.column - reason
                     println!("  {} - {}", rec.table_name, rec.reason);
-                    
-                    // Show SQL example if requested
-                    if show_examples {
-                        println!("    {}", rec.suggested_sql);
-                    }
                 }
             }
         }
     }
 
-    if show_examples {
-        println!("\nCopy and paste the SQL commands above to create missing indexes");
-    } else {
-        println!("\nUse analyse_and_display_indexes() on individual models for SQL details");
+    // Always show consolidated SQL commands for easy copy-paste
+    if show_examples && !all_sql_commands.is_empty() {
+        println!("\n═══════════════════════════");
+        println!("Copy-paste SQL commands:");
+        println!("═══════════════════════════");
+        
+        // Remove duplicates while preserving order
+        let mut seen = std::collections::HashSet::new();
+        for sql in &all_sql_commands {
+            if seen.insert(sql.clone()) {
+                println!("{}", sql);
+            }
+        }
+        
+        println!("\nExecute these commands to optimize your database indexes");
+    } else if !show_examples {
+        println!("\nUse analyse_all_registered_models(&db, true) for SQL commands");
     }
 }
 
@@ -432,6 +443,7 @@ fn generate_fulltext_index_sql(
     backend: DatabaseBackend,
     table_name: &str,
     columns: &[(&str, impl std::fmt::Debug)],
+    language: &str,
 ) -> String {
     let column_names: Vec<&str> = columns.iter().map(|(name, _)| *name).collect();
 
@@ -439,7 +451,7 @@ fn generate_fulltext_index_sql(
         DatabaseBackend::Postgres => {
             let combined_columns = column_names.join(" || ' ' || ");
             format!(
-                "CREATE INDEX idx_{table_name}_fulltext ON {table_name} USING GIN (to_tsvector('english', {combined_columns}));"
+                "CREATE INDEX idx_{table_name}_fulltext ON {table_name} USING GIN (to_tsvector('{language}', {combined_columns}));"
             )
         }
         DatabaseBackend::MySql => {

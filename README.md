@@ -57,8 +57,9 @@ pub struct Model {
 Use the generated router:
 
 ```rust
-// During application startup - analyze indexes for optimization recommendations
-Todo::analyze_and_display_indexes(&db).await?;
+// During application startup - analyze indexes for optimization recommendations  
+let _ = crudcrate::analyse_all_registered_models(&db, false).await;  // Compact output
+// let _ = crudcrate::analyse_all_registered_models(&db, true).await; // With SQL commands
 
 let app = Router::new()
     .nest("/api/todos", router(&db))  // Generated router function
@@ -169,36 +170,31 @@ Sub-millisecond responses for typical operations:
 
 [See detailed performance characteristics](#performance-characteristics)
 
-### Index Analysis
+### Automatic Index Analysis
 
-`crudcrate` automatically analyzes your database and recommends missing indexes at startup:
+`crudcrate` automatically registers all models and analyzes your database for missing indexes at startup:
 
 ```rust
-// During application startup
-MyResource::analyze_and_display_indexes(&db).await?;
+// Automatic registration - all models with EntityToModels are included
+let _ = crudcrate::analyse_all_registered_models(&db, false).await;  // Compact summary
+let _ = crudcrate::analyse_all_registered_models(&db, true).await;   // With SQL commands
 ```
 
 Output:
 
 ```
-🔍 crudcrate Index Analysis
+crudcrate Index Analysis
 ═══════════════════════════
 
-⚠️  High Priority
-┌─ Table: todos
-│  Column(s): title, content
-│  Reason: Fulltext search on 2 columns without proper index
-│  Suggested SQL:
-│    CREATE INDEX idx_todos_fulltext ON todos USING GIN (to_tsvector('english', title || ' ' || content));
-└─
+HIGH High Priority:
+  todos - Fulltext search on 2 columns without proper index
+    CREATE INDEX idx_todos_fulltext ON todos USING GIN (to_tsvector('english', title || ' ' || content));
 
-💡 Medium Priority
-┌─ Table: todos
-│  Column(s): completed
-│  Reason: Field 'completed' is filterable but not indexed
-│  Suggested SQL:
-│    CREATE INDEX idx_todos_completed ON todos (completed);
-└─
+MEDIUM Medium Priority:
+  todos - Field 'completed' is filterable but not indexed
+    CREATE INDEX idx_todos_completed ON todos (completed);
+
+Copy and paste the SQL commands above to create missing indexes
 ```
 
 ## Testing
@@ -438,6 +434,7 @@ Applied to the entire struct:
     name_plural = "todos",          // Resource name plural (default: singular + "s")
     description = "Manages todos",  // Resource description for OpenAPI docs
     generate_router,                // Auto-generate router function
+    fulltext_language = "simple",   // PostgreSQL fulltext language (default: "english")
 
     // Function injection - override default CRUD operations
     fn_get_one = self::custom_get_one,       // Custom get_one function
@@ -459,8 +456,17 @@ Fulltext search automatically optimizes based on your database backend:
 -- Generated query for PostgreSQL (with GIN index support)
 WHERE to_tsvector('english', title || ' ' || content) @@ plainto_tsquery('english', 'search terms')
 
--- Recommended index for optimal performance
+-- Recommended index for optimal performance  
 CREATE INDEX idx_posts_fulltext ON posts USING GIN (to_tsvector('english', title || ' ' || content));
+```
+
+**Language Configuration**: Configure fulltext language per model for internationalization:
+
+```rust
+#[crudcrate(fulltext_language = "simple")]    // Language-agnostic
+#[crudcrate(fulltext_language = "spanish")]   // Spanish text processing
+#[crudcrate(fulltext_language = "french")]    // French text processing
+// Default: "english"
 ```
 
 **SQLite**: Falls back to case-insensitive LIKE queries across all fulltext fields
