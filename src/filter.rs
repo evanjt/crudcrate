@@ -115,17 +115,15 @@ fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     }
 }
 
-/// Build PostgreSQL-specific fulltext search using tsvector
+/// Build PostgreSQL-specific fulltext search using trigrams with relevance scoring
 fn build_postgres_fulltext_condition(
     query: &str,
     columns: &[(&'static str, impl sea_orm::ColumnTrait)],
 ) -> Option<SimpleExpr> {
-    if columns.is_empty() {
+    if columns.is_empty() || query.is_empty() {
         return None;
     }
 
-    // For PostgreSQL, build a custom SQL expression for fulltext search
-    // We'll concatenate all columns and use to_tsvector/plainto_tsquery
     let mut concat_parts = Vec::new();
 
     for (name, _column) in columns {
@@ -134,16 +132,17 @@ fn build_postgres_fulltext_condition(
     }
 
     let concat_sql = concat_parts.join(" || ' ' || ");
-    // Additional security: validate and sanitize query
     let sanitized_query = sanitize_search_query(query);
-    let fulltext_sql = format!(
-        "to_tsvector('english', {}) @@ plainto_tsquery('english', '{}')",
-        concat_sql,
-        sanitized_query.replace('\'', "''") // Escape single quotes
+    let escaped_query = sanitized_query.replace('\'', "''");
+    
+    // Use a consistent approach: combine ILIKE for substring matching with trigram similarity for fuzzy matching
+    // This ensures reliable partial matching across all query lengths
+    let search_sql = format!(
+        "(UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') OR SIMILARITY({concat_sql}, '{escaped_query}') > 0.1)"
     );
 
     // Use custom SQL expression
-    Some(SimpleExpr::Custom(fulltext_sql))
+    Some(SimpleExpr::Custom(search_sql))
 }
 
 /// Build fallback fulltext search using LIKE concatenation for other databases
@@ -207,10 +206,35 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 condition = condition.add(fulltext_condition);
             } else {
                 // Fallback to original LIKE search on regular searchable columns
+                // Handle enum fields by casting to TEXT for PostgreSQL compatibility
                 let mut or_conditions = Condition::any();
-                for (_col_name, col) in searchable_columns {
-                    or_conditions =
-                        or_conditions.add(Expr::col(*col).like(format!("%{q_value_str}%")));
+                for (col_name, col) in searchable_columns {
+                    if T::is_enum_field(col_name) {
+                        // Cast enum fields to TEXT for LIKE operations
+                        match backend {
+                            DatabaseBackend::Postgres => {
+                                or_conditions = or_conditions.add(
+                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                        Expr::cast_as(Expr::col(*col), Alias::new("TEXT"))
+                                    ))
+                                    .like(format!("%{}%", q_value_str.to_uppercase()))
+                                );
+                            }
+                            _ => {
+                                // For SQLite/MySQL, treat enum as string
+                                or_conditions = or_conditions.add(
+                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
+                                        .like(format!("%{}%", q_value_str.to_uppercase()))
+                                );
+                            }
+                        }
+                    } else {
+                        // Regular text fields
+                        or_conditions = or_conditions.add(
+                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
+                                .like(format!("%{}%", q_value_str.to_uppercase()))
+                        );
+                    }
                 }
                 condition = condition.add(or_conditions);
             }

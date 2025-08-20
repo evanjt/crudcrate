@@ -254,13 +254,13 @@ where
     ///     let db = Database::connect("sqlite::memory:").await?;
     ///     TestMigrator::up(&db, None).await?;
     ///     
-    ///     // This will analyze the database and recommend indexes for 'name' and 'active' fields
-    ///     TestItem::analyze_and_display_indexes(&db).await?;
+    ///     // This will analyse the database and recommend indexes for 'name' and 'active' fields
+    ///     TestItem::analyse_and_display_indexes(&db).await?;
     ///     Ok(())
     /// }
     /// ```
     ///
-    /// This will display colorized recommendations like:
+    /// This will display colorised recommendations like:
     /// ```text
     /// 🔍 crudcrate Index Analysis
     /// ═══════════════════════════
@@ -272,9 +272,9 @@ where
     /// │    CREATE INDEX idx_todos_fulltext ON todos USING GIN (...);
     /// └─
     /// ```
-    async fn analyze_and_display_indexes(db: &DatabaseConnection) -> Result<(), DbErr> {
+    async fn analyse_and_display_indexes(db: &DatabaseConnection) -> Result<(), DbErr> {
         let recommendations =
-            crate::index_analysis::analyze_indexes_for_resource::<Self>(db).await?;
+            crate::index_analysis::analyse_indexes_for_resource::<Self>(db).await?;
         crate::index_analysis::display_index_recommendations(&recommendations);
         Ok(())
     }

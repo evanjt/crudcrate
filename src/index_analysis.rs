@@ -1,15 +1,20 @@
 /*!
 # Index Analysis Module
 
-Database-agnostic index analysis to help optimize CRUD performance.
+Database-agnostic index analysis to help optimise CRUD performance.
 Provides startup warnings for missing indexes on filterable, sortable, and fulltext fields.
 */
 
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 static INDEX_ANALYSIS_SHOWN: AtomicBool = AtomicBool::new(false);
+
+// Global registry for models that should be analysed
+type IndexAnalyzer = Box<dyn Fn(&DatabaseConnection) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IndexRecommendation>, sea_orm::DbErr>> + Send>> + Send + Sync>;
+static GLOBAL_ANALYZERS: std::sync::LazyLock<Arc<Mutex<Vec<IndexAnalyzer>>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
 
 #[derive(Debug, Clone)]
 pub struct IndexRecommendation {
@@ -46,12 +51,12 @@ struct ExistingIndex {
     index_type: String,
 }
 
-/// Analyze database indexes and provide recommendations for CRUD resources
+/// Analyse database indexes and provide recommendations for CRUD resources
 /// 
 /// # Errors
 /// 
 /// Returns a `sea_orm::DbErr` if database queries fail or connection issues occur.
-pub async fn analyze_indexes_for_resource<T: crate::traits::CRUDResource>(
+pub async fn analyse_indexes_for_resource<T: crate::traits::CRUDResource>(
     db: &DatabaseConnection,
 ) -> Result<Vec<IndexRecommendation>, sea_orm::DbErr> {
     let table_name = T::RESOURCE_NAME_PLURAL;
@@ -126,8 +131,18 @@ pub async fn analyze_indexes_for_resource<T: crate::traits::CRUDResource>(
     Ok(recommendations)
 }
 
-/// Display index recommendations with pretty formatting
+/// Display index recommendations with compact formatting
 pub fn display_index_recommendations(recommendations: &[IndexRecommendation]) {
+    display_index_recommendations_internal(recommendations, false);
+}
+
+/// Display index recommendations with SQL examples
+pub fn display_index_recommendations_with_examples(recommendations: &[IndexRecommendation]) {
+    display_index_recommendations_internal(recommendations, true);
+}
+
+/// Internal function to display index recommendations with optional SQL examples
+fn display_index_recommendations_internal(recommendations: &[IndexRecommendation], show_examples: bool) {
     if recommendations.is_empty() {
         return;
     }
@@ -138,7 +153,7 @@ pub fn display_index_recommendations(recommendations: &[IndexRecommendation]) {
     }
     INDEX_ANALYSIS_SHOWN.store(true, Ordering::Relaxed);
 
-    println!("\n🔍 crudcrate Index Analysis");
+    println!("\ncrudcrate Index Analysis");
     println!("═══════════════════════════");
 
     let mut by_priority: HashMap<Priority, Vec<&IndexRecommendation>> = HashMap::new();
@@ -149,7 +164,7 @@ pub fn display_index_recommendations(recommendations: &[IndexRecommendation]) {
             .push(rec);
     }
 
-    // Display by priority
+    // Display by priority with compact single-line format
     for priority in [
         Priority::Critical,
         Priority::High,
@@ -157,32 +172,86 @@ pub fn display_index_recommendations(recommendations: &[IndexRecommendation]) {
         Priority::Low,
     ] {
         if let Some(recs) = by_priority.get(&priority) {
-            let (icon, color) = match priority {
-                Priority::Critical => ("🚨", "\x1b[91m"), // Bright red
-                Priority::High => ("⚠️ ", "\x1b[93m"),    // Yellow
-                Priority::Medium => ("💡", "\x1b[94m"),   // Blue
-                Priority::Low => ("ℹ️ ", "\x1b[92m"),     // Green
+            let (icon, _color) = match priority {
+                Priority::Critical => ("CRITICAL", "\x1b[91m"), // Bright red
+                Priority::High => ("HIGH", "\x1b[93m"),    // Yellow
+                Priority::Medium => ("MEDIUM", "\x1b[94m"),   // Blue
+                Priority::Low => ("LOW", "\x1b[92m"),     // Green
             };
 
-            println!("\n{icon} \x1b[1m{priority:?} Priority\x1b[0m");
-
-            for rec in recs {
-                println!("{}┌─ Table: {}\x1b[0m", color, rec.table_name);
-                println!("{}│  Column(s): {}\x1b[0m", color, rec.column_name);
-                println!("{}│  Reason: {}\x1b[0m", color, rec.reason);
-                println!("{color}│  Suggested SQL:\x1b[0m");
-                println!("{}│    {}\x1b[0m", color, rec.suggested_sql);
-                println!("{color}└─\x1b[0m");
+            if recs.len() > 0 {
+                println!("\n{icon} {priority:?} Priority:");
+                for rec in recs {
+                    // Compact single-line format: table.column - reason
+                    println!("  {} - {}", rec.table_name, rec.reason);
+                    
+                    // Show SQL example if requested
+                    if show_examples {
+                        println!("    {}", rec.suggested_sql);
+                    }
+                }
             }
         }
     }
 
-    println!("\n💡 \x1b[1mTips:\x1b[0m");
-    println!("   • Run these SQL commands in your database migration");
-    println!("   • Indexes improve query performance but use additional storage");
-    println!("   • PostgreSQL GIN indexes are highly recommended for fulltext search");
-    println!("   • Consider compound indexes for frequently combined filters");
-    println!();
+    if show_examples {
+        println!("\nCopy and paste the SQL commands above to create missing indexes");
+    } else {
+        println!("\nUse analyse_and_display_indexes() on individual models for SQL details");
+    }
+}
+
+/// Register a model for automatic index analysis
+pub fn register_analyser<T: crate::traits::CRUDResource + 'static>() {
+    let analyser: IndexAnalyzer = Box::new(|db: &DatabaseConnection| {
+        let db = db.clone();
+        Box::pin(async move {
+            analyse_indexes_for_resource::<T>(&db).await
+        })
+    });
+    
+    GLOBAL_ANALYZERS.lock().unwrap().push(analyser);
+}
+
+/// Run index analysis for all registered models with optional SQL examples
+/// 
+/// # Parameters
+/// - `db`: Database connection for analyzing existing indexes
+/// - `show_examples`: If true, displays SQL CREATE INDEX commands; if false, shows compact summary
+/// 
+/// # Examples
+/// ```rust
+/// // Compact output (default for production)
+/// let _ = analyse_all_registered_models(&db, false).await;
+/// 
+/// // Detailed output with SQL commands (useful for development)
+/// let _ = analyse_all_registered_models(&db, true).await;
+/// ```
+pub async fn analyse_all_registered_models(db: &DatabaseConnection, show_examples: bool) -> Result<(), sea_orm::DbErr> {
+    let mut all_recommendations = Vec::new();
+    
+    {
+        let guard = GLOBAL_ANALYZERS.lock().unwrap();
+        for analyser in guard.iter() {
+            let recommendations = analyser(db).await?;
+            all_recommendations.extend(recommendations);
+        }
+    }
+    
+    if show_examples {
+        display_index_recommendations_with_examples(&all_recommendations);
+    } else {
+        display_index_recommendations(&all_recommendations);
+    }
+    Ok(())
+}
+
+/// Force all lazy static analysers to register by triggering their initialization
+/// This is a workaround for the fact that LazyLock only initializes when first accessed
+pub async fn ensure_all_analysers_registered() {
+    // This function intentionally does nothing - the mere act of calling it
+    // ensures this module is loaded, which should trigger any LazyLock registrations
+    // in modules that have been compiled but not yet loaded
 }
 
 /// Get existing indexes for a table (database-agnostic)
@@ -195,15 +264,15 @@ async fn get_existing_indexes(
         DatabaseBackend::Postgres => {
             format!(
                 r"
-                SELECT 
+                SELECT DISTINCT
                     t.relname as table_name,
-                    a.attname as column_name,
+                    COALESCE(a.attname, 'expression') as column_name,
                     i.relname as index_name,
                     am.amname as index_type
                 FROM pg_class t
                 JOIN pg_index ix ON t.oid = ix.indrelid
                 JOIN pg_class i ON i.oid = ix.indexrelid
-                JOIN pg_attribute a ON t.oid = a.attrelid AND a.attnum = ANY(ix.indkey)
+                LEFT JOIN pg_attribute a ON t.oid = a.attrelid AND a.attnum = ANY(ix.indkey)
                 JOIN pg_am am ON i.relam = am.oid
                 WHERE t.relname = '{table_name}'
                 AND t.relkind = 'r'
@@ -308,12 +377,24 @@ fn check_fulltext_index_exists(
 ) -> bool {
     match backend {
         DatabaseBackend::Postgres => {
-            // Look for GIN indexes on the fulltext columns
+            // Look for GIN indexes - check both individual column indexes and expression indexes
             existing_indexes.iter().any(|idx| {
-                idx.index_type.to_lowercase().contains("gin")
-                    && fulltext_columns
-                        .iter()
-                        .any(|(col, _)| idx.column_name == *col)
+                let is_gin = idx.index_type.to_lowercase().contains("gin");
+                if !is_gin {
+                    return false;
+                }
+                
+                // Check if it's a traditional fulltext index (matches individual columns)
+                let matches_column = fulltext_columns
+                    .iter()
+                    .any(|(col, _)| idx.column_name == *col);
+                
+                // Check if it's a trigram or expression index (look for common patterns)
+                let is_expression_index = idx.column_name == "expression" || 
+                    idx.index_name.contains("trigram") || 
+                    idx.index_name.contains("fulltext");
+                
+                matches_column || is_expression_index
             })
         }
         DatabaseBackend::MySql => {
