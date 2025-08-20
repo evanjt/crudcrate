@@ -10,7 +10,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 // Test entity with list model exclusions
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "test_products")]
 #[crudcrate(
     api_struct = "TestProduct",

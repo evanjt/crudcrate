@@ -134,6 +134,7 @@ impl CRUDResource for Task {
     const ID_COLUMN: Self::ColumnType = Column::Id;
     const RESOURCE_NAME_SINGULAR: &'static str = "task";
     const RESOURCE_NAME_PLURAL: &'static str = "tasks";
+    const TABLE_NAME: &'static str = "tasks";
     const RESOURCE_DESCRIPTION: &'static str = "Task items for comprehensive type testing";
 
     fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {

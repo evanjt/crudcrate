@@ -71,6 +71,7 @@ impl CRUDResource for Todo {
     const ID_COLUMN: Self::ColumnType = Column::Id;
     const RESOURCE_NAME_SINGULAR: &'static str = "todo";
     const RESOURCE_NAME_PLURAL: &'static str = "todos";
+    const TABLE_NAME: &'static str = "todos";
     const RESOURCE_DESCRIPTION: &'static str = "Todo items for testing";
 
     fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {

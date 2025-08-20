@@ -26,7 +26,7 @@ pub struct IndexRecommendation {
     pub suggested_sql: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexType {
     BTree,
     GIN,      // PostgreSQL only
@@ -164,7 +164,12 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
             .entry(rec.priority.clone())
             .or_default()
             .push(rec);
-        all_sql_commands.push(rec.suggested_sql.clone());
+        // Handle multi-line SQL commands (e.g., SQLite fulltext which generates multiple indexes)
+        for line in rec.suggested_sql.lines() {
+            if !line.trim().is_empty() {
+                all_sql_commands.push(line.trim().to_string());
+            }
+        }
     }
 
     // Display by priority with compact single-line format
@@ -182,7 +187,7 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
                 Priority::Low => ("LOW", "\x1b[92m"),     // Green
             };
 
-            if recs.len() > 0 {
+            if !recs.is_empty() {
                 println!("\n{icon} {priority:?} Priority:");
                 for rec in recs {
                     // Compact single-line format: table.column - reason
@@ -202,7 +207,7 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
         let mut seen = std::collections::HashSet::new();
         for sql in &all_sql_commands {
             if seen.insert(sql.clone()) {
-                println!("{}", sql);
+                println!("{sql}");
             }
         }
         
@@ -213,6 +218,10 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
 }
 
 /// Register a model for automatic index analysis
+/// 
+/// # Panics
+/// 
+/// This function may panic if the global index analyzers mutex is poisoned.
 pub fn register_analyser<T: crate::traits::CRUDResource + 'static>() {
     let analyser: IndexAnalyzer = Box::new(|db: &DatabaseConnection| {
         let db = db.clone();
@@ -231,13 +240,30 @@ pub fn register_analyser<T: crate::traits::CRUDResource + 'static>() {
 /// - `show_examples`: If true, displays SQL CREATE INDEX commands; if false, shows compact summary
 /// 
 /// # Examples
-/// ```rust
+/// ```rust,no_run
+/// use crudcrate::analyse_all_registered_models;
+/// use sea_orm::Database;
+/// 
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let db = Database::connect("sqlite::memory:").await?;
+/// 
 /// // Compact output (default for production)
 /// let _ = analyse_all_registered_models(&db, false).await;
 /// 
 /// // Detailed output with SQL commands (useful for development)
 /// let _ = analyse_all_registered_models(&db, true).await;
+/// # Ok(())
+/// # }
 /// ```
+/// 
+/// # Errors
+/// 
+/// Returns a `sea_orm::DbErr` if database operations fail during index analysis.
+/// 
+/// # Panics
+/// 
+/// This function panics if the global analyzers mutex is poisoned.
+#[allow(clippy::await_holding_lock)]
 pub async fn analyse_all_registered_models(db: &DatabaseConnection, show_examples: bool) -> Result<(), sea_orm::DbErr> {
     let mut all_recommendations = Vec::new();
     
@@ -258,7 +284,7 @@ pub async fn analyse_all_registered_models(db: &DatabaseConnection, show_example
 }
 
 /// Force all lazy static analysers to register by triggering their initialization
-/// This is a workaround for the fact that LazyLock only initializes when first accessed
+/// This is a workaround for the fact that `LazyLock` only initializes when first accessed
 pub async fn ensure_all_analysers_registered() {
     // This function intentionally does nothing - the mere act of calling it
     // ensures this module is loaded, which should trigger any LazyLock registrations

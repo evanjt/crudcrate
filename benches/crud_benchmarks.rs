@@ -43,7 +43,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 /// Benchmark entity with comprehensive field types
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "benchmark_posts")]
 #[crudcrate(api_struct = "BenchmarkPost", active_model = "ActiveModel")]
 pub struct Model {

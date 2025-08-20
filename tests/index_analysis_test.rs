@@ -6,7 +6,7 @@ Tests the database-agnostic index analysis functionality with different database
 
 use chrono::{DateTime, Utc};
 use crudcrate::{
-    EntityToModels, analyze_indexes_for_resource,
+    EntityToModels, analyse_indexes_for_resource,
     index_analysis::{IndexType, Priority},
     traits::CRUDResource,
 };
@@ -300,7 +300,7 @@ async fn test_index_analysis_functionality() {
         .expect("Failed to set up test database");
 
     // Analyze indexes for our test resource
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 
@@ -363,13 +363,13 @@ async fn test_display_index_recommendations() {
     println!("\n🧪 Testing Index Analysis Display:");
 
     // This will display the pretty formatted recommendations
-    IndexTestPost::analyze_and_display_indexes(&db)
+    IndexTestPost::analyse_and_display_indexes(&db)
         .await
         .expect("Failed to analyze and display indexes");
 
     // Test that calling it again doesn't display twice (due to atomic boolean)
     println!("\n🔄 Calling analysis again (should not display twice):");
-    IndexTestPost::analyze_and_display_indexes(&db)
+    IndexTestPost::analyse_and_display_indexes(&db)
         .await
         .expect("Failed to analyze and display indexes");
 }
@@ -386,7 +386,7 @@ async fn test_filterable_columns_recommendations() {
         .await
         .expect("Failed to create table");
 
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 
@@ -442,7 +442,7 @@ async fn test_sortable_columns_recommendations() {
         .await
         .expect("Failed to create table");
 
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 
@@ -497,7 +497,7 @@ async fn test_fulltext_columns_recommendations() {
         .await
         .expect("Failed to create table");
 
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 
@@ -552,7 +552,7 @@ async fn test_priority_levels() {
         .await
         .expect("Failed to create table");
 
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 
@@ -623,7 +623,7 @@ async fn test_no_recommendations_with_existing_indexes() {
         db.execute(statement).await.expect("Failed to create index");
     }
 
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 
@@ -672,7 +672,7 @@ async fn test_combined_field_attributes() {
         .await
         .expect("Failed to create table");
 
-    let recommendations = analyze_indexes_for_resource::<IndexTestPost>(&db)
+    let recommendations = analyse_indexes_for_resource::<IndexTestPost>(&db)
         .await
         .expect("Failed to analyze indexes");
 

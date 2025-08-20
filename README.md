@@ -609,7 +609,7 @@ If you find this project useful and have a way to improve it, please help defeat
 
 **MIT License**. See [LICENSE](./LICENSE) for details.
 
-**Disclaimer**: This software is provided "as is" without warranty of any kind. While `crudcrate` includes security measures for CRUD operations, users are responsible for implementing comprehensive security appropriate for their specific use case and environment.
+**Disclaimer**: This software is provided "as is" without warranty of any kind. **This library is in heavy development - use at your own risk.** While `crudcrate` includes security measures for CRUD operations, users are responsible for implementing comprehensive security appropriate for their specific use case and environment.
 
 ## Related Crates
 

@@ -5,6 +5,27 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2025-08-20
+
+### Added
+
+- Index analysis system for database optimization recommendations
+- `analyse_indexes_for_resource` and `analyse_all_registered_models` functions
+- Database-specific index recommendations with priority-based output
+
+### Changed
+
+- **BREAKING** (if still using CRUDResource manually): Added required `TABLE_NAME`
+  constant to `CRUDResource` trait. This does not affect `EntityToModel` functionality.
+- Made `validate_field_value` function const
+- Improved code organization with extracted helper functions
+
+### Fixed
+
+- All clippy warnings (pessimistic and pedantic)
+- Test compilation errors and naming inconsistencies
+- Documentation examples and missing trait implementations
+
 ## [0.4.3] - 2025-08-19
 
 ### Added

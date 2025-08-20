@@ -14,7 +14,7 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 // Test entity similar to Tray - represents a plate used in laboratory experiments
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "plate")]
 #[crudcrate(api_struct = "Plate")]
 pub struct Model {
@@ -59,7 +59,7 @@ impl ActiveModelBehavior for ActiveModel {}
 mod plate_configuration {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "plate_configurations")]
     #[crudcrate(
         generate_router,
@@ -106,7 +106,7 @@ mod plate_configuration {
 mod simple_item {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "simple_item")]
     #[crudcrate(api_struct = "SimpleItem")]
     pub struct Model {

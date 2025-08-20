@@ -45,6 +45,7 @@ impl CRUDResource for CaseSensitiveTask {
     const ID_COLUMN: Self::ColumnType = <Task as CRUDResource>::ID_COLUMN;
     const RESOURCE_NAME_SINGULAR: &'static str = "case_sensitive_task";
     const RESOURCE_NAME_PLURAL: &'static str = "case_sensitive_tasks";
+    const TABLE_NAME: &'static str = <Task as CRUDResource>::TABLE_NAME;
     const RESOURCE_DESCRIPTION: &'static str = "Task with case-sensitive enum filtering";
 
     fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
