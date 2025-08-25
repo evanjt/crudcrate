@@ -5,6 +5,12 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2025-08-25
+
+### Fixed
+
+- Batch delete endpoints now returns the array of successfully deleted resource UUIDs, suitable for a react-admin batch delete response.
+
 ## [0.4.4] - 2025-08-20
 
 ### Added
@@ -283,6 +289,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.4.5]: https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5
+[0.4.4]: https://github.com/evanjt/crudcrate/compare/0.4.3...0.4.4
 [0.4.3]: https://github.com/evanjt/crudcrate/compare/0.4.2...0.4.3
 [0.4.2]: https://github.com/evanjt/crudcrate/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/evanjt/crudcrate/compare/0.4.0...0.4.1

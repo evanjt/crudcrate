@@ -186,20 +186,20 @@ macro_rules! crud_handlers_impl {
             delete,
             path = "/batch",
             responses(
-                (status = axum::http::StatusCode::NO_CONTENT, description = "Resources deleted successfully", body = [String]),
+                (status = axum::http::StatusCode::OK, description = "Resources deleted successfully", body = [uuid::Uuid]),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
             ),
             operation_id = format!("delete_many_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             summary = format!("Delete many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            description = format!("Deletes many {} by their IDs.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            description = format!("Deletes many {} by their IDs and returns array of deleted UUIDs.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn delete_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             json: axum::Json<Vec<uuid::Uuid>>,
-        ) -> Result<axum::http::StatusCode, (axum::http::StatusCode, axum::Json<String>)> {
+        ) -> Result<axum::Json<Vec<uuid::Uuid>>, (axum::http::StatusCode, axum::Json<String>)> {
             <$resource as crudcrate::traits::CRUDResource>::delete_many(&state.0, json.0)
                 .await
-                .map(|_| axum::http::StatusCode::NO_CONTENT)
+                .map(|deleted_ids| axum::Json(deleted_ids))
                 .map_err(|_| {
                     (
                         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
