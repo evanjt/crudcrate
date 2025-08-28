@@ -1,53 +1,49 @@
-[package]
-name = "crudcrate"
-version = "0.4.5"
-edition = "2024"
-description = "Rust traits and functions to aid in building CRUD APIs in Axum and Sea-ORM"
-license = "MIT"
-readme = "README.md"
-repository = "https://github.com/evanjt/crudcrate"
-keywords = ["crud", "api", "axum", "sea-orm"]
-categories = ["web-programming", "database"]
+[workspace]
+members = ["crudcrate", "crudcrate-derive", "test_suite"]
+resolver = "2"
 
-[features]
-default = ["sqlite"]
-mysql = ["sea-orm/sqlx-mysql"]
-postgresql = ["sea-orm/sqlx-postgres"]
-sqlite = ["sea-orm/sqlx-sqlite"]
+[workspace.dependencies]
+# Procedural macro dependencies
+proc-macro2 = "1.0.95"
+quote = "1.0.40"
+syn = { version = "2.0.104", features = ["full", "derive", "parsing", "printing", "clone-impls", "proc-macro"] }
+convert_case = "0.8.0"
 
-[dependencies]
+# Core dependencies
 async-trait = "0.1.88"
-axum = { version = "0.8.4", features = ["macros"] }
-crudcrate-derive = { version = "0.2.7" }
-hyper = "1.6.0"
-sea-orm = { version = "1.1.14", features = ["runtime-tokio-rustls", "macros", "with-uuid"], default-features = false }
-serde = { version = "1.0.219", features = ["derive"] }
+axum = "0.8.4"
+hyper = { version = "1.6.0", features = ["full"] }
+sea-orm = { version = "1.1.14", default-features = false }
+serde = "1.0.219"
 serde_json = "1.0.142"
 serde_with = "3.14.0"
 utoipa = "5.4.0"
-uuid = { version = "1.17.0", features = ["serde", "v4"] }
+uuid = "1.17.0"
+chrono = "0.4.41"
+rust_decimal = "1.37.2"
 
-[lib]
-proc-macro = false
-
-[dev-dependencies]
-axum-helmet = "0.2.0"
-chrono = { version = "0.4.41", features = ["serde"] }
-criterion = { version = "0.7.0", features = ["html_reports"] }
-sea-orm = { version = "1.1.14", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros"] }
+# Development dependencies
+tokio = "1.47.1"
 sea-orm-migration = "1.1.14"
-tokio = { version = "1.47.1", features = ["full"] }
-tower = { version = "0.5.2", features = ["util"] }
-tower-http = { version = "0.6.6", features = ["cors", "trace"] }
+tower = "0.5.2"
+tower-http = "0.6.6"
 tower_governor = "0.8.0"
 url = "2.5.7"
 url-escape = "0.1.1"
-utoipa = { version = "5.4.0", features = ["uuid", "chrono"] }
 utoipa-axum = "0.2.0"
+utoipa-scalar = { version = "0.3.0", features = ["axum"] }
+axum-helmet = "0.2.0"
+criterion = "0.7.0"
 
-[[bench]]
-name = "crud_benchmarks"
-harness = false
 
-[lints.clippy]
-pedantic = "warn"
+# Patch crates.io crudcrate with the local version for development
+[patch.crates-io]
+crudcrate = { path = "crudcrate" }
+
+[profile.dev]
+# Faster compilation in development
+debug = 1
+
+[profile.test]
+# Better performance for tests
+opt-level = 1

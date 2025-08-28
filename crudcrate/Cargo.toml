@@ -1,0 +1,76 @@
+[package]
+name = "crudcrate"
+version = "0.5.0"
+edition = "2024"
+description = "Rust traits and functions to aid in building CRUD APIs with Axum and Sea-ORM"
+license = "MIT"
+readme = "../README.md"
+repository = "https://github.com/evanjt/crudcrate"
+keywords = ["crud", "api", "axum", "sea-orm"]
+categories = ["web-programming", "database"]
+
+[features]
+default = ["sqlite", "derive"]
+derive = ["crudcrate-derive"]
+mysql = ["sea-orm/sqlx-mysql"]
+postgresql = ["sea-orm/sqlx-postgres"]
+sqlite = ["sea-orm/sqlx-sqlite"]
+spring-rs = ["spring", "spring-web", "derive"]
+
+[dependencies]
+# Proc macro dependency (optional)
+crudcrate-derive = { version = "=0.5.0", optional = true, path = "../crudcrate-derive" }
+
+# Core dependencies using workspace versions
+async-trait = { workspace = true }
+axum = { workspace = true, features = ["macros"] }
+hyper = { workspace = true }
+sea-orm = { workspace = true, features = ["runtime-tokio-rustls", "macros", "with-uuid"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true, features = ["serde", "v4"] }
+
+# Spring-RS dependencies (only for examples, behind feature flag)
+spring = { version = "0.4.3", optional = true }
+spring-web = { version = "0.4.3", optional = true }
+
+
+
+[lib]
+proc-macro = false
+
+[dev-dependencies]
+axum-helmet = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+criterion = { workspace = true, features = ["html_reports"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono"] }
+sea-orm-migration = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+tower_governor = { workspace = true }
+url = { workspace = true }
+url-escape = { workspace = true }
+utoipa = { workspace = true, features = ["uuid", "chrono"] }
+utoipa-axum = { workspace = true }
+utoipa-scalar = { workspace = true }
+
+
+[[example]]
+name = "minimal"
+path = "../examples/minimal.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "minimal_spring"
+path = "../examples/minimal_spring.rs"
+required-features = ["spring-rs"]
+
+[[bench]]
+name = "crud_benchmarks"
+harness = false
+
+[lints.clippy]
+pedantic = "warn"

@@ -37,17 +37,29 @@ const fn validate_field_value(value: &str) -> bool {
 /// Parse React Admin comparison operator suffixes
 /// Returns (`base_field_name`, `sql_operator`) if a suffix is found
 fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
-    field_name.strip_suffix("_gte").map_or_else(|| {
-        field_name.strip_suffix("_lte").map_or_else(|| {
-            field_name.strip_suffix("_gt").map_or_else(|| {
-                field_name.strip_suffix("_lt").map_or_else(|| {
-                    field_name
-                        .strip_suffix("_neq")
-                        .map(|base_field| (base_field, "!="))
-                }, |base_field| Some((base_field, "<")))
-            }, |base_field| Some((base_field, ">")))
-        }, |base_field| Some((base_field, "<=")))
-    }, |base_field| Some((base_field, ">=")))
+    field_name.strip_suffix("_gte").map_or_else(
+        || {
+            field_name.strip_suffix("_lte").map_or_else(
+                || {
+                    field_name.strip_suffix("_gt").map_or_else(
+                        || {
+                            field_name.strip_suffix("_lt").map_or_else(
+                                || {
+                                    field_name
+                                        .strip_suffix("_neq")
+                                        .map(|base_field| (base_field, "!="))
+                                },
+                                |base_field| Some((base_field, "<")),
+                            )
+                        },
+                        |base_field| Some((base_field, ">")),
+                    )
+                },
+                |base_field| Some((base_field, "<=")),
+            )
+        },
+        |base_field| Some((base_field, ">=")),
+    )
 }
 
 /// Apply numeric comparison for integer values
@@ -132,7 +144,7 @@ fn build_postgres_fulltext_condition(
     let concat_sql = concat_parts.join(" || ' ' || ");
     let sanitized_query = sanitize_search_query(query);
     let escaped_query = sanitized_query.replace('\'', "''");
-    
+
     // Use a consistent approach: combine ILIKE for substring matching with trigram similarity for fuzzy matching
     // This ensures reliable partial matching across all query lengths
     let search_sql = format!(
@@ -175,22 +187,12 @@ fn build_fallback_fulltext_condition(
     Some(SimpleExpr::Custom(like_sql))
 }
 
-/// Build condition for string field with LIKE queries
-fn build_like_condition<T: crate::traits::CRUDResource>(
-    key: &str,
-    trimmed_value: &str,
-) -> SimpleExpr {
-    if T::enum_case_sensitive() {
-        // Case-sensitive substring matching
-        Expr::col(Alias::new(key)).like(format!("%{trimmed_value}%"))
-    } else {
-        // Case-insensitive substring matching using UPPER()
-        use sea_orm::sea_query::SimpleExpr;
-        SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-            Expr::col(Alias::new(key)),
-        ))
+/// Build condition for string field with LIKE queries (case-insensitive)
+fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
+    // Case-insensitive substring matching using UPPER()
+    use sea_orm::sea_query::SimpleExpr;
+    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(Alias::new(key))))
         .like(format!("%{}%", trimmed_value.to_uppercase()))
-    }
 }
 
 /// Build condition for exact matching with enum support
@@ -203,55 +205,18 @@ fn build_exact_condition<T: crate::traits::CRUDResource>(
     if let Ok(uuid) = Uuid::parse_str(trimmed_value) {
         return Expr::col(Alias::new(key)).eq(uuid);
     }
-    
-    if T::enum_case_sensitive() {
-        build_case_sensitive_enum_condition::<T>(key, trimmed_value, backend)
-    } else {
-        build_case_insensitive_enum_condition::<T>(key, trimmed_value, backend)
-    }
+
+    build_enum_condition::<T>(key, trimmed_value, backend)
 }
 
-/// Build case-sensitive enum condition
-fn build_case_sensitive_enum_condition<T: crate::traits::CRUDResource>(
-    key: &str,
-    trimmed_value: &str,
-    backend: DatabaseBackend,
-) -> SimpleExpr {
-    if T::is_enum_field(key) {
-        match backend {
-            DatabaseBackend::Postgres => {
-                // PostgreSQL supports CAST operations on enums
-                Expr::expr(Expr::cast_as(
-                    Expr::col(Alias::new(key)),
-                    Alias::new("TEXT"),
-                ))
-                .eq(trimmed_value)
-            }
-            DatabaseBackend::MySql => {
-                // MySQL: Use BINARY for case-sensitive comparison (enums stored as strings)
-                use sea_orm::sea_query::Func;
-                SimpleExpr::FunctionCall(Func::cust("BINARY").arg(Expr::col(Alias::new(key))))
-                    .eq(trimmed_value)
-            }
-            DatabaseBackend::Sqlite => {
-                // SQLite: direct string comparison (case-sensitive by default)
-                Expr::col(Alias::new(key)).eq(trimmed_value)
-            }
-        }
-    } else {
-        // Regular exact matching for non-enum fields
-        Expr::col(Alias::new(key)).eq(trimmed_value)
-    }
-}
-
-/// Build case-insensitive enum condition
-fn build_case_insensitive_enum_condition<T: crate::traits::CRUDResource>(
+/// Build enum condition (case-insensitive)
+fn build_enum_condition<T: crate::traits::CRUDResource>(
     key: &str,
     trimmed_value: &str,
     backend: DatabaseBackend,
 ) -> SimpleExpr {
     use sea_orm::sea_query::Func;
-    
+
     if T::is_enum_field(key) {
         match backend {
             DatabaseBackend::Postgres => {
@@ -285,7 +250,7 @@ fn build_string_condition<T: crate::traits::CRUDResource>(
     let use_like = T::like_filterable_columns().contains(&key);
 
     if use_like {
-        build_like_condition::<T>(key, trimmed_value)
+        build_like_condition(key, trimmed_value)
     } else {
         build_exact_condition::<T>(key, trimmed_value, backend)
     }
@@ -294,26 +259,28 @@ fn build_string_condition<T: crate::traits::CRUDResource>(
 /// Build array condition for multiple values
 fn build_array_condition(key: &str, value_array: &[serde_json::Value]) -> Condition {
     let mut or_conditions = Condition::any();
-    
+
     if key == "ids" {
         // React Admin GetMany format: {"ids": [uuid1, uuid2, uuid3]}
         // Filter on the 'id' field for any of the provided UUIDs
         for id in value_array {
             if let Some(id_str) = id.as_str()
-                && let Ok(uuid) = Uuid::parse_str(id_str) {
-                    or_conditions = or_conditions.add(Expr::col(Alias::new("id")).eq(uuid));
-                }
+                && let Ok(uuid) = Uuid::parse_str(id_str)
+            {
+                or_conditions = or_conditions.add(Expr::col(Alias::new("id")).eq(uuid));
+            }
         }
     } else {
         // Regular array filtering for other fields
         for id in value_array {
             if let Some(id_str) = id.as_str()
-                && let Ok(uuid) = Uuid::parse_str(id_str) {
-                    or_conditions = or_conditions.add(Expr::col(Alias::new(key)).eq(uuid));
-                }
+                && let Ok(uuid) = Uuid::parse_str(id_str)
+            {
+                or_conditions = or_conditions.add(Expr::col(Alias::new(key)).eq(uuid));
+            }
         }
     }
-    
+
     or_conditions
 }
 
@@ -325,15 +292,14 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 ) -> Condition {
     // Simple approach: cast enum fields to TEXT for universal database compatibility
     // Parse the filter string into a HashMap
-    let filters: HashMap<String, serde_json::Value> = filter_str.map_or_else(HashMap::new, |filter| {
-        match serde_json::from_str(&filter) {
+    let filters: HashMap<String, serde_json::Value> =
+        filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
             Ok(parsed) => parsed,
             Err(e) => {
                 eprintln!("Warning: Invalid JSON in filter string: {e}");
                 HashMap::new()
             }
-        }
-    });
+        });
 
     let mut condition = Condition::all();
     // Check if there is a free-text search ("q") parameter
@@ -353,24 +319,28 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                             DatabaseBackend::Postgres => {
                                 or_conditions = or_conditions.add(
                                     SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                        Expr::cast_as(Expr::col(*col), Alias::new("TEXT"))
+                                        Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
                                     ))
-                                    .like(format!("%{}%", q_value_str.to_uppercase()))
+                                    .like(format!("%{}%", q_value_str.to_uppercase())),
                                 );
                             }
                             _ => {
                                 // For SQLite/MySQL, treat enum as string
                                 or_conditions = or_conditions.add(
-                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
-                                        .like(format!("%{}%", q_value_str.to_uppercase()))
+                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                        Expr::col(*col),
+                                    ))
+                                    .like(format!("%{}%", q_value_str.to_uppercase())),
                                 );
                             }
                         }
                     } else {
                         // Regular text fields
                         or_conditions = or_conditions.add(
-                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
-                                .like(format!("%{}%", q_value_str.to_uppercase()))
+                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
+                                *col,
+                            )))
+                            .like(format!("%{}%", q_value_str.to_uppercase())),
                         );
                     }
                 }
@@ -427,7 +397,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     // Exact string matching with _eq suffix: {"title_eq": "Exact Title"}
                     condition = condition.add(Expr::col(Alias::new(base_field)).eq(trimmed_value));
                 } else {
-                    condition = condition.add(build_string_condition::<T>(&key, &trimmed_value, backend));
+                    condition =
+                        condition.add(build_string_condition::<T>(&key, &trimmed_value, backend));
                 }
             } else if let Some(value_int) = value.as_i64() {
                 // Handle numeric comparison operators for integers

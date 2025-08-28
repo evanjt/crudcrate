@@ -319,8 +319,8 @@ async fn test_enum_field_exact_matching() {
     let app = setup_test_app_with_products().await;
     create_test_products(&app).await;
 
-    // Test exact matching for 'category' field (enum type)
-    // With enum_case_sensitive = true, matching is case-sensitive
+    // Test enum field filtering (now always case-insensitive)
+    // Case sensitivity has been removed from crudcrate
     let filter = url_escape::encode_component(r#"{"category":"Electronics"}"#);
     let request = Request::builder()
         .method("GET")
@@ -343,7 +343,7 @@ async fn test_enum_field_exact_matching() {
             .all(|p| matches!(p.category, ProductCategory::Electronics))
     );
 
-    // Verify that lowercase doesn't match (case-sensitive)
+    // Verify that lowercase DOES match (case-insensitive after removing case sensitivity)
     let filter = url_escape::encode_component(r#"{"category":"electronics"}"#);
     let request = Request::builder()
         .method("GET")
@@ -359,8 +359,8 @@ async fn test_enum_field_exact_matching() {
         .unwrap();
     let products: Vec<Products> = serde_json::from_slice(&body).unwrap();
 
-    // Should find no products because "electronics" != "Electronics"
-    assert_eq!(products.len(), 0);
+    // Should find 2 products because "electronics" matches "Electronics" (case-insensitive)
+    assert_eq!(products.len(), 2);
 }
 
 #[tokio::test]

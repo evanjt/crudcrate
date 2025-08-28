@@ -6,80 +6,8 @@ use tower::ServiceExt;
 mod common;
 use common::{
     setup_task_app, setup_test_db_with_tasks,
-    task_entity::{Model, Priority, Task},
+    task_entity::{Priority, Task},
 };
-use crudcrate::CRUDResource;
-
-/// A wrapper around Task that implements case-sensitive enum filtering
-pub struct CaseSensitiveTask(Task);
-
-impl From<Task> for CaseSensitiveTask {
-    fn from(task: Task) -> Self {
-        CaseSensitiveTask(task)
-    }
-}
-
-impl From<Model> for CaseSensitiveTask {
-    fn from(model: Model) -> Self {
-        CaseSensitiveTask(Task::from(model))
-    }
-}
-
-impl std::ops::Deref for CaseSensitiveTask {
-    type Target = Task;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[async_trait::async_trait]
-impl CRUDResource for CaseSensitiveTask {
-    type EntityType = <Task as CRUDResource>::EntityType;
-    type ColumnType = <Task as CRUDResource>::ColumnType;
-    type ActiveModelType = <Task as CRUDResource>::ActiveModelType;
-    type CreateModel = <Task as CRUDResource>::CreateModel;
-    type UpdateModel = <Task as CRUDResource>::UpdateModel;
-    type ListModel = CaseSensitiveTask; // Use itself as ListModel since it's just a wrapper
-
-    const ID_COLUMN: Self::ColumnType = <Task as CRUDResource>::ID_COLUMN;
-    const RESOURCE_NAME_SINGULAR: &'static str = "case_sensitive_task";
-    const RESOURCE_NAME_PLURAL: &'static str = "case_sensitive_tasks";
-    const TABLE_NAME: &'static str = <Task as CRUDResource>::TABLE_NAME;
-    const RESOURCE_DESCRIPTION: &'static str = "Task with case-sensitive enum filtering";
-
-    fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-        Task::sortable_columns()
-    }
-
-    fn filterable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-        Task::filterable_columns()
-    }
-
-    /// Override to enable case-sensitive enum filtering
-    fn enum_case_sensitive() -> bool {
-        true
-    }
-}
-
-/// Helper function to filter tasks using case-sensitive wrapper
-#[allow(dead_code)]
-async fn filter_tasks_case_sensitive(app: &axum::Router, filter_json: &str) -> Vec<Task> {
-    let filter_param = url_escape::encode_component(filter_json);
-    let request = Request::builder()
-        .method("GET")
-        .uri(format!("/api/v1/tasks?filter={filter_param}"))
-        .body(Body::empty())
-        .unwrap();
-
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
 
 /// Helper function to filter tasks using the default case-insensitive Task
 async fn filter_tasks_case_insensitive(app: &axum::Router, filter_json: &str) -> Vec<Task> {
@@ -141,7 +69,7 @@ async fn create_enum_test_data(app: &axum::Router) {
 }
 
 #[tokio::test]
-async fn test_case_insensitive_vs_case_sensitive_enum_filtering() {
+async fn test_case_insensitive_enum_filtering() {
     let db = setup_test_db_with_tasks()
         .await
         .expect("Failed to setup test database");
@@ -174,19 +102,6 @@ async fn test_case_insensitive_vs_case_sensitive_enum_filtering() {
         mixed_case_tasks.len(),
         1,
         "Case-insensitive: should find 1 task with 'HIGH' priority"
-    );
-}
-
-#[tokio::test]
-async fn test_trait_method_configuration() {
-    // Test that the trait methods return expected values
-    assert!(
-        !Task::enum_case_sensitive(),
-        "Default Task should be case-insensitive"
-    );
-    assert!(
-        CaseSensitiveTask::enum_case_sensitive(),
-        "CaseSensitiveTask should be case-sensitive"
     );
 }
 

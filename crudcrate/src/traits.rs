@@ -137,13 +137,6 @@ where
         vec![("id", Self::ID_COLUMN)]
     }
 
-    /// Indicates whether enum filtering should be case-sensitive.
-    /// Default is false (case-insensitive).
-    #[must_use]
-    fn enum_case_sensitive() -> bool {
-        false
-    }
-
     
     /// Check if a specific field is an enum type at runtime.
     /// This is used to determine which fields need special enum handling.

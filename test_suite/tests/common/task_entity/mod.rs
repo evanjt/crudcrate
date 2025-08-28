@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crudcrate::traits::CRUDResource;
 use crudcrate::{ToCreateModel, ToUpdateModel, crud_handlers};
-use sea_orm::{ActiveValue, DeriveActiveEnum, FromQueryResult, entity::prelude::*};
+use sea_orm::{DeriveActiveEnum, FromQueryResult, entity::prelude::*};
 use sea_orm_migration::sea_query::StringLen;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
