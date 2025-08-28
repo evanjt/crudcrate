@@ -15,6 +15,7 @@ derive = ["crudcrate-derive"]
 mysql = ["sea-orm/sqlx-mysql"]
 postgresql = ["sea-orm/sqlx-postgres"]
 sqlite = ["sea-orm/sqlx-sqlite"]
+spring-rs = ["spring", "spring-web", "spring-sea-orm"]
 
 [dependencies]
 # Proc macro dependency (optional)
@@ -31,9 +32,11 @@ serde_with = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 
-# Special dependency to ensure crudcrate-derive stays in sync even when derive feature is disabled
-[target.'cfg(any())'.dependencies]
-crudcrate-derive = { version = "=0.4.5", path = "../crudcrate-derive" }
+# Optional Spring-RS dependencies
+spring = { version = "0.4.3", optional = true }
+spring-web = { version = "0.4.3", optional = true }
+spring-sea-orm = { version = "0.4.3", optional = true }
+
 
 [lib]
 proc-macro = false
@@ -62,7 +65,7 @@ required-features = ["derive"]
 [[example]]
 name = "minimal_spring"
 path = "../examples/minimal_spring.rs"
-required-features = ["derive"]
+required-features = ["derive", "spring-rs"]
 
 [lints.clippy]
 pedantic = "warn"

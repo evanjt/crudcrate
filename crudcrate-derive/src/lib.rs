@@ -363,7 +363,7 @@ fn generate_conditional_crud_impl(
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        code_generator::generate_router_impl(api_struct_name, &crud_meta.framework)
+        code_generator::generate_router_impl(api_struct_name)
     } else {
         quote! {}
     };

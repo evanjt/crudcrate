@@ -19,6 +19,9 @@ convert_case = { workspace = true }
 [lib]
 proc-macro = true
 
+[features]
+spring-rs = []
+
 [dev-dependencies]
 sea-orm = { workspace = true, features = ["macros", "with-chrono", "with-uuid", "with-json"] }
 serde = { workspace = true, features = ["derive"] }

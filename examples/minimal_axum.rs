@@ -1,30 +1,17 @@
 //! Minimal CRUD API Example with Axum
-//! 
-//! This is a **complete CRUD API** implemented in just ~60 lines of code using crudcrate.
-//! 
-//! ## What You Get
-//! 
-//! - ✅ Full CRUD operations (GET, POST, PUT, DELETE)
-//! - ✅ OpenAPI documentation at `/docs`
-//! - ✅ Sortable and filterable endpoints
-//! - ✅ Auto-generated primary keys and timestamps
-//! - ✅ SQLite in-memory database (no setup required)
-//! 
-//! ## Run the Example
-//! 
+//!
 //! ```bash
 //! cargo run --example minimal_axum
 //! ```
-//! 
+//!
 //! Then visit:
-//! - **API**: http://localhost:3000/todo
-//! - **Documentation**: http://localhost:3000/docs
+//! - **API**: <http://localhost:3000/todo>
+//! - **Documentation**: <http://localhost:3000/docs>
 
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use std::env;
-use tokio;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_scalar::{Scalar, Servable};
@@ -49,6 +36,10 @@ pub struct Model {
 pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
+#[derive(OpenApi)]
+#[openapi()]
+struct ApiDoc;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
@@ -56,24 +47,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     db.execute(sea_orm::Statement::from_string(
         db.get_database_backend(),
-        r#"CREATE TABLE IF NOT EXISTS todos (
+        r"CREATE TABLE IF NOT EXISTS todos (
             id TEXT PRIMARY KEY NOT NULL,
             title TEXT NOT NULL,
             completed BOOLEAN NOT NULL,
             updated_at TEXT NOT NULL
-        );"#
+        );"
         .to_owned(),
     ))
     .await?;
 
-    #[derive(OpenApi)]
-    #[openapi()]
-    struct ApiDoc;
-
-    let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .nest("/todo", router(&db))
+    let (router, apidocs) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .merge(router_with_path(&db, "/todo"))  // Alternative: .nest("/todo", router(&db))
         .split_for_parts();
-    let app = router.merge(Scalar::with_url("/docs", api));
+    let app = router.merge(Scalar::with_url("/docs", apidocs));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("🚀 API: http://0.0.0.0:3000/todo\n📖 Docs: http://0.0.0.0:3000/docs");
     axum::serve(listener, app).await?;

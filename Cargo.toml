@@ -35,6 +35,7 @@ utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 axum-helmet = "0.2.0"
 criterion = "0.7.0"
 
+
 # Patch crates.io crudcrate with the local version for development
 [patch.crates-io]
 crudcrate = { path = "crudcrate" }
