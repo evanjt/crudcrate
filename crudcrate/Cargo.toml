@@ -56,12 +56,13 @@ utoipa-scalar = { workspace = true }
 
 [[example]]
 name = "minimal_axum"
+path = "../examples/minimal_axum.rs"
 required-features = ["derive"]
 
 [[example]]
 name = "minimal_spring"
+path = "../examples/minimal_spring.rs"
 required-features = ["derive"]
-
 
 [lints.clippy]
 pedantic = "warn"
