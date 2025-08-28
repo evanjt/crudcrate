@@ -68,5 +68,9 @@ name = "minimal_spring"
 path = "../examples/minimal_spring.rs"
 required-features = ["spring-rs"]
 
+[[bench]]
+name = "crud_benchmarks"
+harness = false
+
 [lints.clippy]
 pedantic = "warn"
