@@ -141,7 +141,7 @@ pub(crate) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
     ty.clone()
 }
 
-/// Analyzes entity fields and creates the EntityFieldAnalysis structure.
+/// Analyzes entity fields and creates the `EntityFieldAnalysis` structure.
 /// This processes all fields and categorizes them based on their attributes.
 pub(crate) fn analyze_entity_fields(fields: &[syn::Field]) -> EntityFieldAnalysis<'_> {
     let mut primary_key_field = None;
@@ -154,7 +154,7 @@ pub(crate) fn analyze_entity_fields(fields: &[syn::Field]) -> EntityFieldAnalysi
         .iter()
         .partition(|field| {
             // Non-database fields have #[crudcrate(non_db_attr = true)]
-            super::attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) == false
+            !super::attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
         });
 
     for field in &db_fields {
