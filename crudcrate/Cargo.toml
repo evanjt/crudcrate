@@ -2,52 +2,56 @@
 name = "crudcrate"
 version = "0.4.5"
 edition = "2024"
-description = "Rust traits and functions to aid in building CRUD APIs in Axum and Sea-ORM"
+description = "Rust traits and functions to aid in building CRUD APIs with Axum and Sea-ORM"
 license = "MIT"
-readme = "README.md"
+readme = "../README.md"
 repository = "https://github.com/evanjt/crudcrate"
 keywords = ["crud", "api", "axum", "sea-orm"]
 categories = ["web-programming", "database"]
 
 [features]
-default = ["sqlite"]
+default = ["sqlite", "derive"]
+derive = ["crudcrate-derive"]
 mysql = ["sea-orm/sqlx-mysql"]
 postgresql = ["sea-orm/sqlx-postgres"]
 sqlite = ["sea-orm/sqlx-sqlite"]
 
 [dependencies]
-async-trait = "0.1.88"
-axum = { version = "0.8.4", features = ["macros"] }
-crudcrate-derive = { version = "0.2.7" }
-hyper = "1.6.0"
-sea-orm = { version = "1.1.14", features = ["runtime-tokio-rustls", "macros", "with-uuid"], default-features = false }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.142"
-serde_with = "3.14.0"
-utoipa = "5.4.0"
-uuid = { version = "1.17.0", features = ["serde", "v4"] }
+# Proc macro dependency (optional)
+crudcrate-derive = { version = "=0.4.5", optional = true, path = "../crudcrate-derive" }
+
+# Core dependencies using workspace versions
+async-trait = { workspace = true }
+axum = { workspace = true, features = ["macros"] }
+hyper = { workspace = true }
+sea-orm = { workspace = true, features = ["runtime-tokio-rustls", "macros", "with-uuid"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true, features = ["serde", "v4"] }
+
+# Special dependency to ensure crudcrate-derive stays in sync even when derive feature is disabled
+[target.'cfg(any())'.dependencies]
+crudcrate-derive = { version = "=0.4.5", path = "../crudcrate-derive" }
 
 [lib]
 proc-macro = false
 
 [dev-dependencies]
-axum-helmet = "0.2.0"
-chrono = { version = "0.4.41", features = ["serde"] }
-criterion = { version = "0.7.0", features = ["html_reports"] }
-sea-orm = { version = "1.1.14", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros"] }
-sea-orm-migration = "1.1.14"
-tokio = { version = "1.47.1", features = ["full"] }
-tower = { version = "0.5.2", features = ["util"] }
-tower-http = { version = "0.6.6", features = ["cors", "trace"] }
-tower_governor = "0.8.0"
-url = "2.5.7"
-url-escape = "0.1.1"
-utoipa = { version = "5.4.0", features = ["uuid", "chrono"] }
-utoipa-axum = "0.2.0"
-
-[[bench]]
-name = "crud_benchmarks"
-harness = false
+axum-helmet = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+criterion = { workspace = true, features = ["html_reports"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+tower_governor = { workspace = true }
+url = { workspace = true }
+url-escape = { workspace = true }
+utoipa = { workspace = true, features = ["uuid", "chrono"] }
+utoipa-axum = { workspace = true }
 
 [lints.clippy]
 pedantic = "warn"

@@ -1,0 +1,34 @@
+[package]
+name = "test_suite"
+version = "0.4.5"
+edition = "2024"
+description = "Test suite for crudcrate and crudcrate-derive"
+license = "MIT"
+publish = false
+
+[dependencies]
+# Use the local crudcrate with derive feature
+crudcrate = { path = "../crudcrate", features = ["derive", "sqlite"] }
+
+# Core dependencies
+axum = { workspace = true, features = ["macros"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono"] }
+sea-orm-migration = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tower = { workspace = true, features = ["util"] }
+uuid = { workspace = true, features = ["serde", "v4"] }
+chrono = { workspace = true, features = ["serde"] }
+utoipa = { workspace = true, features = ["uuid", "chrono"] }
+utoipa-axum = { workspace = true }
+url = { workspace = true }
+
+# Additional dependencies needed by tests
+hyper = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+url-escape = { workspace = true }
+async-trait = { workspace = true }
+
+[lints.clippy]
+pedantic = "warn"
