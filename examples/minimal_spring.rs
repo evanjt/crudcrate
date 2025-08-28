@@ -10,8 +10,8 @@
 //! ```
 //!
 //! Then visit:
-//! - **API**: <http://localhost:8080/todo>      (todos endpoint)
-//! - **GET**: <http://localhost:8080/todo/{id}> (get by ID)
+//! - **API**: <http://localhost:8080/todo> (todos endpoint)
+//! - **Documentation**: <http://localhost:8080/docs> (OpenAPI docs)
 
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
@@ -19,6 +19,9 @@ use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use spring::{App, auto_config};
 use spring_web::{WebConfigurator, WebPlugin};
 use std::env;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_scalar::{Scalar, Servable};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
@@ -40,6 +43,10 @@ pub struct Model {
 pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
+#[derive(OpenApi)]
+#[openapi()]
+struct ApiDoc;
+
 #[auto_config(WebConfigurator)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -60,12 +67,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ))
     .await?;
 
-    println!("Spring-RS + crudcrate API: http://localhost:8080/");
+    // Create router with documentation (same as Axum example)
+    let (router, apidocs) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .merge(router_with_path(&db, "/todo"))
+        .split_for_parts();
+    let app_router = router.merge(Scalar::with_url("/docs", apidocs));
+    println!("🚀 API: http://localhost:8080/todo\n📖 Docs: http://localhost:8080/docs");
 
-    // Use crudcrate's generated Axum router in Spring-RS!
+    // Use crudcrate's generated Axum router with docs in Spring-rs
     App::new()
         .add_plugin(WebPlugin)
-        .add_router(router_with_path(&db, "/todo").into()) // Mount router at /todo
+        .add_router(app_router.into())
         .run()
         .await;
 

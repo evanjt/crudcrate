@@ -59,8 +59,8 @@ utoipa-scalar = { workspace = true }
 
 
 [[example]]
-name = "minimal_axum"
-path = "../examples/minimal_axum.rs"
+name = "minimal"
+path = "../examples/minimal.rs"
 required-features = ["derive"]
 
 [[example]]
