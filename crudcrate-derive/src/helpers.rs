@@ -1,3 +1,4 @@
+
 use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
@@ -1773,5 +1774,113 @@ mod tests {
         // Test the filtering logic that should exclude this field
         let should_include = get_crudcrate_bool(&field, "create_model").unwrap_or(true);
         assert!(!should_include, "Field with create_model=false should be excluded");
+    }
+
+    #[test]
+    fn test_parse_crud_resource_meta() {
+        // Test basic string attributes
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[crudcrate(name_singular = "todo")] },
+            parse_quote! { #[crudcrate(name_plural = "todos")] },
+            parse_quote! { #[crudcrate(description = "Manages todo items")] },
+        ];
+        let meta = parse_crud_resource_meta(&attrs);
+        assert_eq!(meta.name_singular, Some("todo".to_string()));
+        assert_eq!(meta.name_plural, Some("todos".to_string()));
+        assert_eq!(meta.description, Some("Manages todo items".to_string()));
+
+        // Test complex attributes in single declaration
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[crudcrate(entity_type = "Entity", column_type = "Column")] }
+        ];
+        let meta = parse_crud_resource_meta(&attrs);
+        assert_eq!(meta.entity_type, Some("Entity".to_string()));
+        assert_eq!(meta.column_type, Some("Column".to_string()));
+
+        // Test empty/no attributes
+        let attrs: Vec<syn::Attribute> = vec![];
+        let meta = parse_crud_resource_meta(&attrs);
+        assert_eq!(meta.name_singular, None);
+        assert_eq!(meta.description, None);
+
+        // Test non-crudcrate attributes (should be ignored)
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[serde(skip)] },
+            parse_quote! { #[derive(Debug)] },
+        ];
+        let meta = parse_crud_resource_meta(&attrs);
+        assert_eq!(meta.name_singular, None);
+    }
+
+    #[test]
+    fn test_extract_table_name() {
+        // Test basic table name extraction
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[sea_orm(table_name = "todos")] }
+        ];
+        assert_eq!(extract_table_name(&attrs), Some("todos".to_string()));
+
+        // Test complex sea_orm attributes
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[sea_orm(table_name = "user_profiles", primary_key = "id")] }
+        ];
+        assert_eq!(extract_table_name(&attrs), Some("user_profiles".to_string()));
+
+        // Test no table_name attribute
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[sea_orm(primary_key = "id")] }
+        ];
+        assert_eq!(extract_table_name(&attrs), None);
+
+        // Test empty attributes
+        let attrs: Vec<syn::Attribute> = vec![];
+        assert_eq!(extract_table_name(&attrs), None);
+
+        // Test non-sea_orm attributes (should be ignored)
+        let attrs: Vec<syn::Attribute> = vec![
+            parse_quote! { #[derive(Debug)] },
+            parse_quote! { #[crudcrate(api_struct = "Todo")] },
+        ];
+        assert_eq!(extract_table_name(&attrs), None);
+    }
+
+    #[test]
+    fn test_field_has_crudcrate_flag() {
+        // Test field with the flag
+        let field: Field = parse_quote! {
+            #[crudcrate(primary_key)]
+            pub id: Uuid
+        };
+        assert!(field_has_crudcrate_flag(&field, "primary_key"));
+
+        // Test field with multiple flags
+        let field: Field = parse_quote! {
+            #[crudcrate(sortable, filterable)]
+            pub name: String
+        };
+        assert!(field_has_crudcrate_flag(&field, "sortable"));
+        assert!(field_has_crudcrate_flag(&field, "filterable"));
+        assert!(!field_has_crudcrate_flag(&field, "primary_key"));
+
+        // Test field with mixed attributes
+        let field: Field = parse_quote! {
+            #[crudcrate(filterable, create_model = false)]
+            pub title: String
+        };
+        assert!(field_has_crudcrate_flag(&field, "filterable"));
+        assert!(!field_has_crudcrate_flag(&field, "create_model")); // This is name-value, not a flag
+
+        // Test field without crudcrate attributes
+        let field: Field = parse_quote! {
+            #[serde(skip)]
+            pub field: String
+        };
+        assert!(!field_has_crudcrate_flag(&field, "primary_key"));
+
+        // Test field with no attributes
+        let field: Field = parse_quote! {
+            pub field: String
+        };
+        assert!(!field_has_crudcrate_flag(&field, "sortable"));
     }
 }
