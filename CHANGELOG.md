@@ -7,44 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
+## [0.5.0] - 2025-08-28
 
-- **BREAKING**: Removed `enum_case_sensitive()` method from `CRUDResource` trait
-- **BREAKING**: Removed case-sensitive enum filtering functionality
-- All enum filtering is now consistently case-insensitive
+### Added
+
+- Spring-RS framework support with minimal example in `/examples`
 
 ### Changed
 
-- **BREAKING**: All enum field filtering is now case-insensitive by default
-- Simplified enum filtering logic by removing case sensitivity complexity
+- Moved `crudcrate-derive` and examples into repository
+- Simplified framework architecture - removed redundant code generation paths
+- Refactored macro code generation by splitting helpers.rs into focused modules
 
-### Migration Guide
+### Removed
 
-If your code previously relied on case-sensitive enum filtering:
-
-**Before (v0.4.5 and earlier):**
-```rust
-impl CRUDResource for MyResource {
-    // ...
-    fn enum_case_sensitive() -> bool {
-        true // Case-sensitive enum filtering
-    }
-}
-```
-
-**After (v0.4.6+):**
-```rust
-impl CRUDResource for MyResource {
-    // ...
-    // enum_case_sensitive() method no longer exists
-    // All enum filtering is now case-insensitive
-}
-```
-
-**API Behavior Changes:**
-- `GET /api/resources?filter={"status":"pending"}` will now match "Pending", "PENDING", "pending", etc.
-- Previously case-sensitive enum queries will now be case-insensitive
-- No code changes needed for case-insensitive usage (this was the default)
+- BREAKING: Case-sensitive enum filtering functionality
 
 ## [0.4.5] - 2025-08-25
 
@@ -330,6 +307,7 @@ impl CRUDResource for MyResource {
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.5.0]: https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0
 [0.4.5]: https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5
 [0.4.4]: https://github.com/evanjt/crudcrate/compare/0.4.3...0.4.4
 [0.4.3]: https://github.com/evanjt/crudcrate/compare/0.4.2...0.4.3
