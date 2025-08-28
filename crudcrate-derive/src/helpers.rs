@@ -39,112 +39,13 @@ pub(super) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
 pub(super) fn resolve_target_models_with_list(
     field_type: &syn::Type,
 ) -> Option<(syn::Type, syn::Type, syn::Type)> {
-    // Extract the inner type if it's Vec<T>
-    let target_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(last_seg) = type_path.path.segments.last() {
-            if last_seg.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                        inner_type
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
-
-    // Convert target type to Create, Update, and List models
-    // For example: crate::routes::treatments::models::Treatment -> (TreatmentCreate, TreatmentUpdate, TreatmentList)
-    if let syn::Type::Path(type_path) = target_type
-        && let Some(last_seg) = type_path.path.segments.last()
-    {
-        let base_name = &last_seg.ident;
-
-        // Keep the module path but replace the struct name
-        let mut create_path = type_path.clone();
-        let mut update_path = type_path.clone();
-        let mut list_path = type_path.clone();
-
-        // Update the last segment to be the Create/Update/List versions
-        if let Some(last_seg_mut) = create_path.path.segments.last_mut() {
-            last_seg_mut.ident = format_ident!("{}Create", base_name);
-        }
-        if let Some(last_seg_mut) = update_path.path.segments.last_mut() {
-            last_seg_mut.ident = format_ident!("{}Update", base_name);
-        }
-        if let Some(last_seg_mut) = list_path.path.segments.last_mut() {
-            last_seg_mut.ident = format_ident!("{}List", base_name);
-        }
-
-        let create_model = syn::Type::Path(create_path);
-        let update_model = syn::Type::Path(update_path);
-        let list_model = syn::Type::Path(list_path);
-
-        return Some((create_model, update_model, list_model));
-    }
-    None
+    super::field_analyzer::resolve_target_models_with_list(field_type)
 }
 
 /// Resolves the target models (Create/Update) for a field with `use_target_models` attribute.
 /// Returns (`CreateModel`, `UpdateModel`) types for the target `CRUDResource`.
 pub(super) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::Type)> {
-    // Extract the inner type if it's Vec<T>
-    let target_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(last_seg) = type_path.path.segments.last() {
-            if last_seg.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                        inner_type
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
-
-    // Convert target type to Create and Update models
-    // For example: crate::routes::treatments::models::Treatment -> (TreatmentCreate, TreatmentUpdate)
-    if let syn::Type::Path(type_path) = target_type
-        && let Some(last_seg) = type_path.path.segments.last()
-    {
-        let base_name = &last_seg.ident;
-
-        // Keep the module path but replace the struct name
-        let mut create_path = type_path.clone();
-        let mut update_path = type_path.clone();
-
-        // Update the last segment to be the Create/Update versions
-        if let Some(last_seg_mut) = create_path.path.segments.last_mut() {
-            last_seg_mut.ident = format_ident!("{}Create", base_name);
-        }
-        if let Some(last_seg_mut) = update_path.path.segments.last_mut() {
-            last_seg_mut.ident = format_ident!("{}Update", base_name);
-        }
-
-        let create_model = syn::Type::Path(create_path);
-        let update_model = syn::Type::Path(update_path);
-
-        return Some((create_model, update_model));
-    }
-    None
+    super::field_analyzer::resolve_target_models(field_type)
 }
 
 // ================================
@@ -189,124 +90,13 @@ pub(super) fn extract_named_fields(
 pub(super) fn generate_create_struct_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .filter(|field| get_crudcrate_bool(field, "create_model").unwrap_or(true))
-        .map(|field| {
-            let ident = &field.ident;
-            let ty = &field.ty;
-
-            if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
-                // Check if this field uses target models
-                let has_use_target_models = field_has_crudcrate_flag(field, "use_target_models");
-
-                let final_ty = if has_use_target_models {
-                    if let Some((create_model, _)) = resolve_target_models(ty) {
-                        // Replace the type with the target's Create model
-                        if let syn::Type::Path(type_path) = ty {
-                            if let Some(last_seg) = type_path.path.segments.last() {
-                                if last_seg.ident == "Vec" {
-                                    // Vec<Treatment> -> Vec<TreatmentCreate>
-                                    quote! { Vec<#create_model> }
-                                } else {
-                                    // Treatment -> TreatmentCreate
-                                    quote! { #create_model }
-                                }
-                            } else {
-                                quote! { #ty }
-                            }
-                        } else {
-                            quote! { #ty }
-                        }
-                    } else {
-                        quote! { #ty }
-                    }
-                } else {
-                    quote! { #ty }
-                };
-
-                if get_crudcrate_expr(field, "default").is_some() {
-                    quote! {
-                        #[serde(default)]
-                        pub #ident: #final_ty
-                    }
-                } else {
-                    quote! {
-                        pub #ident: #final_ty
-                    }
-                }
-            } else if get_crudcrate_expr(field, "on_create").is_some() {
-                quote! {
-                    #[serde(default)]
-                    pub #ident: Option<#ty>
-                }
-            } else {
-                quote! {
-                    pub #ident: #ty
-                }
-            }
-        })
-        .collect()
+    super::code_generator::generate_create_struct_fields(fields)
 }
 
 pub(super) fn generate_create_conversion_lines(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<proc_macro2::TokenStream> {
-    let mut conv_lines = Vec::new();
-    for field in fields {
-        if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
-            continue;
-        }
-        let ident = field.ident.as_ref().unwrap();
-        let include = get_crudcrate_bool(field, "create_model").unwrap_or(true);
-        let is_optional = field_is_optional(field);
-
-        if include {
-            if let Some(expr) = get_crudcrate_expr(field, "on_create") {
-                if is_optional {
-                    conv_lines.push(quote! {
-                        #ident: ActiveValue::Set(match create.#ident {
-                            Some(Some(inner)) => Some(inner.into()),
-                            Some(None)         => None,
-                            None               => Some((#expr).into()),
-                        })
-                    });
-                } else {
-                    conv_lines.push(quote! {
-                        #ident: ActiveValue::Set(match create.#ident {
-                            Some(val) => val.into(),
-                            None      => (#expr).into(),
-                        })
-                    });
-                }
-            } else if is_optional {
-                conv_lines.push(quote! {
-                    #ident: ActiveValue::Set(create.#ident.map(|v| v.into()))
-                });
-            } else {
-                conv_lines.push(quote! {
-                    #ident: ActiveValue::Set(create.#ident.into())
-                });
-            }
-        } else if let Some(expr) = get_crudcrate_expr(field, "on_create") {
-            if is_optional {
-                conv_lines.push(quote! {
-                    #ident: ActiveValue::Set(Some((#expr).into()))
-                });
-            } else {
-                conv_lines.push(quote! {
-                    #ident: ActiveValue::Set((#expr).into())
-                });
-            }
-        } else {
-            // Field is excluded from Create model and has no on_create - set to NotSet
-            // This allows the field to be set manually later in custom create functions
-            conv_lines.push(quote! {
-                #ident: ActiveValue::NotSet
-            });
-        }
-    }
-    conv_lines
+    super::code_generator::generate_create_conversion_lines(fields)
 }
 
 // ================================
@@ -316,83 +106,17 @@ pub(super) fn generate_create_conversion_lines(
 pub(super) fn filter_update_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<&syn::Field> {
-    fields
-        .iter()
-        .filter(|field| get_crudcrate_bool(field, "update_model").unwrap_or(true))
-        .collect()
+    super::code_generator::filter_update_fields(fields)
 }
 
 pub(super) fn generate_update_struct_fields(
     included_fields: &[&syn::Field],
 ) -> Vec<proc_macro2::TokenStream> {
-    included_fields
-        .iter()
-        .map(|field| {
-            let ident = &field.ident;
-            let ty = &field.ty;
-
-            if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
-                // Check if this field uses target models
-                let final_ty = if field_has_crudcrate_flag(field, "use_target_models") {
-                    if let Some((_, update_model)) = resolve_target_models(ty) {
-                        // Replace the type with the target's Update model
-                        if let syn::Type::Path(type_path) = ty {
-                            if let Some(last_seg) = type_path.path.segments.last() {
-                                if last_seg.ident == "Vec" {
-                                    // Vec<Treatment> -> Vec<TreatmentUpdate>
-                                    quote! { Vec<#update_model> }
-                                } else {
-                                    // Treatment -> TreatmentUpdate
-                                    quote! { #update_model }
-                                }
-                            } else {
-                                quote! { #ty }
-                            }
-                        } else {
-                            quote! { #ty }
-                        }
-                    } else {
-                        quote! { #ty }
-                    }
-                } else {
-                    quote! { #ty }
-                };
-
-                if get_crudcrate_expr(field, "default").is_some() {
-                    quote! {
-                        #[serde(default)]
-                        pub #ident: #final_ty
-                    }
-                } else {
-                    quote! {
-                        pub #ident: #final_ty
-                    }
-                }
-            } else {
-                let inner_ty = extract_inner_type_for_update(ty);
-                quote! {
-                    #[serde(
-                        default,
-                        skip_serializing_if = "Option::is_none",
-                        with = "crudcrate::serde_with::rust::double_option"
-                    )]
-                    pub #ident: Option<Option<#inner_ty>>
-                }
-            }
-        })
-        .collect()
+    super::code_generator::generate_update_struct_fields(included_fields)
 }
 
 pub(super) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
-    if let syn::Type::Path(type_path) = ty
-        && let Some(seg) = type_path.path.segments.last()
-        && seg.ident == "Option"
-        && let syn::PathArguments::AngleBracketed(inner_args) = &seg.arguments
-        && let Some(syn::GenericArgument::Type(inner_ty)) = inner_args.args.first()
-    {
-        return inner_ty.clone();
-    }
-    ty.clone()
+    super::field_analyzer::extract_inner_type_for_update(ty)
 }
 
 pub(super) fn generate_update_merge_code(
@@ -417,22 +141,22 @@ pub(super) fn generate_included_merge_code(
             if is_optional {
                 quote! {
                     model.#ident = match self.#ident {
-                        Some(Some(value)) => ActiveValue::Set(Some(value.into())),
-                        Some(None)      => ActiveValue::Set(None),
-                        None            => ActiveValue::NotSet,
+                        Some(Some(value)) => sea_orm::ActiveValue::Set(Some(value.into())),
+                        Some(None)      => sea_orm::ActiveValue::Set(None),
+                        None            => sea_orm::ActiveValue::NotSet,
                     };
                 }
             } else {
                 quote! {
                     model.#ident = match self.#ident {
-                        Some(Some(value)) => ActiveValue::Set(value.into()),
+                        Some(Some(value)) => sea_orm::ActiveValue::Set(value.into()),
                         Some(None) => {
                             return Err(sea_orm::DbErr::Custom(format!(
                                 "Field '{}' is required and cannot be set to null",
                                 stringify!(#ident)
                             )));
                         },
-                        None => ActiveValue::NotSet,
+                        None => sea_orm::ActiveValue::NotSet,
                     };
                 }
             }
@@ -454,11 +178,11 @@ pub(super) fn generate_excluded_merge_code(
                 let ident = &field.ident;
                 if field_is_optional(field) {
                     Some(quote! {
-                        model.#ident = ActiveValue::Set(Some((#expr).into()));
+                        model.#ident = sea_orm::ActiveValue::Set(Some((#expr).into()));
                     })
                 } else {
                     Some(quote! {
-                        model.#ident = ActiveValue::Set((#expr).into());
+                        model.#ident = sea_orm::ActiveValue::Set((#expr).into());
                     })
                 }
             } else {
@@ -467,6 +191,7 @@ pub(super) fn generate_excluded_merge_code(
         })
         .collect()
 }
+
 
 // ================================
 // EntityToModels helper functions
@@ -717,7 +442,7 @@ pub(super) fn generate_conditional_crud_impl(
         quote! {}
     };
 
-    // Auto-registration now happens automatically for all models, 
+    // Auto-registration now happens automatically for all models,
     // so we don't need the manual registration method anymore
 
     quote! {
@@ -1169,11 +894,11 @@ pub(super) fn generate_crud_resource_impl(
                 crudcrate::register_analyser::<#api_struct_name>();
             });
         },
-        quote! { 
+        quote! {
             std::sync::LazyLock::force(&__REGISTER_LAZY);
         }
     );
-    
+
     // Generate resource name plural constant
     let resource_name_plural_impl = {
         let name_plural = crud_meta.name_plural.clone().unwrap_or_default();
@@ -1184,7 +909,7 @@ pub(super) fn generate_crud_resource_impl(
 
     quote! {
         #registration_static
-        
+
         #[async_trait::async_trait]
         impl crudcrate::CRUDResource for #api_struct_name {
             type EntityType = #entity_type;
@@ -1606,7 +1331,7 @@ mod tests {
         };
         assert_eq!(get_crudcrate_bool(&field, "create_model"), Some(false));
         assert_eq!(get_crudcrate_bool(&field, "non_db_attr"), Some(true));
-        
+
         // Also test that default expr parsing works
         let default_expr = get_crudcrate_expr(&field, "default");
         assert!(default_expr.is_some());
