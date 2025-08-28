@@ -1,5 +1,7 @@
 mod helpers;
 mod structs;
+mod attribute_parser;
+mod field_analyzer;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};

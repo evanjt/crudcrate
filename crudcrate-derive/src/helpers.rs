@@ -7,191 +7,31 @@ use syn::parse::Parser;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, punctuated::Punctuated, token::Comma};
 
 pub(super) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResourceMeta {
-    let mut meta = CRUDResourceMeta::default();
-
-    for attr in attrs {
-        if attr.path().is_ident("crudcrate")
-            && let Meta::List(meta_list) = &attr.meta
-            && let Ok(metas) =
-                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
-        {
-            for item in metas {
-                if let Meta::NameValue(nv) = item {
-                    // Handle literal values (strings, booleans, etc.)
-                    if let syn::Expr::Lit(expr_lit) = &nv.value {
-                        match &expr_lit.lit {
-                            Lit::Str(s) => {
-                                let value = s.value();
-                                if nv.path.is_ident("name_singular") {
-                                    meta.name_singular = Some(value);
-                                } else if nv.path.is_ident("name_plural") {
-                                    meta.name_plural = Some(value);
-                                } else if nv.path.is_ident("description") {
-                                    meta.description = Some(value);
-                                } else if nv.path.is_ident("entity_type") {
-                                    meta.entity_type = Some(value);
-                                } else if nv.path.is_ident("column_type") {
-                                    meta.column_type = Some(value);
-                                } else if nv.path.is_ident("fulltext_language") {
-                                    meta.fulltext_language = Some(value);
-                                }
-                            }
-                            Lit::Bool(b) => {
-                                let value = b.value;
-                                if nv.path.is_ident("enum_case_sensitive") {
-                                    meta.enum_case_sensitive = value;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    // Handle path values (for function references)
-                    else if let syn::Expr::Path(path_expr) = &nv.value {
-                        let path = path_expr.path.clone();
-                        if nv.path.is_ident("fn_get_one") {
-                            meta.fn_get_one = Some(path);
-                        } else if nv.path.is_ident("fn_get_all") {
-                            meta.fn_get_all = Some(path);
-                        } else if nv.path.is_ident("fn_create") {
-                            meta.fn_create = Some(path);
-                        } else if nv.path.is_ident("fn_update") {
-                            meta.fn_update = Some(path);
-                        } else if nv.path.is_ident("fn_delete") {
-                            meta.fn_delete = Some(path);
-                        } else if nv.path.is_ident("fn_delete_many") {
-                            meta.fn_delete_many = Some(path);
-                        }
-                    }
-                }
-                // Handle boolean flags (like generate_router)
-                else if let Meta::Path(path) = item {
-                    if path.is_ident("generate_router") {
-                        meta.generate_router = true;
-                    } else if path.is_ident("enum_case_sensitive") {
-                        meta.enum_case_sensitive = true;
-                    }
-                }
-            }
-        }
-    }
-
-    meta
+    super::attribute_parser::parse_crud_resource_meta(attrs)
 }
 
-/// Extract table name from `sea_orm(table_name` = "...") attribute
 pub(super) fn extract_table_name(attrs: &[syn::Attribute]) -> Option<String> {
-    for attr in attrs {
-        if attr.path().is_ident("sea_orm")
-            && let Meta::List(meta_list) = &attr.meta
-            && let Ok(metas) =
-                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
-        {
-            for meta in metas {
-                if let Meta::NameValue(nv) = meta
-                    && nv.path.is_ident("table_name")
-                    && let syn::Expr::Lit(expr_lit) = &nv.value
-                    && let Lit::Str(s) = &expr_lit.lit
-                {
-                    return Some(s.value());
-                }
-            }
-        }
-    }
-    None
+    super::attribute_parser::extract_table_name(attrs)
 }
 
-/// Returns true if the field's type is `Option<…>` (including `std::option::Option<…>`).
 pub(super) fn field_is_optional(field: &syn::Field) -> bool {
-    if let syn::Type::Path(type_path) = &field.ty {
-        // Look at the *last* segment in the path to see if its identifier is "Option"
-        if let Some(last_seg) = type_path.path.segments.last() {
-            last_seg.ident == "Option"
-        } else {
-            false
-        }
-    } else {
-        false
-    }
+    super::field_analyzer::field_is_optional(field)
 }
 
-/// Given a field and a key (e.g. `"create_model"` or `"update_model"`),
-/// look for a `#[crudcrate(...)]` attribute on the field and return the boolean value
-/// associated with that key, if present.
 pub(super) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> {
-    for attr in &field.attrs {
-        if attr.path().is_ident("crudcrate")
-            && let Meta::List(meta_list) = &attr.meta
-        {
-            let metas: Punctuated<Meta, Comma> = Punctuated::parse_terminated
-                .parse2(meta_list.tokens.clone())
-                .ok()?;
-            for meta in metas {
-                if let Meta::NameValue(nv) = meta
-                    && nv.path.is_ident(key)
-                    && let syn::Expr::Lit(expr_lit) = &nv.value
-                    && let Lit::Bool(b) = &expr_lit.lit
-                {
-                    return Some(b.value);
-                }
-            }
-        }
-    }
-    None
+    super::attribute_parser::get_crudcrate_bool(field, key)
 }
 
-/// Given a field and a key (e.g. `"on_create"` or `"on_update"`), returns the expression
-/// provided in the `#[crudcrate(...)]` attribute for that key.
 pub(super) fn get_crudcrate_expr(field: &syn::Field, key: &str) -> Option<syn::Expr> {
-    for attr in &field.attrs {
-        if attr.path().is_ident("crudcrate")
-            && let Meta::List(meta_list) = &attr.meta
-        {
-            let metas: Punctuated<Meta, Comma> = Punctuated::parse_terminated
-                .parse2(meta_list.tokens.clone())
-                .ok()?;
-            for meta in metas {
-                if let Meta::NameValue(nv) = meta
-                    && nv.path.is_ident(key)
-                {
-                    return Some(nv.value.clone());
-                }
-            }
-        }
-    }
-    None
+    super::attribute_parser::get_crudcrate_expr(field, key)
 }
 
-/// Extracts a string literal from a struct‐level attribute of the form:
-///   `#[active_model = "some::path"]`
 pub(super) fn get_string_from_attr(attr: &syn::Attribute) -> Option<String> {
-    if let Meta::NameValue(nv) = &attr.meta
-        && let syn::Expr::Lit(expr_lit) = &nv.value
-        && let Lit::Str(s) = &expr_lit.lit
-    {
-        return Some(s.value());
-    }
-    None
+    super::attribute_parser::get_string_from_attr(attr)
 }
 
-/// Given a field, checks if it has a specific flag in `#[crudcrate(...)]` attribute.
-/// For example, `#[crudcrate(primary_key, sortable)]` would return true for both `primary_key` and `sortable`.
 pub(super) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
-    for attr in &field.attrs {
-        if attr.path().is_ident("crudcrate")
-            && let Meta::List(meta_list) = &attr.meta
-            && let Ok(metas) =
-                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
-        {
-            for meta in metas {
-                if let Meta::Path(path) = meta
-                    && path.is_ident(flag)
-                {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    super::attribute_parser::field_has_crudcrate_flag(field, flag)
 }
 
 /// Resolves the target models (Create/Update/List) for a field with `use_target_models` attribute.
