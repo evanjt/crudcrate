@@ -16,6 +16,14 @@ pub(super) struct CRUDResourceMeta {
     pub(super) fn_delete_many: Option<syn::Path>,
     pub(super) generate_router: bool,
     pub(super) fulltext_language: Option<String>,
+    pub(super) framework: Framework,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(super) enum Framework {
+    #[default]
+    Axum,
+    SpringRs,
 }
 
 impl CRUDResourceMeta {

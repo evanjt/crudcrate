@@ -105,6 +105,55 @@ Using the `ToUpdateModel` and `ToCreateModel` create the models
 `create` attributes allow the flexibility of their inclusion in the
 generated structs.
 
+## Spring-RS Support
+
+The macros support Spring-RS framework in addition to Axum. Use the `framework` attribute to specify Spring-RS:
+
+```rust
+use crudcrate_derive::EntityToModels;
+use sea_orm::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
+#[sea_orm(table_name = "todos")]
+#[crudcrate(
+    api_struct = "Todo", 
+    framework = "spring-rs",
+    generate_router
+)]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    #[crudcrate(primary_key, create_model = false, update_model = false)]
+    pub id: Uuid,
+    
+    #[crudcrate(filterable, sortable)]
+    pub title: String,
+    
+    pub completed: bool,
+}
+```
+
+This generates Spring-RS handlers with appropriate annotations:
+
+```rust
+// Generated Spring-RS handlers
+#[get("/todos")]
+pub async fn get_all_todos(/* ... */) -> impl IntoResponse { /* ... */ }
+
+#[get("/todos/{id}")]  
+pub async fn get_todo(/* ... */) -> impl IntoResponse { /* ... */ }
+
+#[post("/todos")]
+pub async fn create_todo(/* ... */) -> impl IntoResponse { /* ... */ }
+
+#[put("/todos/{id}")]
+pub async fn update_todo(/* ... */) -> impl IntoResponse { /* ... */ }
+
+#[delete("/todos/{id}")]
+pub async fn delete_todo(/* ... */) -> impl IntoResponse { /* ... */ }
+```
+
+The default framework is `"axum"` if not specified.
+
 ## Including Auxiliary (Non-DB) Fields
 
 In some cases, you might want to include fields in your API models that do not directly map to columns in your database. For example, you might want to pass along auxiliary data that is handled separately in your business logic. You can achieve this by using the `non_db_attr` attribute combined with Sea-ORM's `ignore` attribute.

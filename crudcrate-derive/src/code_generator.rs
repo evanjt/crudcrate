@@ -2,7 +2,7 @@ use convert_case::{Case, Casing};
 use quote::{format_ident, quote, ToTokens};
 use super::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr, field_has_crudcrate_flag};
 use super::field_analyzer::{field_is_optional, resolve_target_models, extract_inner_type_for_update, resolve_target_models_with_list};
-use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use super::structs::{CRUDResourceMeta, EntityFieldAnalysis, Framework};
 
 /// Generates the field declarations for a create struct
 pub(crate) fn generate_create_struct_fields(fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>) -> Vec<proc_macro2::TokenStream> {
@@ -190,11 +190,23 @@ pub(crate) fn generate_update_struct_fields(included_fields: &[&syn::Field]) -> 
         .collect()
 }
 
-pub(crate) fn generate_router_impl(api_struct_name: &syn::Ident) -> proc_macro2::TokenStream {
+pub(crate) fn generate_router_impl(api_struct_name: &syn::Ident, framework: &Framework) -> proc_macro2::TokenStream {
     let create_model_name = format_ident!("{}Create", api_struct_name);
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
 
+    match framework {
+        Framework::Axum => generate_axum_router(api_struct_name, &create_model_name, &update_model_name, &list_model_name),
+        Framework::SpringRs => generate_spring_router(api_struct_name, &create_model_name, &update_model_name, &list_model_name),
+    }
+}
+
+fn generate_axum_router(
+    api_struct_name: &syn::Ident,
+    create_model_name: &syn::Ident,
+    update_model_name: &syn::Ident,
+    list_model_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
     quote! {
         // Generate CRUD handlers using the crudcrate macro
         crudcrate::crud_handlers!(#api_struct_name, #update_model_name, #create_model_name, #list_model_name);
@@ -214,6 +226,229 @@ pub(crate) fn generate_router_impl(api_struct_name: &syn::Ident) -> proc_macro2:
                 .routes(routes!(delete_one_handler))
                 .routes(routes!(delete_many_handler))
                 .with_state(db.clone())
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn generate_spring_router(
+    api_struct_name: &syn::Ident,
+    create_model_name: &syn::Ident,
+    update_model_name: &syn::Ident,
+    list_model_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    quote! {
+        // Spring-RS CRUD handlers
+        use spring_web::{get, post, put, delete};
+        use spring_web::{
+            axum::response::{IntoResponse, Json},
+            error::Result,
+            extractor::{Component, Path, Query},
+        };
+        use spring_sea_orm::DbConn;
+        use hyper::{StatusCode, HeaderMap};
+        use uuid::Uuid;
+        use crudcrate::models::FilterOptions;
+
+        #[get("/{id}")]
+        #[utoipa::path(
+            get,
+            path = "/{id}",
+            responses(
+                (status = StatusCode::OK, description = "The requested resource", body = #api_struct_name),
+                (status = StatusCode::NOT_FOUND, description = "Resource not found"),
+                (status = StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
+            ),
+            operation_id = format!("get_one_{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Get one {}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Retrieves one {} by its ID.\n\n{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR, <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_DESCRIPTION)
+        )]
+        pub async fn get_one_handler(
+            Component(db): Component<DbConn>,
+            Path(id): Path<Uuid>,
+        ) -> Result<Json<#api_struct_name>, (StatusCode, Json<String>)> {
+            match <#api_struct_name as crudcrate::traits::CRUDResource>::get_one(&db, id).await {
+                Ok(item) => Ok(Json(item)),
+                Err(sea_orm::DbErr::RecordNotFound(_)) => {
+                    Err((StatusCode::NOT_FOUND, Json("Not Found".to_string())))
+                }
+                Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json("Internal Server Error".to_string()))),
+            }
+        }
+
+        #[get("/")]
+        #[utoipa::path(
+            get,
+            path = "/",
+            responses(
+                (status = StatusCode::OK, description = "List of resources", body = [#list_model_name]),
+                (status = StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
+            ),
+            params(crudcrate::models::FilterOptions),
+            operation_id = format!("get_all_{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL),
+            summary = format!("Get all {}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!(
+                "Retrieves all {}.\n\n{}\n\nAdditional sortable columns: {}.\n\nAdditional filterable columns: {}.",
+                <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL,
+                <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_DESCRIPTION,
+                <#api_struct_name as crudcrate::traits::CRUDResource>::sortable_columns()
+                    .iter()
+                    .map(|(name, _)| format!("\n- {}", name))
+                    .collect::<Vec<String>>()
+                    .join(""),
+                <#api_struct_name as crudcrate::traits::CRUDResource>::filterable_columns()
+                    .iter()
+                    .map(|(name, _)| format!("\n- {}", name))
+                    .collect::<Vec<String>>()
+                    .join("")
+            )
+        )]
+        pub async fn get_all_handler(
+            Query(params): Query<FilterOptions>,
+            Component(db): Component<DbConn>,
+        ) -> Result<(HeaderMap, Json<Vec<#list_model_name>>), (StatusCode, Json<String>)> {
+            let (offset, limit) = crudcrate::filter::parse_pagination(&params);
+            let condition = crudcrate::filter::apply_filters::<#api_struct_name>(
+                params.filter.clone(), 
+                &<#api_struct_name as crudcrate::traits::CRUDResource>::filterable_columns(), 
+                db.get_database_backend()
+            );
+            let (order_column, order_direction) = crudcrate::sort::parse_sorting(
+                &params,
+                &<#api_struct_name as crudcrate::traits::CRUDResource>::sortable_columns(),
+                <#api_struct_name as crudcrate::traits::CRUDResource>::ID_COLUMN,
+            );
+            
+            let items = match <#api_struct_name as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit).await {
+                Ok(items) => items,
+                Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(err.to_string()))),
+            };
+            
+            let total_count = <#api_struct_name as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
+            let headers = crudcrate::pagination::calculate_content_range(
+                offset, 
+                limit, 
+                total_count, 
+                <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL
+            );
+            
+            Ok((headers, Json(items)))
+        }
+
+        #[post("/")]
+        #[utoipa::path(
+            post,
+            path = "/",
+            request_body = #create_model_name,
+            responses(
+                (status = StatusCode::CREATED, description = "Resource created successfully", body = #api_struct_name),
+                (status = StatusCode::CONFLICT, description = "Duplicate record", body = String)
+            ),
+            operation_id = format!("create_one_{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Create one {}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Creates a new {}.\n\n{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR, <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_DESCRIPTION)
+        )]
+        pub async fn create_one_handler(
+            Component(db): Component<DbConn>,
+            Json(json): Json<#create_model_name>,
+        ) -> Result<(StatusCode, Json<#api_struct_name>), (StatusCode, Json<String>)> {
+            <#api_struct_name as crudcrate::traits::CRUDResource>::create(&db, json)
+                .await
+                .map(|res| (StatusCode::CREATED, Json(res)))
+                .map_err(|err| {
+                    if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                        (StatusCode::CONFLICT, Json(format!("Conflict: {}", detail)))
+                    } else {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json("Internal Server Error".to_string()))
+                    }
+                })
+        }
+
+        #[put("/{id}")]
+        #[utoipa::path(
+            put,
+            path = "/{id}",
+            request_body = #update_model_name,
+            responses(
+                (status = StatusCode::OK, description = "Resource updated successfully", body = #api_struct_name),
+                (status = StatusCode::NOT_FOUND, description = "Resource not found"),
+                (status = StatusCode::CONFLICT, description = "Duplicate record", body = String)
+            ),
+            operation_id = format!("update_one_{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Update one {}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Updates one {} by its ID.\n\n{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR, <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_DESCRIPTION)
+        )]
+        pub async fn update_one_handler(
+            Component(db): Component<DbConn>,
+            Path(id): Path<Uuid>,
+            Json(json): Json<#update_model_name>,
+        ) -> Result<Json<#api_struct_name>, (StatusCode, Json<String>)> {
+            <#api_struct_name as crudcrate::traits::CRUDResource>::update(&db, id, json)
+                .await
+                .map(Json)
+                .map_err(|err| {
+                    match err {
+                        sea_orm::DbErr::Custom(msg) => (StatusCode::UNPROCESSABLE_ENTITY, Json(msg)),
+                        sea_orm::DbErr::RecordNotFound(_) => (StatusCode::NOT_FOUND, Json("Not Found".to_string())),
+                        _ => {
+                            if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                                (StatusCode::CONFLICT, Json(format!("Conflict: {}", detail)))
+                            } else {
+                                (StatusCode::INTERNAL_SERVER_ERROR, Json("Internal Server Error".to_string()))
+                            }
+                        }
+                    }
+                })
+        }
+
+        #[delete("/{id}")]
+        #[utoipa::path(
+            delete,
+            path = "/{id}",
+            responses(
+                (status = StatusCode::NO_CONTENT, description = "Resource deleted successfully"),
+                (status = StatusCode::NOT_FOUND, description = "Resource not found"),
+                (status = StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
+            ),
+            operation_id = format!("delete_one_{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Delete one {}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Deletes one {} by its ID.\n\n{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR, <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_DESCRIPTION)
+        )]
+        pub async fn delete_one_handler(
+            Component(db): Component<DbConn>,
+            Path(id): Path<Uuid>,
+        ) -> Result<StatusCode, (StatusCode, Json<String>)> {
+            <#api_struct_name as crudcrate::traits::CRUDResource>::delete(&db, id)
+                .await
+                .map(|_| StatusCode::NO_CONTENT)
+                .map_err(|err| {
+                    match err {
+                        sea_orm::DbErr::RecordNotFound(_) => (StatusCode::NOT_FOUND, Json("Not Found".to_string())),
+                        _ => (StatusCode::INTERNAL_SERVER_ERROR, Json("Internal Server Error".to_string())),
+                    }
+                })
+        }
+
+        #[delete("/batch")]
+        #[utoipa::path(
+            delete,
+            path = "/batch",
+            responses(
+                (status = StatusCode::OK, description = "Resources deleted successfully", body = [String]),
+                (status = StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
+            ),
+            operation_id = format!("delete_many_{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL),
+            summary = format!("Delete many {}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!("Deletes many {} by their IDs.\n\n{}", <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL, <#api_struct_name as crudcrate::traits::CRUDResource>::RESOURCE_DESCRIPTION)
+        )]
+        pub async fn delete_many_handler(
+            Component(db): Component<DbConn>,
+            Json(ids): Json<Vec<Uuid>>,
+        ) -> Result<(StatusCode, Json<Vec<Uuid>>), (StatusCode, Json<String>)> {
+            <#api_struct_name as crudcrate::traits::CRUDResource>::delete_many(&db, ids)
+                .await
+                .map(|deleted_ids| (StatusCode::OK, Json(deleted_ids)))
+                .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json("Internal Server Error".to_string())))
         }
     }
 }

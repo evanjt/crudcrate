@@ -42,7 +42,7 @@ proc-macro = false
 axum-helmet = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 criterion = { workspace = true, features = ["html_reports"] }
-sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono"] }
 sea-orm-migration = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["util"] }
@@ -52,6 +52,16 @@ url = { workspace = true }
 url-escape = { workspace = true }
 utoipa = { workspace = true, features = ["uuid", "chrono"] }
 utoipa-axum = { workspace = true }
+utoipa-scalar = { workspace = true }
+
+[[example]]
+name = "minimal_axum"
+required-features = ["derive"]
+
+[[example]]
+name = "minimal_spring"
+required-features = ["derive"]
+
 
 [lints.clippy]
 pedantic = "warn"

@@ -1,4 +1,4 @@
-use super::structs::CRUDResourceMeta;
+use super::structs::{CRUDResourceMeta, Framework};
 use syn::parse::Parser;
 use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 
@@ -32,6 +32,16 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                     meta.column_type = Some(value);
                                 } else if nv.path.is_ident("fulltext_language") {
                                     meta.fulltext_language = Some(value);
+                                } else if nv.path.is_ident("framework") {
+                                    meta.framework = match value.as_str() {
+                                        "axum" => Framework::Axum,
+                                        "spring-rs" => Framework::SpringRs,
+                                        _ => {
+                                            // Default to Axum for unknown frameworks
+                                            eprintln!("Warning: Unknown framework '{value}', defaulting to 'axum'. Supported frameworks: 'axum', 'spring-rs'");
+                                            Framework::Axum
+                                        }
+                                    };
                                 }
                             }
                             Lit::Bool(b) => {
