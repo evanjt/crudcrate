@@ -1,12 +1,379 @@
-mod helpers;
 mod structs;
 mod attribute_parser;
 mod field_analyzer;
 mod code_generator;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
-use syn::{DeriveInput, parse_macro_input};
+use quote::{ToTokens, format_ident, quote};
+use syn::parse::Parser;
+use syn::{Data, DeriveInput, Fields, Lit, Meta, parse_macro_input, punctuated::Punctuated, token::Comma};
+use convert_case::{Case, Casing};
+
+use structs::{CRUDResourceMeta, EntityFieldAnalysis};
+
+// Don't need explicit imports since we have mod declarations above
+
+// Helper functions moved from helpers.rs
+
+fn extract_active_model_type(
+    input: &DeriveInput,
+    name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    let mut active_model_override = None;
+    for attr in &input.attrs {
+        if attr.path().is_ident("active_model")
+            && let Some(s) = attribute_parser::get_string_from_attr(attr)
+        {
+            active_model_override =
+                Some(syn::parse_str::<syn::Type>(&s).expect("Invalid active_model type"));
+        }
+    }
+    if let Some(ty) = active_model_override {
+        quote! { #ty }
+    } else {
+        let ident = format_ident!("{}ActiveModel", name);
+        quote! { #ident }
+    }
+}
+
+fn extract_named_fields(
+    input: &DeriveInput,
+) -> syn::punctuated::Punctuated<syn::Field, syn::token::Comma> {
+    if let Data::Struct(data) = &input.data {
+        if let Fields::Named(named) = &data.fields {
+            named.named.clone()
+        } else {
+            panic!("ToCreateModel only supports structs with named fields");
+        }
+    } else {
+        panic!("ToCreateModel can only be derived for structs");
+    }
+}
+
+fn generate_update_merge_code(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    included_fields: &[&syn::Field],
+) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
+    let included_merge = generate_included_merge_code(included_fields);
+    let excluded_merge = generate_excluded_merge_code(fields);
+    (included_merge, excluded_merge)
+}
+
+fn generate_included_merge_code(
+    included_fields: &[&syn::Field],
+) -> Vec<proc_macro2::TokenStream> {
+    included_fields
+        .iter()
+        .filter(|field| !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false))
+        .map(|field| {
+            let ident = &field.ident;
+            let is_optional = field_analyzer::field_is_optional(field);
+
+            if is_optional {
+                quote! {
+                    model.#ident = match self.#ident {
+                        Some(Some(value)) => sea_orm::ActiveValue::Set(Some(value.into())),
+                        Some(None)      => sea_orm::ActiveValue::Set(None),
+                        None            => sea_orm::ActiveValue::NotSet,
+                    };
+                }
+            } else {
+                quote! {
+                    model.#ident = match self.#ident {
+                        Some(Some(value)) => sea_orm::ActiveValue::Set(value.into()),
+                        Some(None) => {
+                            return Err(sea_orm::DbErr::Custom(format!(
+                                "Field '{}' is required and cannot be set to null",
+                                stringify!(#ident)
+                            )));
+                        },
+                        None => sea_orm::ActiveValue::NotSet,
+                    };
+                }
+            }
+        })
+        .collect()
+}
+
+fn generate_excluded_merge_code(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Vec<proc_macro2::TokenStream> {
+    fields
+        .iter()
+        .filter(|field| {
+            attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+                && !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
+        })
+        .filter_map(|field| {
+            if let Some(expr) = attribute_parser::get_crudcrate_expr(field, "on_update") {
+                let ident = &field.ident;
+                if field_analyzer::field_is_optional(field) {
+                    Some(quote! {
+                        model.#ident = sea_orm::ActiveValue::Set(Some((#expr).into()));
+                    })
+                } else {
+                    Some(quote! {
+                        model.#ident = sea_orm::ActiveValue::Set((#expr).into());
+                    })
+                }
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn extract_entity_fields(
+    input: &DeriveInput,
+) -> Result<&syn::punctuated::Punctuated<syn::Field, syn::token::Comma>, TokenStream> {
+    match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => Ok(&fields.named),
+            _ => Err(syn::Error::new_spanned(
+                input,
+                "EntityToModels only supports structs with named fields",
+            )
+            .to_compile_error()
+            .into()),
+        },
+        _ => Err(
+            syn::Error::new_spanned(input, "EntityToModels only supports structs")
+                .to_compile_error()
+                .into(),
+        ),
+    }
+}
+
+fn parse_entity_attributes(
+    input: &DeriveInput,
+    struct_name: &syn::Ident,
+) -> (syn::Ident, String) {
+    let mut api_struct_name = None;
+    let mut active_model_path = None;
+
+    for attr in &input.attrs {
+        if attr.path().is_ident("crudcrate")
+            && let Meta::List(meta_list) = &attr.meta
+                && let Ok(metas) =
+                    Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+                {
+                    for meta in &metas {
+                        if let Meta::NameValue(nv) = meta {
+                            if nv.path.is_ident("api_struct") {
+                                if let syn::Expr::Lit(expr_lit) = &nv.value
+                                    && let Lit::Str(s) = &expr_lit.lit {
+                                        api_struct_name = Some(format_ident!("{}", s.value()));
+                                    }
+                            } else if nv.path.is_ident("active_model")
+                                && let syn::Expr::Lit(expr_lit) = &nv.value
+                                    && let Lit::Str(s) = &expr_lit.lit {
+                                        active_model_path = Some(s.value());
+                                    }
+                        }
+                    }
+                }
+    }
+
+    let table_name = attribute_parser::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
+    let api_struct_name =
+        api_struct_name.unwrap_or_else(|| format_ident!("{}", table_name.to_case(Case::Pascal)));
+    let active_model_path = active_model_path.unwrap_or_else(|| "ActiveModel".to_string());
+
+    (api_struct_name, active_model_path)
+}
+
+fn analyze_entity_fields(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> EntityFieldAnalysis<'_> {
+    let mut analysis = EntityFieldAnalysis {
+        db_fields: Vec::new(),
+        non_db_fields: Vec::new(),
+        primary_key_field: None,
+        sortable_fields: Vec::new(),
+        filterable_fields: Vec::new(),
+        fulltext_fields: Vec::new(),
+    };
+
+    for field in fields {
+        let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
+        if is_non_db {
+            analysis.non_db_fields.push(field);
+        } else {
+            analysis.db_fields.push(field);
+
+            if attribute_parser::field_has_crudcrate_flag(field, "primary_key") {
+                analysis.primary_key_field = Some(field);
+            }
+            if attribute_parser::field_has_crudcrate_flag(field, "sortable") {
+                analysis.sortable_fields.push(field);
+            }
+            if attribute_parser::field_has_crudcrate_flag(field, "filterable") {
+                analysis.filterable_fields.push(field);
+            }
+            if attribute_parser::field_has_crudcrate_flag(field, "fulltext") {
+                analysis.fulltext_fields.push(field);
+            }
+        }
+    }
+
+    analysis
+}
+
+fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenStream> {
+    if analysis.primary_key_field.is_some()
+        && analysis
+            .db_fields
+            .iter()
+            .filter(|field| attribute_parser::field_has_crudcrate_flag(field, "primary_key"))
+            .count()
+            > 1
+    {
+        return Err(syn::Error::new_spanned(
+            analysis.primary_key_field.unwrap(),
+            "Only one field can be marked with 'primary_key' attribute",
+        )
+        .to_compile_error()
+        .into());
+    }
+    Ok(())
+}
+
+fn generate_api_struct_content(
+    analysis: &EntityFieldAnalysis,
+) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
+    let mut api_struct_fields = Vec::new();
+    let mut from_model_assignments = Vec::new();
+
+    for field in &analysis.db_fields {
+        let field_name = &field.ident;
+        let field_type = &field.ty;
+
+        let api_field_attrs: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|attr| !attr.path().is_ident("sea_orm"))
+            .collect();
+
+        api_struct_fields.push(quote! {
+            #(#api_field_attrs)*
+            pub #field_name: #field_type
+        });
+
+        let assignment = if field_type
+            .to_token_stream()
+            .to_string()
+            .contains("DateTimeWithTimeZone")
+        {
+            if field_analyzer::field_is_optional(field) {
+                quote! {
+                    #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
+                }
+            } else {
+                quote! {
+                    #field_name: model.#field_name.with_timezone(&chrono::Utc)
+                }
+            }
+        } else {
+            quote! {
+                #field_name: model.#field_name
+            }
+        };
+
+        from_model_assignments.push(assignment);
+    }
+
+    for field in &analysis.non_db_fields {
+        let field_name = &field.ident;
+        let field_type = &field.ty;
+
+        let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
+            .unwrap_or_else(|| syn::parse_quote!(Default::default()));
+
+        // Preserve all original crudcrate attributes while ensuring required ones are present
+        let crudcrate_attrs: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("crudcrate"))
+            .collect();
+
+        api_struct_fields.push(quote! {
+            #(#crudcrate_attrs)*
+            pub #field_name: #field_type
+        });
+
+        from_model_assignments.push(quote! {
+            #field_name: #default_expr
+        });
+    }
+
+    (api_struct_fields, from_model_assignments)
+}
+
+fn generate_api_struct(
+    api_struct_name: &syn::Ident,
+    api_struct_fields: &[proc_macro2::TokenStream],
+    active_model_path: &str,
+) -> proc_macro2::TokenStream {
+    quote! {
+        use sea_orm::ActiveValue;
+        use utoipa::ToSchema;
+        use serde::{Serialize, Deserialize};
+        use crudcrate::{ToUpdateModel, ToCreateModel};
+
+        #[derive(Clone, Debug, PartialEq, Eq, ToSchema, Serialize, Deserialize, ToUpdateModel, ToCreateModel)]
+        #[active_model = #active_model_path]
+        pub struct #api_struct_name {
+            #(#api_struct_fields),*
+        }
+    }
+}
+
+fn generate_from_impl(
+    struct_name: &syn::Ident,
+    api_struct_name: &syn::Ident,
+    from_model_assignments: &[proc_macro2::TokenStream],
+) -> proc_macro2::TokenStream {
+    quote! {
+        impl From<#struct_name> for #api_struct_name {
+            fn from(model: #struct_name) -> Self {
+                Self {
+                    #(#from_model_assignments),*
+                }
+            }
+        }
+    }
+}
+
+fn generate_conditional_crud_impl(
+    api_struct_name: &syn::Ident,
+    crud_meta: &CRUDResourceMeta,
+    active_model_path: &str,
+    analysis: &EntityFieldAnalysis,
+    table_name: &str,
+) -> proc_macro2::TokenStream {
+    let has_crud_resource_fields = analysis.primary_key_field.is_some()
+        || !analysis.sortable_fields.is_empty()
+        || !analysis.filterable_fields.is_empty()
+        || !analysis.fulltext_fields.is_empty();
+
+    let crud_impl = if has_crud_resource_fields {
+        code_generator::generate_crud_resource_impl(api_struct_name, crud_meta, active_model_path, analysis, table_name)
+    } else {
+        quote! {}
+    };
+
+    let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
+        code_generator::generate_router_impl(api_struct_name)
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        #crud_impl
+        #router_impl
+    }
+}
+
 
 /// ===================
 /// `ToCreateModel` Macro
@@ -46,10 +413,10 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let create_name = format_ident!("{}Create", name);
 
-    let active_model_type = helpers::extract_active_model_type(&input, name);
-    let fields = helpers::extract_named_fields(&input);
-    let create_struct_fields = helpers::generate_create_struct_fields(&fields);
-    let conv_lines = helpers::generate_create_conversion_lines(&fields);
+    let active_model_type = extract_active_model_type(&input, name);
+    let fields = extract_named_fields(&input);
+    let create_struct_fields = code_generator::generate_create_struct_fields(&fields);
+    let conv_lines = code_generator::generate_create_conversion_lines(&fields);
 
     let expanded = quote! {
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -100,12 +467,12 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let update_name = format_ident!("{}Update", name);
 
-    let active_model_type = helpers::extract_active_model_type(&input, name);
-    let fields = helpers::extract_named_fields(&input);
-    let included_fields = helpers::filter_update_fields(&fields);
-    let update_struct_fields = helpers::generate_update_struct_fields(&included_fields);
+    let active_model_type = extract_active_model_type(&input, name);
+    let fields = extract_named_fields(&input);
+    let included_fields = code_generator::filter_update_fields(&fields);
+    let update_struct_fields = code_generator::generate_update_struct_fields(&included_fields);
     let (included_merge, excluded_merge) =
-        helpers::generate_update_merge_code(&fields, &included_fields);
+        generate_update_merge_code(&fields, &included_fields);
 
     let expanded = quote! {
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -174,9 +541,9 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
 
-    let fields = helpers::extract_named_fields(&input);
-    let list_struct_fields = helpers::generate_list_struct_fields(&fields);
-    let list_from_assignments = helpers::generate_list_from_assignments(&fields);
+    let fields = extract_named_fields(&input);
+    let list_struct_fields = code_generator::generate_list_struct_fields(&fields);
+    let list_from_assignments = code_generator::generate_list_from_assignments(&fields);
 
     let expanded = quote! {
         #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -321,15 +688,15 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let struct_name = &input.ident;
-    let fields = match helpers::extract_entity_fields(&input) {
+    let fields = match extract_entity_fields(&input) {
         Ok(f) => f,
         Err(e) => return e,
     };
 
     let (api_struct_name, active_model_path) =
-        helpers::parse_entity_attributes(&input, struct_name);
-    let table_name = helpers::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
-    let crud_meta = helpers::parse_crud_resource_meta(&input.attrs).with_defaults(
+        parse_entity_attributes(&input, struct_name);
+    let table_name = attribute_parser::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
+    let crud_meta = attribute_parser::parse_crud_resource_meta(&input.attrs).with_defaults(
         &table_name,
         &api_struct_name.to_string(),
     );
@@ -344,18 +711,18 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         .into();
     }
 
-    let field_analysis = helpers::analyze_entity_fields(fields);
-    if let Err(e) = helpers::validate_field_analysis(&field_analysis) {
+    let field_analysis = analyze_entity_fields(fields);
+    if let Err(e) = validate_field_analysis(&field_analysis) {
         return e;
     }
 
     let (api_struct_fields, from_model_assignments) =
-        helpers::generate_api_struct_content(&field_analysis);
+        generate_api_struct_content(&field_analysis);
     let api_struct =
-        helpers::generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path);
+        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path);
     let from_impl =
-        helpers::generate_from_impl(struct_name, &api_struct_name, &from_model_assignments);
-    let crud_impl = helpers::generate_conditional_crud_impl(
+        generate_from_impl(struct_name, &api_struct_name, &from_model_assignments);
+    let crud_impl = generate_conditional_crud_impl(
         &api_struct_name,
         &crud_meta,
         &active_model_path,
@@ -365,10 +732,10 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     
     // Generate List model struct and implementation
     let list_name = format_ident!("{}List", &api_struct_name);
-    let raw_fields = helpers::extract_named_fields(&input);
-    let list_struct_fields = helpers::generate_list_struct_fields(&raw_fields);
-    let list_from_assignments = helpers::generate_list_from_assignments(&raw_fields);
-    let list_from_model_assignments = helpers::generate_list_from_model_assignments(&field_analysis);
+    let raw_fields = extract_named_fields(&input);
+    let list_struct_fields = code_generator::generate_list_struct_fields(&raw_fields);
+    let list_from_assignments = code_generator::generate_list_from_assignments(&raw_fields);
+    let list_from_model_assignments = code_generator::generate_list_from_model_assignments(&field_analysis);
     
     let list_model = quote! {
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

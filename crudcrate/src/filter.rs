@@ -175,22 +175,17 @@ fn build_fallback_fulltext_condition(
     Some(SimpleExpr::Custom(like_sql))
 }
 
-/// Build condition for string field with LIKE queries
+/// Build condition for string field with LIKE queries (case-insensitive)
 fn build_like_condition<T: crate::traits::CRUDResource>(
     key: &str,
     trimmed_value: &str,
 ) -> SimpleExpr {
-    if T::enum_case_sensitive() {
-        // Case-sensitive substring matching
-        Expr::col(Alias::new(key)).like(format!("%{trimmed_value}%"))
-    } else {
-        // Case-insensitive substring matching using UPPER()
-        use sea_orm::sea_query::SimpleExpr;
-        SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-            Expr::col(Alias::new(key)),
-        ))
-        .like(format!("%{}%", trimmed_value.to_uppercase()))
-    }
+    // Case-insensitive substring matching using UPPER()
+    use sea_orm::sea_query::SimpleExpr;
+    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+        Expr::col(Alias::new(key)),
+    ))
+    .like(format!("%{}%", trimmed_value.to_uppercase()))
 }
 
 /// Build condition for exact matching with enum support
@@ -204,48 +199,12 @@ fn build_exact_condition<T: crate::traits::CRUDResource>(
         return Expr::col(Alias::new(key)).eq(uuid);
     }
     
-    if T::enum_case_sensitive() {
-        build_case_sensitive_enum_condition::<T>(key, trimmed_value, backend)
-    } else {
-        build_case_insensitive_enum_condition::<T>(key, trimmed_value, backend)
-    }
+    build_enum_condition::<T>(key, trimmed_value, backend)
 }
 
-/// Build case-sensitive enum condition
-fn build_case_sensitive_enum_condition<T: crate::traits::CRUDResource>(
-    key: &str,
-    trimmed_value: &str,
-    backend: DatabaseBackend,
-) -> SimpleExpr {
-    if T::is_enum_field(key) {
-        match backend {
-            DatabaseBackend::Postgres => {
-                // PostgreSQL supports CAST operations on enums
-                Expr::expr(Expr::cast_as(
-                    Expr::col(Alias::new(key)),
-                    Alias::new("TEXT"),
-                ))
-                .eq(trimmed_value)
-            }
-            DatabaseBackend::MySql => {
-                // MySQL: Use BINARY for case-sensitive comparison (enums stored as strings)
-                use sea_orm::sea_query::Func;
-                SimpleExpr::FunctionCall(Func::cust("BINARY").arg(Expr::col(Alias::new(key))))
-                    .eq(trimmed_value)
-            }
-            DatabaseBackend::Sqlite => {
-                // SQLite: direct string comparison (case-sensitive by default)
-                Expr::col(Alias::new(key)).eq(trimmed_value)
-            }
-        }
-    } else {
-        // Regular exact matching for non-enum fields
-        Expr::col(Alias::new(key)).eq(trimmed_value)
-    }
-}
 
-/// Build case-insensitive enum condition
-fn build_case_insensitive_enum_condition<T: crate::traits::CRUDResource>(
+/// Build enum condition (case-insensitive)
+fn build_enum_condition<T: crate::traits::CRUDResource>(
     key: &str,
     trimmed_value: &str,
     backend: DatabaseBackend,

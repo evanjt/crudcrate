@@ -1,5 +1,3 @@
-use super::structs::EntityFieldAnalysis;
-use super::attribute_parser::field_has_crudcrate_flag;
 
 /// Returns true if the field's type is `Option<…>` (including `std::option::Option<…>`).
 pub(crate) fn field_is_optional(field: &syn::Field) -> bool {
@@ -141,66 +139,4 @@ pub(crate) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
     ty.clone()
 }
 
-/// Analyzes entity fields and creates the `EntityFieldAnalysis` structure.
-/// This processes all fields and categorizes them based on their attributes.
-pub(crate) fn analyze_entity_fields(fields: &[syn::Field]) -> EntityFieldAnalysis<'_> {
-    let mut primary_key_field = None;
-    let mut sortable_fields = Vec::new();
-    let mut filterable_fields = Vec::new();
-    let mut fulltext_fields = Vec::new();
 
-    // Separate database and non-database fields
-    let (db_fields, non_db_fields): (Vec<&syn::Field>, Vec<&syn::Field>) = fields
-        .iter()
-        .partition(|field| {
-            // Non-database fields have #[crudcrate(non_db_attr = true)]
-            !super::attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
-        });
-
-    for field in &db_fields {
-        // Check for primary key
-        if field_has_crudcrate_flag(field, "primary_key") {
-            primary_key_field = Some(*field);
-        }
-
-        // Check for sortable
-        if field_has_crudcrate_flag(field, "sortable") {
-            sortable_fields.push(*field);
-        }
-
-        // Check for filterable
-        if field_has_crudcrate_flag(field, "filterable") {
-            filterable_fields.push(*field);
-        }
-
-        // Check for fulltext
-        if field_has_crudcrate_flag(field, "fulltext") {
-            fulltext_fields.push(*field);
-        }
-    }
-
-    EntityFieldAnalysis {
-        db_fields,
-        non_db_fields,
-        primary_key_field,
-        sortable_fields,
-        filterable_fields,
-        fulltext_fields,
-    }
-}
-
-/// Validates the field analysis to ensure it meets requirements.
-/// Returns an error if validation fails (e.g., no primary key found).
-pub(crate) fn validate_field_analysis(analysis: &EntityFieldAnalysis<'_>) -> Result<(), proc_macro::TokenStream> {
-    // Ensure we have a primary key
-    if analysis.primary_key_field.is_none() {
-        return Err(syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "EntityToModels requires exactly one field marked with #[crudcrate(primary_key)]",
-        )
-        .to_compile_error()
-        .into());
-    }
-
-    Ok(())
-}

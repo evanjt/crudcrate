@@ -38,8 +38,6 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                 let value = b.value();
                                 if nv.path.is_ident("generate_router") {
                                     meta.generate_router = value;
-                                } else if nv.path.is_ident("enum_case_sensitive") {
-                                    meta.enum_case_sensitive = value;
                                 }
                             }
                             _ => {}
@@ -65,8 +63,6 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                 else if let Meta::Path(path) = item {
                     if path.is_ident("generate_router") {
                         meta.generate_router = true;
-                    } else if path.is_ident("enum_case_sensitive") {
-                        meta.enum_case_sensitive = true;
                     }
                 }
             }
@@ -176,12 +172,3 @@ pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
     false
 }
 
-/// Helper function to handle raw identifiers properly by stripping the r# prefix
-pub(crate) fn ident_to_string(ident: &syn::Ident) -> String {
-    let ident_str = ident.to_string();
-    if let Some(stripped) = ident_str.strip_prefix("r#") {
-        stripped.to_string() // Strip "r#" prefix from raw identifiers
-    } else {
-        ident_str
-    }
-}
