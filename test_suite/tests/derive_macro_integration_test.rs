@@ -9,7 +9,7 @@
 // - Field exclusions and auto-generation
 use chrono::{DateTime, Utc};
 use crudcrate::{ToCreateModel, ToUpdateModel, traits::MergeIntoActiveModel};
-use sea_orm::{ActiveValue, entity::prelude::*};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;

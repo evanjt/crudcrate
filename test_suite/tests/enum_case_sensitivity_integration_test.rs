@@ -9,11 +9,6 @@ use common::{
     task_entity::{Priority, Task},
 };
 
-/// NOTE: Case-sensitive enum filtering has been removed from crudcrate.
-/// All enum filtering is now case-insensitive by default.
-/// This test now verifies the case-insensitive behavior.
-
-
 /// Helper function to filter tasks using the default case-insensitive Task
 async fn filter_tasks_case_insensitive(app: &axum::Router, filter_json: &str) -> Vec<Task> {
     let filter_param = url_escape::encode_component(filter_json);
@@ -108,17 +103,6 @@ async fn test_case_insensitive_enum_filtering() {
         1,
         "Case-insensitive: should find 1 task with 'HIGH' priority"
     );
-}
-
-#[tokio::test]
-async fn test_trait_method_configuration() {
-    // Test that enum case sensitivity has been removed
-    // All enum filtering is now case-insensitive by default
-    // This test verifies that the old enum_case_sensitive method no longer exists
-    
-    // NOTE: If this test compiles, it means the enum_case_sensitive method was successfully removed
-    // and all enum filtering is now consistently case-insensitive.
-    assert!(true, "Enum case sensitivity method successfully removed");
 }
 
 #[tokio::test]
