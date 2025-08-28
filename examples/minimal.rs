@@ -1,7 +1,7 @@
 //! Minimal CRUD API Example with Axum
 //!
 //! ```bash
-//! cargo run --example minimal_axum
+//! cargo run --example minimal
 //! ```
 //!
 //! Then visit:
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     let (router, apidocs) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(router_with_path(&db, "/todo"))  // Alternative: .nest("/todo", router(&db))
+        .merge(router_with_path(&db, "/todo")) // Alternative: .nest("/todo", router(&db))
         .split_for_parts();
     let app = router.merge(Scalar::with_url("/docs", apidocs));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
