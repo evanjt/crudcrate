@@ -57,7 +57,7 @@ pub struct Model {
 Use the generated router:
 
 ```rust
-// During application startup - analyze indexes for optimization recommendations  
+// During application startup - analyze indexes for optimization recommendations
 let _ = crudcrate::analyse_all_registered_models(&db, false).await;  // Compact output
 // let _ = crudcrate::analyse_all_registered_models(&db, true).await; // With SQL commands
 
@@ -209,7 +209,7 @@ cargo test
 
 # Run specific test categories
 cargo test --test crud_integration_test
-cargo test --test fulltext_search_test  
+cargo test --test fulltext_search_test
 cargo test --test index_analysis_test
 ```
 
@@ -223,7 +223,7 @@ Test your application against multiple database backends to ensure compatibility
 # PostgreSQL testing (requires running PostgreSQL instance)
 DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test
 
-# MySQL testing (requires running MySQL instance)  
+# MySQL testing (requires running MySQL instance)
 DATABASE_URL=mysql://root:pass@127.0.0.1:3306/test_db cargo test -- --test-threads=1
 
 # Test specific functionality on PostgreSQL
@@ -233,11 +233,12 @@ DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test --test fullte
 ### Database Setup for Testing
 
 #### PostgreSQL
+
 ```bash
 # Using Docker
 docker run --name test-postgres \
   -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=test_db \  
+  -e POSTGRES_DB=test_db \
   -p 5432:5432 -d postgres:16
 
 # Run tests
@@ -248,6 +249,7 @@ docker stop test-postgres && docker rm test-postgres
 ```
 
 #### MySQL
+
 ```bash
 # Using Docker
 docker run --name test-mysql \
@@ -315,6 +317,16 @@ docker stop benchmark-postgres && docker rm benchmark-postgres
 
 - **[Minimal Example](https://github.com/evanjt/crudcrate-example-minimal)**: Complete API in 60 lines
 - **[Full Example](https://github.com/evanjt/crudcrate-example)**: Production-ready implementation
+
+### Debug Generated Code
+
+See exactly what code the macros generate with colourised, formatted output:
+
+```bash
+cargo run --example minimal_debug --features=debug
+```
+
+Add `debug_output` to any `EntityToModels` struct to see the generated API structs, CRUD implementations, and router code.
 
 ## Detailed Documentation
 
@@ -415,7 +427,7 @@ Field attributes give you precise control over how each field behaves in differe
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: Uuid,
-    
+
     #[crudcrate(filterable, enum_field)]  // ← Required for enum filtering
     pub category: ProductCategory,        // Sea-ORM enum type
 }
@@ -456,7 +468,7 @@ Fulltext search automatically optimizes based on your database backend:
 -- Generated query for PostgreSQL (with GIN index support)
 WHERE to_tsvector('english', title || ' ' || content) @@ plainto_tsquery('english', 'search terms')
 
--- Recommended index for optimal performance  
+-- Recommended index for optimal performance
 CREATE INDEX idx_posts_fulltext ON posts USING GIN (to_tsvector('english', title || ' ' || content));
 ```
 

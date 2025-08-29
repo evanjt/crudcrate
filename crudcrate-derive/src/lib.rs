@@ -2,6 +2,8 @@ mod structs;
 mod attribute_parser;
 mod field_analyzer;
 mod code_generator;
+#[cfg(feature = "debug")]
+mod debug_output;
 
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
@@ -433,6 +435,9 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
         }
     };
 
+    #[cfg(feature = "debug")]
+    debug_output::print_create_model_debug(&expanded, &name.to_string());
+
     TokenStream::from(expanded)
 }
 
@@ -494,6 +499,9 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
             }
         }
     };
+
+    #[cfg(feature = "debug")]
+    debug_output::print_update_model_debug(&expanded, &name.to_string());
 
     TokenStream::from(expanded)
 }
@@ -696,10 +704,10 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let (api_struct_name, active_model_path) =
         parse_entity_attributes(&input, struct_name);
     let table_name = attribute_parser::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
-    let crud_meta = attribute_parser::parse_crud_resource_meta(&input.attrs).with_defaults(
-        &table_name,
-        &api_struct_name.to_string(),
-    );
+    let crud_meta = match attribute_parser::parse_crud_resource_meta(&input.attrs) {
+        Ok(meta) => meta.with_defaults(&table_name, &api_struct_name.to_string()),
+        Err(e) => return e.to_compile_error().into(),
+    };
 
     // Validate active model path
     if syn::parse_str::<syn::Type>(&active_model_path).is_err() {
@@ -766,6 +774,12 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         #crud_impl
         #list_model
     };
+
+    // Print debug output if requested (either via attribute or cargo feature)
+    #[cfg(feature = "debug")]
+    if crud_meta.debug_output {
+        debug_output::print_debug_output(&expanded, &api_struct_name.to_string());
+    }
 
     TokenStream::from(expanded)
 }

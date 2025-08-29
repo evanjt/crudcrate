@@ -4,7 +4,7 @@ macro_rules! crud_handlers {
     ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
         crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model);
     };
-    
+
     // Backward compatibility - use Self as ListModel
     ($resource:ty, $update_model:ty, $create_model:ty) => {
         crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $resource);

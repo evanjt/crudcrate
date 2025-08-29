@@ -4,7 +4,7 @@ use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 
 /// Parses CRUD resource metadata from struct-level attributes.
 /// Looks for `#[crudcrate(...)]` attributes and extracts configuration.
-pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResourceMeta {
+pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> Result<CRUDResourceMeta, syn::Error> {
     let mut meta = CRUDResourceMeta::default();
 
     for attr in attrs {
@@ -63,12 +63,21 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                 else if let Meta::Path(path) = item {
                     if path.is_ident("generate_router") {
                         meta.generate_router = true;
+                    } else if path.is_ident("debug_output") {
+                        #[cfg(feature = "debug")]
+                        {
+                            meta.debug_output = true;
+                        }
+                        #[cfg(not(feature = "debug"))]
+                        {
+                            return Err(syn::Error::new_spanned(path, "debug_output requires --features debug"));
+                        }
                     }
                 }
             }
         }
     }
-    meta
+    Ok(meta)
 }
 
 /// Extracts the table name from Sea-ORM attributes.

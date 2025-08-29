@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate-derive"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 description = "Procedural macros to help with CRUD API design using Axum and Sea-ORM in Rust"
 license = "MIT"
@@ -15,10 +15,13 @@ quote = { workspace = true }
 syn = { workspace = true, features = ["full"] }
 proc-macro2 = { workspace = true }
 convert_case = { workspace = true }
+prettyplease = { version = "0.2", optional = true }
 
 [lib]
 proc-macro = true
 
+[features]
+debug = ["prettyplease"]
 
 [dev-dependencies]
 sea-orm = { workspace = true, features = ["macros", "with-chrono", "with-uuid", "with-json"] }

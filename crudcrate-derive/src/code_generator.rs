@@ -201,14 +201,11 @@ pub(crate) fn generate_update_struct_fields(
         .collect()
 }
 
-pub(crate) fn generate_router_impl(
-    api_struct_name: &syn::Ident,
-) -> proc_macro2::TokenStream {
+pub(crate) fn generate_router_impl(api_struct_name: &syn::Ident) -> proc_macro2::TokenStream {
     let create_model_name = format_ident!("{}Create", api_struct_name);
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
 
-    // Generate Axum router (works for both Axum and Spring-RS since Spring-RS uses Axum under the hood)
     generate_axum_router(
         api_struct_name,
         &create_model_name,
@@ -245,7 +242,10 @@ fn generate_axum_router(
         }
 
         /// Generate router with all CRUD endpoints nested under a specific path
-        pub fn router_with_path(db: &sea_orm::DatabaseConnection, path: &str) -> utoipa_axum::router::OpenApiRouter
+        pub fn router_with_path(
+            db: &sea_orm::DatabaseConnection,
+            path: &str
+        ) -> utoipa_axum::router::OpenApiRouter
         where
             #api_struct_name: crudcrate::traits::CRUDResource,
         {

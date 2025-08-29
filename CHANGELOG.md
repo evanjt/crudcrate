@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Debug output functionality for procedural macros with `debug_output` attribute
+- Feature-gated debug support requiring `--features debug` 
+- Colourised, formatted code output using prettyplease for better readability
+- Debug output for EntityToModels, ToCreateModel, and ToUpdateModel macros
+- Example `minimal_debug.rs` demonstrating debug output capabilities
+
 ## [0.5.0] - 2025-08-28
 
 ### Added

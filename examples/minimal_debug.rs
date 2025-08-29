@@ -1,7 +1,7 @@
 //! Minimal CRUD API Example with Axum
 //!
 //! ```bash
-//! cargo run --example minimal
+//! cargo run --example minimal_debug --features=debug
 //! ```
 //!
 //! Then visit:
@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
 #[sea_orm(table_name = "todos")]
-#[crudcrate(description = "Simple todo management", generate_router)]
+#[crudcrate(description = "Simple todo management", generate_router, debug_output)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]

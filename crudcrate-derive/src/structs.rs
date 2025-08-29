@@ -16,6 +16,8 @@ pub(super) struct CRUDResourceMeta {
     pub(super) fn_delete_many: Option<syn::Path>,
     pub(super) generate_router: bool,
     pub(super) fulltext_language: Option<String>,
+    #[cfg(feature = "debug")]
+    pub(super) debug_output: bool,
 }
 
 
