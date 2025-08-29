@@ -72,7 +72,7 @@ required-features = ["spring-rs"]
 [[example]]
 name = "minimal_debug"
 path = "../examples/minimal_debug.rs"
-required-features = ["derive"]
+required-features = ["derive", "debug"]
 
 
 [[bench]]
