@@ -194,10 +194,23 @@ fn analyze_entity_fields(
         sortable_fields: Vec::new(),
         filterable_fields: Vec::new(),
         fulltext_fields: Vec::new(),
+        join_on_one_fields: Vec::new(),
+        join_on_all_fields: Vec::new(),
     };
 
     for field in fields {
         let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
+        
+        // Check for join attributes regardless of db/non_db status
+        if let Some(join_config) = attribute_parser::get_join_config(field) {
+            if join_config.on_one {
+                analysis.join_on_one_fields.push(field);
+            }
+            if join_config.on_all {
+                analysis.join_on_all_fields.push(field);
+            }
+        }
+        
         if is_non_db {
             analysis.non_db_fields.push(field);
         } else {
@@ -365,8 +378,11 @@ fn generate_conditional_crud_impl(
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
+        eprintln!("DEBUG: Generating router for {}", api_struct_name);
         code_generator::generate_router_impl(api_struct_name)
     } else {
+        eprintln!("DEBUG: NOT generating router for {} - generate_router: {}, has_crud_resource_fields: {}", 
+                  api_struct_name, crud_meta.generate_router, has_crud_resource_fields);
         quote! {}
     };
 

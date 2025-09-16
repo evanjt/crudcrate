@@ -12,7 +12,7 @@ crudcrate = { path = "../crudcrate", features = ["derive", "sqlite"] }
 
 # Core dependencies
 axum = { workspace = true, features = ["macros"] }
-sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono", "with-rust_decimal"] }
 sea-orm-migration = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -20,9 +20,10 @@ tokio = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["util"] }
 uuid = { workspace = true, features = ["serde", "v4"] }
 chrono = { workspace = true, features = ["serde"] }
-utoipa = { workspace = true, features = ["uuid", "chrono"] }
+utoipa = { workspace = true, features = ["uuid", "chrono", "decimal"] }
 utoipa-axum = { workspace = true }
 url = { workspace = true }
+rust_decimal = { workspace = true }
 
 # Additional dependencies needed by tests
 hyper = { workspace = true }

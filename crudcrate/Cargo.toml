@@ -54,9 +54,11 @@ tower-http = { workspace = true, features = ["cors", "trace"] }
 tower_governor = { workspace = true }
 url = { workspace = true }
 url-escape = { workspace = true }
-utoipa = { workspace = true, features = ["uuid", "chrono"] }
+utoipa = { workspace = true, features = ["uuid", "chrono", "decimal"] }
 utoipa-axum = { workspace = true }
 utoipa-scalar = { workspace = true }
+rust_decimal = { workspace = true }
+shared_models = { path = "../shared_models" }
 
 
 [[example]]
@@ -73,6 +75,11 @@ required-features = ["spring-rs"]
 name = "minimal_debug"
 path = "../examples/minimal_debug.rs"
 required-features = ["derive", "debug"]
+
+[[example]]
+name = "recursive_join"
+path = "../examples/recursive_join.rs"
+required-features = ["derive", "sqlite"]
 
 
 [[bench]]

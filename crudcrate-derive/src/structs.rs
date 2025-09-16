@@ -59,4 +59,6 @@ pub(super) struct EntityFieldAnalysis<'a> {
     pub(super) sortable_fields: Vec<&'a syn::Field>,
     pub(super) filterable_fields: Vec<&'a syn::Field>,
     pub(super) fulltext_fields: Vec<&'a syn::Field>,
+    pub(super) join_on_one_fields: Vec<&'a syn::Field>,
+    pub(super) join_on_all_fields: Vec<&'a syn::Field>,
 }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crudcrate", "crudcrate-derive", "test_suite"]
+members = ["crudcrate", "crudcrate-derive", "test_suite", "shared_models"]
 resolver = "2"
 
 [workspace.dependencies]
