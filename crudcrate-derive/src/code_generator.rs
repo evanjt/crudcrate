@@ -596,12 +596,10 @@ fn generate_method_impls(
             let has_all_joins = !analysis.join_on_all_fields.is_empty();
             
             if has_all_joins {
-                // Check if this entity specifically has a 'vehicles' field (Customer entity)
-                let has_vehicles_field = analysis.join_on_all_fields.iter()
-                    .any(|field| field.ident.as_ref().map_or(false, |ident| ident == "vehicles"));
+                // Generate join loading code for ALL join(all) fields dynamically
+                let join_loading_statements = generate_join_loading_for_all_fields(&analysis.join_on_all_fields, &analysis.join_configs);
                 
-                if has_vehicles_field {
-                // Generate get_all with join loading for join(all) fields
+                // Generate get_all with dynamic join loading for any join(all) fields
                 quote! {
                     async fn get_all(
                         db: &sea_orm::DatabaseConnection,
@@ -624,44 +622,13 @@ fn generate_method_impls(
                         // Load join data for each model  
                         let mut results = Vec::new();
                         for model in base_models {
-                            // Load join data before converting the model
-                            let vehicles: Vec<_> = sea_orm::ModelTrait::find_related(&model, super::vehicle::Entity).all(db).await
-                                .unwrap_or_default()
-                                .into_iter().map(|related_model| related_model.into()).collect();
-                            
-                            // Create result struct 
-                            let mut loaded_model: Self = model.into();
-                            loaded_model.vehicles = vehicles;
+                            // Load join data first while we still have access to the model
+                            #join_loading_statements
                             
                             results.push(loaded_model.into());
                         }
                         
                         Ok(results)
-                    }
-                }
-                } else {
-                    // Has join(all) fields but not vehicles field - use standard implementation
-                    quote! {
-                        async fn get_all(
-                            db: &sea_orm::DatabaseConnection,
-                            condition: &sea_orm::Condition,
-                            order_column: Self::ColumnType,
-                            order_direction: sea_orm::Order,
-                            offset: u64,
-                            limit: u64,
-                        ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
-                            use sea_orm::{EntityTrait, QueryFilter, QueryOrder, QuerySelect, ModelTrait};
-                            
-                            let results = Self::EntityType::find()
-                                .filter(condition.clone())
-                                .order_by(order_column, order_direction)
-                                .offset(offset)
-                                .limit(limit)
-                                .all(db)
-                                .await?;
-                                
-                            Ok(results.into_iter().map(|model| model.into()).collect())
-                        }
                     }
                 }
             } else {
@@ -857,12 +824,13 @@ fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis) -> 
             let relation_name = format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
             let is_vec_field = is_vec_type(&field.ty);
             
+            let entity_path = get_entity_path_from_field_type(&field.ty);
+            
             if is_vec_field {
                 // For Vec<T> fields (has_many relationships)
-                // Use specific module path for vehicle entity
                 loading_statements.push(quote! {
                     use sea_orm::ModelTrait;
-                    let #field_name = model.find_related(super::vehicle::Entity).all(db).await.unwrap_or_default()
+                    let #field_name = model.find_related(#entity_path).all(db).await.unwrap_or_default()
                         .into_iter().map(|related_model| related_model.into()).collect();
                 });
                 field_assignments.push(quote! { result.#field_name = #field_name; });
@@ -870,7 +838,7 @@ fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis) -> 
                 // For single T or Option<T> fields (belongs_to/has_one relationships)
                 loading_statements.push(quote! {
                     use sea_orm::ModelTrait;
-                    let #field_name = model.find_related(super::vehicle::Entity).one(db).await.ok()
+                    let #field_name = model.find_related(#entity_path).one(db).await.ok()
                         .flatten().map(|related_model| related_model.into());
                 });
                 field_assignments.push(quote! { result.#field_name = #field_name; });
@@ -1231,6 +1199,133 @@ fn generate_join_helper_methods(analysis: &EntityFieldAnalysis) -> proc_macro2::
     }
 }
 
+/// Generate join loading statements for all join(all) fields with recursive depth support
+fn generate_join_loading_for_all_fields(
+    join_fields: &[&syn::Field], 
+    join_configs: &std::collections::HashMap<&syn::Field, crate::attribute_parser::JoinConfig>
+) -> proc_macro2::TokenStream {
+    let mut loading_statements = Vec::new();
+
+    // Load all join data BEFORE converting the model
+    for field in join_fields {
+        if let Some(field_name) = &field.ident {
+            let is_vec_field = is_vec_type(&field.ty);
+            let entity_path = get_entity_path_from_field_type(&field.ty);
+            
+            // Get join configuration for this field
+            let join_config = join_configs.get(field);
+            let depth = join_config.and_then(|c| c.depth).unwrap_or(1);
+            
+            if is_vec_field {
+                // For Vec<T> fields (has_many relationships)
+                if depth > 1 {
+                    // Recursive loading: load related models, then call their get_one method for deeper loading
+                    let target_type = get_target_type_from_field(&field.ty);
+                    loading_statements.push(quote! {
+                        let #field_name: Vec<_> = {
+                            let related_models = sea_orm::ModelTrait::find_related(&model, #entity_path).all(db).await
+                                .unwrap_or_default();
+                            let mut loaded_items = Vec::new();
+                            for related_model in related_models {
+                                // For recursive loading with depth > 1, call the target's get_one method
+                                // This assumes the related model has an 'id' field (common case)
+                                if let Ok(fully_loaded) = #target_type::get_one(db, related_model.id).await {
+                                    loaded_items.push(fully_loaded);
+                                } else {
+                                    // Fallback to basic conversion if recursive loading fails
+                                    loaded_items.push(related_model.into());
+                                }
+                            }
+                            loaded_items
+                        };
+                    });
+                } else {
+                    // Single-level loading (current implementation)
+                    loading_statements.push(quote! {
+                        let #field_name: Vec<_> = sea_orm::ModelTrait::find_related(&model, #entity_path).all(db).await
+                            .unwrap_or_default()
+                            .into_iter().map(|related_model| related_model.into()).collect();
+                    });
+                }
+            } else {
+                // For single T or Option<T> fields (belongs_to/has_one relationships)  
+                if depth > 1 {
+                    // Recursive loading for single fields
+                    let target_type = get_target_type_from_field(&field.ty);
+                    loading_statements.push(quote! {
+                        let #field_name = {
+                            if let Some(related_model) = sea_orm::ModelTrait::find_related(&model, #entity_path).one(db).await.ok().flatten() {
+                                // For recursive loading, call the target's get_one method
+                                if let Ok(fully_loaded) = #target_type::get_one(db, related_model.id).await {
+                                    Some(fully_loaded)
+                                } else {
+                                    Some(related_model.into())
+                                }
+                            } else {
+                                None
+                            }
+                        };
+                    });
+                } else {
+                    // Single-level loading (current implementation)
+                    loading_statements.push(quote! {
+                        let #field_name = sea_orm::ModelTrait::find_related(&model, #entity_path).one(db).await.ok()
+                            .flatten().map(|related_model| related_model.into());
+                    });
+                }
+            }
+        }
+    }
+    
+    // AFTER loading all join data, create the result struct and assign fields
+    loading_statements.push(quote! {
+        let mut loaded_model: Self = model.into();
+    });
+    
+    // Assign all loaded join fields
+    for field in join_fields {
+        if let Some(field_name) = &field.ident {
+            loading_statements.push(quote! {
+                loaded_model.#field_name = #field_name;
+            });
+        }
+    }
+
+    quote! {
+        #(#loading_statements)*
+    }
+}
+
+/// Extract the target API struct type from a field (Vec<Vehicle> -> Vehicle)
+fn get_target_type_from_field(field_type: &syn::Type) -> proc_macro2::TokenStream {
+    // Extract the target type from Vec<T> or T or Option<T>
+    let target_type = if let syn::Type::Path(type_path) = field_type {
+        if let Some(segment) = type_path.path.segments.last() {
+            if segment.ident == "Vec" || segment.ident == "Option" {
+                // Vec<T> or Option<T> - extract T
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        quote! { #inner_ty }
+                    } else {
+                        quote! { #field_type }
+                    }
+                } else {
+                    quote! { #field_type }
+                }
+            } else {
+                // T (direct type)
+                quote! { #field_type }
+            }
+        } else {
+            quote! { #field_type }
+        }
+    } else {
+        quote! { #field_type }
+    };
+
+    target_type
+}
+
 /// Map field types to their corresponding entity paths
 fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
     // Extract the target type from Vec<T> or T
@@ -1258,22 +1353,12 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
         field_type
     };
 
-    // Map known types to their entity paths
-    // This is a hardcoded mapping for now - can be made configurable later
+    // Convert TypeName to snake_case::Entity generically
     if let syn::Type::Path(type_path) = target_type {
         if let Some(segment) = type_path.path.segments.last() {
-            match segment.ident.to_string().as_str() {
-                "Vehicle" => quote! { super::vehicle::Entity },
-                "VehiclePart" => quote! { super::vehicle_part::Entity },
-                "MaintenanceRecord" => quote! { super::maintenance_record::Entity },
-                "Customer" => quote! { super::customer::Entity },
-                _ => {
-                    // Generic fallback - convert TypeName to snake_case::Entity
-                    let entity_name = segment.ident.to_string().to_case(Case::Snake);
-                    let entity_path = format_ident!("{}", entity_name);
-                    quote! { super::#entity_path::Entity }
-                }
-            }
+            let entity_name = segment.ident.to_string().to_case(Case::Snake);
+            let entity_path = format_ident!("{}", entity_name);
+            quote! { super::#entity_path::Entity }
         } else {
             quote! { Entity } // Fallback
         }

@@ -25,9 +25,10 @@ pub struct Model {
     #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
-    // Join field for loading related vehicles
+    // Join field for loading related vehicles with recursive depth=2
+    // This should load Customer → Vehicle → Parts/Maintenance
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, join(one, all))]
+    #[crudcrate(non_db_attr = true, join(one, all, depth=2))]
     pub vehicles: Vec<Vehicle>,
 }
 

@@ -61,4 +61,5 @@ pub(super) struct EntityFieldAnalysis<'a> {
     pub(super) fulltext_fields: Vec<&'a syn::Field>,
     pub(super) join_on_one_fields: Vec<&'a syn::Field>,
     pub(super) join_on_all_fields: Vec<&'a syn::Field>,
+    pub(super) join_configs: std::collections::HashMap<&'a syn::Field, crate::attribute_parser::JoinConfig>,
 }

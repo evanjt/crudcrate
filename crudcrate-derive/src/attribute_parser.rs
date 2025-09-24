@@ -11,6 +11,18 @@ pub(crate) struct JoinConfig {
     pub relation: Option<String>,
 }
 
+impl JoinConfig {
+    /// Get the effective depth for recursive loading (default 3 if not specified)
+    pub fn effective_depth(&self) -> u8 {
+        self.depth.unwrap_or(3)
+    }
+    
+    /// Check if depth was explicitly specified (for cyclic dependency warnings)
+    pub fn has_explicit_depth(&self) -> bool {
+        self.depth.is_some()
+    }
+}
+
 /// Parses CRUD resource metadata from struct-level attributes.
 /// Looks for `#[crudcrate(...)]` attributes and extracts configuration.
 pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> Result<CRUDResourceMeta, syn::Error> {

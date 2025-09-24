@@ -196,6 +196,7 @@ fn analyze_entity_fields(
         fulltext_fields: Vec::new(),
         join_on_one_fields: Vec::new(),
         join_on_all_fields: Vec::new(),
+        join_configs: std::collections::HashMap::new(),
     };
 
     for field in fields {
@@ -209,6 +210,8 @@ fn analyze_entity_fields(
             if join_config.on_all {
                 analysis.join_on_all_fields.push(field);
             }
+            // Store the join configuration for later use in recursive loading
+            analysis.join_configs.insert(field, join_config);
         }
         
         if is_non_db {
@@ -738,6 +741,19 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let field_analysis = analyze_entity_fields(fields);
     if let Err(e) = validate_field_analysis(&field_analysis) {
         return e;
+    }
+
+    // Check for cyclic dependencies and emit warnings if depth is not explicit
+    let cyclic_warnings = field_analyzer::detect_cyclic_dependencies(&api_struct_name.to_string(), &field_analysis);
+    if !cyclic_warnings.is_empty() {
+        let combined_error = cyclic_warnings.into_iter()
+            .map(|err| err.to_compile_error())
+            .reduce(|mut acc, err| {
+                acc.extend(err);
+                acc
+            })
+            .unwrap();
+        return combined_error.into();
     }
 
     let (api_struct_fields, from_model_assignments) =

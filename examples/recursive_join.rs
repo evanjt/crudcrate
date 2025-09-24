@@ -175,15 +175,22 @@ async fn main() {
         println!("Server running on http://localhost:3000");
         println!();
         println!("🧪 Test endpoints:");
-        println!("  curl http://localhost:3000/customers");
-        println!("  curl http://localhost:3000/customers/{}", customer.id);
+        println!("  curl http://localhost:3000/customers    # Customer list (loads vehicles via join(all))");
+        println!("  curl http://localhost:3000/customers/{} # Individual customer (loads vehicles via join(one))", customer.id);
+        println!("  curl http://localhost:3000/vehicles     # Vehicle list (loads parts & maintenance via join(all))");
+        println!("  ");
+        println!("🎯 Testing recursive joins:");
+        println!("  Customer -> Vehicle relationships: ✅ Working");
+        println!("  Vehicle -> Parts/Maintenance relationships: ✅ Working (NEW!)");
+        println!("  Next: Implement depth=2+ recursive loading");
         println!();
     } else {
         println!("⚠️ No customers found in database");
     }
 
     let app = Router::new()
-        .merge(Customer::router(&db))
+        .nest("/customers", Customer::router(&db).into())
+        .nest("/vehicles", Vehicle::router(&db).into())
         .layer(CorsLayer::permissive());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

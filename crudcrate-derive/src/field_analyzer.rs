@@ -139,4 +139,84 @@ pub(crate) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
     ty.clone()
 }
 
+/// Extract the inner type from Vec<T> or return the type as-is
+pub(crate) fn extract_inner_type(field_type: &syn::Type) -> syn::Type {
+    if let syn::Type::Path(type_path) = field_type {
+        if let Some(last_seg) = type_path.path.segments.last() {
+            if last_seg.ident == "Vec" {
+                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
+                        return inner_type.clone();
+                    }
+                }
+            }
+        }
+    }
+    field_type.clone()
+}
+
+/// Get the type name as a string for cyclic dependency detection
+/// Also handles Box<T> patterns for self-references
+pub(crate) fn get_type_name(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Path(type_path) => {
+            if let Some(last_seg) = type_path.path.segments.last() {
+                // Handle Box<T> pattern
+                if last_seg.ident == "Box" {
+                    if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
+                        if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
+                            return get_type_name(inner_type);
+                        }
+                    }
+                }
+                return Some(last_seg.ident.to_string());
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+/// Check for potential cyclic dependencies in join fields
+/// Returns warnings about potential cycles that don't have explicit depth
+pub(crate) fn detect_cyclic_dependencies(
+    current_type: &str,
+    field_analysis: &super::structs::EntityFieldAnalysis,
+) -> Vec<syn::Error> {
+    
+    let mut warnings = Vec::new();
+    
+    // Check all join fields for potential cycles
+    for (field, join_config) in &field_analysis.join_configs {
+        let inner_type = extract_inner_type(&field.ty);
+        
+        if let Some(target_type_name) = get_type_name(&inner_type) {
+            // If the join field type is the same as the current type, it's a direct cycle
+            // Also check for "Model" which is a self-reference in the current struct context
+            if target_type_name == current_type || target_type_name == "Model" {
+                if !join_config.has_explicit_depth() {
+                    if let Some(field_name) = &field.ident {
+                        let warning = syn::Error::new_spanned(
+                            field,
+                            format!(
+                                "Potential cyclic dependency detected: {} -> {} -> {}. \
+                                This will be limited to depth={} by default. \
+                                To remove this warning, specify explicit depth: #[crudcrate(join(one, all, depth=N))]",
+                                current_type, field_name, target_type_name, join_config.effective_depth()
+                            )
+                        );
+                        warnings.push(warning);
+                    }
+                }
+            }
+            
+            // TODO: For more complex cycle detection (A -> B -> A), we'd need to analyze
+            // multiple entities together, which would require a different approach
+            // For now, we focus on direct self-references
+        }
+    }
+    
+    warnings
+}
+
 
