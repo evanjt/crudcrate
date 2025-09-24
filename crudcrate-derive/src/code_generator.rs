@@ -449,7 +449,7 @@ fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::Token
         .filter_map(|field| {
             if let Some(field_name) = &field.ident {
                 let field_name_str = ident_to_string(field_name);
-                let is_enum = field_has_crudcrate_flag(field, "enum_field");
+                let is_enum = get_crudcrate_bool(field, "enum_field").unwrap_or(false);
 
                 Some(quote! {
                     #field_name_str => #is_enum,

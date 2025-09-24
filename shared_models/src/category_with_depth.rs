@@ -30,12 +30,12 @@ pub struct Model {
 
     // This should NOT trigger a warning because depth is explicitly set
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, join(one, all, depth = 2))]
+    #[crudcrate(non_db_attr, join(one, all, depth = 2))]
     pub subcategories: Vec<CategoryWithDepth>,
 
     // Parent category with explicit depth
     #[sea_orm(ignore)]  
-    #[crudcrate(non_db_attr = true, join(one, depth = 1))]
+    #[crudcrate(non_db_attr, join(one, depth = 1))]
     pub parent_category: Option<CategoryWithDepth>,
 }
 

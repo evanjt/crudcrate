@@ -41,7 +41,7 @@ use sea_orm::entity::prelude::*;
 #[crudcrate(generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[crudcrate(primary_key, create_model = false, update_model = false)]
+    #[crudcrate(primary_key, exclude(create, update))]
     pub id: Uuid,
 
     #[crudcrate(filterable, sortable)]
@@ -86,8 +86,7 @@ Control how fields behave in the generated API. [See all field attributes](#adva
     filterable,                     // Enable filtering
     sortable,                       // Enable sorting
     fulltext,                       // Include in fulltext search
-    create_model = false,           // Exclude from create operations
-    update_model = false,           // Exclude from update operations
+    exclude(create, update),        // Function-style syntax: exclude from operations
     on_create = Uuid::new_v4(),     // Auto-generate on create
     on_update = Utc::now()          // Auto-update on modification
 )]
@@ -367,59 +366,208 @@ pub struct TodoUpdate {   // PUT request body
 }
 ```
 
-### Advanced Field Control
+## Complete Attribute Reference
 
-Field attributes give you precise control over how each field behaves in different contexts:
+### All Available Attributes (30+ Total)
 
-#### Core Attributes
+CrudCrate provides comprehensive attribute customization through the `#[crudcrate(...)]` macro. All attributes support Rust-idiomatic syntax with full IDE autocomplete support.
 
+#### **STRUCT-LEVEL ATTRIBUTES** (Applied to `struct` declarations)
+
+##### Boolean Flags
 ```rust
 #[crudcrate(
-    primary_key,                    // Marks this field as the primary identifier (only one per struct)
-    filterable,                     // Enables filtering: ?filter={"status":"active"}
-    sortable,                       // Enables sorting: ?sort=created_at&order=DESC
-    fulltext,                       // Includes in fulltext search: ?filter={"q":"search terms"}
+    generate_router,              // Auto-generate Axum router function
+    debug_output,                 // Print generated code (requires --features debug)
 )]
 ```
 
-#### Model Generation Control
-
+##### Named Parameters  
 ```rust
 #[crudcrate(
-    create_model = false,           // Excludes from TodoCreate struct (default: true)
-    update_model = false,           // Excludes from TodoUpdate struct (default: true)
+    // Identity & Naming
+    api_struct = "CustomerAPI",       // Override generated API struct name
+    active_model = "CustomModel",     // Override ActiveModel path
+    name_singular = "customer",       // Resource singular name for URLs  
+    name_plural = "customers",        // Resource plural name for URLs
+    description = "Customer data",    // OpenAPI description
+    
+    // Type Overrides
+    entity_type = "Entity",           // Entity type for CRUDResource
+    column_type = "Column",           // Column type for CRUDResource
+    
+    // Search Configuration
+    fulltext_language = "english",    // Default fulltext language
+    
+    // Function Overrides (6 total)
+    fn_get_one = custom::get_one,     // Custom CRUD function implementations
+    fn_get_all = custom::get_all,
+    fn_create = custom::create,
+    fn_update = custom::update,
+    fn_delete = custom::delete,
+    fn_delete_many = custom::delete_many,
 )]
 ```
 
-#### Auto-Generation
+#### **FIELD-LEVEL ATTRIBUTES** (Applied to field declarations)
 
+##### Core Boolean Properties
 ```rust
 #[crudcrate(
-    on_create = Uuid::new_v4(),     // Expression to run on create operations
-    on_update = Utc::now(),         // Expression to run on update operations
+    // Database Properties
+    primary_key,                  // Mark as primary key
+    non_db_attr,                  // Non-database field
+    enum_field,                   // Enum field handling
+    use_target_models,            // Use target model types
+    
+    // Query Capabilities  
+    sortable,                     // Enable sorting
+    filterable,                   // Enable filtering
+    fulltext,                     // Enable fulltext search
 )]
 ```
 
-#### Non-Database Fields
-
+##### Model Inclusion/Exclusion
 ```rust
 #[crudcrate(
-    non_db_attr = true,             // Field not in database (default: false)
-    default = vec![],               // Default value for non-DB fields
-                                    // Requires #[sea_orm(ignore)] when using DeriveEntityModel
+    // Boolean syntax
+    create_model = false,         // Exclude from Create model
+    update_model = false,         // Exclude from Update model
+    list_model = false,           // Exclude from List model
+    
+    // Function-style syntax
+    exclude(create),              // Exclude from Create model only
+    exclude(update),              // Exclude from Update model only  
+    exclude(list),                // Exclude from List model only
+    exclude(create, update),      // Exclude from both Create and Update
+    exclude(create, update, list), // Exclude from all models
+    
+    // Positive logic aliases
+    exclude_create,               // Equivalent to create_model = false
+    exclude_update,               // Equivalent to update_model = false
+    exclude_list,                 // Equivalent to list_model = false
+    skip_create,                  // Alternative alias
+    no_update,                    // Alternative alias
 )]
 ```
 
-#### Type-Specific Attributes
-
+##### Expression Parameters
 ```rust
 #[crudcrate(
-    enum_field,                     // Mark field as enum for filtering (required for enum filtering)
-    enum_case_sensitive,            // Enable case-sensitive enum matching (default: case-insensitive)
+    // Auto-generation functions
+    on_create = Uuid::new_v4(),   // Auto-generate value on create
+    on_update = Utc::now(),       // Auto-generate value on update
+    default = vec![],             // Default value for non-DB fields
+    
+    // Search configuration
+    fulltext_language = "spanish", // Field-level language override
 )]
 ```
 
-**Enum Field Requirements**: For enum fields to work with filtering, you must explicitly mark them with `enum_field`:
+##### Join Configuration
+```rust
+#[crudcrate(
+    // Basic Join Types
+    join(one),                    // Load in get_one() responses only
+    join(all),                    // Load in get_all() responses only
+    join(one, all),              // Load in both get_one() and get_all()
+    
+    // Advanced Join Options
+    join(one, all, depth = 2),   // Custom recursive depth (default: 3)
+    join(one, all, relation = "CustomRelation"), // Custom Sea-ORM relation name
+)]
+```
+
+### **SYNTAX EXAMPLES**
+
+#### Primary Key Pattern
+```rust
+// Boolean syntax
+#[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+pub id: Uuid,
+
+// Function-style syntax
+#[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+pub id: Uuid,
+```
+
+#### Searchable Field Pattern  
+```rust
+#[crudcrate(sortable, filterable, fulltext)]
+pub title: String,
+```
+
+#### Timestamp Fields
+```rust
+// Created timestamp
+#[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
+pub created_at: DateTime<Utc>,
+
+// Updated timestamp  
+#[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
+pub updated_at: DateTime<Utc>,
+```
+
+#### Recursive Join Loading
+```rust
+// Single-level join with default depth
+#[sea_orm(ignore)]
+#[crudcrate(non_db_attr, join(one, all))]  // Uses depth=3 by default
+pub vehicles: Vec<Vehicle>,
+
+// Multi-level join with custom depth
+#[sea_orm(ignore)]
+#[crudcrate(non_db_attr, join(one, all, depth = 2))]
+pub deep_relationships: Vec<RelatedEntity>,
+```
+
+### **COMPLETE ENTITY EXAMPLE**
+
+```rust
+use chrono::{DateTime, Utc};
+use crudcrate::EntityToModels;
+use sea_orm::entity::prelude::*;
+use uuid::Uuid;
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+#[sea_orm(table_name = "customers")]
+#[crudcrate(
+    generate_router,                    // Auto-generate router
+    api_struct = "Customer",            // API struct name
+    description = "Customer records"    // OpenAPI documentation
+)]
+pub struct Model {
+    // Primary key with function-style exclusion
+    #[sea_orm(primary_key, auto_increment = false)]
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+    pub id: Uuid,
+    
+    // Searchable field with full capabilities
+    #[crudcrate(sortable, filterable, fulltext)]
+    pub name: String,
+    
+    // Simple filterable field
+    #[crudcrate(filterable)]
+    pub email: String,
+    
+    // Auto-managed created timestamp
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
+    pub created_at: DateTime<Utc>,
+    
+    // Auto-managed updated timestamp
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
+    pub updated_at: DateTime<Utc>,
+    
+    // Recursive join loading related vehicles
+    #[sea_orm(ignore)]
+    #[crudcrate(non_db_attr, join(one, all))]
+    pub vehicles: Vec<Vehicle>,
+}
+```
+
+#### Enum Field Requirements
+
+For enum fields to work with filtering, you must explicitly mark them with `enum_field`:
 
 ```rust
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
@@ -434,29 +582,6 @@ pub struct Model {
 ```
 
 This enables case-insensitive enum filtering where users can search for "elec" to find "Electronics".
-
-#### Struct-Level Attributes
-
-Applied to the entire struct:
-
-```rust
-#[crudcrate(
-    api_struct = "TodoItem",        // Override API struct name (default: table name in PascalCase)
-    name_singular = "todo",         // Resource name singular (default: table name)
-    name_plural = "todos",          // Resource name plural (default: singular + "s")
-    description = "Manages todos",  // Resource description for OpenAPI docs
-    generate_router,                // Auto-generate router function
-    fulltext_language = "simple",   // PostgreSQL fulltext language (default: "english")
-
-    // Function injection - override default CRUD operations
-    fn_get_one = self::custom_get_one,       // Custom get_one function
-    fn_get_all = self::custom_get_all,       // Custom get_all function
-    fn_create = self::custom_create,         // Custom create function
-    fn_update = self::custom_update,         // Custom update function
-    fn_delete = self::custom_delete,         // Custom delete function
-    fn_delete_many = self::custom_delete_many, // Custom batch delete function
-)]
-```
 
 ### Fulltext Search Architecture
 

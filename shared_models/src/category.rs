@@ -32,12 +32,12 @@ pub struct Model {
     // This should trigger a cyclic dependency warning because Category references itself
     // without explicit depth - should default to depth=3 with a compiler warning
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, join(one, all))]
+    #[crudcrate(non_db_attr, join(one, all))]
     pub subcategories: Vec<Box<Model>>,
 
     // Parent category - another self-reference
     #[sea_orm(ignore)]  
-    #[crudcrate(non_db_attr = true, join(one))]
+    #[crudcrate(non_db_attr, join(one))]
     pub parent_category: Option<Box<Model>>,
 }
 

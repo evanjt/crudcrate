@@ -127,7 +127,18 @@ pub(crate) fn extract_table_name(attrs: &[syn::Attribute]) -> Option<String> {
 /// Given a field and a key (e.g. `"create_model"` or `"update_model"`),
 /// look for a `#[crudcrate(...)]` attribute on the field and return the boolean value
 /// associated with that key, if present.
+/// 
+/// Supports multiple syntaxes:
+/// - `#[crudcrate(non_db_attr = true)]` (explicit boolean)
+/// - `#[crudcrate(non_db_attr)]` (implicit true)
+/// - `#[crudcrate(exclude_create)]` → `create_model = false` (individual aliases)
+/// - `#[crudcrate(exclude(create, update))]` → both `create_model` and `update_model` = false
 pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> {
+    // First check for exclude() configuration (most idiomatic)
+    if let Some(result) = check_exclude_config(field, key) {
+        return Some(result); // check_exclude_config already returns the correct boolean for the model
+    }
+    
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate")
             && let Meta::List(meta_list) = &attr.meta
@@ -136,17 +147,104 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                 .parse2(meta_list.tokens.clone())
                 .ok()?;
             for meta in metas {
-                if let Meta::NameValue(nv) = meta
-                    && nv.path.is_ident(key)
-                    && let syn::Expr::Lit(expr_lit) = &nv.value
-                    && let Lit::Bool(b) = &expr_lit.lit
-                {
-                    return Some(b.value());
+                match meta {
+                    // Explicit boolean: key = true/false
+                    Meta::NameValue(nv) if nv.path.is_ident(key) => {
+                        if let syn::Expr::Lit(expr_lit) = &nv.value
+                            && let Lit::Bool(b) = &expr_lit.lit
+                        {
+                            return Some(b.value());
+                        }
+                    }
+                    // Implicit boolean flag: just `key` means true
+                    Meta::Path(path) if path.is_ident(key) => {
+                        return Some(true);
+                    }
+                    // Check for positive logic aliases that set model flags to false
+                    Meta::Path(path) => {
+                        if let Some(false_value) = check_positive_logic_alias(key, &path) {
+                            return Some(false_value);
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
     }
     None
+}
+
+/// Check if a path represents a positive logic alias for model exclusion  
+fn check_positive_logic_alias(key: &str, path: &syn::Path) -> Option<bool> {
+    match key {
+        "create_model" => {
+            if path.is_ident("exclude_create") || path.is_ident("skip_create") || path.is_ident("no_create") {
+                Some(false)  // These aliases mean create_model = false
+            } else {
+                None
+            }
+        }
+        "update_model" => {
+            if path.is_ident("exclude_update") || path.is_ident("skip_update") || path.is_ident("no_update") {
+                Some(false)  // These aliases mean update_model = false
+            } else {
+                None
+            }
+        }
+        "list_model" => {
+            if path.is_ident("exclude_list") || path.is_ident("skip_list") || path.is_ident("no_list") {
+                Some(false)  // These aliases mean list_model = false
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Check if field has an exclude(...) configuration that affects the given key
+fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
+    for attr in &field.attrs {
+        if attr.path().is_ident("crudcrate")
+            && let Meta::List(meta_list) = &attr.meta
+            && let Ok(metas) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+        {
+            for meta in metas {
+                if let Meta::List(list_meta) = meta
+                    && list_meta.path.is_ident("exclude")
+                {
+                    if let Some(is_excluded) = parse_exclude_parameters(&list_meta, key) {
+                        return Some(!is_excluded); // If excluded, return false for the model
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Parse exclude(...) parameters to check if a specific model type is excluded
+fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Option<bool> {
+    if let Ok(nested_metas) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+        for meta in nested_metas {
+            if let Meta::Path(path) = meta {
+                let excluded_type = if path.is_ident("create") {
+                    "create_model"
+                } else if path.is_ident("update") {
+                    "update_model"
+                } else if path.is_ident("list") {
+                    "list_model"
+                } else {
+                    continue;
+                };
+                
+                if excluded_type == target_key {
+                    return Some(true); // This model type is excluded
+                }
+            }
+        }
+    }
+    Some(false) // exclude() was found but target_key wasn't in it
 }
 
 /// Given a field and a key (e.g. `"on_create"` or `"on_update"`), returns the expression
@@ -185,6 +283,11 @@ pub(crate) fn get_string_from_attr(attr: &syn::Attribute) -> Option<String> {
 
 /// Checks if a field has a specific flag attribute.
 /// For example, `#[crudcrate(primary_key)]` or `#[crudcrate(sortable, filterable)]`.
+/// 
+/// Also supports convenience aliases for clearer semantics:
+/// - `exclude_create` → `create_model = false`
+/// - `exclude_update` → `update_model = false`  
+/// - `exclude_list` → `list_model = false`
 pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate")
@@ -194,7 +297,7 @@ pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
         {
             for meta in metas {
                 if let Meta::Path(path) = meta
-                    && path.is_ident(flag)
+                    && (path.is_ident(flag) || is_alias_for(flag, &path))
                 {
                     return true;
                 }
@@ -202,6 +305,17 @@ pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
         }
     }
     false
+}
+
+/// Check if a path identifier is an alias for the given flag
+fn is_alias_for(flag: &str, path: &syn::Path) -> bool {
+    match flag {
+        // Support positive logic aliases that map to negative model flags
+        "create_model_false" => path.is_ident("exclude_create") || path.is_ident("skip_create") || path.is_ident("no_create"),
+        "update_model_false" => path.is_ident("exclude_update") || path.is_ident("skip_update") || path.is_ident("no_update"), 
+        "list_model_false" => path.is_ident("exclude_list") || path.is_ident("skip_list") || path.is_ident("no_list"),
+        _ => false,
+    }
 }
 
 /// Parses join configuration from a field's crudcrate attributes.

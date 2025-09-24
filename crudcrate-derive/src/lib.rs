@@ -2,6 +2,7 @@ mod structs;
 mod attribute_parser;
 mod field_analyzer;
 mod code_generator;
+mod attributes;
 #[cfg(feature = "debug")]
 mod debug_output;
 
@@ -657,6 +658,11 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 ///
 /// # Struct-Level Attributes (all optional)
 ///
+/// **Boolean Flags** (can be used as just `flag` or `flag = true/false`):
+/// - `generate_router` - Auto-generate Axum router with all CRUD endpoints
+/// - `debug_output` - Print generated code to console (requires `--features debug`)
+///
+/// **Named Parameters**:
 /// - `api_struct = "Name"` - Override API struct name (default: table name in `PascalCase`)
 /// - `active_model = "Path"` - Override `ActiveModel` path (default: `ActiveModel`)
 /// - `name_singular = "name"` - Resource singular name (default: table name)
@@ -664,6 +670,9 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 /// - `description = "desc"` - Resource description for documentation
 /// - `entity_type = "Entity"` - Entity type for `CRUDResource` (default: "Entity")
 /// - `column_type = "Column"` - Column type for `CRUDResource` (default: "Column")
+/// - `fulltext_language = "english"` - Default language for full-text search
+///
+/// **Function Overrides** (for custom CRUD behavior):
 /// - `fn_get_one = path::to::function` - Custom `get_one` function override
 /// - `fn_get_all = path::to::function` - Custom `get_all` function override
 /// - `fn_create = path::to::function` - Custom create function override
@@ -673,16 +682,36 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 ///
 /// # Field-Level Attributes
 ///
+/// **Boolean Flags** (can be used as just `flag` or `flag = true/false`):
 /// - `primary_key` - Mark field as primary key (only one allowed)
 /// - `sortable` - Include field in `sortable_columns()`
 /// - `filterable` - Include field in `filterable_columns()`
+/// - `fulltext` - Enable full-text search for this field
+/// - `non_db_attr` - Field is not in database, won't appear in DB operations
+/// - `use_target_models` - Use target's Create/Update models instead of full entity model
+///
+/// **Named Parameters**:
 /// - `create_model = false` - Exclude from Create model (default: true)
 /// - `update_model = false` - Exclude from Update model (default: true)  
-/// - `on_create = expression` - Auto-generate value on create
-/// - `on_update = expression` - Auto-generate value on update
-/// - `non_db_attr = true` - Field is not in database (default: false)
+/// - `list_model = false` - Exclude from List model (default: true)
+/// - `on_create = expression` - Auto-generate value on create (e.g., `Uuid::new_v4()`)
+/// - `on_update = expression` - Auto-generate value on update (e.g., `Utc::now()`)
 /// - `default = expression` - Default value for non-DB fields
-/// - `use_target_models` - Use target's Create/Update models instead of full entity model
+/// - `fulltext_language = "english"` - Language for full-text search
+///
+/// **Model Exclusion** (Rust-idiomatic alternative to negative boolean flags):
+/// - `exclude(create)` - Exclude from Create model (same as `create_model = false`)
+/// - `exclude(update)` - Exclude from Update model (same as `update_model = false`)
+/// - `exclude(list)` - Exclude from List model (same as `list_model = false`)
+/// - `exclude(create, update)` - Exclude from multiple models
+/// - `exclude(create, update, list)` - Exclude from all models
+///
+/// **Join Configuration** (for relationship loading):
+/// - `join(one)` - Load this relationship in `get_one()` calls
+/// - `join(all)` - Load this relationship in `get_all()` calls  
+/// - `join(one, all)` - Load in both `get_one()` and `get_all()` calls
+/// - `join(one, all, depth = 2)` - Recursive loading with specified depth
+/// - `join(one, all, relation = "CustomRelation")` - Use custom Sea-ORM relation name
 ///
 /// # Example
 ///
@@ -691,19 +720,30 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 /// use crudcrate_derive::EntityToModels;
 /// use sea_orm::prelude::*;
 ///
-/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
-/// #[sea_orm(table_name = "todos")]
-/// #[crudcrate(api_struct = "Todo", description = "Todo items")]
+/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+/// #[sea_orm(table_name = "customers")]
+/// #[crudcrate(api_struct = "Customer", generate_router)]
 /// pub struct Model {
 ///     #[sea_orm(primary_key, auto_increment = false)]
-///     #[crudcrate(primary_key, sortable, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+///     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
 ///     pub id: Uuid,
 ///     
 ///     #[crudcrate(sortable, filterable)]
-///     pub title: String,
+///     pub name: String,
 ///     
-///     #[crudcrate(filterable, on_create = false)]
-///     pub completed: bool,
+///     #[crudcrate(filterable)]
+///     pub email: String,
+///     
+///     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
+///     pub created_at: DateTime<Utc>,
+///     
+///     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
+///     pub updated_at: DateTime<Utc>,
+///     
+///     // Join field - loads vehicles automatically with depth=3 recursive loading  
+///     #[sea_orm(ignore)]
+///     #[crudcrate(non_db_attr, join(one, all))]  // depth=3 by default
+///     pub vehicles: Vec<Vehicle>,
 /// }
 ///
 /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -21,7 +21,7 @@ pub struct Model {
     #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, join(one, all, depth = 3))]
+    #[crudcrate(non_db_attr, join(one, all, depth = 3))]
     pub vehicles: Vec<Vehicle>,
 }
 
