@@ -381,7 +381,7 @@ fn generate_conditional_crud_impl(
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        eprintln!("DEBUG: Generating router for {}", api_struct_name);
+        eprintln!("DEBUG: Generating router for {api_struct_name}");
         code_generator::generate_router_impl(api_struct_name)
     } else {
         eprintln!("DEBUG: NOT generating router for {} - generate_router: {}, has_crud_resource_fields: {}", 

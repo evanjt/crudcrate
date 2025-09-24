@@ -141,39 +141,29 @@ pub(crate) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
 
 /// Extract the inner type from Vec<T> or return the type as-is
 pub(crate) fn extract_inner_type(field_type: &syn::Type) -> syn::Type {
-    if let syn::Type::Path(type_path) = field_type {
-        if let Some(last_seg) = type_path.path.segments.last() {
-            if last_seg.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
+    if let syn::Type::Path(type_path) = field_type
+        && let Some(last_seg) = type_path.path.segments.last()
+            && last_seg.ident == "Vec"
+                && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
+                    && let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
                         return inner_type.clone();
                     }
-                }
-            }
-        }
-    }
     field_type.clone()
 }
 
 /// Get the type name as a string for cyclic dependency detection
 /// Also handles Box<T> patterns for self-references
 pub(crate) fn get_type_name(ty: &syn::Type) -> Option<String> {
-    match ty {
-        syn::Type::Path(type_path) => {
-            if let Some(last_seg) = type_path.path.segments.last() {
-                // Handle Box<T> pattern
-                if last_seg.ident == "Box" {
-                    if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                            return get_type_name(inner_type);
-                        }
+    if let syn::Type::Path(type_path) = ty
+        && let Some(last_seg) = type_path.path.segments.last() {
+            // Handle Box<T> pattern
+            if last_seg.ident == "Box"
+                && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
+                    && let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
+                        return get_type_name(inner_type);
                     }
-                }
-                return Some(last_seg.ident.to_string());
-            }
+            return Some(last_seg.ident.to_string());
         }
-        _ => {}
-    }
     None
 }
 
@@ -193,9 +183,9 @@ pub(crate) fn detect_cyclic_dependencies(
         if let Some(target_type_name) = get_type_name(&inner_type) {
             // If the join field type is the same as the current type, it's a direct cycle
             // Also check for "Model" which is a self-reference in the current struct context
-            if target_type_name == current_type || target_type_name == "Model" {
-                if !join_config.has_explicit_depth() {
-                    if let Some(field_name) = &field.ident {
+            if (target_type_name == current_type || target_type_name == "Model")
+                && !join_config.has_explicit_depth()
+                    && let Some(field_name) = &field.ident {
                         let warning = syn::Error::new_spanned(
                             field,
                             format!(
@@ -207,8 +197,6 @@ pub(crate) fn detect_cyclic_dependencies(
                         );
                         warnings.push(warning);
                     }
-                }
-            }
             
             // TODO: For more complex cycle detection (A -> B -> A), we'd need to analyze
             // multiple entities together, which would require a different approach

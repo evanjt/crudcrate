@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{EntityToModels, traits::CRUDResource};
+use crudcrate::{traits::CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -12,23 +12,16 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
     pub id: Uuid,
-
     #[crudcrate(filterable, sortable)]
     pub name: String,
-
     #[crudcrate(filterable)]
     pub email: String,
-
     #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
-
     #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
-
-    // Join field for loading related vehicles with recursive depth=2
-    // This should load Customer → Vehicle → Parts/Maintenance
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, join(one, all, depth=2))]
+    #[crudcrate(non_db_attr = true, join(one, all, depth = 3))]
     pub vehicles: Vec<Vehicle>,
 }
 
@@ -45,6 +38,3 @@ impl Related<super::vehicle::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-
-// Type alias for easier importing
-pub type CustomerEntity = Entity;

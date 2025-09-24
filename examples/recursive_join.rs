@@ -78,82 +78,161 @@ async fn create_tables(db: &DatabaseConnection) {
 }
 
 async fn seed_data(db: &DatabaseConnection) {
-    let customer_id = Uuid::new_v4();
-    let vehicle1_id = Uuid::new_v4();
-    let vehicle2_id = Uuid::new_v4();
+    println!("🌱 Seeding comprehensive test data...");
 
-    // Create customer
-    let customer = customer::ActiveModel {
-        id: Set(customer_id),
-        name: Set("John Smith".to_owned()),
-        email: Set("john@example.com".to_owned()),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
-        ..Default::default()
-    };
-    println!("Creating customer...");
-    match customer.insert(db).await {
-        Ok(_) => println!("✅ Customer created"),
-        Err(e) => println!("❌ Failed to create customer: {:?}", e),
+    // Customer data
+    let customers = [
+        ("Alice Johnson", "alice@garage.com"),
+        ("Bob Wilson", "bob@autocare.com"),
+    ];
+
+    // Vehicle configurations: (make, model, year, vin_suffix)
+    let vehicles_per_customer = [
+        vec![
+            ("Toyota", "Camry", 2020, "001"),
+            ("Honda", "Civic", 2019, "002"),
+            ("Ford", "F-150", 2021, "003"),
+        ],
+        vec![
+            ("BMW", "X5", 2022, "101"),
+            ("Tesla", "Model 3", 2023, "102"),
+        ],
+    ];
+
+    // Parts data: (name, part_number, category, price)
+    let parts_configs = [
+        ("Front Brake Pads", "BP-001", "Brakes", "89.99"),
+        ("Rear Brake Pads", "BP-002", "Brakes", "79.99"),
+        ("Oil Filter", "OF-001", "Engine", "24.99"),
+        ("Air Filter", "AF-001", "Engine", "19.99"),
+        ("Spark Plugs", "SP-001", "Engine", "45.99"),
+        ("Transmission Fluid", "TF-001", "Transmission", "32.99"),
+    ];
+
+    // Maintenance configurations: (service_type, description, cost, mechanic)
+    let maintenance_configs = [
+        (
+            "Oil Change",
+            "Regular oil change with synthetic oil",
+            "49.99",
+            "Mike Johnson",
+        ),
+        (
+            "Brake Service",
+            "Complete brake pad replacement",
+            "299.99",
+            "Sarah Davis",
+        ),
+        (
+            "Transmission Service",
+            "Transmission fluid change",
+            "149.99",
+            "Tony Garcia",
+        ),
+        (
+            "Engine Tune-up",
+            "Complete engine maintenance",
+            "399.99",
+            "Lisa Chen",
+        ),
+        (
+            "Tire Rotation",
+            "Tire rotation and balance",
+            "79.99",
+            "Mike Johnson",
+        ),
+    ];
+
+    for (customer_idx, (name, email)) in customers.iter().enumerate() {
+        let customer_id = Uuid::new_v4();
+
+        // Create customer
+        customer::ActiveModel {
+            id: Set(customer_id),
+            name: Set((*name).to_owned()),
+            email: Set((*email).to_owned()),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        // Create vehicles for this customer
+        for (vehicle_idx, (make, model, year, vin_suffix)) in
+            vehicles_per_customer[customer_idx].iter().enumerate()
+        {
+            let vehicle_id = Uuid::new_v4();
+
+            vehicle::ActiveModel {
+                id: Set(vehicle_id),
+                customer_id: Set(customer_id),
+                make: Set((*make).to_owned()),
+                model: Set((*model).to_owned()),
+                year: Set(*year),
+                vin: Set(format!("1HGBH41JXMN10918{}", vin_suffix)),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .unwrap();
+
+            // Add 2-4 parts per vehicle
+            let parts_count = 2 + (vehicle_idx % 3); // 2-4 parts
+            for part_idx in 0..parts_count {
+                let (name, part_number, category, price) =
+                    parts_configs[part_idx % parts_configs.len()];
+
+                vehicle_part::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    vehicle_id: Set(vehicle_id),
+                    name: Set((*name).to_owned()),
+                    part_number: Set(format!("{}-{}", part_number, vehicle_idx)),
+                    category: Set((*category).to_owned()),
+                    price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())),
+                    in_stock: Set(part_idx % 2 == 0), // Alternate stock status
+                    created_at: Set(Utc::now()),
+                    updated_at: Set(Utc::now()),
+                    ..Default::default()
+                }
+                .insert(db)
+                .await
+                .unwrap();
+            }
+
+            // Add 2-3 maintenance records per vehicle
+            let maintenance_count = 2 + (vehicle_idx % 2); // 2-3 records
+            for maintenance_idx in 0..maintenance_count {
+                let (service_type, description, cost, mechanic) =
+                    maintenance_configs[maintenance_idx % maintenance_configs.len()];
+
+                maintenance_record::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    vehicle_id: Set(vehicle_id),
+                    service_type: Set((*service_type).to_owned()),
+                    description: Set((*description).to_owned()),
+                    cost: Set(Some(cost.parse::<rust_decimal::Decimal>().unwrap())),
+                    service_date: Set(Utc::now()),
+                    mechanic_name: Set(Some((*mechanic).to_owned())),
+                    completed: Set(maintenance_idx % 3 != 0), // Most completed, some pending
+                    created_at: Set(Utc::now()),
+                    updated_at: Set(Utc::now()),
+                    ..Default::default()
+                }
+                .insert(db)
+                .await
+                .unwrap();
+            }
+        }
     }
 
-    // Create vehicles
-    let vehicle1 = vehicle::ActiveModel {
-        id: Set(vehicle1_id),
-        customer_id: Set(customer_id),
-        make: Set("Toyota".to_owned()),
-        model: Set("Camry".to_owned()),
-        year: Set(2020),
-        vin: Set("1HGBH41JXMN109186".to_owned()),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
-        ..Default::default()
-    };
-    vehicle1.insert(db).await.unwrap();
-
-    let vehicle2 = vehicle::ActiveModel {
-        id: Set(vehicle2_id),
-        customer_id: Set(customer_id),
-        make: Set("Honda".to_owned()),
-        model: Set("Civic".to_owned()),
-        year: Set(2019),
-        vin: Set("2HGBH41JXMN109187".to_owned()),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
-        ..Default::default()
-    };
-    vehicle2.insert(db).await.unwrap();
-
-    // Create parts for vehicle1
-    let part1 = vehicle_part::ActiveModel {
-        id: Set(Uuid::new_v4()),
-        vehicle_id: Set(vehicle1_id),
-        name: Set("Front Brake Pads".to_owned()),
-        part_number: Set("BP-001".to_owned()),
-        category: Set("Brakes".to_owned()),
-        price: Set(Some("89.99".parse::<rust_decimal::Decimal>().unwrap())),
-        in_stock: Set(true),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
-        ..Default::default()
-    };
-    part1.insert(db).await.unwrap();
-
-    // Create maintenance record for vehicle1
-    let maintenance1 = maintenance_record::ActiveModel {
-        id: Set(Uuid::new_v4()),
-        vehicle_id: Set(vehicle1_id),
-        service_type: Set("Oil Change".to_owned()),
-        description: Set("Regular oil change with synthetic oil".to_owned()),
-        cost: Set(Some("49.99".parse::<rust_decimal::Decimal>().unwrap())),
-        service_date: Set(Utc::now()),
-        mechanic_name: Set(Some("Mike Johnson".to_owned())),
-        completed: Set(true),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
-        ..Default::default()
-    };
-    maintenance1.insert(db).await.unwrap();
+    println!(
+        "✅ Seeded {} customers with vehicles, parts, and maintenance records",
+        customers.len()
+    );
 }
 
 // ============================================================================
@@ -163,26 +242,35 @@ async fn seed_data(db: &DatabaseConnection) {
 #[tokio::main]
 async fn main() {
     let db = setup_database().await;
-    
+
     // Get the customer ID for testing
     use sea_orm::{Condition, Order};
     let condition = Condition::all();
     let customers = Customer::get_all(&db, &condition, CustomerColumn::Name, Order::Asc, 0, 100)
         .await
         .unwrap();
-    
+
     if let Some(customer) = customers.first() {
-        println!("Server running on http://localhost:3000");
+        println!("🚀 Server running on http://localhost:3000");
         println!();
-        println!("🧪 Test endpoints:");
-        println!("  curl http://localhost:3000/customers    # Customer list (loads vehicles via join(all))");
-        println!("  curl http://localhost:3000/customers/{} # Individual customer (loads vehicles via join(one))", customer.id);
-        println!("  curl http://localhost:3000/vehicles     # Vehicle list (loads parts & maintenance via join(all))");
-        println!("  ");
-        println!("🎯 Testing recursive joins:");
-        println!("  Customer -> Vehicle relationships: ✅ Working");
-        println!("  Vehicle -> Parts/Maintenance relationships: ✅ Working (NEW!)");
-        println!("  Next: Implement depth=2+ recursive loading");
+        println!("📊 Dataset Overview:");
+        println!("  • {} customers", customers.len());
+        println!("  • Alice: 3 vehicles (Toyota Camry, Honda Civic, Ford F-150)");
+        println!("  • Bob: 2 vehicles (BMW X5, Tesla Model 3)");
+        println!("  • Each vehicle: 2-4 parts + 2-3 maintenance records");
+        println!("  • Total: 5 vehicles, ~15 parts, ~12 maintenance records");
+        println!();
+        println!("🧪 Test multi-level recursive joins:");
+        println!(
+            "  curl -s http://localhost:3000/customers | jq .    # All customers → vehicles → parts/maintenance"
+        );
+        println!(
+            "  curl -s http://localhost:3000/customers/{} | jq . # Single customer (3-level deep)",
+            customer.id
+        );
+        println!(
+            "  curl -s http://localhost:3000/vehicles | jq .     # All vehicles → parts/maintenance"
+        );
         println!();
     } else {
         println!("⚠️ No customers found in database");

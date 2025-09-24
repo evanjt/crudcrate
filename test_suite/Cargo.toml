@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 # Use the local crudcrate with derive feature
 crudcrate = { path = "../crudcrate", features = ["derive", "sqlite"] }
+shared_models = { path = "../shared_models" }
 
 # Core dependencies
 axum = { workspace = true, features = ["macros"] }
