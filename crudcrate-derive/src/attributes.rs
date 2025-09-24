@@ -90,8 +90,13 @@ The actual attribute parsing happens in `attribute_parser.rs`.
 ## Examples
 
 ### Basic Entity
-```rust
-#[derive(EntityToModels)]
+```text
+use chrono::{DateTime, Utc};
+use crudcrate::EntityToModels;
+use sea_orm::entity::prelude::*;
+use uuid::Uuid;
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "users")]
 #[crudcrate(api_struct = "User", generate_router)]
 pub struct Model {
@@ -115,8 +120,15 @@ pub struct Model {
 ```
 
 ### Entity with Joins
-```rust  
-#[derive(EntityToModels)]
+```text  
+use chrono::{DateTime, Utc};
+use crudcrate::EntityToModels;
+use sea_orm::entity::prelude::*;
+use uuid::Uuid;
+
+struct Vehicle {}
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "customers")]
 #[crudcrate(
     api_struct = "Customer",
@@ -151,8 +163,11 @@ pub struct Model {
 ```
 
 ### Custom Functions
-```rust
-#[derive(EntityToModels)]
+```text
+use crudcrate::EntityToModels;
+use sea_orm::entity::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[crudcrate(
     api_struct = "Post",
     fn_get_all = custom::get_posts_with_author,
