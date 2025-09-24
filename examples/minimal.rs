@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
 #[sea_orm(table_name = "todos")]
-#[crudcrate(description = "Simple todo management", generate_router)]
+#[crudcrate(api_struct = "Todo", description = "Simple todo management", generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     let (router, apidocs) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(router_with_path(&db, "/todo"))
+        .nest("/todo", Todo::router(&db))
         .split_for_parts();
     let app = router.merge(Scalar::with_url("/docs", apidocs));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
