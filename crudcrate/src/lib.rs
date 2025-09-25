@@ -16,8 +16,7 @@ pub mod pagination {
     pub use crate::filtering::pagination::*;
 }
 pub mod routes {
-    // Re-export CRUD handlers macros
-    pub use crate::core::crud_operations::*;
+    // Legacy module for backward compatibility - CRUD handlers are now generated automatically
 }
 pub mod sort {
     pub use crate::filtering::sort::*;

@@ -3,6 +3,7 @@ use super::field_analyzer::{
     extract_inner_type_for_update, field_is_optional, resolve_target_models,
     resolve_target_models_with_list,
 };
+use super::join_generators;
 use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use convert_case::{Case, Casing};
 use quote::{ToTokens, format_ident, quote};
@@ -534,10 +535,10 @@ fn generate_method_impls(
         
         if has_joins {
             // Generate the recursive loading statements for ALL join fields (direct query loads all joins)
-            let _join_loading_statements = generate_join_loading_for_direct_query(analysis);
+            let _join_loading_statements = join_generators::generate_join_loading_for_direct_query(analysis);
             
             // Generate the actual recursive loading implementation
-            let recursive_loading_code = generate_recursive_loading_implementation(analysis);
+            let recursive_loading_code = join_generators::generate_recursive_loading_implementation(analysis);
             
             quote! {
                 async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
@@ -796,52 +797,6 @@ fn generate_join_loading_for_direct_query(analysis: &EntityFieldAnalysis) -> Vec
 }
 
 /// Generates join loading statements for `get_one` (fields with 'one' flag) - legacy function
-fn generate_join_loading_for_get_one(analysis: &EntityFieldAnalysis) -> Vec<proc_macro2::TokenStream> {
-    use super::attribute_parser::get_join_config;
-    let mut statements = Vec::new();
-    
-    // Only process fields that have the 'one' flag
-    for field in &analysis.join_on_one_fields {
-        if let Some(field_name) = &field.ident {
-            let join_config = get_join_config(field).unwrap_or_default();
-            let _depth = join_config.depth.unwrap_or(3);
-            
-            // Generate code to load related entities for this field
-            let relation_name = format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
-            
-            // Check if this is a Vec<T> field or a single T field by analyzing the type
-            let is_vec_field = is_vec_type(&field.ty);
-            
-            if is_vec_field {
-                // Generate code for Vec<T> fields (has_many relationships)
-                let loading_stmt = quote! {
-                    // Load related entities for #field_name field
-                    if let Ok(related_models) = model.find_related(super::#relation_name::Entity).all(db).await {
-                        // Convert related models to API structs (recursive loading happens via their own joins)
-                        let mut related_with_joins = Vec::new();
-                        for related_model in related_models {
-                            let related_api_struct = related_model.into();
-                            related_with_joins.push(related_api_struct);
-                        }
-                        result.#field_name = related_with_joins;
-                    }
-                };
-                statements.push(loading_stmt);
-            } else {
-                // Generate code for single T or Option<T> fields (belongs_to/has_one relationships)
-                let loading_stmt = quote! {
-                    // Load related entity for #field_name field
-                    if let Ok(Some(related_model)) = model.find_related(super::#relation_name::Entity).one(db).await {
-                        result.#field_name = Some(related_model.into());
-                    }
-                };
-                statements.push(loading_stmt);
-            }
-        }
-    }
-    
-    statements
-}
 
 /// Helper function to determine if a type is Vec<T>
 fn is_vec_type(ty: &syn::Type) -> bool {
@@ -854,14 +809,6 @@ fn is_vec_type(ty: &syn::Type) -> bool {
 
 
 
-/// Generate join loading implementation for `get_all` method (fields with 'all' flag)
-fn generate_get_all_join_loading_implementation(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
-    // For now, just convert without join loading - we'll implement this properly
-    // after fixing the generic join loading issue
-    quote! {
-        results.push(model.into());
-    }
-}
 
 /// Generate single-level join loading implementation (no complex recursion for now)
 fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {

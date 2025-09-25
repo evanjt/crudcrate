@@ -2,6 +2,7 @@ mod structs;
 mod attribute_parser;
 mod field_analyzer;
 mod code_generator;
+mod join_generators;
 mod attributes;
 #[cfg(feature = "debug")]
 mod debug_output;
