@@ -52,7 +52,7 @@ pub fn generate_join_relation_validation(
 }
 
 /// Convert a field name to the expected relation variant name
-/// Example: "vehicles" -> "Vehicles", "maintenance_records" -> "MaintenanceRecords" 
+/// Example: "vehicles" -> "Vehicles", "`maintenance_records`" -> "`MaintenanceRecords`" 
 fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
     let field_str = field_name.to_string();
     // Convert to PascalCase for relation variant name

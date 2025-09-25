@@ -212,11 +212,9 @@ fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
             for meta in metas {
                 if let Meta::List(list_meta) = meta
                     && list_meta.path.is_ident("exclude")
-                {
-                    if let Some(is_excluded) = parse_exclude_parameters(&list_meta, key) {
+                    && let Some(is_excluded) = parse_exclude_parameters(&list_meta, key) {
                         return Some(!is_excluded); // If excluded, return false for the model
                     }
-                }
             }
         }
     }

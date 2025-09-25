@@ -1,5 +1,5 @@
 /*!
-# CrudCrate Attribute Definitions
+# `CrudCrate` Attribute Definitions
 
 This file provides IDE-friendly attribute definitions for autocomplete support.
 These are documentation-only types that help IDEs understand the available attributes.
@@ -259,11 +259,11 @@ mod ide_support {
     pub mod function_style {
         /// join(one, all) - Load relationships
         /// join(one, all, depth = 2) - With custom depth
-        /// join(one, all, relation = "CustomRelation") - With custom relation
+        /// join(one, all, relation = "`CustomRelation`") - With custom relation
         pub struct Join;
         
         /// exclude(create) - Single exclusion
-        /// exclude(create, update) - Multiple exclusions  
+        /// exclude(create, update) - Multiple exclusions\
         /// exclude(create, update, list) - All model types
         pub struct Exclude;
     }

@@ -11,7 +11,7 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// Generates join loading statements for direct queries (all join fields regardless of one/all flags)  
+/// Generates join loading statements for direct queries (all join fields regardless of one/all flags)\
 /// NOTE: This is a placeholder implementation - full join functionality is still under development
 pub fn generate_join_loading_for_direct_query(_analysis: &EntityFieldAnalysis) -> Vec<proc_macro2::TokenStream> {
     // For now, return empty statements until proper relation loading is implemented
@@ -99,33 +99,25 @@ pub fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis)
 
 /// Extract Vec inner type for relationship analysis
 pub fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+            && segment.ident == "Vec"
+                && let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments
+                    && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
                         return quote! { #inner_type };
                     }
-                }
-            }
-        }
-    }
     quote! { () }
 }
 
 /// Extract Option or direct inner type for relationship analysis
 pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Option" {
-                if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+            && segment.ident == "Option"
+                && let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments
+                    && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
                         return quote! { #inner_type };
                     }
-                }
-            }
-        }
-    }
     // Not an Option, return the type directly
     quote! { #ty }
 }
@@ -231,27 +223,24 @@ pub fn generate_join_loading_for_all_fields(
 /// Get target type from field for relationship analysis
 pub fn get_target_type_from_field(field_type: &syn::Type) -> proc_macro2::TokenStream {
     // Extract inner type from Vec<T>, Option<T>, or T
-    if let syn::Type::Path(type_path) = field_type {
-        if let Some(segment) = type_path.path.segments.last() {
+    if let syn::Type::Path(type_path) = field_type
+        && let Some(segment) = type_path.path.segments.last() {
             match segment.ident.to_string().as_str() {
                 "Vec" => {
-                    if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
+                    if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments
+                        && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
                             return quote! { #inner_type };
                         }
-                    }
                 }
                 "Option" => {
-                    if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
+                    if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments
+                        && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first() {
                             return quote! { #inner_type };
                         }
-                    }
                 }
                 _ => return quote! { #field_type },
             }
         }
-    }
     quote! { #field_type }
 }
 
@@ -261,14 +250,13 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
     
     // Assume the entity is in a module with the same name as the type (lowercase)
     // This is a common pattern: Customer type -> customer::Entity
-    if let syn::Type::Path(type_path) = field_type {
-        if let Some(segment) = type_path.path.segments.last() {
+    if let syn::Type::Path(type_path) = field_type
+        && let Some(segment) = type_path.path.segments.last() {
             let type_name = segment.ident.to_string();
             let module_name = type_name.to_case(Case::Snake);
             let module_ident = format_ident!("{}", module_name);
             return quote! { super::#module_ident::Entity };
         }
-    }
     
     quote! { super::Entity }
 }

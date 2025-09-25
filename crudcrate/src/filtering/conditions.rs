@@ -86,7 +86,7 @@ fn apply_float_comparison(
 }
 
 /// Build condition for string field with LIKE queries (case-insensitive)
-pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
+#[must_use] pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
     let escaped_value = trimmed_value.replace('\'', "''");
     let like_sql = format!("UPPER({key}) LIKE UPPER('%{escaped_value}%')");
     SimpleExpr::Custom(like_sql)
@@ -110,8 +110,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     let mut condition = Condition::all();
     
     // Check if there is a free-text search ("q") parameter
-    if let Some(q_value) = filters.get("q") {
-        if let Some(q_value_str) = q_value.as_str() {
+    if let Some(q_value) = filters.get("q")
+        && let Some(q_value_str) = q_value.as_str() {
             // Try fulltext search first
             if let Some(fulltext_condition) = build_fulltext_condition::<T>(q_value_str, backend) {
                 condition = condition.add(fulltext_condition);
@@ -153,7 +153,6 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 condition = condition.add(or_conditions);
             }
         }
-    }
 
     // Process other filters (excluding 'q')
     for (key, value) in &filters {
@@ -291,7 +290,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     condition
 }
 
-pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
+#[must_use] pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
     range_str.map_or((0, 9), |r| {
         serde_json::from_str::<[u64; 2]>(&r)
             .map(|range| (range[0], range[1]))
@@ -299,7 +298,7 @@ pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
     })
 }
 
-pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
+#[must_use] pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
         let offset = (page.saturating_sub(1)) * per_page;

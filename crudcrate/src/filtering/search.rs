@@ -1,6 +1,6 @@
 use sea_orm::{
     DatabaseBackend,
-    sea_query::{Alias, Expr, SimpleExpr},
+    sea_query::SimpleExpr,
 };
 use std::sync::atomic::AtomicBool;
 
@@ -19,7 +19,7 @@ fn sanitize_search_query(query: &str) -> String {
 }
 
 /// Build fulltext search condition with database-specific optimizations
-pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
+#[must_use] pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     query: &str,
     backend: DatabaseBackend,
 ) -> Option<SimpleExpr> {
@@ -93,7 +93,7 @@ fn build_fallback_fulltext_condition(
 }
 
 /// Build condition for string field with LIKE queries (case-insensitive)
-pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
+#[must_use] pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
     let escaped_value = trimmed_value.replace('\'', "''");
     let like_sql = format!("UPPER({key}) LIKE UPPER('%{escaped_value}%')");
     SimpleExpr::Custom(like_sql)
