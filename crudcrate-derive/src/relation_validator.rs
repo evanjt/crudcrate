@@ -8,15 +8,15 @@ pub fn generate_join_relation_validation(
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
     use quote::quote;
-    
+
     let mut validation_checks = Vec::new();
-    
+
     // Generate validation checks for join_on_one fields
     for field in &analysis.join_on_one_fields {
         if let Some(field_name) = &field.ident {
             let expected_relation = field_name_to_relation_variant(field_name);
             let expected_relation_ident = syn::Ident::new(&expected_relation, field_name.span());
-            
+
             // Generate a compile-time check that references the relation
             validation_checks.push(quote! {
                 // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
@@ -28,13 +28,13 @@ pub fn generate_join_relation_validation(
             });
         }
     }
-    
-    // Generate validation checks for join_on_all fields  
+
+    // Generate validation checks for join_on_all fields
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident {
             let expected_relation = field_name_to_relation_variant(field_name);
             let expected_relation_ident = syn::Ident::new(&expected_relation, field_name.span());
-            
+
             validation_checks.push(quote! {
                 // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
                 const _: () = {
@@ -45,14 +45,14 @@ pub fn generate_join_relation_validation(
             });
         }
     }
-    
+
     quote! {
         #( #validation_checks )*
     }
 }
 
 /// Convert a field name to the expected relation variant name
-/// Example: "entities" -> "Entities", "`related_items`" -> "`RelatedItems`" 
+/// Example: "entities" -> "Entities", "`related_items`" -> "`RelatedItems`"
 fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
     let field_str = field_name.to_string();
     // Convert to PascalCase for relation variant name
@@ -62,28 +62,37 @@ fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_field_name_to_relation_variant() {
         use quote::format_ident;
-        assert_eq!(field_name_to_relation_variant(&format_ident!("entities")), "Entities");
-        assert_eq!(field_name_to_relation_variant(&format_ident!("related_items")), "RelatedItems");
-        assert_eq!(field_name_to_relation_variant(&format_ident!("item")), "Item");
+        assert_eq!(
+            field_name_to_relation_variant(&format_ident!("entities")),
+            "Entities"
+        );
+        assert_eq!(
+            field_name_to_relation_variant(&format_ident!("related_items")),
+            "RelatedItems"
+        );
+        assert_eq!(
+            field_name_to_relation_variant(&format_ident!("item")),
+            "Item"
+        );
     }
-    
+
     #[test]
     fn test_type_validation_helpers() {
         use crate::macro_implementation::is_vec_type;
-        
+
         let vec_type: syn::Type = syn::parse_quote!(Vec<String>);
         let option_type: syn::Type = syn::parse_quote!(Option<String>);
         let plain_type: syn::Type = syn::parse_quote!(String);
-        
+
         // Test is_vec_type function
         assert!(is_vec_type(&vec_type));
         assert!(!is_vec_type(&option_type));
         assert!(!is_vec_type(&plain_type));
-        
+
         // Test is_optional_type by manually checking the type
         fn is_optional_type(ty: &syn::Type) -> bool {
             if let syn::Type::Path(type_path) = ty {
@@ -93,7 +102,7 @@ mod tests {
             }
             false
         }
-        
+
         assert!(!is_optional_type(&vec_type));
         assert!(is_optional_type(&option_type));
         assert!(!is_optional_type(&plain_type));

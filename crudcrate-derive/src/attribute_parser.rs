@@ -16,7 +16,7 @@ impl JoinConfig {
     pub fn effective_depth(&self) -> u8 {
         self.depth.unwrap_or(3)
     }
-    
+
     /// Check if depth was explicitly specified (for cyclic dependency warnings)
     pub fn has_explicit_depth(&self) -> bool {
         self.depth.is_some()
@@ -25,7 +25,9 @@ impl JoinConfig {
 
 /// Parses CRUD resource metadata from struct-level attributes.
 /// Looks for `#[crudcrate(...)]` attributes and extracts configuration.
-pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> Result<CRUDResourceMeta, syn::Error> {
+pub(crate) fn parse_crud_resource_meta(
+    attrs: &[syn::Attribute],
+) -> Result<CRUDResourceMeta, syn::Error> {
     let mut meta = CRUDResourceMeta::default();
 
     for attr in attrs {
@@ -91,7 +93,10 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> Result<CRUDR
                         }
                         #[cfg(not(feature = "debug"))]
                         {
-                            return Err(syn::Error::new_spanned(path, "debug_output requires --features debug"));
+                            return Err(syn::Error::new_spanned(
+                                path,
+                                "debug_output requires --features debug",
+                            ));
                         }
                     }
                 }
@@ -127,7 +132,7 @@ pub(crate) fn extract_table_name(attrs: &[syn::Attribute]) -> Option<String> {
 /// Given a field and a key (e.g. `"create_model"` or `"update_model"`),
 /// look for a `#[crudcrate(...)]` attribute on the field and return the boolean value
 /// associated with that key, if present.
-/// 
+///
 /// Supports multiple syntaxes:
 /// - `#[crudcrate(non_db_attr = true)]` (explicit boolean)
 /// - `#[crudcrate(non_db_attr)]` (implicit true)
@@ -138,7 +143,7 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
     if let Some(result) = check_exclude_config(field, key) {
         return Some(result); // check_exclude_config already returns the correct boolean for the model
     }
-    
+
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate")
             && let Meta::List(meta_list) = &attr.meta
@@ -148,11 +153,17 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                 .ok()?;
             for meta in metas {
                 match meta {
-                    // Explicit boolean: key = true/false
+                    // Explicit boolean: key = true/false (with deprecation warning for model exclusion)
                     Meta::NameValue(nv) if nv.path.is_ident(key) => {
                         if let syn::Expr::Lit(expr_lit) = &nv.value
                             && let Lit::Bool(b) = &expr_lit.lit
                         {
+                            // Emit deprecation error for old model exclusion syntax
+                            if (key == "create_model" || key == "update_model" || key == "list_model") && !b.value() {
+                                let error = create_deprecation_error(key, &nv.path);
+                                // Convert to compile error by panicking with structured error message
+                                panic!("Compilation failed: {}", error.to_string());
+                            }
                             return Some(b.value());
                         }
                     }
@@ -174,26 +185,35 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
     None
 }
 
-/// Check if a path represents a positive logic alias for model exclusion  
+/// Check if a path represents a positive logic alias for model exclusion
 fn check_positive_logic_alias(key: &str, path: &syn::Path) -> Option<bool> {
     match key {
         "create_model" => {
-            if path.is_ident("exclude_create") || path.is_ident("skip_create") || path.is_ident("no_create") {
-                Some(false)  // These aliases mean create_model = false
+            if path.is_ident("exclude_create")
+                || path.is_ident("skip_create")
+                || path.is_ident("no_create")
+            {
+                Some(false) // These aliases mean create_model = false
             } else {
                 None
             }
         }
         "update_model" => {
-            if path.is_ident("exclude_update") || path.is_ident("skip_update") || path.is_ident("no_update") {
-                Some(false)  // These aliases mean update_model = false
+            if path.is_ident("exclude_update")
+                || path.is_ident("skip_update")
+                || path.is_ident("no_update")
+            {
+                Some(false) // These aliases mean update_model = false
             } else {
                 None
             }
         }
         "list_model" => {
-            if path.is_ident("exclude_list") || path.is_ident("skip_list") || path.is_ident("no_list") {
-                Some(false)  // These aliases mean list_model = false
+            if path.is_ident("exclude_list")
+                || path.is_ident("skip_list")
+                || path.is_ident("no_list")
+            {
+                Some(false) // These aliases mean list_model = false
             } else {
                 None
             }
@@ -207,23 +227,45 @@ fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate")
             && let Meta::List(meta_list) = &attr.meta
-            && let Ok(metas) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+            && let Ok(metas) =
+                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
         {
             for meta in metas {
                 if let Meta::List(list_meta) = meta
                     && list_meta.path.is_ident("exclude")
-                    && let Some(is_excluded) = parse_exclude_parameters(&list_meta, key) {
-                        return Some(!is_excluded); // If excluded, return false for the model
-                    }
+                    && let Some(is_excluded) = parse_exclude_parameters(&list_meta, key)
+                {
+                    return Some(!is_excluded); // If excluded, return false for the model
+                }
             }
         }
     }
     None
 }
 
+/// Create a deprecation error for old model exclusion syntax
+fn create_deprecation_error(key: &str, path: &syn::Path) -> syn::Error {
+    let new_syntax = match key {
+        "create_model" => "exclude(create)",
+        "update_model" => "exclude(update)", 
+        "list_model" => "exclude(list)",
+        _ => "exclude(...)",
+    };
+    
+    syn::Error::new_spanned(
+        path,
+        format!(
+            "The `{} = false` syntax is deprecated. Use `{}` instead for cleaner, more idiomatic code.",
+            key, new_syntax
+        )
+    )
+}
+
 /// Parse exclude(...) parameters to check if a specific model type is excluded
 fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Option<bool> {
-    if let Ok(nested_metas) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+    if let Ok(nested_metas) =
+        Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
         for meta in nested_metas {
             if let Meta::Path(path) = meta {
                 let excluded_type = if path.is_ident("create") {
@@ -235,7 +277,7 @@ fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Opti
                 } else {
                     continue;
                 };
-                
+
                 if excluded_type == target_key {
                     return Some(true); // This model type is excluded
                 }
@@ -281,10 +323,10 @@ pub(crate) fn get_string_from_attr(attr: &syn::Attribute) -> Option<String> {
 
 /// Checks if a field has a specific flag attribute.
 /// For example, `#[crudcrate(primary_key)]` or `#[crudcrate(sortable, filterable)]`.
-/// 
+///
 /// Also supports convenience aliases for clearer semantics:
 /// - `exclude_create` → `create_model = false`
-/// - `exclude_update` → `update_model = false`  
+/// - `exclude_update` → `update_model = false`
 /// - `exclude_list` → `list_model = false`
 pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
     for attr in &field.attrs {
@@ -309,9 +351,19 @@ pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
 fn is_alias_for(flag: &str, path: &syn::Path) -> bool {
     match flag {
         // Support positive logic aliases that map to negative model flags
-        "create_model_false" => path.is_ident("exclude_create") || path.is_ident("skip_create") || path.is_ident("no_create"),
-        "update_model_false" => path.is_ident("exclude_update") || path.is_ident("skip_update") || path.is_ident("no_update"), 
-        "list_model_false" => path.is_ident("exclude_list") || path.is_ident("skip_list") || path.is_ident("no_list"),
+        "create_model_false" => {
+            path.is_ident("exclude_create")
+                || path.is_ident("skip_create")
+                || path.is_ident("no_create")
+        }
+        "update_model_false" => {
+            path.is_ident("exclude_update")
+                || path.is_ident("skip_update")
+                || path.is_ident("no_update")
+        }
+        "list_model_false" => {
+            path.is_ident("exclude_list") || path.is_ident("skip_list") || path.is_ident("no_list")
+        }
         _ => false,
     }
 }
@@ -340,7 +392,7 @@ pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
 /// Parses the parameters inside join(...) function call
 fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
     let mut config = JoinConfig::default();
-    
+
     // Try parsing the tokens - if it fails, just return None instead of panicking
     match Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
         Ok(nested_metas) => {
@@ -370,7 +422,7 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
                             }
                         }
                     }
-                    _ => {}
+                    Meta::List(_) => {}
                 }
             }
         }
@@ -379,7 +431,7 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
             return None;
         }
     }
-    
+
     // Only return config if at least one join type is enabled
     if config.on_one || config.on_all {
         Some(config)
@@ -387,4 +439,3 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
         None
     }
 }
-

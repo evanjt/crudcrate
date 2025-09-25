@@ -50,27 +50,17 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     enum_field,                   // Enable enum filtering support
     use_target_models,            // Use target's models instead of full entity
     
-    // Model exclusion - Traditional syntax (still supported)
-    create_model = false,         // Exclude from Create model
-    update_model = false,         // Exclude from Update model
-    list_model = false,           // Exclude from List model
-    
-    // Function-style syntax
+    // Model exclusion - Function-style syntax (recommended)
     exclude(create),              // Exclude from Create model only
     exclude(update),              // Exclude from Update model only  
     exclude(list),                // Exclude from List model only
     exclude(create, update),      // Exclude from both Create and Update
     exclude(create, update, list), // Exclude from all models
     
-    // Positive logic aliases
-    exclude_create,               // Equivalent to create_model = false
-    exclude_update,               // Equivalent to update_model = false
-    exclude_list,                 // Equivalent to list_model = false
-    skip_create,                  // Alternative alias
-    skip_update,                  // Alternative alias
-    no_create,                    // Alternative alias
-    no_update,                    // Alternative alias
-    no_list,                      // Alternative alias
+    // Traditional boolean syntax (legacy, still supported)
+    create_model = false,         // Exclude from Create model
+    update_model = false,         // Exclude from Update model
+    list_model = false,           // Exclude from List model
     
     // Expression parameters
     on_create = Uuid::new_v4(),   // Auto-generate on create
@@ -223,7 +213,7 @@ mod ide_support {
         pub update_model: bool,
         pub list_model: bool,
         
-        // Model exclusion - Positive logic aliases
+        // Model exclusion - Legacy aliases (use exclude() function syntax instead)
         pub exclude_create: bool,
         pub exclude_update: bool,
         pub exclude_list: bool,
