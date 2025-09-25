@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
-use sea_orm::entity::prelude::*;
+use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use uuid::Uuid;
 
 /// Shared Todo model used by multiple examples
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, EntityToModels)]
 #[sea_orm(table_name = "todos")]
 #[crudcrate(api_struct = "Todo", description = "Simple todo management", generate_router)]
-pub struct TodoModel {
+pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
     pub id: Uuid,
@@ -20,9 +20,9 @@ pub struct TodoModel {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum TodoRelation {}
+pub enum Relation {}
 
-impl ActiveModelBehavior for TodoActiveModel {}
+impl ActiveModelBehavior for ActiveModel {}
 
 /// Common database setup for examples
 pub async fn setup_todo_database(database_url: &str) -> Result<DatabaseConnection, Box<dyn std::error::Error>> {

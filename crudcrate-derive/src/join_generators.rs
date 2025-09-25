@@ -1,10 +1,9 @@
-use super::field_analyzer::field_is_optional;
 use super::structs::EntityFieldAnalysis;
 use convert_case::{Case, Casing};
 use quote::{format_ident, quote};
 
 /// Helper function to determine if a type is Vec<T>
-fn is_vec_type(ty: &syn::Type) -> bool {
+pub fn is_vec_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last() {
             return segment.ident == "Vec";
@@ -12,61 +11,18 @@ fn is_vec_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// Generates join loading statements for direct queries (all join fields regardless of one/all flags)
-pub fn generate_join_loading_for_direct_query(analysis: &EntityFieldAnalysis) -> Vec<proc_macro2::TokenStream> {
-    let mut statements = Vec::new();
-    
-    // Process all join fields (both 'one' and 'all' flags)
-    let all_join_fields: Vec<_> = analysis.join_on_one_fields
-        .iter()
-        .chain(analysis.join_on_all_fields.iter())
-        .collect();
-    
-    for field in all_join_fields {
-        if let Some(field_name) = &field.ident {
-            // Check if this is a Vec<T> field or a single T field by analyzing the type
-            let is_vec_field = is_vec_type(&field.ty);
-            
-            if is_vec_field {
-                // Generate code for Vec<T> fields (has_many relationships)
-                let loading_stmt = quote! {
-                    // Load related entities for #field_name field
-                    let related_models = model.find_related(crate::Relation::#field_name).all(db).await.unwrap_or_default();
-                    let related_with_joins: Vec<_> = related_models.into_iter().map(|related_model| {
-                        related_model.into() // Convert to API struct
-                    }).collect();
-                    result.#field_name = related_with_joins;
-                };
-                statements.push(loading_stmt);
-            } else {
-                // Generate code for single T or Option<T> fields (belongs_to/has_one relationships)
-                let is_optional = field_is_optional(field);
-                if is_optional {
-                    let loading_stmt = quote! {
-                        // Load related entity for #field_name field (Option<T>)
-                        if let Ok(Some(related_model)) = model.find_related(crate::Relation::#field_name).one(db).await {
-                            result.#field_name = Some(related_model.into());
-                        }
-                    };
-                    statements.push(loading_stmt);
-                } else {
-                    let loading_stmt = quote! {
-                        // Load related entity for #field_name field (T)
-                        if let Ok(Some(related_model)) = model.find_related(crate::Relation::#field_name).one(db).await {
-                            result.#field_name = related_model.into();
-                        }
-                    };
-                    statements.push(loading_stmt);
-                }
-            }
-        }
-    }
-    
-    statements
+/// Generates join loading statements for direct queries (all join fields regardless of one/all flags)  
+/// NOTE: This is a placeholder implementation - full join functionality is still under development
+pub fn generate_join_loading_for_direct_query(_analysis: &EntityFieldAnalysis) -> Vec<proc_macro2::TokenStream> {
+    // For now, return empty statements until proper relation loading is implemented
+    vec![]
 }
 
 /// Generate single-level join loading implementation (no complex recursion for now)
+/// NOTE: This is a simplified implementation - complex join loading is still under development
+
 pub fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
+    
     // Check if there are any join fields at all
     if analysis.join_on_one_fields.is_empty() && analysis.join_on_all_fields.is_empty() {
         return quote! {
@@ -75,14 +31,67 @@ pub fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis)
     }
     
     // Generate generic single-level loading for all join fields
-    let join_loading_statements = generate_join_loading_for_direct_query(analysis);
+    let mut loading_statements = Vec::new();
+    let mut field_assignments = Vec::new();
+    
+    // Process ALL join fields for direct queries (both one and all)
+    let mut all_join_fields = analysis.join_on_one_fields.clone();
+    all_join_fields.extend(analysis.join_on_all_fields.iter());
+    
+    // Remove duplicates (in case a field has both join(one) and join(all))
+    all_join_fields.sort_by_key(|f| f.ident.as_ref().map(std::string::ToString::to_string).unwrap_or_default());
+    all_join_fields.dedup_by_key(|f| f.ident.as_ref().map(std::string::ToString::to_string).unwrap_or_default());
+    
+    for field in &all_join_fields {
+        if let Some(field_name) = &field.ident {
+            let is_vec_field = is_vec_type(&field.ty);
+            let entity_path = get_entity_path_from_field_type(&field.ty);
+            
+            if is_vec_field {
+                // Extract the inner type from Vec<T> to get the related entity name
+                let inner_type = extract_vec_inner_type(&field.ty);
+                
+                // For Vec<T> fields (has_many relationships)
+                loading_statements.push(quote! {
+                    let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                    let mut #field_name = Vec::new();
+                    for related_model in related_models {
+                        // Use recursive get_one to respect join loading for nested entities
+                        match #inner_type::get_one(db, related_model.id).await {
+                            Ok(loaded_entity) => #field_name.push(loaded_entity),
+                            Err(_) => #field_name.push(related_model.into()), // Fallback to simple conversion
+                        }
+                    }
+                });
+                field_assignments.push(quote! { result.#field_name = #field_name; });
+            } else {
+                // Extract the inner type from Option<T> or T
+                let inner_type = extract_option_or_direct_inner_type(&field.ty);
+                
+                // For single T or Option<T> fields (belongs_to/has_one relationships)
+                loading_statements.push(quote! {
+                    let #field_name = if let Ok(Some(related_model)) = model.find_related(#entity_path).one(db).await {
+                        // Use recursive get_one to respect join loading for nested entities
+                        match #inner_type::get_one(db, related_model.id).await {
+                            Ok(loaded_entity) => Some(loaded_entity),
+                            Err(_) => Some(related_model.into()), // Fallback to simple conversion
+                        }
+                    } else {
+                        None
+                    };
+                });
+                field_assignments.push(quote! { result.#field_name = #field_name; });
+            }
+        }
+    }
     
     quote! {
-        // Convert the base model to the API struct first
-        let mut result: Self = model.into();
+        // Load all join fields (single level only for now)
+        #(#loading_statements)*
         
-        // Load all related entities for join fields  
-        #(#join_loading_statements)*
+        // Create result struct with loaded join data
+        let mut result: Self = model.into();
+        #(#field_assignments)*
         
         Ok(result)
     }
@@ -124,35 +133,96 @@ pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::Token
 /// Generate join loading statements for all join(all) fields with recursive depth support
 pub fn generate_join_loading_for_all_fields(
     join_fields: &[&syn::Field], 
-    join_configs: &std::collections::HashMap<&syn::Field, crate::attribute_parser::JoinConfig>
+    join_configs: &std::collections::HashMap<&syn::Field, super::attribute_parser::JoinConfig>
 ) -> proc_macro2::TokenStream {
     let mut loading_statements = Vec::new();
-    
+
+    // Load all join data BEFORE converting the model
     for field in join_fields {
         if let Some(field_name) = &field.ident {
-            let _config = join_configs.get(field).unwrap_or(&Default::default());
             let is_vec_field = is_vec_type(&field.ty);
+            let entity_path = get_entity_path_from_field_type(&field.ty);
+            
+            // Get join configuration for this field
+            let default_config = Default::default();
+            let config = join_configs.get(field).unwrap_or(&default_config);
+            let depth = config.depth.unwrap_or(1);
             
             if is_vec_field {
-                let loading_stmt = quote! {
-                    // Load related entities for #field_name field (Vec<T>)
-                    let related_models = loaded_model.find_related(crate::Relation::#field_name).all(db).await.unwrap_or_default();
-                    let related_api_models: Vec<_> = related_models.into_iter().map(|m| m.into()).collect();
-                    loaded_model.#field_name = related_api_models;
-                };
-                loading_statements.push(loading_stmt);
+                // For Vec<T> fields (has_many relationships)
+                if depth > 1 {
+                    // Recursive loading: load related models, then call their get_one method for deeper loading
+                    let target_type = get_target_type_from_field(&field.ty);
+                    loading_statements.push(quote! {
+                        let #field_name: Vec<_> = {
+                            let related_models = sea_orm::ModelTrait::find_related(&model, #entity_path).all(db).await
+                                .unwrap_or_default();
+                            let mut loaded_items = Vec::new();
+                            for related_model in related_models {
+                                // For recursive loading with depth > 1, call the target's get_one method
+                                // This assumes the related model has an 'id' field (common case)
+                                if let Ok(fully_loaded) = #target_type::get_one(db, related_model.id).await {
+                                    loaded_items.push(fully_loaded);
+                                } else {
+                                    // Fallback to basic conversion if recursive loading fails
+                                    loaded_items.push(related_model.into());
+                                }
+                            }
+                            loaded_items
+                        };
+                    });
+                } else {
+                    // Single-level loading (current implementation)
+                    loading_statements.push(quote! {
+                        let #field_name: Vec<_> = sea_orm::ModelTrait::find_related(&model, #entity_path).all(db).await
+                            .unwrap_or_default()
+                            .into_iter().map(|related_model| related_model.into()).collect();
+                    });
+                }
             } else {
-                let loading_stmt = quote! {
-                    // Load related entity for #field_name field (single/Option<T>)
-                    if let Ok(Some(related_model)) = loaded_model.find_related(crate::Relation::#field_name).one(db).await {
-                        loaded_model.#field_name = Some(related_model.into());
-                    }
-                };
-                loading_statements.push(loading_stmt);
+                // For single T or Option<T> fields (belongs_to/has_one relationships)  
+                if depth > 1 {
+                    // Recursive loading for single fields
+                    let target_type = get_target_type_from_field(&field.ty);
+                    loading_statements.push(quote! {
+                        let #field_name = {
+                            if let Some(related_model) = sea_orm::ModelTrait::find_related(&model, #entity_path).one(db).await.ok().flatten() {
+                                // For recursive loading, call the target's get_one method
+                                if let Ok(fully_loaded) = #target_type::get_one(db, related_model.id).await {
+                                    Some(fully_loaded)
+                                } else {
+                                    Some(related_model.into())
+                                }
+                            } else {
+                                None
+                            }
+                        };
+                    });
+                } else {
+                    // Single-level loading
+                    loading_statements.push(quote! {
+                        let #field_name = sea_orm::ModelTrait::find_related(&model, #entity_path).one(db).await.ok()
+                            .flatten().map(|related_model| related_model.into());
+                    });
+                }
             }
         }
     }
     
+    // AFTER loading all join data, create the result struct and assign fields
+    loading_statements.push(quote! {
+        let mut loaded_model: Self = model.into();
+    });
+    
+    // Assign all loaded join fields
+    for field in join_fields {
+        if let Some(field_name) = &field.ident {
+            loading_statements.push(quote! {
+                loaded_model.#field_name = #field_name;
+            });
+        }
+    }
+
     quote! {
         #(#loading_statements)*
     }
@@ -187,7 +257,7 @@ pub fn get_target_type_from_field(field_type: &syn::Type) -> proc_macro2::TokenS
 
 /// Get entity path from field type for relationship loading
 pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    let target_type = get_target_type_from_field(field_type);
+    let _target_type = get_target_type_from_field(field_type);
     
     // Assume the entity is in a module with the same name as the type (lowercase)
     // This is a common pattern: Customer type -> customer::Entity

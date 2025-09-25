@@ -3,6 +3,7 @@ mod attribute_parser;
 mod field_analyzer;
 mod code_generator;
 mod join_generators;
+mod relation_validator;
 mod attributes;
 #[cfg(feature = "debug")]
 mod debug_output;
@@ -784,6 +785,9 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return e;
     }
 
+    // Generate compile-time validation for join relationships
+    let join_validation = relation_validator::generate_join_relation_validation(&field_analysis);
+
     // Check for cyclic dependencies and emit warnings if depth is not explicit
     let cyclic_warnings = field_analyzer::detect_cyclic_dependencies(&api_struct_name.to_string(), &field_analysis);
     if !cyclic_warnings.is_empty() {
@@ -846,6 +850,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         #from_impl
         #crud_impl
         #list_model
+        #join_validation
     };
 
     // Print debug output if requested (either via attribute or cargo feature)
