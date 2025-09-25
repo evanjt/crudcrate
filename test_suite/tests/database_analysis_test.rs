@@ -28,5 +28,5 @@ async fn test_index_analysis() {
     assert!(bulk_analysis.is_ok(), "Bulk analysis should work");
 
     // Test analyser initialization
-    crudcrate::database::ensure_all_analysers_registered();
+    crudcrate::database::ensure_all_analysers_registered().await;
 }

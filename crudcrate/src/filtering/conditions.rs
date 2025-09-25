@@ -92,56 +92,45 @@ fn apply_float_comparison(
     SimpleExpr::Custom(like_sql)
 }
 
-pub fn apply_filters<T: crate::traits::CRUDResource>(
-    filter_str: Option<String>,
+
+fn parse_filter_json(filter_str: Option<String>) -> HashMap<String, serde_json::Value> {
+    filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            eprintln!("Warning: Invalid JSON in filter string: {e}");
+            HashMap::new()
+        }
+    })
+}
+
+fn handle_fulltext_search<T: crate::traits::CRUDResource>(
+    filters: &HashMap<String, serde_json::Value>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
     backend: DatabaseBackend,
-) -> Condition {
-    // Parse the filter string into a HashMap
-    let filters: HashMap<String, serde_json::Value> =
-        filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                eprintln!("Warning: Invalid JSON in filter string: {e}");
-                HashMap::new()
-            }
-        });
-
-    let mut condition = Condition::all();
-    
-    // Check if there is a free-text search ("q") parameter
+) -> Option<Condition> {
     if let Some(q_value) = filters.get("q")
         && let Some(q_value_str) = q_value.as_str() {
-            // Try fulltext search first
-            if let Some(fulltext_condition) = build_fulltext_condition::<T>(q_value_str, backend) {
-                condition = condition.add(fulltext_condition);
-            } else {
-                // Fallback to original LIKE search on regular searchable columns
-                let mut or_conditions = Condition::any();
-                for (col_name, col) in searchable_columns {
-                    if T::is_enum_field(col_name) {
-                        // Cast enum fields to TEXT for LIKE operations
-                        match backend {
-                            DatabaseBackend::Postgres => {
-                                or_conditions = or_conditions.add(
-                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                        Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
-                                    ))
-                                    .like(format!("%{}%", q_value_str.to_uppercase())),
-                                );
-                            }
-                            _ => {
-                                // For SQLite/MySQL, treat enum as string
-                                or_conditions = or_conditions.add(
-                                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                        Expr::col(*col),
-                                    ))
-                                    .like(format!("%{}%", q_value_str.to_uppercase())),
-                                );
-                            }
-                        }
-                    } else {
-                        // Regular string columns
+        // Try fulltext search first
+        if let Some(fulltext_expr) = build_fulltext_condition::<T>(q_value_str, backend) {
+            return Some(Condition::all().add(fulltext_expr));
+        }
+        
+        // Fallback to original LIKE search on regular searchable columns
+        let mut or_conditions = Condition::any();
+        for (col_name, col) in searchable_columns {
+            if T::is_enum_field(col_name) {
+                // Cast enum fields to TEXT for LIKE operations
+                match backend {
+                    DatabaseBackend::Postgres => {
+                        or_conditions = or_conditions.add(
+                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
+                            ))
+                            .like(format!("%{}%", q_value_str.to_uppercase())),
+                        );
+                    }
+                    _ => {
+                        // For SQLite/MySQL, treat enum as string
                         or_conditions = or_conditions.add(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                 Expr::col(*col),
@@ -150,9 +139,150 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                         );
                     }
                 }
-                condition = condition.add(or_conditions);
+            } else {
+                // Regular string columns
+                or_conditions = or_conditions.add(
+                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                        Expr::col(*col),
+                    ))
+                    .like(format!("%{}%", q_value_str.to_uppercase())),
+                );
             }
         }
+        return Some(or_conditions);
+    }
+    None
+}
+
+fn process_string_filter<T: crate::traits::CRUDResource>(
+    key: &str,
+    string_value: &str,
+    column: impl sea_orm::ColumnTrait + Copy,
+    backend: DatabaseBackend,
+) -> Option<SimpleExpr> {
+    if !validate_field_value(string_value) {
+        return None;
+    }
+
+    let trimmed_value = string_value.trim();
+    if trimmed_value.is_empty() {
+        return None;
+    }
+
+    // Check if this field should use LIKE queries
+    if T::like_filterable_columns().contains(&key) {
+        return Some(build_like_condition(key, trimmed_value));
+    }
+    
+    if T::is_enum_field(key) {
+        // Handle enum fields with case-insensitive matching
+        return Some(match backend {
+            DatabaseBackend::Postgres => {
+                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                    Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
+                ))
+                .eq(trimmed_value.to_uppercase())
+            }
+            _ => {
+                // For SQLite/MySQL
+                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
+                    Expr::col(column),
+                ))
+                .eq(trimmed_value.to_uppercase())
+            }
+        });
+    }
+    
+    // Try to parse as UUID first
+    if let Ok(uuid_value) = Uuid::parse_str(trimmed_value) {
+        return Some(Expr::col(column).eq(uuid_value));
+    }
+    
+    // Case-insensitive string equality
+    Some(SimpleExpr::FunctionCall(
+        sea_orm::sea_query::Func::upper(Expr::col(column)),
+    )
+    .eq(trimmed_value.to_uppercase()))
+}
+
+fn process_number_filter(
+    key: &str,
+    number: &serde_json::Number,
+    column: impl sea_orm::ColumnTrait + Copy,
+    searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
+) -> Option<SimpleExpr> {
+    if let Some((base_field, operator)) = parse_comparison_operator(key) {
+        // Check if the base field exists in searchable columns
+        if searchable_columns
+            .iter()
+            .any(|(col_name, _)| *col_name == base_field)
+        {
+            if let Some(int_value) = number.as_i64() {
+                return Some(apply_numeric_comparison(
+                    base_field, operator, int_value,
+                ));
+            } else if let Some(float_value) = number.as_f64() {
+                return Some(apply_float_comparison(
+                    base_field, operator, float_value,
+                ));
+            }
+        }
+    } else {
+        // Regular number equality
+        if let Some(int_value) = number.as_i64() {
+            return Some(Expr::col(column).eq(int_value));
+        } else if let Some(float_value) = number.as_f64() {
+            return Some(Expr::col(column).eq(float_value));
+        }
+    }
+    None
+}
+
+fn process_array_filter(
+    array_values: &[serde_json::Value],
+    column: impl sea_orm::ColumnTrait + Copy,
+) -> Option<SimpleExpr> {
+    let mut values = Vec::new();
+    for array_value in array_values {
+        match array_value {
+            serde_json::Value::String(s) => {
+                if let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
+                    values.push(serde_json::Value::String(uuid_value.to_string()));
+                } else {
+                    values.push(array_value.clone());
+                }
+            }
+            _ => values.push(array_value.clone()),
+        }
+    }
+
+    if !values.is_empty() {
+        // Use IN operator for array values
+        let in_values: Vec<String> = values.into_iter()
+            .filter_map(|v| match v {
+                serde_json::Value::String(s) => Some(s),
+                serde_json::Value::Number(n) => Some(n.to_string()),
+                serde_json::Value::Bool(b) => Some(b.to_string()),
+                _ => None,
+            })
+            .collect();
+        return Some(Expr::col(column).is_in(in_values));
+    }
+    None
+}
+
+pub fn apply_filters<T: crate::traits::CRUDResource>(
+    filter_str: Option<String>,
+    searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
+    backend: DatabaseBackend,
+) -> Condition {
+    let filters = parse_filter_json(filter_str);
+    let mut condition = Condition::all();
+    
+    // Handle fulltext search
+    if let Some(fulltext_condition) = handle_fulltext_search::<T>(&filters, searchable_columns, backend) {
+        condition = condition.add(fulltext_condition);
+    }
 
     // Process other filters (excluding 'q')
     for (key, value) in &filters {
@@ -173,116 +303,27 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 
         if let Some(column) = column_opt {
             // Handle different value types
-            match value {
+            let filter_condition = match value {
                 serde_json::Value::String(string_value) => {
-                    if !validate_field_value(string_value) {
-                        continue;
-                    }
-
-                    let trimmed_value = string_value.trim();
-                    if trimmed_value.is_empty() {
-                        continue;
-                    }
-
-                    // Check if this field should use LIKE queries
-                    if T::like_filterable_columns().contains(&key.as_str()) {
-                        condition = condition.add(build_like_condition(key, trimmed_value));
-                    } else if T::is_enum_field(key) {
-                        // Handle enum fields with case-insensitive matching
-                        let enum_condition = match backend {
-                            DatabaseBackend::Postgres => {
-                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                    Expr::cast_as(Expr::col(*column), Alias::new("TEXT")),
-                                ))
-                                .eq(trimmed_value.to_uppercase())
-                            }
-                            _ => {
-                                // For SQLite/MySQL
-                                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                    Expr::col(*column),
-                                ))
-                                .eq(trimmed_value.to_uppercase())
-                            }
-                        };
-                        condition = condition.add(enum_condition);
-                    } else {
-                        // Try to parse as UUID first
-                        if let Ok(uuid_value) = Uuid::parse_str(trimmed_value) {
-                            condition = condition.add(Expr::col(*column).eq(uuid_value));
-                        } else {
-                            // Case-insensitive string equality
-                            let string_condition = SimpleExpr::FunctionCall(
-                                sea_orm::sea_query::Func::upper(Expr::col(*column)),
-                            )
-                            .eq(trimmed_value.to_uppercase());
-                            condition = condition.add(string_condition);
-                        }
-                    }
+                    process_string_filter::<T>(key, string_value, *column, backend)
                 }
                 serde_json::Value::Number(number) => {
-                    if let Some((base_field, operator)) = parse_comparison_operator(key) {
-                        // Check if the base field exists in searchable columns
-                        if searchable_columns
-                            .iter()
-                            .any(|(col_name, _)| *col_name == base_field)
-                        {
-                            if let Some(int_value) = number.as_i64() {
-                                condition = condition.add(apply_numeric_comparison(
-                                    base_field, operator, int_value,
-                                ));
-                            } else if let Some(float_value) = number.as_f64() {
-                                condition = condition.add(apply_float_comparison(
-                                    base_field, operator, float_value,
-                                ));
-                            }
-                        }
-                    } else {
-                        // Regular number equality
-                        if let Some(int_value) = number.as_i64() {
-                            condition = condition.add(Expr::col(*column).eq(int_value));
-                        } else if let Some(float_value) = number.as_f64() {
-                            condition = condition.add(Expr::col(*column).eq(float_value));
-                        }
-                    }
+                    process_number_filter(key, number, *column, searchable_columns)
                 }
                 serde_json::Value::Bool(bool_value) => {
-                    condition = condition.add(Expr::col(*column).eq(*bool_value));
+                    Some(Expr::col(*column).eq(*bool_value))
                 }
                 serde_json::Value::Array(array_values) => {
-                    // Handle IN operations for arrays
-                    let mut values = Vec::new();
-                    for array_value in array_values {
-                        match array_value {
-                            serde_json::Value::String(s) => {
-                                if let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
-                                    values.push(serde_json::Value::String(uuid_value.to_string()));
-                                } else {
-                                    values.push(array_value.clone());
-                                }
-                            }
-                            _ => values.push(array_value.clone()),
-                        }
-                    }
-
-                    if !values.is_empty() {
-                        // Use IN operator for array values
-                        let in_values: Vec<String> = values.into_iter()
-                            .filter_map(|v| match v {
-                                serde_json::Value::String(s) => Some(s),
-                                serde_json::Value::Number(n) => Some(n.to_string()),
-                                serde_json::Value::Bool(b) => Some(b.to_string()),
-                                _ => None,
-                            })
-                            .collect();
-                        condition = condition.add(Expr::col(*column).is_in(in_values));
-                    }
+                    process_array_filter(array_values, *column)
                 }
                 serde_json::Value::Null => {
-                    condition = condition.add(Expr::col(*column).is_null());
+                    Some(Expr::col(*column).is_null())
                 }
-                _ => {
-                    // Skip unsupported value types
-                }
+                serde_json::Value::Object(_) => None, // Skip unsupported value types
+            };
+            
+            if let Some(filter_expr) = filter_condition {
+                condition = condition.add(filter_expr);
             }
         }
     }

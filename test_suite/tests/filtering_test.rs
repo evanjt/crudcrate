@@ -12,7 +12,7 @@ use common::{setup_test_db, setup_test_app, Customer};
 #[tokio::test]
 async fn test_filtering_and_sorting() {
     let db = setup_test_db().await.expect("Failed to setup test database");
-    let app = setup_test_app(db);
+    let app = setup_test_app(&db);
 
     // Create test data
     let customers = [
@@ -82,7 +82,7 @@ async fn test_filtering_and_sorting() {
 #[tokio::test]
 async fn test_fulltext_search() {
     let db = setup_test_db().await.expect("Failed to setup test database");  
-    let app = setup_test_app(db);
+    let app = setup_test_app(&db);
 
     // Create customer with searchable content
     let request = Request::builder()

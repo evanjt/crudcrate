@@ -1,22 +1,26 @@
 /// Join Loading Example
 ///
-/// Demonstrates automatic relationship loading with #[crudcrate(join(one, all))]
+/// Demonstrates automatic relationship loading with `#[crudcrate(join(one, all))]`
 /// Customer → Vehicle relationships are loaded automatically in API responses.
 ///
-/// Run with: cargo run --example recursive_join
+/// Run with: `cargo run --example recursive_join`
 use axum::Router;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, Set, entity::prelude::*,
 };
 use std::time::Duration;
-use tokio;
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
 // Import shared models with join configuration
 use crudcrate::traits::CRUDResource;
-use shared_models::*;
+use shared_models::{
+    Customer, CustomerEntity, CustomerColumn,
+    Vehicle, VehicleEntity,
+    VehiclePartEntity, MaintenanceRecordEntity,
+    customer, vehicle, vehicle_part, maintenance_record
+};
 
 // ============================================================================
 // DATABASE SETUP
@@ -52,31 +56,32 @@ async fn create_tables(db: &DatabaseConnection) {
     let stmt = schema.create_table_from_entity(CustomerEntity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ customers table created"),
-        Err(e) => println!("❌ Failed to create customers table: {:?}", e),
+        Err(e) => println!("❌ Failed to create customers table: {e:?}"),
     }
 
     println!("Creating vehicles table...");
     let stmt = schema.create_table_from_entity(VehicleEntity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ vehicles table created"),
-        Err(e) => println!("❌ Failed to create vehicles table: {:?}", e),
+        Err(e) => println!("❌ Failed to create vehicles table: {e:?}"),
     }
 
     println!("Creating vehicle_parts table...");
     let stmt = schema.create_table_from_entity(VehiclePartEntity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ vehicle_parts table created"),
-        Err(e) => println!("❌ Failed to create vehicle_parts table: {:?}", e),
+        Err(e) => println!("❌ Failed to create vehicle_parts table: {e:?}"),
     }
 
     println!("Creating maintenance_records table...");
     let stmt = schema.create_table_from_entity(MaintenanceRecordEntity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ maintenance_records table created"),
-        Err(e) => println!("❌ Failed to create maintenance_records table: {:?}", e),
+        Err(e) => println!("❌ Failed to create maintenance_records table: {e:?}"),
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn seed_data(db: &DatabaseConnection) {
     println!("🌱 Seeding comprehensive test data...");
 
@@ -152,8 +157,7 @@ async fn seed_data(db: &DatabaseConnection) {
             name: Set((*name).to_owned()),
             email: Set((*email).to_owned()),
             created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-            ..Default::default()
+            updated_at: Set(Utc::now())
         }
         .insert(db)
         .await
@@ -171,10 +175,9 @@ async fn seed_data(db: &DatabaseConnection) {
                 make: Set((*make).to_owned()),
                 model: Set((*model).to_owned()),
                 year: Set(*year),
-                vin: Set(format!("1HGBH41JXMN10918{}", vin_suffix)),
+                vin: Set(format!("1HGBH41JXMN10918{vin_suffix}")),
                 created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-                ..Default::default()
+                updated_at: Set(Utc::now())
             }
             .insert(db)
             .await
@@ -190,13 +193,12 @@ async fn seed_data(db: &DatabaseConnection) {
                     id: Set(Uuid::new_v4()),
                     vehicle_id: Set(vehicle_id),
                     name: Set((*name).to_owned()),
-                    part_number: Set(format!("{}-{}", part_number, vehicle_idx)),
+                    part_number: Set(format!("{part_number}-{vehicle_idx}")),
                     category: Set((*category).to_owned()),
                     price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())),
                     in_stock: Set(part_idx % 2 == 0), // Alternate stock status
                     created_at: Set(Utc::now()),
-                    updated_at: Set(Utc::now()),
-                    ..Default::default()
+                    updated_at: Set(Utc::now())
                 }
                 .insert(db)
                 .await
@@ -219,8 +221,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     mechanic_name: Set(Some((*mechanic).to_owned())),
                     completed: Set(maintenance_idx % 3 != 0), // Most completed, some pending
                     created_at: Set(Utc::now()),
-                    updated_at: Set(Utc::now()),
-                    ..Default::default()
+                    updated_at: Set(Utc::now())
                 }
                 .insert(db)
                 .await

@@ -60,6 +60,15 @@ fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
 }
 
 #[cfg(test)]
+fn is_optional_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last() {
+        return segment.ident == "Option";
+    }
+    false
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -92,16 +101,6 @@ mod tests {
         assert!(is_vec_type(&vec_type));
         assert!(!is_vec_type(&option_type));
         assert!(!is_vec_type(&plain_type));
-
-        // Test is_optional_type by manually checking the type
-        fn is_optional_type(ty: &syn::Type) -> bool {
-            if let syn::Type::Path(type_path) = ty {
-                if let Some(segment) = type_path.path.segments.last() {
-                    return segment.ident == "Option";
-                }
-            }
-            false
-        }
 
         assert!(!is_optional_type(&vec_type));
         assert!(is_optional_type(&option_type));

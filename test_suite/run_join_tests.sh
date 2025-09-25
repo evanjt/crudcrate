@@ -12,7 +12,7 @@ cargo test test_generic_join_vehicle_to_parts --features test_mode -- --nocaptur
 
 echo ""
 echo "================================================="
-echo "Test 2: Vehicle → Maintenance Records (Generic)"  
+echo "Test 2: Vehicle → Maintenance Records (Generic)"
 echo "================================================="
 cargo test test_generic_join_vehicle_to_maintenance_records --features test_mode -- --nocapture
 

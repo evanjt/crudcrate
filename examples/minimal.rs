@@ -16,6 +16,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_scalar::{Scalar, Servable};
 
+#[allow(clippy::needless_for_each)]
 #[derive(OpenApi)]
 #[openapi()]
 struct ApiDoc;

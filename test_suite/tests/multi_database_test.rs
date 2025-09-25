@@ -12,7 +12,7 @@ use common::{setup_test_db, setup_test_app, Customer};
 #[tokio::test]
 async fn test_basic_crud_multi_database() {
     let db = setup_test_db().await.expect("Failed to setup test database");
-    let app = setup_test_app(db);
+    let app = setup_test_app(&db);
 
     // Test basic CRUD operations that should work on all databases
     
@@ -53,7 +53,7 @@ async fn test_basic_crud_multi_database() {
     let get_one_response = app.clone().oneshot(
         Request::builder()
             .method("GET")
-            .uri(&format!("/customers/{}", created_customer.id))
+            .uri(format!("/customers/{}", created_customer.id))
             .body(Body::empty())
             .unwrap()
     ).await.unwrap();
@@ -64,7 +64,7 @@ async fn test_basic_crud_multi_database() {
     let update_response = app.clone().oneshot(
         Request::builder()
             .method("PUT")
-            .uri(&format!("/customers/{}", created_customer.id))
+            .uri(format!("/customers/{}", created_customer.id))
             .header("content-type", "application/json")
             .body(Body::from(json!({
                 "name": "Updated Multi DB Test",
@@ -79,7 +79,7 @@ async fn test_basic_crud_multi_database() {
     let delete_response = app.oneshot(
         Request::builder()
             .method("DELETE")
-            .uri(&format!("/customers/{}", created_customer.id))
+            .uri(format!("/customers/{}", created_customer.id))
             .body(Body::empty())
             .unwrap()
     ).await.unwrap();
@@ -90,7 +90,7 @@ async fn test_basic_crud_multi_database() {
 #[tokio::test]
 async fn test_filtering_multi_database() {
     let db = setup_test_db().await.expect("Failed to setup test database");
-    let app = setup_test_app(db);
+    let app = setup_test_app(&db);
 
     // Create test data
     let test_customers = [

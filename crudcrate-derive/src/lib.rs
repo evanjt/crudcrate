@@ -752,6 +752,13 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 ///
 /// impl ActiveModelBehavior for ActiveModel {}
 /// ```
+/// 
+/// # Panics
+/// 
+/// This function will panic in the following cases:
+/// - When deprecated syntax is used (e.g., `create_model = false` instead of `exclude(create)`)
+/// - When there are cyclic join dependencies without explicit depth specification
+/// - When required Sea-ORM relation enums are missing for join fields
 #[proc_macro_derive(EntityToModels, attributes(crudcrate))]
 pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

@@ -13,7 +13,7 @@ use common::{setup_test_db, setup_test_app, Customer};
 async fn test_customer_crud_operations() {
     // Setup test database and router
     let db = setup_test_db().await.expect("Failed to setup test database");
-    let app = setup_test_app(db);
+    let app = setup_test_app(&db);
 
     // Test 1: Create a customer
     let create_data = json!({
@@ -34,9 +34,9 @@ async fn test_customer_crud_operations() {
     
     // Debug: Print response status and body if not created
     if status != StatusCode::CREATED {
-        eprintln!("Create request failed with status: {}", status);
+        eprintln!("Create request failed with status: {status}");
         eprintln!("Response body: {}", String::from_utf8_lossy(&body));
-        panic!("Expected 201 Created, got {}", status);
+        panic!("Expected 201 Created, got {status}");
     }
     
     assert_eq!(status, StatusCode::CREATED);
@@ -51,7 +51,7 @@ async fn test_customer_crud_operations() {
     // Test 2: Get the created customer
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/customers/{}", customer_id))
+        .uri(format!("/customers/{customer_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -73,7 +73,7 @@ async fn test_customer_crud_operations() {
 
     let request = Request::builder()
         .method("PUT")
-        .uri(&format!("/customers/{}", customer_id))
+        .uri(format!("/customers/{customer_id}"))
         .header("content-type", "application/json")
         .body(Body::from(update_data.to_string()))
         .unwrap();
@@ -108,7 +108,7 @@ async fn test_customer_crud_operations() {
     // Test 5: Delete the customer
     let request = Request::builder()
         .method("DELETE")
-        .uri(&format!("/customers/{}", customer_id))
+        .uri(format!("/customers/{customer_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -118,7 +118,7 @@ async fn test_customer_crud_operations() {
     // Test 6: Verify customer is deleted (should return 404)
     let request = Request::builder()
         .method("GET")
-        .uri(&format!("/customers/{}", customer_id))
+        .uri(format!("/customers/{customer_id}"))
         .body(Body::empty())
         .unwrap();
 

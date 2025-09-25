@@ -198,6 +198,7 @@ mod ide_support {
     }
     
     /// Field-level crudcrate attribute options
+    #[allow(clippy::struct_excessive_bools)]
     pub struct CrudcrateField {
         // Core boolean flags
         pub primary_key: bool,

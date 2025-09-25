@@ -185,7 +185,7 @@ pub(crate) fn detect_cyclic_dependencies(
             // If the join field type is the same as the current type, it's a direct cycle
             // Also check for "Model" which is a self-reference in the current struct context
             if (target_type_name == current_type || target_type_name == "Model")
-                && join_config.as_ref().map(|c| !c.has_explicit_depth()).unwrap_or(true)
+                && join_config.as_ref().is_none_or(|c| !c.has_explicit_depth())
                     && let Some(field_name) = &field.ident {
                         let warning = syn::Error::new_spanned(
                             field,
@@ -193,7 +193,7 @@ pub(crate) fn detect_cyclic_dependencies(
                                 "Potential cyclic dependency detected: {} -> {} -> {}. \
                                 This will be limited to depth={} by default. \
                                 To remove this warning, specify explicit depth: #[crudcrate(join(one, all, depth=N))]",
-                                current_type, field_name, target_type_name, join_config.as_ref().map(|c| c.effective_depth()).unwrap_or(3)
+                                current_type, field_name, target_type_name, join_config.as_ref().map_or(3, super::attribute_parser::JoinConfig::effective_depth)
                             )
                         );
                         warnings.push(warning);

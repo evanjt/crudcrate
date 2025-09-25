@@ -165,6 +165,6 @@ fn test_field_name_conversion() {
             .collect();
         
         assert_eq!(converted, expected);
-        println!("Field name conversion works: {} -> {}", input, converted);
+        println!("Field name conversion works: {input} -> {converted}");
     }
 }

@@ -12,7 +12,7 @@ use common::{setup_test_db, setup_test_app, Customer};
 #[tokio::test]
 async fn test_relationship_loading() {
     let db = setup_test_db().await.expect("Failed to setup test database");
-    let app = setup_test_app(db);
+    let app = setup_test_app(&db);
 
     // Create a customer
     let customer_request = Request::builder()
@@ -48,7 +48,7 @@ async fn test_relationship_loading() {
     // Test relationship loading: Get customer with vehicles loaded
     let get_customer_request = Request::builder()
         .method("GET")
-        .uri(&format!("/customers/{}", created_customer.id))
+        .uri(format!("/customers/{}", created_customer.id))
         .body(Body::empty())
         .unwrap();
 

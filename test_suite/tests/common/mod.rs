@@ -6,9 +6,8 @@ use tokio::sync::Mutex;
 // Re-export shared models for easy access
 pub use shared_models::{
     Customer, CustomerEntity,
-    Vehicle, VehicleEntity, 
-    VehiclePart, VehiclePartEntity,
-    MaintenanceRecord, MaintenanceRecordEntity,
+    Vehicle, VehicleEntity,
+    VehiclePartEntity, MaintenanceRecordEntity
 };
 
 // Global mutex to serialize database setup for PostgreSQL to avoid race conditions
@@ -56,11 +55,11 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
 }
 
 #[allow(dead_code)]
-pub fn setup_test_app(db: DatabaseConnection) -> Router {
+pub fn setup_test_app(db: &DatabaseConnection) -> Router {
     // Create a simple router that uses the generated CRUD endpoints from shared_models  
     Router::new()
-        .nest("/customers", Customer::router(&db).into())
-        .nest("/vehicles", Vehicle::router(&db).into())
+        .nest("/customers", Customer::router(db).into())
+        .nest("/vehicles", Vehicle::router(db).into())
 }
 
 // Customer-Vehicle-Parts Migrator for testing

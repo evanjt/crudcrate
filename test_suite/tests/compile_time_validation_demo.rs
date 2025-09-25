@@ -3,8 +3,6 @@
 
 #[cfg(test)]
 mod demonstration {
-    use crudcrate::EntityToModels;
-    use sea_orm::entity::prelude::*;
     
     #[test]
     fn test_validation_prevents_runtime_segfaults() {
