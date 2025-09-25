@@ -48,7 +48,7 @@ use uuid::Uuid;
 #[crudcrate(api_struct = "BenchmarkPost", active_model = "ActiveModel")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
 
     #[crudcrate(fulltext, filterable, sortable)]
@@ -77,7 +77,7 @@ pub struct Model {
     #[crudcrate(filterable, sortable)]
     pub priority: i32,
 
-    #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now())]
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
 }
 

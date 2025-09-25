@@ -3,7 +3,7 @@ use super::field_analyzer::{
     extract_inner_type_for_update, field_is_optional, resolve_target_models,
     resolve_target_models_with_list,
 };
-use super::join_generators;
+// join_generators functionality consolidated into this file to avoid duplicate/stub implementations
 use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use convert_case::{Case, Casing};
 use quote::{ToTokens, format_ident, quote};
@@ -569,7 +569,7 @@ fn generate_join_loading_for_direct_query(analysis: &EntityFieldAnalysis) -> Vec
 }
 
 /// Helper function to determine if a type is Vec<T>
-fn is_vec_type(ty: &syn::Type) -> bool {
+pub fn is_vec_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last() {
             return segment.ident == "Vec";
@@ -577,8 +577,8 @@ fn is_vec_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// Generate single-level join loading implementation (no complex recursion for now)
-fn generate_recursive_loading_implementation_local(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
+/// Generate recursive join loading implementation
+fn generate_recursive_loading_implementation(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     // Check if there are any join fields at all
     if analysis.join_on_one_fields.is_empty() && analysis.join_on_all_fields.is_empty() {
         return quote! {
@@ -679,7 +679,7 @@ fn generate_method_impls(
             let _join_loading_statements = generate_join_loading_for_direct_query(analysis);
             
             // Generate the actual recursive loading implementation
-            let recursive_loading_code = generate_recursive_loading_implementation_local(analysis);
+            let recursive_loading_code = generate_recursive_loading_implementation(analysis);
             
             quote! {
                 async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
@@ -739,7 +739,7 @@ fn generate_method_impls(
             
             if has_all_joins {
                 // Generate join loading code for ALL join(all) fields dynamically
-                let join_loading_statements = generate_join_loading_for_all_fields(&analysis.join_on_all_fields, &analysis.join_configs);
+                let join_loading_statements = generate_join_loading_for_all_fields(&analysis.join_on_all_fields);
                 
                 // Generate get_all with dynamic join loading for any join(all) fields
                 quote! {
@@ -906,6 +906,7 @@ fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStre
 }
 
 /// Generates optimized `get_all` implementation with selective column fetching when needed
+#[allow(dead_code)]
 fn generate_optimized_get_all_impl(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     // Check if there are fields excluded from ListModel (list_model = false)
     let has_excluded_list_fields = analysis
@@ -1179,6 +1180,7 @@ pub(crate) fn generate_list_from_model_assignments(
 }
 
 /// Generate helper methods for join loading
+#[allow(dead_code)]
 fn generate_join_helper_methods(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     // Only generate if there are join(all) fields
     if analysis.join_on_all_fields.is_empty() {
@@ -1190,7 +1192,7 @@ fn generate_join_helper_methods(analysis: &EntityFieldAnalysis) -> proc_macro2::
 
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident {
-            let is_vec_field = join_generators::is_vec_type(&field.ty);
+            let is_vec_field = is_vec_type(&field.ty);
             
             if is_vec_field {
                 // Extract the target entity from Vec<TargetType>
@@ -1232,20 +1234,23 @@ fn generate_join_helper_methods(analysis: &EntityFieldAnalysis) -> proc_macro2::
 
 /// Generate join loading statements for all join(all) fields with recursive depth support
 fn generate_join_loading_for_all_fields(
-    join_fields: &[&syn::Field], 
-    join_configs: &std::collections::HashMap<&syn::Field, crate::attribute_parser::JoinConfig>
+    join_fields: &[&syn::Field]
 ) -> proc_macro2::TokenStream {
     let mut loading_statements = Vec::new();
 
     // Load all join data BEFORE converting the model
     for field in join_fields {
         if let Some(field_name) = &field.ident {
-            let is_vec_field = join_generators::is_vec_type(&field.ty);
+            let is_vec_field = is_vec_type(&field.ty);
             let entity_path = get_entity_path_from_field_type(&field.ty);
             
-            // Get join configuration for this field
-            let join_config = join_configs.get(field);
-            let depth = join_config.and_then(|c| c.depth).unwrap_or(1);
+            // Get depth directly from field attributes
+            use super::attribute_parser::get_join_config;
+            let depth = if let Some(join_config) = get_join_config(field) {
+                join_config.depth.unwrap_or(1)
+            } else {
+                1
+            };
             
             if is_vec_field {
                 // For Vec<T> fields (has_many relationships)
@@ -1327,7 +1332,7 @@ fn generate_join_loading_for_all_fields(
     }
 }
 
-/// Extract the target API struct type from a field (Vec<Vehicle> -> Vehicle)
+/// Extract the target API struct type from a field (Vec<T> -> T)
 fn get_target_type_from_field(field_type: &syn::Type) -> proc_macro2::TokenStream {
     // Extract the target type from Vec<T> or T or Option<T>
     

@@ -52,7 +52,7 @@ pub fn generate_join_relation_validation(
 }
 
 /// Convert a field name to the expected relation variant name
-/// Example: "vehicles" -> "Vehicles", "`maintenance_records`" -> "`MaintenanceRecords`" 
+/// Example: "entities" -> "Entities", "`related_items`" -> "`RelatedItems`" 
 fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
     let field_str = field_name.to_string();
     // Convert to PascalCase for relation variant name
@@ -66,14 +66,14 @@ mod tests {
     #[test]
     fn test_field_name_to_relation_variant() {
         use quote::format_ident;
-        assert_eq!(field_name_to_relation_variant(&format_ident!("vehicles")), "Vehicles");
-        assert_eq!(field_name_to_relation_variant(&format_ident!("maintenance_records")), "MaintenanceRecords");
-        assert_eq!(field_name_to_relation_variant(&format_ident!("user")), "User");
+        assert_eq!(field_name_to_relation_variant(&format_ident!("entities")), "Entities");
+        assert_eq!(field_name_to_relation_variant(&format_ident!("related_items")), "RelatedItems");
+        assert_eq!(field_name_to_relation_variant(&format_ident!("item")), "Item");
     }
     
     #[test]
     fn test_type_validation_helpers() {
-        use crate::join_generators::is_vec_type;
+        use crate::macro_implementation::is_vec_type;
         
         let vec_type: syn::Type = syn::parse_quote!(Vec<String>);
         let option_type: syn::Type = syn::parse_quote!(Option<String>);

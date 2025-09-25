@@ -10,18 +10,18 @@ use super::vehicle::Vehicle;
 #[crudcrate(api_struct = "Customer", generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
     #[crudcrate(filterable, sortable)]
     pub name: String,
     #[crudcrate(filterable)]
     pub email: String,
-    #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now())]
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
-    #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now(), on_update = Utc::now())]
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, join(one, all, depth = 3))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 3))]
     pub vehicles: Vec<Vehicle>,
 }
 

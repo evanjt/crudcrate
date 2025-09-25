@@ -176,15 +176,16 @@ pub(crate) fn detect_cyclic_dependencies(
     
     let mut warnings = Vec::new();
     
-    // Check all join fields for potential cycles
-    for (field, join_config) in &field_analysis.join_configs {
+    // Check all join fields for potential cycles 
+    for field in &field_analysis.join_on_one_fields.iter().chain(field_analysis.join_on_all_fields.iter()).collect::<Vec<_>>() {
+        let join_config = super::attribute_parser::get_join_config(field);
         let inner_type = extract_inner_type(&field.ty);
         
         if let Some(target_type_name) = get_type_name(&inner_type) {
             // If the join field type is the same as the current type, it's a direct cycle
             // Also check for "Model" which is a self-reference in the current struct context
             if (target_type_name == current_type || target_type_name == "Model")
-                && !join_config.has_explicit_depth()
+                && join_config.as_ref().map(|c| !c.has_explicit_depth()).unwrap_or(true)
                     && let Some(field_name) = &field.ident {
                         let warning = syn::Error::new_spanned(
                             field,
@@ -192,7 +193,7 @@ pub(crate) fn detect_cyclic_dependencies(
                                 "Potential cyclic dependency detected: {} -> {} -> {}. \
                                 This will be limited to depth={} by default. \
                                 To remove this warning, specify explicit depth: #[crudcrate(join(one, all, depth=N))]",
-                                current_type, field_name, target_type_name, join_config.effective_depth()
+                                current_type, field_name, target_type_name, join_config.as_ref().map(|c| c.effective_depth()).unwrap_or(3)
                             )
                         );
                         warnings.push(warning);

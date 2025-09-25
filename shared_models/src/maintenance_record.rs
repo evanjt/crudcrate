@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[crudcrate(api_struct = "MaintenanceRecord", generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
 
     // Foreign key to vehicle
@@ -33,10 +33,10 @@ pub struct Model {
     #[crudcrate(filterable)]
     pub completed: bool,
 
-    #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now())]
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
 
-    #[crudcrate(sortable, create_model = false, update_model = false, on_create = Utc::now(), on_update = Utc::now())]
+    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 }
 

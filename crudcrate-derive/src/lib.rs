@@ -1,8 +1,8 @@
 mod structs;
 mod attribute_parser;
 mod field_analyzer;
-mod code_generator;
-mod join_generators;
+mod macro_implementation;
+// mod join_generators; // Removed - functions moved to macro_implementation.rs
 mod relation_validator;
 mod attributes;
 #[cfg(feature = "debug")]
@@ -199,7 +199,7 @@ fn analyze_entity_fields(
         fulltext_fields: Vec::new(),
         join_on_one_fields: Vec::new(),
         join_on_all_fields: Vec::new(),
-        join_configs: std::collections::HashMap::new(),
+        // join_configs: std::collections::HashMap::new(), // Removed due to HashMap key issues
     };
 
     for field in fields {
@@ -213,8 +213,7 @@ fn analyze_entity_fields(
             if join_config.on_all {
                 analysis.join_on_all_fields.push(field);
             }
-            // Store the join configuration for later use in recursive loading
-            analysis.join_configs.insert(field, join_config);
+            // Note: join_configs removed to avoid HashMap key issues with syn::Field
         }
         
         if is_non_db {
@@ -378,14 +377,14 @@ fn generate_conditional_crud_impl(
         || !analysis.fulltext_fields.is_empty();
 
     let crud_impl = if has_crud_resource_fields {
-        code_generator::generate_crud_resource_impl(api_struct_name, crud_meta, active_model_path, analysis, table_name)
+        macro_implementation::generate_crud_resource_impl(api_struct_name, crud_meta, active_model_path, analysis, table_name)
     } else {
         quote! {}
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
         eprintln!("DEBUG: Generating router for {api_struct_name}");
-        code_generator::generate_router_impl(api_struct_name)
+        macro_implementation::generate_router_impl(api_struct_name)
     } else {
         eprintln!("DEBUG: NOT generating router for {} - generate_router: {}, has_crud_resource_fields: {}", 
                   api_struct_name, crud_meta.generate_router, has_crud_resource_fields);
@@ -439,8 +438,8 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
 
     let active_model_type = extract_active_model_type(&input, name);
     let fields = extract_named_fields(&input);
-    let create_struct_fields = code_generator::generate_create_struct_fields(&fields);
-    let conv_lines = code_generator::generate_create_conversion_lines(&fields);
+    let create_struct_fields = macro_implementation::generate_create_struct_fields(&fields);
+    let conv_lines = macro_implementation::generate_create_conversion_lines(&fields);
 
     let expanded = quote! {
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -496,8 +495,8 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
 
     let active_model_type = extract_active_model_type(&input, name);
     let fields = extract_named_fields(&input);
-    let included_fields = code_generator::filter_update_fields(&fields);
-    let update_struct_fields = code_generator::generate_update_struct_fields(&included_fields);
+    let included_fields = macro_implementation::filter_update_fields(&fields);
+    let update_struct_fields = macro_implementation::generate_update_struct_fields(&included_fields);
     let (included_merge, excluded_merge) =
         generate_update_merge_code(&fields, &included_fields);
 
@@ -572,8 +571,8 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     let list_name = format_ident!("{}List", name);
 
     let fields = extract_named_fields(&input);
-    let list_struct_fields = code_generator::generate_list_struct_fields(&fields);
-    let list_from_assignments = code_generator::generate_list_from_assignments(&fields);
+    let list_struct_fields = macro_implementation::generate_list_struct_fields(&fields);
+    let list_from_assignments = macro_implementation::generate_list_from_assignments(&fields);
 
     let expanded = quote! {
         #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -818,9 +817,9 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     // Generate List model struct and implementation
     let list_name = format_ident!("{}List", &api_struct_name);
     let raw_fields = extract_named_fields(&input);
-    let list_struct_fields = code_generator::generate_list_struct_fields(&raw_fields);
-    let list_from_assignments = code_generator::generate_list_from_assignments(&raw_fields);
-    let list_from_model_assignments = code_generator::generate_list_from_model_assignments(&field_analysis);
+    let list_struct_fields = macro_implementation::generate_list_struct_fields(&raw_fields);
+    let list_from_assignments = macro_implementation::generate_list_from_assignments(&raw_fields);
+    let list_from_model_assignments = macro_implementation::generate_list_from_model_assignments(&field_analysis);
     
     let list_model = quote! {
         #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

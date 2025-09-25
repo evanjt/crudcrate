@@ -97,8 +97,8 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-#[sea_orm(table_name = "users")]
-#[crudcrate(api_struct = "User", generate_router)]
+#[sea_orm(table_name = "entities")]
+#[crudcrate(api_struct = "Entity", generate_router)]
 pub struct Model {
     // Function-style exclude syntax
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -126,14 +126,14 @@ use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
-struct Vehicle {}
+struct RelatedEntity {}
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-#[sea_orm(table_name = "customers")]
+#[sea_orm(table_name = "primary_entities")]
 #[crudcrate(
-    api_struct = "Customer",
+    api_struct = "PrimaryEntity",
     generate_router,
-    description = "Customer management with vehicle relationships"
+    description = "Primary entity with related entity relationships"
 )]
 pub struct Model {
     // Primary key with function-style exclude syntax
@@ -151,7 +151,7 @@ pub struct Model {
     // Recursive join with default depth (depth=3)
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all))]
-    pub vehicles: Vec<Vehicle>,
+    pub related_entities: Vec<RelatedEntity>,
     
     // Auto-managed timestamps
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]

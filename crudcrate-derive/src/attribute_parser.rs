@@ -242,7 +242,7 @@ fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Opti
             }
         }
     }
-    Some(false) // exclude() was found but target_key wasn't in it
+    None // exclude() was found but target_key wasn't in it, so no exclusion for this key
 }
 
 /// Given a field and a key (e.g. `"on_create"` or `"on_update"`), returns the expression

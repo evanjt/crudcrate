@@ -191,7 +191,7 @@ where
     /// #[crudcrate(api_struct = "TestItem", active_model = "ActiveModel")]
     /// pub struct Model {
     ///     #[sea_orm(primary_key, auto_increment = false)]
-    ///     #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+    ///     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     ///     pub id: Uuid,
     ///     #[crudcrate(filterable, sortable)]  // This should trigger index recommendation
     ///     pub name: String,

@@ -4,6 +4,7 @@ use sea_orm::{
 };
 use std::sync::atomic::AtomicBool;
 
+#[allow(dead_code)]
 static FULLTEXT_WARNING_SHOWN: AtomicBool = AtomicBool::new(false);
 
 // Basic safety limits
