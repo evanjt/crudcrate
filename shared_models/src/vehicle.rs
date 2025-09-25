@@ -28,10 +28,10 @@ pub struct Model {
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(all))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all))]
     pub parts: Vec<VehiclePart>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(all))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all))]
     pub maintenance_records: Vec<MaintenanceRecord>,
 }
 

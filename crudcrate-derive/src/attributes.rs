@@ -16,6 +16,10 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     // Boolean flags (use just the name, or name = true/false)
     generate_router,              // Auto-generate Axum router
     debug_output,                 // Print generated code (requires --features debug)
+    derive_partial_eq,            // Include PartialEq in generated structs (default: true)
+    derive_eq,                    // Include Eq in main API struct (default: false)
+    no_partial_eq,                // Exclude PartialEq from generated structs
+    no_eq,                        // Exclude Eq from generated structs
     
     // Named parameters
     api_struct = "CustomName",    // Override API struct name

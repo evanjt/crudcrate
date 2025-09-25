@@ -9,6 +9,7 @@ mod attributes;
 mod debug_output;
 
 use proc_macro::TokenStream;
+
 use quote::{ToTokens, format_ident, quote};
 use syn::parse::Parser;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, parse_macro_input, punctuated::Punctuated, token::Comma};
@@ -333,14 +334,34 @@ fn generate_api_struct(
     api_struct_name: &syn::Ident,
     api_struct_fields: &[proc_macro2::TokenStream],
     active_model_path: &str,
+    crud_meta: &structs::CRUDResourceMeta,
 ) -> proc_macro2::TokenStream {
+    // Build derive clause based on user preferences
+    let mut derives = vec![
+        quote!(Clone),
+        quote!(Debug),
+        quote!(ToSchema),
+        quote!(Serialize),
+        quote!(Deserialize),
+        quote!(ToUpdateModel),
+        quote!(ToCreateModel),
+    ];
+    
+    if crud_meta.derive_partial_eq {
+        derives.push(quote!(PartialEq));
+    }
+    
+    if crud_meta.derive_eq {
+        derives.push(quote!(Eq));
+    }
+    
     quote! {
         use sea_orm::ActiveValue;
         use utoipa::ToSchema;
         use serde::{Serialize, Deserialize};
         use crudcrate::{ToUpdateModel, ToCreateModel};
 
-        #[derive(Clone, Debug, PartialEq, Eq, ToSchema, Serialize, Deserialize, ToUpdateModel, ToCreateModel)]
+        #[derive(#(#derives),*)]
         #[active_model = #active_model_path]
         pub struct #api_struct_name {
             #(#api_struct_fields),*
@@ -810,7 +831,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let (api_struct_fields, from_model_assignments) =
         generate_api_struct_content(&field_analysis);
     let api_struct =
-        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path);
+        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta);
     let from_impl =
         generate_from_impl(struct_name, &api_struct_name, &from_model_assignments);
     let crud_impl = generate_conditional_crud_impl(

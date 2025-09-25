@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{EntityToModels, traits::CRUDResource};
+use crudcrate::{traits::CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 

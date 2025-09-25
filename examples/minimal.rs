@@ -8,15 +8,16 @@
 //! - **API**: <http://localhost:3000/todo>
 //! - **Documentation**: <http://localhost:3000/docs>
 
+#![allow(clippy::needless_for_each)]
+
 mod shared;
 
-use shared::{setup_todo_database, Todo};
+use shared::{Todo, setup_todo_database};
 use std::env;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_scalar::{Scalar, Servable};
 
-#[allow(clippy::needless_for_each)]
 #[derive(OpenApi)]
 #[openapi()]
 struct ApiDoc;

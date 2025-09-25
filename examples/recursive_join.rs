@@ -15,11 +15,10 @@ use uuid::Uuid;
 
 // Import shared models with join configuration
 use crudcrate::traits::CRUDResource;
+use sea_orm::{Condition, Order};
 use shared_models::{
-    Customer, CustomerEntity, CustomerColumn,
-    Vehicle, VehicleEntity,
-    VehiclePartEntity, MaintenanceRecordEntity,
-    customer, vehicle, vehicle_part, maintenance_record
+    Customer, CustomerColumn, CustomerEntity, MaintenanceRecordEntity, Vehicle, VehicleEntity,
+    VehiclePartEntity, customer, maintenance_record, vehicle, vehicle_part,
 };
 
 // ============================================================================
@@ -157,7 +156,7 @@ async fn seed_data(db: &DatabaseConnection) {
             name: Set((*name).to_owned()),
             email: Set((*email).to_owned()),
             created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now())
+            updated_at: Set(Utc::now()),
         }
         .insert(db)
         .await
@@ -177,7 +176,7 @@ async fn seed_data(db: &DatabaseConnection) {
                 year: Set(*year),
                 vin: Set(format!("1HGBH41JXMN10918{vin_suffix}")),
                 created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now())
+                updated_at: Set(Utc::now()),
             }
             .insert(db)
             .await
@@ -198,7 +197,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())),
                     in_stock: Set(part_idx % 2 == 0), // Alternate stock status
                     created_at: Set(Utc::now()),
-                    updated_at: Set(Utc::now())
+                    updated_at: Set(Utc::now()),
                 }
                 .insert(db)
                 .await
@@ -221,7 +220,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     mechanic_name: Set(Some((*mechanic).to_owned())),
                     completed: Set(maintenance_idx % 3 != 0), // Most completed, some pending
                     created_at: Set(Utc::now()),
-                    updated_at: Set(Utc::now())
+                    updated_at: Set(Utc::now()),
                 }
                 .insert(db)
                 .await
@@ -245,7 +244,7 @@ async fn main() {
     let db = setup_database().await;
 
     // Get the customer ID for testing
-    use sea_orm::{Condition, Order};
+
     let condition = Condition::all();
     let customers = Customer::get_all(&db, &condition, CustomerColumn::Name, Order::Asc, 0, 100)
         .await

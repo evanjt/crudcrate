@@ -61,6 +61,10 @@ pub(crate) fn parse_crud_resource_meta(
                                 let value = b.value();
                                 if nv.path.is_ident("generate_router") {
                                     meta.generate_router = value;
+                                } else if nv.path.is_ident("derive_partial_eq") {
+                                    meta.derive_partial_eq = value;
+                                } else if nv.path.is_ident("derive_eq") {
+                                    meta.derive_eq = value;
                                 }
                             }
                             _ => {}
@@ -86,6 +90,14 @@ pub(crate) fn parse_crud_resource_meta(
                 else if let Meta::Path(path) = item {
                     if path.is_ident("generate_router") {
                         meta.generate_router = true;
+                    } else if path.is_ident("derive_partial_eq") {
+                        meta.derive_partial_eq = true;
+                    } else if path.is_ident("derive_eq") {
+                        meta.derive_eq = true;
+                    } else if path.is_ident("no_partial_eq") {
+                        meta.derive_partial_eq = false;
+                    } else if path.is_ident("no_eq") {
+                        meta.derive_eq = false;
                     } else if path.is_ident("debug_output") {
                         #[cfg(feature = "debug")]
                         {

@@ -705,7 +705,7 @@ fn generate_get_one_impl(crud_meta: &CRUDResourceMeta, analysis: &EntityFieldAna
 }
 
 /// Generate `get_all` method implementation  
-fn generate_get_all_impl(crud_meta: &CRUDResourceMeta, _analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
+fn generate_get_all_impl(crud_meta: &CRUDResourceMeta, analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     if let Some(fn_path) = &crud_meta.fn_get_all {
         quote! {
             async fn get_all(
@@ -720,19 +720,124 @@ fn generate_get_all_impl(crud_meta: &CRUDResourceMeta, _analysis: &EntityFieldAn
             }
         }
     } else {
-        quote! {
-            // Default get_all implementation - placeholder
-            async fn get_all(
-                db: &sea_orm::DatabaseConnection,
-                condition: &sea_orm::Condition,
-                order_column: Self::ColumnType,
-                order_direction: sea_orm::Order,
-                offset: u64,
-                limit: u64,
-            ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
-                todo!("Implement default get_all")
+        // Check if there are join(all) fields that need loading
+        let has_join_all_fields = !analysis.join_on_all_fields.is_empty();
+        
+        if has_join_all_fields {
+            // Generate get_all with join loading
+            let join_loading = generate_get_all_join_loading(analysis);
+            
+            quote! {
+                async fn get_all(
+                    db: &sea_orm::DatabaseConnection,
+                    condition: &sea_orm::Condition,
+                    order_column: Self::ColumnType,
+                    order_direction: sea_orm::Order,
+                    offset: u64,
+                    limit: u64,
+                ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+                    use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
+                    
+                    let models = Self::EntityType::find()
+                        .filter(condition.clone())
+                        .order_by(order_column, order_direction)
+                        .offset(offset)
+                        .limit(limit)
+                        .all(db)
+                        .await?;
+                    
+                    let mut results = Vec::new();
+                    for model in models {
+                        #join_loading
+                        results.push(Self::ListModel::from(result));
+                    }
+                    Ok(results)
+                }
+            }
+        } else {
+            // Standard get_all without joins
+            quote! {
+                async fn get_all(
+                    db: &sea_orm::DatabaseConnection,
+                    condition: &sea_orm::Condition,
+                    order_column: Self::ColumnType,
+                    order_direction: sea_orm::Order,
+                    offset: u64,
+                    limit: u64,
+                ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+                    use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
+                    
+                    let models = Self::EntityType::find()
+                        .filter(condition.clone())
+                        .order_by(order_column, order_direction)
+                        .offset(offset)
+                        .limit(limit)
+                        .all(db)
+                        .await?;
+                    Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
+                }
             }
         }
+    }
+}
+
+/// Generate join loading logic for get_all method
+fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
+    let mut loading_statements = Vec::new();
+    let mut field_assignments = Vec::new();
+    
+    for field in &analysis.join_on_all_fields {
+        if let Some(field_name) = &field.ident {
+            let is_vec_field = is_vec_type(&field.ty);
+            let entity_path = get_entity_path_from_field_type(&field.ty);
+            
+            if is_vec_field {
+                // Extract the target type from Vec<TargetType> 
+                let target_type = extract_vec_inner_type(&field.ty);
+                
+                // For Vec<T> relationships, load all related models
+                loading_statements.push(quote! {
+                    let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                    let mut #field_name = Vec::new();
+                    for related_model in related_models {
+                        // Try recursive loading by calling the target type's get_one method
+                        match #target_type::get_one(db, related_model.id).await {
+                            Ok(loaded_entity) => #field_name.push(loaded_entity),
+                            Err(_) => #field_name.push(related_model.into()),
+                        }
+                    }
+                });
+                field_assignments.push(quote! { 
+                    result.#field_name = #field_name; 
+                });
+            } else {
+                // For single relationships (Option<T> or T), load one related model
+                let target_type = extract_option_or_direct_inner_type(&field.ty);
+                
+                loading_statements.push(quote! {
+                    let #field_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
+                        Some(related_model) => {
+                            // Try recursive loading by calling the target type's get_one method
+                            match #target_type::get_one(db, related_model.id).await {
+                                Ok(loaded_entity) => Some(loaded_entity),
+                                Err(_) => Some(related_model.into()),
+                            }
+                        }
+                        None => None,
+                    };
+                });
+                field_assignments.push(quote! { 
+                    result.#field_name = #field_name.unwrap_or_default(); 
+                });
+            }
+        }
+    }
+    
+    // Convert base model to API struct and assign join fields
+    quote! {
+        #(#loading_statements)*
+        let mut result: Self = model.into();
+        #(#field_assignments)*
     }
 }
 
@@ -746,9 +851,11 @@ fn generate_create_impl(crud_meta: &CRUDResourceMeta, _analysis: &EntityFieldAna
         }
     } else {
         quote! {
-            // Default create implementation - placeholder
+            // Default create implementation
             async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
-                todo!("Implement default create")
+                let active_model: Self::ActiveModelType = data.into();
+                let result = Self::EntityType::insert(active_model).exec(db).await?;
+                Self::get_one(db, result.last_insert_id.into()).await
             }
         }
     }
@@ -764,9 +871,22 @@ fn generate_update_impl(crud_meta: &CRUDResourceMeta, _analysis: &EntityFieldAna
         }
     } else {
         quote! {
-            // Default update implementation - placeholder
+            // Default update implementation
             async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, sea_orm::DbErr> {
-                todo!("Implement default update")
+                use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
+                use crudcrate::traits::MergeIntoActiveModel;
+                
+                let model = Self::EntityType::find_by_id(id)
+                    .one(db)
+                    .await?
+                    .ok_or(sea_orm::DbErr::RecordNotFound(format!(
+                        "{} not found",
+                        Self::RESOURCE_NAME_SINGULAR
+                    )))?;
+                let existing: Self::ActiveModelType = model.into_active_model();
+                let updated_model = data.merge_into_activemodel(existing)?;
+                let updated = updated_model.update(db).await?;
+                Ok(Self::from(updated))
             }
         }
     }
@@ -782,9 +902,18 @@ fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStrea
         }
     } else {
         quote! {
-            // Default delete implementation - placeholder
+            // Default delete implementation
             async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, sea_orm::DbErr> {
-                todo!("Implement default delete")
+                use sea_orm::EntityTrait;
+                
+                let res = Self::EntityType::delete_by_id(id).exec(db).await?;
+                match res.rows_affected {
+                    0 => Err(sea_orm::DbErr::RecordNotFound(format!(
+                        "{} not found",
+                        Self::RESOURCE_NAME_SINGULAR
+                    ))),
+                    _ => Ok(id),
+                }
             }
         }
     }
@@ -801,9 +930,15 @@ fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::Token
         }
     } else {
         quote! {
-            // Default delete_many implementation - placeholder
+            // Default delete_many implementation
             async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, sea_orm::DbErr> {
-                todo!("Implement default delete_many")
+                use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+                
+                Self::EntityType::delete_many()
+                    .filter(Self::ID_COLUMN.is_in(ids.clone()))
+                    .exec(db)
+                    .await?;
+                Ok(ids)
             }
         }
     }
