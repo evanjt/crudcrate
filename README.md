@@ -5,9 +5,9 @@
 [![Crates.io](https://img.shields.io/crates/v/crudcrate.svg)](https://crates.io/crates/crudcrate)
 [![Documentation](https://docs.rs/crudcrate/badge.svg)](https://docs.rs/crudcrate)
 
-**Zero-boilerplate CRUD APIs for Sea-ORM and Axum.**
+Tired of writing boilerplate for your APIs? Frustrated that your API models look almost identical to your database models, but you have to maintain both? What if you could get a complete CRUD API running in minutes, then customize only the parts that need special handling?
 
-Transform Sea-ORM entities into complete REST APIs with a single derive macro. Generate CRUD endpoints, type-safe models, and OpenAPI documentation automatically while working seamlessly alongside custom queries and handlers.
+**crudcrate** transforms your Sea-ORM entities into fully-featured REST APIs with one line of code.
 
 ```rust
 use crudcrate::EntityToModels;
@@ -17,636 +17,365 @@ use crudcrate::EntityToModels;
 pub struct Model {
     #[crudcrate(primary_key, exclude(create, update))]
     pub id: Uuid,
-    #[crudcrate(filterable, sortable, fulltext)]
+    #[crudcrate(filterable, sortable)]
     pub title: String,
     #[crudcrate(filterable)]
     pub completed: bool,
 }
 
-// Generates: Todo, TodoCreate, TodoUpdate + router() function with all CRUD endpoints
+// That's it. You now have:
+// - Complete CRUD endpoints (GET, POST, PUT, DELETE)
+// - Auto-generated API models (Todo, TodoCreate, TodoUpdate, TodoList)
+// - Filtering, sorting, and pagination
+// - OpenAPI documentation
 ```
 
-## Quick Start
+## The Problem We're Solving
 
-```bash
-cargo add crudcrate
-```
+You've been here before:
 
-### Database Support
+1. **Write your database model** - `Customer` with id, name, email, created_at
+2. **Create API response model** - Basically the same as Customer, but with serde attributes
+3. **Create request model for POST** - Same as Customer, but without id and created_at
+4. **Create update model for PUT** - Same as POST, but all fields optional
+5. **Write 6 HTTP handlers** - get_all, get_one, create, update, delete, delete_many
+6. **Wire up routes** - Map each handler to an endpoint
+7. **Add filtering logic** - Parse query params, build database conditions
+8. **Add pagination** - Calculate offsets, limit results
+9. **Add sorting** - Parse sort parameters, apply to queries
+10. **Add validation** - Make sure fields are correct types
+11. **Add error handling** - Return proper HTTP status codes
+12. **Add OpenAPI docs** - Document all endpoints manually
 
-Choose your database drivers to optimize binary size:
+And you repeat this for every single entity in your application.
 
-```toml
-# Default: SQLite only
-crudcrate = "0.4.1"
+## Our Solution
 
-# Single database (smallest binary)
-crudcrate = { version = "0.4.1", features = ["mysql"], default-features = false }
-
-# Multiple databases (runtime flexibility)
-crudcrate = { version = "0.4.1", features = ["mysql", "postgresql"] }
-```
-
-### Complete Working Example
+Let crudcrate handle the repetitive stuff:
 
 ```rust
-use crudcrate::EntityToModels;
-use sea_orm::entity::prelude::*;
-use uuid::Uuid;
-
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-#[sea_orm(table_name = "todos")]
+#[derive(EntityToModels)]
 #[crudcrate(generate_router)]
-pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
-    #[crudcrate(primary_key, exclude(create, update))]
+pub struct Customer {
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
-
-    #[crudcrate(filterable, sortable, fulltext)]
-    pub title: String,
-
+    #[crudcrate(filterable, sortable)]
+    pub name: String,
     #[crudcrate(filterable)]
-    pub completed: bool,
+    pub email: String,
+    #[crudcrete(exclude(create, update), on_create = Utc::now())]
+    pub created_at: DateTime<Utc>,
 }
 
-// Use the generated router
+// Just plug it in:
 let app = Router::new()
-    .nest("/api/todos", router(&db))  // Generated router function
-    .with_state(db);
+    .nest("/api/customers", Customer::router(&db));
 ```
 
-**Generated API endpoints:**
-- `GET /api/todos` - List with filtering, sorting, pagination
-- `GET /api/todos/{id}` - Get single item
-- `POST /api/todos` - Create new item  
-- `PUT /api/todos/{id}` - Update item
-- `DELETE /api/todos/{id}` - Delete item
-- `DELETE /api/todos/batch` - Batch delete
+**What you get instantly:**
 
-## 1. Auto-Generated CRUD Operations
+- `GET /api/customers` - List with filtering, sorting, pagination
+- `GET /api/customers/{id}` - Get single customer
+- `POST /api/customers` - Create new customer
+- `PUT /api/customers/{id}` - Update customer
+- `DELETE /api/customers/{id}` - Delete customer
+- Auto-generated `Customer`, `CustomerCreate`, `CustomerUpdate`, `CustomerList` models
+- Built-in filtering: `?filter={"name_like":"John"}`
+- Built-in sorting: `?sort=name&order=DESC` or `?sort=["name","DESC"]`
+- Built-in pagination: `?page=1&per_page=20` or `?range=[0,19]` (React Admin)
 
-Transform Sea-ORM entities into complete REST APIs with zero boilerplate.
+## But What If I Need Custom Logic?
 
-### Router Generation
-
-```rust
-#[crudcrate(generate_router)]
-pub struct Model { /* ... */ }
-
-// Creates a router() function with all CRUD endpoints
-let app = Router::new()
-    .nest("/api/todos", router(&db))
-    .with_state(db);
-```
-
-### Custom Function Injection
-
-Override default CRUD operations with custom logic:
+That's where crudcrate shines. You get the basics for free, but can override anything:
 
 ```rust
+// Need custom validation or permissions?
 #[crudcrate(fn_get_one = custom_get_one)]
-pub struct Model { /* ... */ }
+pub struct Customer { /* ... */ }
 
-async fn custom_get_one(db: &DatabaseConnection, id: Uuid) -> Result<Todo, DbErr> {
-    // Add permissions, caching, audit trails, etc.
-    Entity::find_by_id(id)
-        .filter(Column::UserId.eq(current_user_id()))
+async fn custom_get_one(db: &DatabaseConnection, id: Uuid) -> Result<Customer, DbErr> {
+    // Add your custom logic here
+    let customer = Entity::find_by_id(id)
+        .filter(Column::UserId.eq(current_user_id()))  // Permission check
         .one(db)
         .await?
-        .ok_or(DbErr::RecordNotFound("Todo not found"))
+        .ok_or(DbErr::RecordNotFound("Customer not found"))?;
+
+    // Add logging, caching, audit trails, etc.
+    log::info!("Customer {} accessed by user {}", id, current_user_id());
+
+    Ok(customer.into())
 }
 ```
 
-Available function overrides: `fn_get_one`, `fn_get_all`, `fn_create`, `fn_update`, `fn_delete`, `fn_delete_many`
+Override any operation: `fn_get_one`, `fn_get_all`, `fn_create`, `fn_update`, `fn_delete`, `fn_delete_many`
 
-### OpenAPI Documentation
+## Generated Models
 
-Automatic API documentation generation via utoipa integration:
-
-```rust
-#[crudcrate(description = "Task management system")]
-pub struct Model { /* ... */ }
-```
-
-## 2. Smart Model Generation
-
-Automatically creates Create/Update/List structs from your database model.
-
-### Generated Models
+One entity becomes four specialized models:
 
 ```rust
-// Your entity becomes 4 specialized models:
 #[derive(EntityToModels)]
 pub struct Model {
     pub id: Uuid,
     pub title: String,
     pub completed: bool,
+    pub secret_data: String,  // Sensitive field
 }
 
-// Generated:
-pub struct Todo {           // API response
+// Generated models:
+
+pub struct Todo {           // API responses (get_one)
     pub id: Uuid,
     pub title: String,
     pub completed: bool,
+    // secret_data excluded - sensitive info never sent to clients
 }
 
-pub struct TodoCreate {     // POST request body
+pub struct TodoCreate {     // POST requests (excluded fields omitted)
     pub title: String,
     pub completed: bool,
-    // id excluded automatically
+    // id and secret_data excluded automatically
 }
 
-pub struct TodoUpdate {     // PUT request body  
+pub struct TodoUpdate {     // PUT requests (all fields optional)
     pub title: Option<String>,
-    pub completed: Option<Option<bool>>,
-    // Option<Option<T>> distinguishes "don't update" vs "set to null"
+    pub completed: Option<bool>,
+    // id excluded, secret_data excluded unless you override
+}
+
+pub struct TodoList {       // List responses (can exclude expensive fields)
+    pub id: Uuid,
+    pub title: String,
+    pub completed: bool,
+    // secret_data excluded to avoid leaking sensitive info in lists
 }
 ```
 
-### Model Control
+## Real-World Features You'll Actually Use
+
+### Smart Filtering
 
 ```rust
-// Function-style syntax
-#[crudcrate(exclude(create, update))]    // Exclude from Create and Update
-pub id: Uuid,
-
-// Boolean syntax (equivalent)
-#[crudcrate(create_model = false, update_model = false)]
-pub id: Uuid,
-
-// Auto-generation
-#[crudcrate(on_create = Uuid::new_v4(), on_update = Utc::now())]
-pub updated_at: DateTime<Utc>,
-```
-
-### Timestamp Management
-
-```rust
-// Auto-managed timestamps
-#[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
-pub created_at: DateTime<Utc>,
-
-#[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
-pub updated_at: DateTime<Utc>,
-```
-
-## 3. Advanced Filtering & Search
-
-Rich query parameter handling with database-optimized fulltext search.
-
-### Basic Filtering
-
-```bash
-# Simple equality filters
-GET /api/todos?filter={"completed":false,"priority":"high"}
-
-# Numeric comparisons
-GET /api/todos?filter={"priority_gte":3,"due_date_lt":"2024-01-01"}
-
-# List operations (IN queries)
-GET /api/todos?filter={"id":["uuid1","uuid2","uuid3"]}
-```
-
-### Fulltext Search
-
-Multi-field search with automatic database optimizations:
-
-```rust
-#[crudcrate(filterable, fulltext)]
+#[crudcrate(filterable, sortable, fulltext)]
 pub title: String,
-
-#[crudcrate(filterable, fulltext)]
-pub content: String,
+#[crudcrate(filterable)]
+pub priority: i32,
 ```
+
+Your users can now:
 
 ```bash
-# Search across all fulltext fields
-GET /api/todos?filter={"q":"important meeting"}
+# Exact matches
+GET /api/tasks?filter={"completed":false,"priority":3}
+
+# Numeric ranges
+GET /api/tasks?filter={"priority_gte":2,"priority_lte":5}
+
+# Text search across all searchable fields
+GET /api/tasks?filter={"q":"urgent review"}
+
+# Combine filters
+GET /api/tasks?filter={"completed":false,"priority_gte":3,"q":"urgent"}
 ```
 
-### Database-Specific Optimizations
+### Relationship Loading
 
-**PostgreSQL**: Native tsvector with GIN indexes
-```sql
--- Auto-generated query
-WHERE to_tsvector('english', title || ' ' || content) @@ plainto_tsquery('english', 'search terms')
-
--- Recommended index
-CREATE INDEX idx_todos_fulltext ON todos USING GIN (to_tsvector('english', title || ' ' || content));
-```
-
-**SQLite**: Case-insensitive LIKE queries
-```sql
--- Auto-generated fallback
-WHERE (UPPER(title) LIKE UPPER('%search%') OR UPPER(content) LIKE UPPER('%terms%'))
-```
-
-**MySQL**: MATCH AGAINST for fulltext indexes
-
-### Sorting & Pagination
-
-```bash
-# Sorting
-GET /api/todos?sort=created_at&order=DESC
-
-# Pagination (React Admin compatible)
-GET /api/todos?page=0&per_page=20
-```
-
-### Language Configuration
+Automatically load related data in API responses with full recursive support:
 
 ```rust
-#[crudcrate(fulltext_language = "spanish")]    // Spanish text processing
-#[crudcrate(fulltext_language = "simple")]     // Language-agnostic
-// Default: "english"
-```
-
-## 4. Relationship Loading
-
-Populate related data in API responses automatically without N+1 queries.
-
-### Single-Level Joins
-
-```rust
-#[derive(EntityToModels)]
-pub struct Model {
+pub struct Customer {
     pub id: Uuid,
     pub name: String,
-    
-    // Automatically loads related vehicles in API responses
+
+    // Automatically load related vehicles in API responses
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all))]
     pub vehicles: Vec<Vehicle>,
 }
-```
 
-### Join Configuration Options
-
-```rust
-#[crudcrate(join(one))]          // Load only in get_one() responses
-#[crudcrate(join(all))]          // Load only in get_all() responses  
-#[crudcrate(join(one, all))]     // Load in both responses
-```
-
-### Multi-Level Joins (Planned)
-
-```rust
-// Future: recursive loading with depth control
-#[crudcrate(join(one, all, depth = 2))]
-pub deep_relationships: Vec<RelatedEntity>,
-```
-
-### Type-Based Relationship Detection
-
-- `Vec<T>` fields → `has_many` relationships → `.all()` loading
-- `Option<T>` or `T` fields → `belongs_to`/`has_one` relationships → `.one()` loading
-
-## 5. Multi-Database Optimization
-
-Database-specific query optimizations and index recommendations for production performance.
-
-### Automatic Index Analysis
-
-```rust
-// Analyze all models at startup
-let _ = crudcrate::analyse_all_registered_models(&db, false).await;  // Compact
-let _ = crudcrate::analyse_all_registered_models(&db, true).await;   // With SQL
-```
-
-**Sample output:**
-```
-crudcrate Index Analysis
-═══════════════════════════
-
-HIGH High Priority:
-  todos - Fulltext search on 2 columns without proper index
-    CREATE INDEX idx_todos_fulltext ON todos USING GIN (to_tsvector('english', title || ' ' || content));
-
-MEDIUM Medium Priority:  
-  todos - Field 'completed' is filterable but not indexed
-    CREATE INDEX idx_todos_completed ON todos (completed);
-```
-
-### Database-Specific Features
-
-**PostgreSQL**: 
-- GIN indexes for fulltext search
-- tsvector optimization
-- JSON operations
-- Best for production
-
-**MySQL**:
-- FULLTEXT indexes
-- Spatial data support
-- Match against queries
-
-**SQLite**:
-- LIKE-based fallback
-- Ideal for development/testing
-- No network overhead
-
-### Performance Characteristics
-
-- **Sub-millisecond responses**: Most operations 200-300µs
-- **Efficient connection pooling**: Via Sea-ORM
-- **Query optimization**: Proper indexing hints
-- **Zero-copy deserialization**: Where possible
-
-### Multi-Database Testing
-
-```bash
-# PostgreSQL testing
-DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test
-
-# MySQL testing  
-DATABASE_URL=mysql://root:pass@127.0.0.1:3306/test_db cargo test -- --test-threads=1
-
-# SQLite (default)
-cargo test
-```
-
-## 6. Development Experience
-
-Rich tooling, debug output, and IDE support for fast development cycles.
-
-### Debug Generated Code
-
-See exactly what code the macros generate:
-
-```bash
-cargo run --example minimal --features=debug
-```
-
-```rust
-#[crudcrate(debug_output)]  // Add to any struct
-pub struct Model { /* ... */ }
-```
-
-### IDE Support
-
-Complete autocomplete and type definitions for all 30+ attributes:
-
-```rust
-#[crudcrate(
-    // Struct-level
-    generate_router,
-    api_struct = "Customer", 
-    description = "Customer records",
-    
-    // Field-level  
-    primary_key,
-    filterable,
-    sortable,
-    fulltext,
-    exclude(create, update),
-    join(one, all),
-    on_create = Uuid::new_v4()
-)]
-```
-
-### Error Handling & Validation
-
-- **SQL injection prevention**: All input parameterized via Sea-ORM
-- **Input validation**: Field names and values validated
-- **Query sanitization**: Search terms escaped automatically
-- **Type safety**: Compile-time validation of configurations
-
-### Testing Infrastructure
-
-Comprehensive test suite with multi-database support:
-
-```bash
-# Run all tests
-cargo test --workspace
-
-# Specific categories
-cargo test --test crud_operations_test
-cargo test --test filtering_search_test
-cargo test --test relationship_loading_test
-```
-
-### Performance Benchmarking
-
-```bash
-# SQLite benchmarks
-cargo bench --bench crud_benchmarks
-
-# PostgreSQL comparison
-docker run --name benchmark-postgres -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=benchmark -p 5432:5432 -d postgres:16
-BENCHMARK_DATABASE_URL=postgres://postgres:pass@localhost/benchmark cargo bench --bench crud_benchmarks
-```
-
-## Complete Attribute Reference
-
-### Struct-Level Attributes
-
-```rust
-#[crudcrate(
-    // Router & Documentation
-    generate_router,                  // Auto-generate Axum router
-    api_struct = "CustomerAPI",       // Override API struct name
-    description = "Customer data",    // OpenAPI description
-    
-    // Resource Naming
-    name_singular = "customer",       // URL singular name
-    name_plural = "customers",        // URL plural name
-    
-    // Type Overrides
-    active_model = "CustomModel",     // ActiveModel path
-    entity_type = "Entity",           // Entity type
-    column_type = "Column",           // Column type
-    
-    // Search Configuration
-    fulltext_language = "english",    // Default fulltext language
-    
-    // Custom Functions
-    fn_get_one = custom::get_one,     // Override CRUD functions
-    fn_get_all = custom::get_all,
-    fn_create = custom::create,
-    fn_update = custom::update,
-    fn_delete = custom::delete,
-    fn_delete_many = custom::delete_many,
-    
-    // Development
-    debug_output,                     // Print generated code
-)]
-```
-
-### Field-Level Attributes
-
-```rust
-#[crudcrate(
-    // Database Properties
-    primary_key,                      // Primary key field
-    non_db_attr,                      // Non-database field
-    enum_field,                       // Enum field (required for enum filtering)
-    
-    // Query Capabilities
-    sortable,                         // Enable sorting
-    filterable,                       // Enable filtering  
-    fulltext,                         // Include in fulltext search
-    
-    // Model Inclusion/Exclusion
-    exclude(create),                  // Function-style exclusion
-    exclude(update),                  
-    exclude(list),
-    exclude(create, update),          // Multiple exclusions
-    exclude(create, update, list),    // All models
-    
-    // Boolean equivalents
-    create_model = false,             // Exclude from Create model
-    update_model = false,             // Exclude from Update model
-    list_model = false,               // Exclude from List model
-    
-    // Auto-Generation
-    on_create = Uuid::new_v4(),       // Auto-generate on create
-    on_update = Utc::now(),           // Auto-update on modification
-    default = vec![],                 // Default for non-DB fields
-    
-    // Join Configuration
-    join(one),                        // Load in get_one() only
-    join(all),                        // Load in get_all() only
-    join(one, all),                   // Load in both
-    join(one, all, depth = 2),        // Custom depth (planned)
-    
-    // Search Configuration
-    fulltext_language = "spanish",    // Field-level language override
-)]
-```
-
-### Common Patterns
-
-```rust
-// Primary key
-#[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-pub id: Uuid,
-
-// Searchable text field
-#[crudcrate(sortable, filterable, fulltext)]
-pub title: String,
-
-// Auto-managed timestamps
-#[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
-pub created_at: DateTime<Utc>,
-
-#[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
-pub updated_at: DateTime<Utc>,
-
-// Relationship loading
-#[sea_orm(ignore)]
-#[crudcrate(non_db_attr, join(one, all))]
-pub related_items: Vec<RelatedItem>,
-
-// Enum fields
-#[crudcrate(filterable, enum_field)]
-pub status: TaskStatus,
-```
-
-## Examples & Integration
-
-### React Admin Integration
-
-Follows React Admin REST conventions out of the box:
-
-```javascript
-// These endpoints work automatically with React Admin:
-GET    /api/todos                    // List with pagination
-GET    /api/todos?filter={"completed":false}  // Filtered list
-GET    /api/todos/123                // Get one
-POST   /api/todos                    // Create
-PUT    /api/todos/123                // Update
-DELETE /api/todos/123                // Delete
-```
-
-### Security & Production
-
-Built-in security measures with additional production recommendations:
-
-```rust
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use axum_helmet::Helmet;
-
-let app = Router::new()
-    .nest("/api", your_crud_routes)
-    .layer(Helmet::default())           // Security headers
-    .layer(TraceLayer::new_for_http())  // Request logging  
-    .layer(CorsLayer::permissive());    // CORS configuration
-```
-
-### Migration Integration
-
-Works seamlessly with Sea-ORM migrations:
-
-```rust
-use sea_orm_migration::prelude::*;
-
-#[async_trait::async_trait]
-impl MigrationTrait for Migration {
-    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_table(Table::create()
-                .table(Todo::Table)
-                .col(ColumnDef::new(Todo::Id).uuid().primary_key())
-                .col(ColumnDef::new(Todo::Title).string().not_null())
-                .to_owned())
-            .await
-    }
+pub struct Vehicle {
+    pub id: Uuid,
+    pub make: String,
+
+    // Each vehicle automatically loads its parts and maintenance records
+    #[sea_orm(ignore)]
+    #[crudcrate(non_db_attr, join(one, all))]
+    pub parts: Vec<VehiclePart>,
+
+    #[sea_orm(ignore)]
+    #[crudcrate(non_db_attr, join(one, all))]
+    pub maintenance_records: Vec<MaintenanceRecord>,
 }
 ```
 
-## Testing
+**Multi-level recursive loading works out of the box:**
+- Customer → Vehicles → Parts/Maintenance Records (3 levels deep)
+- No complex SQL joins required - uses efficient recursive queries
+- Automatic cycle detection prevents infinite recursion
 
-### Quick Testing
+**Join options:**
+- `join(one)` - Load only in individual item responses
+- `join(all)` - Load only in list responses
+- `join(one, all)` - Load in both types of responses
+- `join(one, all, depth = 2)` - Custom depth guidance (default: unlimited)
 
-```bash
-# Run all tests (SQLite default)
-cargo test --workspace
+### Field Control
 
-# Feature-specific tests  
-cargo test --test crud_operations_test
-cargo test --test model_generation_test
-cargo test --test filtering_search_test
-cargo test --test relationship_loading_test
-cargo test --test database_optimization_test
-cargo test --test dev_experience_test
+Sometimes certain fields shouldn't be in certain models:
+
+```rust
+// Password hash: never send to clients, never allow updates
+#[crudcrate(exclude(one, create, update, list))]
+pub password_hash: String,
+
+// API keys: generate server-side, never expose in any response
+#[crudcrate(exclude(one, create, update, list), on_create = generate_api_key())]
+pub api_key: String,
+
+// Internal notes: exclude from list (expensive) but show in detail view
+#[crudcrate(exclude(list))]
+pub internal_notes: String,
+
+// Timestamps: manage automatically
+#[crudcrate(exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
+pub updated_at: DateTime<Utc>,
 ```
 
-### Multi-Database Testing
+**Exclusion options:**
+- `exclude(one)` - Exclude from get_one responses (main API response)
+- `exclude(create)` - Exclude from POST request models
+- `exclude(update)` - Exclude from PUT request models
+- `exclude(list)` - Exclude from list responses
+- `exclude(one, list)` - Exclude from both individual and list responses
+- `exclude(create, update)` - Exclude from both request models
 
-```bash
-# PostgreSQL (requires running instance)
-docker run --name test-postgres -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=test_db -p 5432:5432 -d postgres:16
-DATABASE_URL=postgres://postgres:pass@localhost/test_db cargo test
+## Production Ready
 
-# MySQL (requires single-threaded execution)
-docker run --name test-mysql -e MYSQL_ROOT_PASSWORD=pass -e MYSQL_DATABASE=test_db -p 3306:3306 -d mysql:8
-sleep 20  # MySQL initialization time
-DATABASE_URL=mysql://root:pass@127.0.0.1:3306/test_db cargo test -- --test-threads=1
+crudcrate isn't just a toy - it's built for real applications:
+
+### Database Optimizations
+
+```rust
+// Get performance recommendations for production
+crudcrate::analyse_all_registered_models(&db, false).await;
 ```
 
-### Benchmarking
+Output:
 
-```bash
-# SQLite performance baseline
-cargo bench --bench crud_benchmarks -- --verbose
+```
+HIGH Priority:
+  customers - Fulltext search on name/email without proper index
+    CREATE INDEX idx_customers_fulltext ON customers USING GIN (to_tsvector('english', name || ' ' || email));
 
-# PostgreSQL comparison
-docker run --name benchmark-postgres -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=benchmark -p 5432:5432 -d postgres:16  
-BENCHMARK_DATABASE_URL=postgres://postgres:pass@localhost/benchmark cargo bench --bench crud_benchmarks -- --verbose
+MEDIUM Priority:
+  customers - Field 'email' is filterable but not indexed
+    CREATE INDEX idx_customers_email ON customers (email);
 ```
 
-## License & Support
+### Multi-Database Support
 
-**MIT License** - See [LICENSE](./LICENSE) for details.
+- **PostgreSQL**: Full GIN index support, tsvector optimization
+- **MySQL**: FULLTEXT indexes, MATCH AGAINST queries
+- **SQLite**: LIKE-based fallback (perfect for development)
 
-**Development Status**: Active development - API may change between versions.
+### Battle-Tested Features
 
-**Security**: Built-in protection against common vulnerabilities. Users responsible for production security configuration.
+- SQL injection prevention via Sea-ORM parameterization
+- Input validation and sanitization
+- Type-safe compile-time checks
+- Comprehensive test suite across all supported databases
 
-## Related Crates
+## Quick Start
 
-- **[sea-orm](https://crates.io/crates/sea-orm)**: Database ORM and query builder
-- **[axum](https://crates.io/crates/axum)**: Web application framework  
-- **[utoipa](https://crates.io/crates/utoipa)**: OpenAPI documentation
-- **[serde](https://crates.io/crates/serde)**: Serialization framework
-- **[tower-http](https://crates.io/crates/tower-http)**: Production HTTP middleware
+```bash
+cargo add crudcrate sea-orm axum
+```
+
+```rust
+use axum::Router;
+use crudcrate::EntityToModels;
+use sea_orm::entity::prelude::*;
+
+#[derive(EntityToModels)]
+#[crudcrate(generate_router)]
+pub struct Task {
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+    pub id: Uuid,
+    #[crudcrate(sortable, filterable)]
+    pub title: String,
+    #[crudcrate(filterable)]
+    pub completed: bool,
+}
+
+#[tokio::main]
+async fn main() {
+    let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+
+    let app = Router::new()
+        .nest("/api/tasks", Task::router(&db));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("🚀 API running on http://localhost:3000");
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+That's it. You have a complete, production-ready CRUD API.
+
+Run it:
+
+```bash
+cargo run
+```
+
+Test it:
+
+```bash
+# Create a task
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Build CRUD API","completed":false}'
+
+# List all tasks
+curl http://localhost:3000/api/tasks
+
+# Get a specific task
+curl http://localhost:3000/api/tasks/{id}
+
+# Update a task
+curl -X PUT http://localhost:3000/api/tasks/{id} \
+  -H "Content-Type: application/json" \
+  -d '{"completed":true}'
+```
+
+## When to Use crudcrate
+
+**Perfect for:**
+
+- Quick prototypes and MVPs
+- Admin panels and internal tools
+- Standard CRUD operations
+- APIs that follow REST conventions
+- Teams that want to move fast
+
+**Maybe not for:**
+
+- Highly specialized endpoints
+- GraphQL APIs (though you could use the generated models)
+- Complex business logic that doesn't fit CRUD patterns
+- When you need full control over every detail
+
+## Examples
+
+```bash
+# Minimal todo API
+cargo run --example minimal
+
+# Relationship loading demo
+cargo run --example recursive_join
+```
+
+## License
+
+MIT License. See [LICENSE](./LICENSE) for details.

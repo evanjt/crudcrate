@@ -3,11 +3,15 @@ use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;
 use tokio::sync::Mutex;
 
-// Re-export shared models for easy access
-pub use shared_models::{
-    Customer, CustomerEntity,
-    Vehicle, VehicleEntity,
-    VehiclePartEntity, MaintenanceRecordEntity
+// Import local test models
+pub mod models;
+
+// Re-export local test models for easy access
+pub use crate::models::{
+    Customer, CustomerEntity, CustomerColumn,
+    Vehicle, VehicleEntity, VehicleColumn,
+    VehiclePart, VehiclePartEntity, VehiclePartColumn,
+    MaintenanceRecord, MaintenanceRecordEntity, MaintenanceRecordColumn
 };
 
 // Global mutex to serialize database setup for PostgreSQL to avoid race conditions

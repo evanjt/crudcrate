@@ -21,8 +21,8 @@ pub struct Model {
     #[crudcrate(filterable, fulltext)]
     pub description: String,
 
-    #[crudcrate(sortable)]
-    pub cost: Option<sea_orm::prelude::Decimal>,
+    // #[crudcrate(sortable)]
+    // pub cost: Option<Decimal>,  // Temporarily disabled for debugging
 
     #[crudcrate(filterable, sortable)]
     pub service_date: DateTime<Utc>,
@@ -57,6 +57,3 @@ impl Related<super::vehicle::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-
-// Type alias for easier importing
-pub type MaintenanceRecordEntity = Entity;

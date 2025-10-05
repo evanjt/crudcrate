@@ -259,8 +259,9 @@ fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
 fn create_deprecation_error(key: &str, path: &syn::Path) -> syn::Error {
     let new_syntax = match key {
         "create_model" => "exclude(create)",
-        "update_model" => "exclude(update)", 
+        "update_model" => "exclude(update)",
         "list_model" => "exclude(list)",
+        "one_model" => "exclude(one)",
         _ => "exclude(...)",
     };
     
@@ -285,6 +286,8 @@ fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Opti
                     "update_model"
                 } else if path.is_ident("list") {
                     "list_model"
+                } else if path.is_ident("one") {
+                    "one_model"
                 } else {
                     continue;
                 };

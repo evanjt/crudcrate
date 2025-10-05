@@ -29,13 +29,13 @@ use uuid::Uuid;
 #[crudcrate(api_struct = "Todo", description = "Simple todo management", generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[crudcrate(primary_key, create_model = false, update_model = false, on_create = Uuid::new_v4())]
+    #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
     #[crudcrate(sortable, filterable)]
     pub title: String,
     #[crudcrate(filterable, on_create = false)]
     pub completed: bool,
-    #[crudcrate(create_model = false, update_model = false, on_create = Utc::now(), on_update = Utc::now())]
+    #[crudcrate(exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 }
 

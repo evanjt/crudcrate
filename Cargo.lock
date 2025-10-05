@@ -761,7 +761,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "shared_models",
  "spring",
  "spring-web",
  "tokio",
@@ -783,6 +782,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "convert_case",
+ "heck 0.5.0",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -2896,24 +2896,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared_models"
-version = "0.1.0"
-dependencies = [
- "axum",
- "chrono",
- "crudcrate",
- "hyper",
- "rust_decimal",
- "sea-orm",
- "sea-orm-migration",
- "serde",
- "tokio",
- "utoipa",
- "utoipa-axum",
- "uuid",
-]
-
-[[package]]
 name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3357,7 +3339,6 @@ dependencies = [
  "sea-orm-migration",
  "serde",
  "serde_json",
- "shared_models",
  "tokio",
  "tower",
  "tower-http",

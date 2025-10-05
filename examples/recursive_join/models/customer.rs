@@ -16,12 +16,12 @@ pub struct Model {
     pub name: String,
     #[crudcrate(filterable)]
     pub email: String,
-    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
+    #[crudcrate(sortable, exclude(one), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
-    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
+    #[crudcrate(sortable, exclude(one), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 3))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(all))]
     pub vehicles: Vec<Vehicle>,
 }
 

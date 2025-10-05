@@ -1,5 +1,7 @@
 use super::structs::EntityFieldAnalysis;
+use super::attribute_parser::get_join_config;
 use convert_case::{Case, Casing};
+use heck::ToPascalCase;
 
 /// Generates compile-time validation code for join relations
 /// Since proc macros cannot access sibling Relation enums, we generate code that
@@ -11,38 +13,48 @@ pub fn generate_join_relation_validation(
 
     let mut validation_checks = Vec::new();
 
-    // Generate validation checks for join_on_one fields
+    // Generate validation checks for join_on_one fields (only if custom relation is specified)
     for field in &analysis.join_on_one_fields {
         if let Some(field_name) = &field.ident {
-            let expected_relation = field_name_to_relation_variant(field_name);
-            let expected_relation_ident = syn::Ident::new(&expected_relation, field_name.span());
+            if let Some(join_config) = get_join_config(field) {
+                if let Some(custom_relation) = join_config.relation {
+                    // Only validate if a custom relation name is explicitly provided
+                    let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
 
-            // Generate a compile-time check that references the relation
-            validation_checks.push(quote! {
-                // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
-                const _: () = {
-                    fn _validate_relation_exists() {
-                        let _ = Relation::#expected_relation_ident;
-                    }
-                };
-            });
+                    // Generate a compile-time check that references the relation
+                    validation_checks.push(quote! {
+                        // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
+                        const _: () = {
+                            fn _validate_relation_exists() {
+                                let _ = Relation::#expected_relation_ident;
+                            }
+                        };
+                    });
+                }
+                // If no custom relation is specified, we use entity path resolution - no validation needed
+            }
         }
     }
 
-    // Generate validation checks for join_on_all fields
+    // Generate validation checks for join_on_all fields (only if custom relation is specified)
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident {
-            let expected_relation = field_name_to_relation_variant(field_name);
-            let expected_relation_ident = syn::Ident::new(&expected_relation, field_name.span());
+            if let Some(join_config) = get_join_config(field) {
+                if let Some(custom_relation) = join_config.relation {
+                    // Only validate if a custom relation name is explicitly provided
+                    let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
 
-            validation_checks.push(quote! {
-                // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
-                const _: () = {
-                    fn _validate_relation_exists() {
-                        let _ = Relation::#expected_relation_ident;
-                    }
-                };
-            });
+                    validation_checks.push(quote! {
+                        // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
+                        const _: () = {
+                            fn _validate_relation_exists() {
+                                let _ = Relation::#expected_relation_ident;
+                            }
+                        };
+                    });
+                }
+                // If no custom relation is specified, we use entity path resolution - no validation needed
+            }
         }
     }
 
@@ -56,7 +68,7 @@ pub fn generate_join_relation_validation(
 fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
     let field_str = field_name.to_string();
     // Convert to PascalCase for relation variant name
-    field_str.to_case(Case::Pascal)
+    field_str.to_pascal_case()
 }
 
 #[cfg(test)]

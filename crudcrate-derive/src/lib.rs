@@ -14,6 +14,7 @@ use quote::{ToTokens, format_ident, quote};
 use syn::parse::Parser;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, parse_macro_input, punctuated::Punctuated, token::Comma};
 use convert_case::{Case, Casing};
+use heck::ToPascalCase;
 
 use structs::{CRUDResourceMeta, EntityFieldAnalysis};
 
@@ -182,7 +183,7 @@ fn parse_entity_attributes(
 
     let table_name = attribute_parser::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
     let api_struct_name =
-        api_struct_name.unwrap_or_else(|| format_ident!("{}", table_name.to_case(Case::Pascal)));
+        api_struct_name.unwrap_or_else(|| format_ident!("{}", table_name.to_pascal_case()));
     let active_model_path = active_model_path.unwrap_or_else(|| "ActiveModel".to_string());
 
     (api_struct_name, active_model_path)
@@ -269,6 +270,17 @@ fn generate_api_struct_content(
         let field_name = &field.ident;
         let field_type = &field.ty;
 
+        // Check if field is excluded from the main API response (one model)
+        // But don't exclude it if it has on_create or on_update expressions (needed for Create/Update models)
+        let has_on_create = attribute_parser::get_crudcrate_expr(field, "on_create").is_some();
+        let has_on_update = attribute_parser::get_crudcrate_expr(field, "on_update").is_some();
+
+        if attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false)
+            && !has_on_create
+            && !has_on_update {
+            continue; // Skip this field - it's excluded from the get_one response and not needed for Create/Update models
+        }
+
         let api_field_attrs: Vec<_> = field
             .attrs
             .iter()
@@ -280,32 +292,52 @@ fn generate_api_struct_content(
             pub #field_name: #field_type
         });
 
-        let assignment = if field_type
-            .to_token_stream()
-            .to_string()
-            .contains("DateTimeWithTimeZone")
-        {
-            if field_analyzer::field_is_optional(field) {
-                quote! {
-                    #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
+        // Only include this field in the From<Model> assignment if it's not excluded from one_model
+        if attribute_parser::get_crudcrate_bool(field, "one_model") != Some(false) {
+            let assignment = if field_type
+                .to_token_stream()
+                .to_string()
+                .contains("DateTimeWithTimeZone")
+            {
+                if field_analyzer::field_is_optional(field) {
+                    quote! {
+                        #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
+                    }
+                } else {
+                    quote! {
+                        #field_name: model.#field_name.with_timezone(&chrono::Utc)
+                    }
                 }
             } else {
                 quote! {
-                    #field_name: model.#field_name.with_timezone(&chrono::Utc)
+                    #field_name: model.#field_name
                 }
-            }
-        } else {
-            quote! {
-                #field_name: model.#field_name
-            }
-        };
+            };
 
-        from_model_assignments.push(assignment);
+            from_model_assignments.push(assignment);
+        } else {
+            // Field is excluded from one_model but included in struct (has on_create/on_update)
+            // Provide a default value - for timestamp fields, use a reasonable default
+            if field_type.to_token_stream().to_string().contains("DateTime") {
+                from_model_assignments.push(quote! {
+                    #field_name: model.#field_name
+                });
+            } else {
+                from_model_assignments.push(quote! {
+                    #field_name: Default::default()
+                });
+            }
+        }
     }
 
     for field in &analysis.non_db_fields {
         let field_name = &field.ident;
         let field_type = &field.ty;
+
+        // Check if field is excluded from the main API response (one model)
+        if attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false) {
+            continue; // Skip this field - it's excluded from the get_one response
+        }
 
         let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
             .unwrap_or_else(|| syn::parse_quote!(Default::default()));
@@ -335,7 +367,16 @@ fn generate_api_struct(
     api_struct_fields: &[proc_macro2::TokenStream],
     active_model_path: &str,
     crud_meta: &structs::CRUDResourceMeta,
+    analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
+    // Check if we have fields excluded from create/update models
+    let has_create_exclusions = analysis.db_fields.iter()
+        .chain(analysis.non_db_fields.iter())
+        .any(|field| attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false));
+    let has_update_exclusions = analysis.db_fields.iter()
+        .chain(analysis.non_db_fields.iter())
+        .any(|field| attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false));
+
     // Build derive clause based on user preferences
     let mut derives = vec![
         quote!(Clone),
@@ -343,8 +384,8 @@ fn generate_api_struct(
         quote!(ToSchema),
         quote!(Serialize),
         quote!(Deserialize),
-        quote!(ToUpdateModel),
         quote!(ToCreateModel),
+        quote!(ToUpdateModel),
     ];
     
     if crud_meta.derive_partial_eq {
@@ -831,7 +872,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let (api_struct_fields, from_model_assignments) =
         generate_api_struct_content(&field_analysis);
     let api_struct =
-        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta);
+        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta, &field_analysis);
     let from_impl =
         generate_from_impl(struct_name, &api_struct_name, &from_model_assignments);
     let crud_impl = generate_conditional_crud_impl(

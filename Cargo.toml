@@ -1,5 +1,5 @@
 [workspace]
-members = ["crudcrate", "crudcrate-derive", "test_suite", "shared_models"]
+members = ["crudcrate", "crudcrate-derive", "test_suite"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -8,6 +8,7 @@ proc-macro2 = "1.0.95"
 quote = "1.0.40"
 syn = { version = "2.0.104", features = ["full", "derive", "parsing", "printing", "clone-impls", "proc-macro"] }
 convert_case = "0.8.0"
+heck = { version = "0.5", default-features = false }
 
 # Core dependencies
 async-trait = "0.1.88"

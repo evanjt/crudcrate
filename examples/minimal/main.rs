@@ -10,9 +10,9 @@
 
 #![allow(clippy::needless_for_each)]
 
-mod shared;
+mod todo;
 
-use shared::{Todo, setup_todo_database};
+use todo::{Todo, setup_todo_database};
 use std::env;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;

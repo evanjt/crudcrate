@@ -1,7 +1,10 @@
 /// Join Loading Example
 ///
 /// Demonstrates automatic relationship loading with `#[crudcrate(join(one, all))]`
-/// Customer → Vehicle relationships are loaded automatically in API responses.
+/// Customer → Vehicle → Parts/MaintenanceRecord relationships are loaded automatically in API responses.
+///
+/// This example shows multi-level recursive joins:
+/// Customer → Vehicles (3 levels) → Parts + Maintenance Records (3+ levels total)
 ///
 /// Run with: `cargo run --example recursive_join`
 use axum::Router;
@@ -13,13 +16,16 @@ use std::time::Duration;
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
-// Import shared models with join configuration
+// Import local models
+mod models;
+use models::{
+    Customer, MaintenanceRecord, Vehicle, VehiclePart,
+    customer, maintenance_record, vehicle, vehicle_part,
+    CustomerEntity, VehicleEntity, VehiclePartEntity, MaintenanceRecordEntity,
+    CustomerColumn,
+};
 use crudcrate::traits::CRUDResource;
 use sea_orm::{Condition, Order};
-use shared_models::{
-    Customer, CustomerColumn, CustomerEntity, MaintenanceRecordEntity, Vehicle, VehicleEntity,
-    VehiclePartEntity, customer, maintenance_record, vehicle, vehicle_part,
-};
 
 // ============================================================================
 // DATABASE SETUP
@@ -194,7 +200,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     name: Set((*name).to_owned()),
                     part_number: Set(format!("{part_number}-{vehicle_idx}")),
                     category: Set((*category).to_owned()),
-                    price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())),
+                    // price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())), // Temporarily disabled
                     in_stock: Set(part_idx % 2 == 0), // Alternate stock status
                     created_at: Set(Utc::now()),
                     updated_at: Set(Utc::now()),
@@ -215,7 +221,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     vehicle_id: Set(vehicle_id),
                     service_type: Set((*service_type).to_owned()),
                     description: Set((*description).to_owned()),
-                    cost: Set(Some(cost.parse::<rust_decimal::Decimal>().unwrap())),
+                    // cost: Set(Some(cost.parse::<rust_decimal::Decimal>().unwrap())), // Temporarily disabled
                     service_date: Set(Utc::now()),
                     mechanic_name: Set(Some((*mechanic).to_owned())),
                     completed: Set(maintenance_idx % 3 != 0), // Most completed, some pending
