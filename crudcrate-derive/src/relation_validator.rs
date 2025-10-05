@@ -12,6 +12,7 @@ pub fn generate_cyclic_dependency_check(
     use quote::quote;
 
     let mut cycle_warnings = Vec::new();
+    let mut deep_recursion_warnings = Vec::new();
 
     // Collect all join fields with their target types and configurations
     let mut join_dependencies = HashMap::new();
@@ -60,8 +61,33 @@ pub fn generate_cyclic_dependency_check(
         }
     }
 
+    // Check for joins with unlimited recursion (no explicit depth set)
+    for (field_name, (target_entity, join_config)) in &join_dependencies {
+        if join_config.is_unlimited_recursion() {
+            let estimated_depth = estimate_relationship_depth(entity_name, target_entity, field_name);
+
+            if estimated_depth > 3 {
+                let warning_path = if target_entity.starts_with("super::") {
+                    format!("{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})")
+                } else {
+                    format!("{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})")
+                };
+
+                deep_recursion_warnings.push(quote! {
+                    compile_error!(concat!(
+                        "Deep recursion warning: ",
+                        #warning_path,
+                        ". This join will recurse more than 3 levels deep by default, which may impact performance. ",
+                        "Consider adding explicit depth control: join(..., depth = 3) or join(..., depth = 2)."
+                    ));
+                });
+            }
+        }
+    }
+
     quote! {
         #( #cycle_warnings )*
+        #( #deep_recursion_warnings )*
     }
 }
 
@@ -250,6 +276,47 @@ fn is_optional_type(ty: &syn::Type) -> bool {
         return segment.ident == "Option";
     }
     false
+}
+
+/// Estimate the potential recursion depth for a relationship
+/// This is a heuristic that analyzes relationship patterns to estimate how deep recursion might go
+fn estimate_relationship_depth(current_entity: &str, target_entity: &str, field_name: &str) -> u8 {
+    // For now, use a simple heuristic based on relationship patterns
+    // In the future, this could be enhanced with actual graph analysis
+
+    // Base case: direct relationships typically add 1 level
+    let mut estimated_depth = 1;
+
+    // Check field name patterns that suggest deeper relationships
+    let field_lower = field_name.to_lowercase();
+
+    // Plural field names (like "vehicles", "parts", "records") often lead to deeper recursion
+    if field_lower.ends_with('s') && field_lower.len() > 3 {
+        estimated_depth += 2; // Increase from 1 to 2 for testing
+    }
+
+    // Common deep relationship patterns
+    if field_lower.contains("sub") || field_lower.contains("child") || field_lower.contains("nested") {
+        estimated_depth += 2;
+    }
+
+    // Hierarchical relationships (categories, trees, etc.)
+    if field_lower.contains("categor") || field_lower.contains("tree") || field_lower.contains("parent") {
+        estimated_depth += 2;
+    }
+
+    // Chain relationships (next, previous, etc.)
+    if field_lower.contains("next") || field_lower.contains("prev") || field_lower.contains("chain") {
+        estimated_depth += 3;
+    }
+
+    // If target entity suggests self-reference (super:: or same entity type), add more depth
+    if target_entity.starts_with("super::") || target_entity.contains(current_entity) {
+        estimated_depth += 2;
+    }
+
+    
+    estimated_depth
 }
 
 #[cfg(test)]

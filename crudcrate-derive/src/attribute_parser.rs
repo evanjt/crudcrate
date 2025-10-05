@@ -12,14 +12,19 @@ pub struct JoinConfig {
 }
 
 impl JoinConfig {
-    /// Get the effective depth for recursive loading (default 3 if not specified)
-    pub fn effective_depth(&self) -> u8 {
-        self.depth.unwrap_or(3)
+    /// Get the effective depth for recursive loading (None means unlimited recursion)
+    pub fn effective_depth(&self) -> Option<u8> {
+        self.depth
     }
 
     /// Check if depth was explicitly specified (for cyclic dependency warnings)
     pub fn has_explicit_depth(&self) -> bool {
         self.depth.is_some()
+    }
+
+    /// Check if recursion is unlimited (no explicit depth set)
+    pub fn is_unlimited_recursion(&self) -> bool {
+        self.depth.is_none()
     }
 }
 
