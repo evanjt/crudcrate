@@ -274,7 +274,11 @@ fn generate_api_struct_content(
         let has_on_create = attribute_parser::get_crudcrate_expr(field, "on_create").is_some();
         let has_on_update = attribute_parser::get_crudcrate_expr(field, "on_update").is_some();
 
-        if attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false)
+        // Check if field is excluded from one_model responses
+        // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
+        let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
+
+        if is_excluded_from_one
             && !has_on_create
             && !has_on_update {
             continue; // Skip this field - it's excluded from the get_one response and not needed for Create/Update models
@@ -292,7 +296,11 @@ fn generate_api_struct_content(
         });
 
         // Only include this field in the From<Model> assignment if it's not excluded from one_model
-        if attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false) {
+        // Check if field is excluded from one_model responses
+        // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
+        let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
+
+        if is_excluded_from_one {
             // Field is excluded from one_model but included in struct (has on_create/on_update)
             // Provide a default value - for timestamp fields, use a reasonable default
             if field_type.to_token_stream().to_string().contains("DateTime") {
@@ -334,7 +342,11 @@ fn generate_api_struct_content(
         let field_type = &field.ty;
 
         // Check if field is excluded from the main API response (one model)
-        if attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false) {
+        // Check if field is excluded from one_model responses
+        // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
+        let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
+
+        if is_excluded_from_one {
             continue; // Skip this field - it's excluded from the get_one response
         }
 
@@ -348,9 +360,27 @@ fn generate_api_struct_content(
             .filter(|attr| attr.path().is_ident("crudcrate"))
             .collect();
 
+        // Check if this is a join field - if so, add serde skip to prevent infinite recursion in serialization
+        let has_join_config = attribute_parser::get_join_config(field).is_some();
+        let serde_skip = if has_join_config {
+            quote! { #[serde(skip)] }
+        } else {
+            quote! {}
+        };
+
+        // For join fields, use the field type as-is since the join loading logic will handle population
+        // The cross-module type resolution will be handled by the import structure
+        let resolved_field_type = if attribute_parser::get_join_config(field).is_some() {
+            quote! { #field_type }
+        } else {
+            // For other non-db fields, use the field type as-is
+            quote! { #field_type }
+        };
+
         api_struct_fields.push(quote! {
+            #serde_skip
             #(#crudcrate_attrs)*
-            pub #field_name: #field_type
+            pub #field_name: #resolved_field_type
         });
 
         from_model_assignments.push(quote! {

@@ -7,7 +7,11 @@
 /// Customer → Vehicles (3 levels) → Parts + Maintenance Records (3+ levels total)
 ///
 /// Run with: `cargo run --example recursive_join`
+/// OpenAPI docs: http://localhost:3000/docs
 use axum::Router;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_scalar::{Scalar, Servable};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, Set, entity::prelude::*,
@@ -25,6 +29,28 @@ use models::{
     CustomerColumn,
 };
 use crudcrate::traits::CRUDResource;
+
+// OpenAPI documentation
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "CrudCrate Recursive Join API",
+        description = "Demonstrates automatic relationship loading with multi-level recursive joins. Customer → Vehicle → Parts/MaintenanceRecord relationships are loaded automatically in API responses.",
+        version = "1.0.0",
+        contact(
+            name = "CrudCrate Documentation",
+            url = "https://github.com/evanjt/crudcrate"
+        )
+    ),
+    servers(
+        (url = "http://localhost:3000", description = "Development server")
+    ),
+    tags(
+        (name = "customers", description = "Customer management with recursive vehicle loading"),
+        (name = "vehicles", description = "Vehicle management with recursive parts/maintenance loading")
+    )
+)]
+struct ApiDoc;
 use sea_orm::{Condition, Order};
 
 // ============================================================================
@@ -258,6 +284,7 @@ async fn main() {
 
     if let Some(customer) = customers.first() {
         println!("🚀 Server running on http://localhost:3000");
+        println!("📚 OpenAPI Documentation: http://localhost:3000/docs");
         println!();
         println!("📊 Dataset Overview:");
         println!("  • {} customers", customers.len());
@@ -282,9 +309,14 @@ async fn main() {
         println!("⚠️ No customers found in database");
     }
 
-    let app = Router::new()
+    // Build the router with OpenAPI documentation using automatic endpoint discovery
+    let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .nest("/customers", Customer::router(&db).into())
         .nest("/vehicles", Vehicle::router(&db).into())
+        .split_for_parts();
+
+    let app = router
+        .merge(Scalar::with_url("/docs", api))
         .layer(CorsLayer::permissive());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

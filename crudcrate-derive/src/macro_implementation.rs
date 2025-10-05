@@ -602,7 +602,8 @@ fn generate_recursive_loading_implementation(
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
     // Check if there are any join fields for get_one
-    if analysis.join_on_one_fields.is_empty() {
+    // Fields with join(one) OR join(all) should appear in get_one() responses
+    if analysis.join_on_one_fields.is_empty() && analysis.join_on_all_fields.is_empty() {
         return quote! {
             Ok(model.into())
         };
@@ -612,51 +613,84 @@ fn generate_recursive_loading_implementation(
     let mut loading_statements = Vec::new();
     let mut field_assignments = Vec::new();
 
-    // Process only join(one) fields for get_one method
-    for field in &analysis.join_on_one_fields {
+    // Process both join(one) and join(all) fields for get_one method
+    // Fields with either join(one) or join(all) should appear in get_one() responses
+    let all_join_fields_for_get_one: Vec<_> = analysis.join_on_one_fields
+        .iter()
+        .chain(analysis.join_on_all_fields.iter())
+        .collect();
+
+    for field in all_join_fields_for_get_one {
         if let Some(field_name) = &field.ident {
-            let _join_config = get_join_config(field).unwrap_or_default();
+            let join_config = get_join_config(field).unwrap_or_default();
             let is_vec_field = is_vec_type(&field.ty);
 
             // Extract entity from the field type - this gives us the exact entity path
             let entity_path = get_entity_path_from_field_type(&field.ty);
 
-            // Note: Depth parameter is currently for documentation/future use
-            // The current recursive implementation via get_one() calls naturally handles multi-level joins
+            // Check if this join has depth limitations
+            let has_depth_limit = join_config.depth.is_some();
+            let depth_value = join_config.depth.unwrap_or(3); // Default depth for safety
 
             if is_vec_field {
                 // Extract the inner type from Vec<T> to get the related entity name
                 let inner_type = extract_vec_inner_type(&field.ty);
 
-                // For Vec<T> fields (has_many relationships) - recursive loading
-                loading_statements.push(quote! {
-                    let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
-                    let mut #field_name = Vec::new();
-                    for related_model in related_models {
-                        // Use recursive get_one to respect join loading for nested entities
-                        match #inner_type::get_one(db, related_model.id).await {
-                            Ok(loaded_entity) => #field_name.push(loaded_entity),
-                            Err(_) => #field_name.push(related_model.into()), // Fallback to simple conversion
+                // For Vec<T> fields (has_many relationships) - depth-aware loading
+                if has_depth_limit {
+                    // Depth-limited loading - NO recursive calls to prevent stack overflow
+                    loading_statements.push(quote! {
+                        let #field_name = model.find_related(#entity_path)
+                            .all(db)
+                            .await
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|related_model| <#inner_type>::from(related_model))
+                            .collect();
+                    });
+                } else {
+                    // Unlimited recursion - use the original recursive approach
+                    loading_statements.push(quote! {
+                        let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                        let mut #field_name = Vec::new();
+                        for related_model in related_models {
+                            // Use recursive get_one to respect join loading for nested entities
+                            match #inner_type::get_one(db, related_model.id).await {
+                                Ok(loaded_entity) => #field_name.push(loaded_entity),
+                                Err(_) => #field_name.push(<#inner_type>::from(related_model)), // Fallback to simple conversion
+                            }
                         }
-                    }
-                });
+                    });
+                }
                 field_assignments.push(quote! { result.#field_name = #field_name; });
             } else {
                 // Extract the inner type from Option<T> or T
                 let inner_type = extract_option_or_direct_inner_type(&field.ty);
 
-                // For single T or Option<T> fields (belongs_to/has_one relationships) - recursive loading
-                loading_statements.push(quote! {
-                    let #field_name = if let Ok(Some(related_model)) = model.find_related(#entity_path).one(db).await {
-                        // Use recursive get_one to respect join loading for nested entities
-                        match #inner_type::get_one(db, related_model.id).await {
-                            Ok(loaded_entity) => Some(loaded_entity),
-                            Err(_) => Some(related_model.into()), // Fallback to simple conversion
-                        }
-                    } else {
-                        None
-                    };
-                });
+                // For single T or Option<T> fields (belongs_to/has_one relationships) - depth-aware loading
+                if has_depth_limit {
+                    // Depth-limited loading - NO recursive calls to prevent stack overflow
+                    loading_statements.push(quote! {
+                        let #field_name = model.find_related(#entity_path)
+                            .one(db)
+                            .await
+                            .unwrap_or(None)
+                            .map(|related_model| <#inner_type>::from(related_model));
+                    });
+                } else {
+                    // Unlimited recursion - use the original recursive approach
+                    loading_statements.push(quote! {
+                        let #field_name = if let Ok(Some(related_model)) = model.find_related(#entity_path).one(db).await {
+                            // Use recursive get_one to respect join loading for nested entities
+                            match #inner_type::get_one(db, related_model.id).await {
+                                Ok(loaded_entity) => Some(loaded_entity),
+                                Err(_) => Some(<#inner_type>::from(related_model)), // Fallback to simple conversion
+                            }
+                        } else {
+                            None
+                        };
+                    });
+                }
                 field_assignments.push(quote! { result.#field_name = #field_name; });
             }
         }

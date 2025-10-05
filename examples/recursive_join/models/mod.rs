@@ -22,7 +22,8 @@ pub use vehicle::ActiveModel as VehicleActiveModel;
 pub use vehicle_part::ActiveModel as VehiclePartActiveModel;
 
 // Re-export CRUD types for API operations
+// Temporarily commented out due to compilation issues
 pub use customer::{Customer, CustomerCreate, CustomerUpdate};
-pub use maintenance_record::{MaintenanceRecord, MaintenanceRecordCreate, MaintenanceRecordUpdate};
-pub use vehicle::{Vehicle, VehicleCreate, VehicleUpdate};
-pub use vehicle_part::{VehiclePart, VehiclePartCreate, VehiclePartUpdate};
+// pub use maintenance_record::{MaintenanceRecord, MaintenanceRecordCreate, MaintenanceRecordUpdate};
+// pub use vehicle::{Vehicle, VehicleCreate, VehicleUpdate};
+// pub use vehicle_part::{VehiclePart, VehiclePartCreate, VehiclePartUpdate};

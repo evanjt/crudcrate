@@ -59,16 +59,98 @@ pub fn generate_cyclic_dependency_check(
         }
     }
 
-    // TEMPORARILY DISABLED: Cyclic dependency detection is being too aggressive
-    // It's flagging unidirectional relationships (Customer -> Vehicle) as cycles
-    // TODO: Refine to only detect true bidirectional cycles
-    let cycle_warnings: Vec<proc_macro2::TokenStream> = Vec::new();
+    // Check for cyclic dependencies that could cause infinite recursion
+    // Enhanced logic: Only flag cycles that are actually unsafe (unlimited recursion)
+    let cycle_warnings: Vec<proc_macro2::TokenStream> = join_dependencies
+        .iter()
+        .filter_map(|(field_name, (target_entity, join_config))| {
+            if is_unsafe_cycle(entity_name, target_entity, field_name, join_config, &join_dependencies) {
+                let warning_path = if target_entity.starts_with("super::") {
+                    format!("{entity_name} -> {field_name} -> {target_entity}")
+                } else {
+                    format!("{entity_name} -> {field_name} -> {target_entity}")
+                };
 
-    // Validate that Sea-ORM Related trait is implemented for all join fields
-    let relation_validation_warnings: Vec<proc_macro2::TokenStream> = Vec::new();
-    // TODO: Implement proper Sea-ORM Related trait validation
-    // The current approach has syntax issues with string parsing in proc macros
-    // This requires more sophisticated parsing of entity paths and validation
+                // Provide specific guidance based on the issue
+                let guidance = if join_config.is_unlimited_recursion() {
+                    "Unlimited recursion detected. Add explicit depth limit: depth = 1"
+                } else {
+                    "This bidirectional relationship creates infinite recursion. Use depth = 1 on at least one side"
+                };
+
+                // Use syn::Error for better error spanning
+                let error = if let Some(crudcrate_attr) = analysis
+                    .join_on_one_fields
+                    .iter()
+                    .chain(&analysis.join_on_all_fields)
+                    .find(|f| f.ident.as_ref().map(|id| id.to_string()) == Some(field_name.clone()))
+                    .and_then(|f| find_crudcrate_join_attr(f))
+                {
+                    // Target the crudcrate join attribute specifically
+                    syn::Error::new_spanned(crudcrate_attr, format!(
+                        "Cyclic dependency detected: {warning_path}. {guidance}"
+                    ))
+                } else {
+                    // Fallback to targeting the field
+                    let field_span = analysis.join_on_one_fields
+                        .iter()
+                        .chain(&analysis.join_on_all_fields)
+                        .find(|f| f.ident.as_ref().map(|id| id.to_string()) == Some(field_name.clone()))
+                        .map(|f| f.ident.as_ref().unwrap().span());
+
+                    if let Some(span) = field_span {
+                        syn::Error::new(span, format!(
+                            "Cyclic dependency detected: {warning_path}. {guidance}"
+                        ))
+                    } else {
+                        syn::Error::new(proc_macro2::Span::call_site(), format!(
+                            "Cyclic dependency detected: {warning_path}. {guidance}"
+                        ))
+                    }
+                };
+
+                Some(error.to_compile_error())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Generate helpful validation guidance for Sea-ORM relations
+    let relation_validation_warnings: Vec<proc_macro2::TokenStream> = join_dependencies
+        .iter()
+        .map(|(_field_name, (target_entity, _join_config))| {
+            // Extract module path and entity name from target (e.g., "vehicle::Model" -> "vehicle", "Model")
+            let target_parts: Vec<&str> = target_entity.split("::").collect();
+            let (target_module, target_model_name) = if target_parts.len() >= 2 {
+                (target_parts[0], target_parts[1])
+            } else {
+                ("unknown", "Unknown")
+            };
+
+            // Generate a helpful comment that will appear in generated code
+            quote! {
+                // Sea-ORM Relation Required for: #target_entity
+                // If compilation fails here, ensure you have:
+                // 1. #[derive(DeriveRelation)] on #target_model_name
+                // 2. Relation enum variant pointing back to this entity
+                // 3. impl Related<ThisEntity> for #target_module::Entity
+                //
+                // Example for #target_model_name:
+                // #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+                // pub enum Relation {
+                //     #[sea_orm(belongs_to = "super::current_entity::Entity", from = "Column::CurrentId", to = "super::current_entity::Column::Id")]
+                //     CurrentEntity,
+                // }
+                //
+                // impl Related<super::current_entity::Entity> for Entity {
+                //     fn to() -> RelationDef {
+                //         Relation::CurrentEntity.def()
+                //     }
+                // }
+            }
+        })
+        .collect();
 
     quote! {
         #( #cycle_warnings )*
@@ -165,6 +247,73 @@ fn has_potential_cycle(
     }
 
     false
+}
+
+/// Enhanced cycle detection that only flags truly unsafe bidirectional relationships
+/// Returns true if the relationship could cause infinite recursion
+fn is_unsafe_cycle(
+    entity_name: &str,
+    target_entity: &str,
+    field_name: &str,
+    join_config: &JoinConfig,
+    all_dependencies: &std::collections::HashMap<String, (String, JoinConfig)>
+) -> bool {
+    // Self-referencing relationships are always unsafe
+    if entity_name == target_entity {
+        return true;
+    }
+
+    // Check for unlimited recursion (always unsafe)
+    if join_config.is_unlimited_recursion() {
+        // But only if there's a potential cycle detected
+        return has_potential_cycle(entity_name, target_entity, field_name, join_config);
+    }
+
+    // For relationships with explicit depths, check if there's actually a reverse relationship
+    let target_entity_name = extract_entity_name_from_path(target_entity);
+
+    // Look for the reverse relationship (B->A when checking A->B)
+    let has_reverse_relationship = all_dependencies.iter().any(|(reverse_field_name, (reverse_target, reverse_config))| {
+        let reverse_target_name = extract_entity_name_from_path(reverse_target);
+
+        // Check if this is actually a reverse relationship (target entity points back to source entity)
+        // This must be a true bidirectional pattern, not just any relationship
+        (reverse_target_name.contains(&entity_name.to_lowercase()) ||
+         entity_name.to_lowercase().contains(&reverse_target_name)) &&
+        (target_entity_name.contains(&reverse_target_name.to_lowercase()) ||
+         reverse_target_name.to_lowercase().contains(&target_entity_name))
+    });
+
+    // If there's no reverse relationship, then it's unidirectional and safe with explicit depth
+    if !has_reverse_relationship {
+        return false; // Unidirectional relationships are safe with explicit depth
+    }
+
+    // If we get here, there IS a bidirectional relationship
+    // Now check if both sides have explicit depth limits
+    for (reverse_field_name, (reverse_target, reverse_config)) in all_dependencies {
+        let reverse_target_name = extract_entity_name_from_path(reverse_target);
+
+        // Find the actual reverse relationship
+        if (reverse_target_name.contains(&entity_name.to_lowercase()) ||
+             entity_name.to_lowercase().contains(&reverse_target_name)) &&
+            (target_entity_name.contains(&reverse_target_name.to_lowercase()) ||
+             reverse_target_name.to_lowercase().contains(&target_entity_name)) {
+
+            // Both sides have explicit depth limits - this is safe
+            if join_config.depth.is_some() && reverse_config.depth.is_some() {
+                return false; // Safe bidirectional with explicit depths
+            }
+
+            // One side has unlimited recursion - unsafe
+            if reverse_config.is_unlimited_recursion() {
+                return true;
+            }
+        }
+    }
+
+    // Fall back to the original heuristic for ambiguous cases
+    has_potential_cycle(entity_name, target_entity, field_name, join_config)
 }
 
 /// Extract the base entity name from a full path like "`vehicle::Model`" -> "vehicle"

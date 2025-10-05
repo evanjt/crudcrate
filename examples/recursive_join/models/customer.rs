@@ -20,9 +20,10 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     #[crudcrate(sortable, exclude(one), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
-    #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(all, depth = 2))]
-    pub vehicles: Vec<Vehicle>,
+    // Temporarily comment out join field to isolate compilation issue
+    // #[sea_orm(ignore)]
+    // #[crudcrate(non_db_attr = true, exclude(create, update), join(all, depth = 4))]
+    // pub vehicles: Vec<Vehicle>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

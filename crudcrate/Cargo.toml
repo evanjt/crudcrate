@@ -80,6 +80,11 @@ name = "recursive_join"
 path = "../examples/recursive_join/main.rs"
 required-features = ["derive", "sqlite"]
 
+[[example]]
+name = "test_router_only"
+path = "../examples/test_router_only.rs"
+required-features = ["derive"]
+
 
 
 

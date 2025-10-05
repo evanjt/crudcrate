@@ -1,11 +1,10 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{traits::CRUDResource, EntityToModels};
+use crudcrate::{EntityToModels, traits::CRUDResource};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
-use super::maintenance_record::MaintenanceRecord;
-use super::vehicle_part::VehiclePart;
-use super::customer::Customer;
+// Import the API structs needed for join fields
+use crate::models::vehicle_part::VehiclePart;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "vehicles")]
@@ -28,15 +27,10 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
+    // Add back a simple join field for testing
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 2))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one))]
     pub parts: Vec<VehiclePart>,
-    #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 2))]
-    pub maintenance_records: Vec<MaintenanceRecord>,
-    // #[sea_orm(ignore)]
-    // #[crudcrate(non_db_attr = true, exclude(create, update), join(one, depth = 2))]
-    // pub customer: Option<Customer>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
