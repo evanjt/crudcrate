@@ -43,14 +43,19 @@ pub fn generate_cyclic_dependency_check(
         if has_potential_cycle(entity_name, target_entity, field_name, join_config) {
             let suggested_depth = calculate_safe_depth(entity_name, target_entity);
 
+            // Build complete cycle path for better understanding
+            let complete_cycle = if target_entity.starts_with("super::") {
+                // super:: reference case: Customer -> vehicles -> super::Model -> Customer
+                format!("{} -> {} -> {} -> {}", entity_name, field_name, target_entity, entity_name)
+            } else {
+                // Different entity case: Customer -> vehicles -> Vehicle -> customer -> Customer
+                format!("{} -> {} -> {} -> customer -> {}", entity_name, field_name, target_entity, entity_name)
+            };
+
             cycle_warnings.push(quote! {
                 compile_error!(concat!(
                     "Cyclic dependency detected: ",
-                    #entity_name,
-                    " -> ",
-                    #field_name,
-                    " -> ",
-                    #target_entity,
+                    #complete_cycle,
                     ". This will cause infinite recursion during join loading. ",
                     "To fix this, add the depth parameter to your join() statement: depth = ",
                     #suggested_depth

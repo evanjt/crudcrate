@@ -187,15 +187,35 @@ pub(crate) fn detect_cyclic_dependencies(
             if (target_type_name == current_type || target_type_name == "Model")
                 && join_config.as_ref().is_none_or(|c| !c.has_explicit_depth())
                     && let Some(field_name) = &field.ident {
-                        let warning = syn::Error::new_spanned(
-                            field,
-                            format!(
-                                "Potential cyclic dependency detected: {} -> {} -> {}. \
-                                This will be limited to depth={} by default. \
-                                To remove this warning, specify explicit depth: #[crudcrate(join(one, all, depth=N))]",
-                                current_type, field_name, target_type_name, join_config.as_ref().map_or(3, super::attribute_parser::JoinConfig::effective_depth)
-                            )
-                        );
+
+                        // Build the complete cycle path for better understanding
+                        let cycle_path = if target_type_name == "Model" {
+                            // Self-reference: Customer -> vehicles -> Model (self) -> Customer
+                            format!("{} -> {} -> Model -> {}", current_type, field_name, current_type)
+                        } else {
+                            // Different type: Customer -> vehicles -> Vehicle -> customer -> Customer
+                            format!("{} -> {} -> {} -> customer -> {}", current_type, field_name, target_type_name, current_type)
+                        };
+
+                        // Try to target the join attribute specifically for better error location
+                        let warning = if let Some(crudcrate_attr) = find_crudcrate_join_attr(field) {
+                            syn::Error::new_spanned(crudcrate_attr,
+                                format!(
+                                    "Cyclic dependency detected: {}. \
+                                    This will cause infinite recursion during join loading. \
+                                    To fix this, add the depth parameter to your join() statement: depth = 2",
+                                    cycle_path
+                                ))
+                        } else {
+                            syn::Error::new_spanned(field,
+                                format!(
+                                    "Cyclic dependency detected: {}. \
+                                    This will cause infinite recursion during join loading. \
+                                    To fix this, add the depth parameter to your join() statement: depth = 2",
+                                    cycle_path
+                                ))
+                        };
+
                         warnings.push(warning);
                     }
             
@@ -206,6 +226,22 @@ pub(crate) fn detect_cyclic_dependencies(
     }
     
     warnings
+}
+
+/// Try to find the crudcrate join attribute for better error span targeting
+fn find_crudcrate_join_attr(field: &syn::Field) -> Option<&syn::Attribute> {
+    for attr in &field.attrs {
+        if attr.path().is_ident("crudcrate") {
+            // Check if this attribute contains join configuration
+            if let Ok(meta) = attr.meta.require_list() {
+                let attr_str = meta.tokens.to_string();
+                if attr_str.contains("join") {
+                    return Some(attr);
+                }
+            }
+        }
+    }
+    None
 }
 
 
