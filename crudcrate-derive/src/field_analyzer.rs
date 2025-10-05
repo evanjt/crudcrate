@@ -227,7 +227,7 @@ pub(crate) fn detect_cyclic_dependencies(
 }
 
 /// Try to find the crudcrate join attribute for better error span targeting
-fn find_crudcrate_join_attr(field: &syn::Field) -> Option<&syn::Attribute> {
+pub fn find_crudcrate_join_attr(field: &syn::Field) -> Option<&syn::Attribute> {
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate") {
             // Check if this attribute contains join configuration
