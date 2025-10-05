@@ -80,6 +80,11 @@ name = "recursive_join"
 path = "../examples/recursive_join/main.rs"
 required-features = ["derive", "sqlite"]
 
+[[example]]
+name = "recursive_join_test"
+path = "../examples/recursive_join_test.rs"
+required-features = ["derive"]
+
 
 [[bench]]
 name = "crud_benchmarks"

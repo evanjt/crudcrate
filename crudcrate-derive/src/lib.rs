@@ -856,17 +856,10 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     // Generate compile-time validation for join relationships
     let join_validation = relation_validator::generate_join_relation_validation(&field_analysis);
 
-    // Check for cyclic dependencies and emit warnings if depth is not explicit
-    let cyclic_warnings = field_analyzer::detect_cyclic_dependencies(&api_struct_name.to_string(), &field_analysis);
-    if !cyclic_warnings.is_empty() {
-        let combined_error = cyclic_warnings.into_iter()
-            .map(|err| err.to_compile_error())
-            .reduce(|mut acc, err| {
-                acc.extend(err);
-                acc
-            })
-            .unwrap();
-        return combined_error.into();
+    // Check for cyclic dependencies and emit compile-time error if detected
+    let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(&field_analysis, &api_struct_name.to_string());
+    if !cyclic_dependency_check.is_empty() {
+        return cyclic_dependency_check.into();
     }
 
     let (api_struct_fields, from_model_assignments) =

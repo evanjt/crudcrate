@@ -7,12 +7,13 @@ use tokio::sync::Mutex;
 pub mod models;
 
 // Re-export local test models for easy access
-pub use crate::models::{
+pub use self::models::{
     Customer, CustomerEntity, CustomerColumn,
     Vehicle, VehicleEntity, VehicleColumn,
     VehiclePart, VehiclePartEntity, VehiclePartColumn,
     MaintenanceRecord, MaintenanceRecordEntity, MaintenanceRecordColumn
 };
+
 
 // Global mutex to serialize database setup for PostgreSQL to avoid race conditions
 static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::const_new(());
@@ -60,10 +61,12 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
 
 #[allow(dead_code)]
 pub fn setup_test_app(db: &DatabaseConnection) -> Router {
-    // Create a simple router that uses the generated CRUD endpoints from shared_models  
+    // Create a simple router that uses the generated CRUD endpoints from local models
     Router::new()
         .nest("/customers", Customer::router(db).into())
         .nest("/vehicles", Vehicle::router(db).into())
+        .nest("/vehicle_parts", VehiclePart::router(db).into())
+        .nest("/maintenance_records", MaintenanceRecord::router(db).into())
 }
 
 // Customer-Vehicle-Parts Migrator for testing
@@ -211,7 +214,7 @@ impl MigrationTrait for CreateVehiclePartTable {
             .col(ColumnDef::new(VehiclePartColumn::Name).text().not_null())
             .col(ColumnDef::new(VehiclePartColumn::PartNumber).text().not_null())
             .col(ColumnDef::new(VehiclePartColumn::Category).text().not_null())
-            .col(ColumnDef::new(VehiclePartColumn::Price).decimal().null())
+            // .col(ColumnDef::new(VehiclePartColumn::Price).decimal().null()) // Temporarily disabled
             .col(
                 ColumnDef::new(VehiclePartColumn::InStock)
                     .boolean()
@@ -273,7 +276,7 @@ impl MigrationTrait for CreateMaintenanceRecordTable {
             .col(ColumnDef::new(MaintenanceRecordColumn::VehicleId).uuid().not_null())
             .col(ColumnDef::new(MaintenanceRecordColumn::ServiceType).text().not_null())
             .col(ColumnDef::new(MaintenanceRecordColumn::Description).text().not_null())
-            .col(ColumnDef::new(MaintenanceRecordColumn::Cost).decimal().null())
+            // .col(ColumnDef::new(MaintenanceRecordColumn::Cost).decimal().null()) // Temporarily disabled
             .col(
                 ColumnDef::new(MaintenanceRecordColumn::ServiceDate)
                     .timestamp_with_time_zone()
@@ -317,132 +320,3 @@ impl MigrationTrait for CreateMaintenanceRecordTable {
     }
 }
 
-// Column enums and entity definitions
-
-#[derive(Debug)]
-pub enum CustomerColumn {
-    Id,
-    Name,
-    Email,
-    CreatedAt,
-    UpdatedAt,
-}
-
-impl Iden for CustomerColumn {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(
-            s,
-            "{}",
-            match self {
-                Self::Id => "id",
-                Self::Name => "name",
-                Self::Email => "email",
-                Self::CreatedAt => "created_at",
-                Self::UpdatedAt => "updated_at",
-            }
-        )
-        .unwrap();
-    }
-}
-
-#[derive(Debug)]
-pub enum VehicleColumn {
-    Id,
-    CustomerId,
-    Make,
-    Model,
-    Year,
-    Vin,
-    CreatedAt,
-    UpdatedAt,
-}
-
-impl Iden for VehicleColumn {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(
-            s,
-            "{}",
-            match self {
-                Self::Id => "id",
-                Self::CustomerId => "customer_id",
-                Self::Make => "make",
-                Self::Model => "model",
-                Self::Year => "year",
-                Self::Vin => "vin",
-                Self::CreatedAt => "created_at",
-                Self::UpdatedAt => "updated_at",
-            }
-        )
-        .unwrap();
-    }
-}
-
-#[derive(Debug)]
-pub enum VehiclePartColumn {
-    Id,
-    VehicleId,
-    Name,
-    PartNumber,
-    Category,
-    Price,
-    InStock,
-    CreatedAt,
-    UpdatedAt,
-}
-
-impl Iden for VehiclePartColumn {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(
-            s,
-            "{}",
-            match self {
-                Self::Id => "id",
-                Self::VehicleId => "vehicle_id",
-                Self::Name => "name",
-                Self::PartNumber => "part_number",
-                Self::Category => "category",
-                Self::Price => "price",
-                Self::InStock => "in_stock",
-                Self::CreatedAt => "created_at",
-                Self::UpdatedAt => "updated_at",
-            }
-        )
-        .unwrap();
-    }
-}
-
-#[derive(Debug)]
-pub enum MaintenanceRecordColumn {
-    Id,
-    VehicleId,
-    ServiceType,
-    Description,
-    Cost,
-    ServiceDate,
-    MechanicName,
-    Completed,
-    CreatedAt,
-    UpdatedAt,
-}
-
-impl Iden for MaintenanceRecordColumn {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(
-            s,
-            "{}",
-            match self {
-                Self::Id => "id",
-                Self::VehicleId => "vehicle_id",
-                Self::ServiceType => "service_type",
-                Self::Description => "description",
-                Self::Cost => "cost",
-                Self::ServiceDate => "service_date",
-                Self::MechanicName => "mechanic_name",
-                Self::Completed => "completed",
-                Self::CreatedAt => "created_at",
-                Self::UpdatedAt => "updated_at",
-            }
-        )
-        .unwrap();
-    }
-}

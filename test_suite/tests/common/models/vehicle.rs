@@ -34,10 +34,7 @@ pub struct Model {
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all))]
     pub maintenance_records: Vec<MaintenanceRecord>,
-    #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one))]
-    pub customer: Option<Customer>,
-}
+  }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {

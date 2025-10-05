@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{traits::CRUDResource, EntityToModels};
+use crudcrate::{EntityToModels, traits::CRUDResource};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-#[sea_orm(table_name = "maintenance_records")]
-#[crudcrate(api_struct = "MaintenanceRecord", generate_router)]
+#[sea_orm(table_name = "vehicle_parts")]
+#[crudcrate(api_struct = "VehiclePart", generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -16,22 +16,19 @@ pub struct Model {
     pub vehicle_id: Uuid,
 
     #[crudcrate(filterable, sortable, fulltext)]
-    pub service_type: String,
+    pub name: String,
 
-    #[crudcrate(filterable, fulltext)]
-    pub description: String,
-
-    // #[crudcrate(sortable)]
-    // pub cost: Option<Decimal>,  // Temporarily disabled for debugging
+    #[crudcrate(filterable)]
+    pub part_number: String,
 
     #[crudcrate(filterable, sortable)]
-    pub service_date: DateTime<Utc>,
+    pub category: String,
+
+    // #[crudcrate(sortable)]
+    // pub price: Option<rust_decimal::Decimal>,  // Temporarily disabled for debugging
 
     #[crudcrate(filterable)]
-    pub mechanic_name: Option<String>,
-
-    #[crudcrate(filterable)]
-    pub completed: bool,
+    pub in_stock: bool,
 
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
