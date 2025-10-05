@@ -18,24 +18,20 @@ pub fn generate_cyclic_dependency_check(
 
     // Process join_on_one fields
     for field in &analysis.join_on_one_fields {
-        if let Some(field_name) = &field.ident {
-            if let Ok(target_type) = extract_target_entity_type(&field.ty) {
-                if let Some(join_config) = get_join_config(field) {
+        if let Some(field_name) = &field.ident
+            && let Ok(target_type) = extract_target_entity_type(&field.ty)
+                && let Some(join_config) = get_join_config(field) {
                     join_dependencies.insert(field_name.to_string(), (target_type, join_config));
                 }
-            }
-        }
     }
 
     // Process join_on_all fields
     for field in &analysis.join_on_all_fields {
-        if let Some(field_name) = &field.ident {
-            if let Ok(target_type) = extract_target_entity_type(&field.ty) {
-                if let Some(join_config) = get_join_config(field) {
+        if let Some(field_name) = &field.ident
+            && let Ok(target_type) = extract_target_entity_type(&field.ty)
+                && let Some(join_config) = get_join_config(field) {
                     join_dependencies.insert(field_name.to_string(), (target_type, join_config));
                 }
-            }
-        }
     }
 
     // Check for potentially dangerous cycles based on relationship analysis
@@ -46,10 +42,10 @@ pub fn generate_cyclic_dependency_check(
             // Build complete cycle path for better understanding
             let complete_cycle = if target_entity.starts_with("super::") {
                 // super:: reference case: Customer -> vehicles -> super::Model -> Customer
-                format!("{} -> {} -> {} -> {}", entity_name, field_name, target_entity, entity_name)
+                format!("{entity_name} -> {field_name} -> {target_entity} -> {entity_name}")
             } else {
                 // Different entity case: Customer -> vehicles -> Vehicle -> customer -> Customer
-                format!("{} -> {} -> {} -> customer -> {}", entity_name, field_name, target_entity, entity_name)
+                format!("{entity_name} -> {field_name} -> {target_entity} -> customer -> {entity_name}")
             };
 
             cycle_warnings.push(quote! {
@@ -72,8 +68,8 @@ pub fn generate_cyclic_dependency_check(
 /// Extract the target entity type from a field type (Vec<T> or Option<T>)
 /// Returns the full path to uniquely identify different entities
 fn extract_target_entity_type(field_type: &syn::Type) -> Result<String, String> {
-    if let syn::Type::Path(type_path) = field_type {
-        if let Some(last_seg) = type_path.path.segments.last() {
+    if let syn::Type::Path(type_path) = field_type
+        && let Some(last_seg) = type_path.path.segments.last() {
             let inner_type = match last_seg.ident.to_string().as_str() {
                 "Vec" => {
                     if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
@@ -112,7 +108,6 @@ fn extract_target_entity_type(field_type: &syn::Type) -> Result<String, String> 
                 }
             }
         }
-    }
 
     Err("Could not extract entity type".to_string())
 }
@@ -157,8 +152,8 @@ fn has_potential_cycle(
     false
 }
 
-/// Extract the base entity name from a full path like "vehicle::Model" -> "vehicle"
-/// or "super::Model" -> "super"
+/// Extract the base entity name from a full path like "`vehicle::Model`" -> "vehicle"
+/// or "`super::Model`" -> "super"
 fn extract_entity_name_from_path(path: &str) -> &str {
     // Split by :: and take the first meaningful segment
     let segments: Vec<&str> = path.split("::").collect();
@@ -196,9 +191,9 @@ pub fn generate_join_relation_validation(
 
     // Generate validation checks for join_on_one fields (only if custom relation is specified)
     for field in &analysis.join_on_one_fields {
-        if let Some(field_name) = &field.ident {
-            if let Some(join_config) = get_join_config(field) {
-                if let Some(custom_relation) = join_config.relation {
+        if let Some(field_name) = &field.ident
+            && let Some(join_config) = get_join_config(field)
+                && let Some(custom_relation) = join_config.relation {
                     // Only validate if a custom relation name is explicitly provided
                     let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
 
@@ -213,15 +208,13 @@ pub fn generate_join_relation_validation(
                     });
                 }
                 // If no custom relation is specified, we use entity path resolution - no validation needed
-            }
-        }
     }
 
     // Generate validation checks for join_on_all fields (only if custom relation is specified)
     for field in &analysis.join_on_all_fields {
-        if let Some(field_name) = &field.ident {
-            if let Some(join_config) = get_join_config(field) {
-                if let Some(custom_relation) = join_config.relation {
+        if let Some(field_name) = &field.ident
+            && let Some(join_config) = get_join_config(field)
+                && let Some(custom_relation) = join_config.relation {
                     // Only validate if a custom relation name is explicitly provided
                     let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
 
@@ -235,8 +228,6 @@ pub fn generate_join_relation_validation(
                     });
                 }
                 // If no custom relation is specified, we use entity path resolution - no validation needed
-            }
-        }
     }
 
     quote! {

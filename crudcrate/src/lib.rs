@@ -1,6 +1,6 @@
-//! # CrudCrate - Transform Sea-ORM entities into complete REST APIs with zero boilerplate
+//! # `CrudCrate` - Transform Sea-ORM entities into complete REST APIs with zero boilerplate
 //!
-//! **CrudCrate** is a Rust ecosystem that eliminates the repetitive work of building CRUD APIs by automatically generating complete REST endpoints from Sea-ORM entities through powerful procedural macros.
+//! **`CrudCrate`** is a Rust ecosystem that eliminates the repetitive work of building CRUD APIs by automatically generating complete REST endpoints from Sea-ORM entities through powerful procedural macros.
 //!
 //! ## Quick Start
 //!
@@ -70,7 +70,7 @@
 //! Database-specific query optimizations and index recommendations. Production-ready performance across SQLite/PostgreSQL/MySQL without config.
 //!
 //! ### 🛠️ Development Experience
-//! Rich attribute system, OpenAPI docs, debug output, IDE support. Fast development cycle with great tooling and clear generated APIs.
+//! Rich attribute system, `OpenAPI` docs, debug output, IDE support. Fast development cycle with great tooling and clear generated APIs.
 //!
 //! ## Module Organization
 //!
@@ -129,7 +129,7 @@
 //!
 //! ## Advanced Attributes
 //!
-//! CrudCrate provides comprehensive attribute customization:
+//! `CrudCrate` provides comprehensive attribute customization:
 //!
 //! ### Primary Keys
 //! ```rust,ignore
@@ -193,18 +193,18 @@
 //!
 //! - **`derive`**: Enables procedural macros (default)
 //! - **`debug`**: Shows generated code during compilation
-//! - **`sqlite`**: SQLite database support (default)
-//! - **`postgresql`**: PostgreSQL database support
-//! - **`mysql`**: MySQL database support
+//! - **`sqlite`**: `SQLite` database support (default)
+//! - **`postgresql`**: `PostgreSQL` database support
+//! - **`mysql`**: `MySQL` database support
 //! - **`spring-rs`**: Spring-rs framework integration
 //!
 //! ## Database Support
 //!
-//! CrudCrate works with multiple databases, providing optimizations for each:
+//! `CrudCrate` works with multiple databases, providing optimizations for each:
 //!
-//! - **SQLite**: Default, fastest for development and testing
-//! - **PostgreSQL**: Production-ready with advanced fulltext search via tsvector/GIN indexes
-//! - **MySQL**: FULLTEXT index support for search optimization
+//! - **`SQLite`**: Default, fastest for development and testing
+//! - **`PostgreSQL`**: Production-ready with advanced fulltext search via tsvector/GIN indexes
+//! - **`MySQL`**: FULLTEXT index support for search optimization
 //!
 //! ## License
 //!

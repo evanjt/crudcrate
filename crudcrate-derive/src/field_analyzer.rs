@@ -191,28 +191,26 @@ pub(crate) fn detect_cyclic_dependencies(
                         // Build the complete cycle path for better understanding
                         let cycle_path = if target_type_name == "Model" {
                             // Self-reference: Customer -> vehicles -> Model (self) -> Customer
-                            format!("{} -> {} -> Model -> {}", current_type, field_name, current_type)
+                            format!("{current_type} -> {field_name} -> Model -> {current_type}")
                         } else {
                             // Different type: Customer -> vehicles -> Vehicle -> customer -> Customer
-                            format!("{} -> {} -> {} -> customer -> {}", current_type, field_name, target_type_name, current_type)
+                            format!("{current_type} -> {field_name} -> {target_type_name} -> customer -> {current_type}")
                         };
 
                         // Try to target the join attribute specifically for better error location
                         let warning = if let Some(crudcrate_attr) = find_crudcrate_join_attr(field) {
                             syn::Error::new_spanned(crudcrate_attr,
                                 format!(
-                                    "Cyclic dependency detected: {}. \
+                                    "Cyclic dependency detected: {cycle_path}. \
                                     This will cause infinite recursion during join loading. \
-                                    To fix this, add the depth parameter to your join() statement: depth = 2",
-                                    cycle_path
+                                    To fix this, add the depth parameter to your join() statement: depth = 2"
                                 ))
                         } else {
                             syn::Error::new_spanned(field,
                                 format!(
-                                    "Cyclic dependency detected: {}. \
+                                    "Cyclic dependency detected: {cycle_path}. \
                                     This will cause infinite recursion during join loading. \
-                                    To fix this, add the depth parameter to your join() statement: depth = 2",
-                                    cycle_path
+                                    To fix this, add the depth parameter to your join() statement: depth = 2"
                                 ))
                         };
 

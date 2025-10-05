@@ -5,7 +5,7 @@
 //! ## Main Components
 //!
 //! - **[`CRUDResource`](@/traits/trait.CRUDResource.html)**: Central trait that defines CRUD operations, filtering, and sorting capabilities
-//! - **[`MergeIntoActiveModel`](@/traits/trait.MergeIntoActiveModel.html)**: Helper trait for merging API structs into ActiveModel
+//! - **[`MergeIntoActiveModel`](@/traits/trait.MergeIntoActiveModel.html)**: Helper trait for merging API structs into `ActiveModel`
 //!
 //! ## Generated Operations
 //!

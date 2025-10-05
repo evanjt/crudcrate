@@ -5,9 +5,9 @@
 //! ## Key Features
 //!
 //! - **Query Parameter Parsing**: Automatically converts URL parameters to SQL conditions
-//! - **Fulltext Search**: Database-optimized search with PostgreSQL GIN indexes and MySQL FULLTEXT
+//! - **Fulltext Search**: Database-optimized search with `PostgreSQL` GIN indexes and `MySQL` FULLTEXT
 //! - **Type Safety**: Automatic type validation and conversion
-//! - **Multi-Database**: Optimized queries for SQLite, PostgreSQL, and MySQL
+//! - **Multi-Database**: Optimized queries for `SQLite`, `PostgreSQL`, and `MySQL`
 //!
 //! ## Main Components
 //!
@@ -57,17 +57,17 @@
 //!
 //! ## Database Optimizations
 //!
-//! ### PostgreSQL
+//! ### `PostgreSQL`
 //! - GIN indexes for fulltext search
 //! - tsvector columns for optimized search
 //! - JSON operations for complex filters
 //!
-//! ### MySQL
+//! ### `MySQL`
 //! - FULLTEXT indexes for search optimization
 //! - Spatial data support
 //! - Optimized LIKE queries
 //!
-//! ### SQLite
+//! ### `SQLite`
 //! - LIKE-based fallback for search
 //! - Best for development and testing
 //! - Fast in-memory operations

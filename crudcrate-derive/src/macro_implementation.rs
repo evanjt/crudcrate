@@ -1531,16 +1531,14 @@ pub(crate) fn generate_create_conversion_manual(
                     }
                 });
             }
+        } else if field_is_optional(field) {
+            conversions.push(quote! {
+                #field_name: sea_orm::ActiveValue::Set(create.#field_name.map(|v| v.into()))
+            });
         } else {
-            if field_is_optional(field) {
-                conversions.push(quote! {
-                    #field_name: sea_orm::ActiveValue::Set(create.#field_name.map(|v| v.into()))
-                });
-            } else {
-                conversions.push(quote! {
-                    #field_name: sea_orm::ActiveValue::Set(create.#field_name.into())
-                });
-            }
+            conversions.push(quote! {
+                #field_name: sea_orm::ActiveValue::Set(create.#field_name.into())
+            });
         }
     }
 

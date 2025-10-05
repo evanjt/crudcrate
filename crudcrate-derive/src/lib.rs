@@ -292,7 +292,19 @@ fn generate_api_struct_content(
         });
 
         // Only include this field in the From<Model> assignment if it's not excluded from one_model
-        if attribute_parser::get_crudcrate_bool(field, "one_model") != Some(false) {
+        if attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false) {
+            // Field is excluded from one_model but included in struct (has on_create/on_update)
+            // Provide a default value - for timestamp fields, use a reasonable default
+            if field_type.to_token_stream().to_string().contains("DateTime") {
+                from_model_assignments.push(quote! {
+                    #field_name: model.#field_name
+                });
+            } else {
+                from_model_assignments.push(quote! {
+                    #field_name: Default::default()
+                });
+            }
+        } else {
             let assignment = if field_type
                 .to_token_stream()
                 .to_string()
@@ -314,18 +326,6 @@ fn generate_api_struct_content(
             };
 
             from_model_assignments.push(assignment);
-        } else {
-            // Field is excluded from one_model but included in struct (has on_create/on_update)
-            // Provide a default value - for timestamp fields, use a reasonable default
-            if field_type.to_token_stream().to_string().contains("DateTime") {
-                from_model_assignments.push(quote! {
-                    #field_name: model.#field_name
-                });
-            } else {
-                from_model_assignments.push(quote! {
-                    #field_name: Default::default()
-                });
-            }
         }
     }
 
