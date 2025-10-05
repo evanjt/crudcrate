@@ -11,13 +11,6 @@ pub fn generate_cyclic_dependency_check(
 ) -> proc_macro2::TokenStream {
     use quote::quote;
 
-    #[cfg(feature = "debug")]
-    eprintln!("DEBUG: Checking cyclic dependencies for entity: {}", entity_name);
-    #[cfg(feature = "debug")]
-    eprintln!("DEBUG: join_on_one_fields: {}", analysis.join_on_one_fields.len());
-    #[cfg(feature = "debug")]
-    eprintln!("DEBUG: join_on_all_fields: {}", analysis.join_on_all_fields.len());
-
     let mut cycle_warnings = Vec::new();
 
     // Collect all join fields with their target types and configurations
@@ -25,14 +18,9 @@ pub fn generate_cyclic_dependency_check(
 
     // Process join_on_one fields
     for field in &analysis.join_on_one_fields {
-        #[cfg(feature = "debug")]
-        eprintln!("DEBUG: Processing join_on_one field: {:?}", field.ident);
-
         if let Some(field_name) = &field.ident {
             if let Ok(target_type) = extract_target_entity_type(&field.ty) {
                 if let Some(join_config) = get_join_config(field) {
-                    #[cfg(feature = "debug")]
-                    eprintln!("DEBUG: Found join dependency: {} -> {} (config: {:?})", field_name, target_type, join_config);
                     join_dependencies.insert(field_name.to_string(), (target_type, join_config));
                 }
             }
@@ -41,38 +29,12 @@ pub fn generate_cyclic_dependency_check(
 
     // Process join_on_all fields
     for field in &analysis.join_on_all_fields {
-        #[cfg(feature = "debug")]
-        eprintln!("DEBUG: Processing join_on_all field: {:?}", field.ident);
-
         if let Some(field_name) = &field.ident {
-            #[cfg(feature = "debug")]
-            eprintln!("DEBUG: Field name: {}, extracting target type...", field_name);
-
-            match extract_target_entity_type(&field.ty) {
-                Ok(target_type) => {
-                    #[cfg(feature = "debug")]
-                    eprintln!("DEBUG: Extracted target type: {}", target_type);
-
-                    match get_join_config(field) {
-                        Some(join_config) => {
-                            #[cfg(feature = "debug")]
-                            eprintln!("DEBUG: Found join dependency: {} -> {} (config: {:?})", field_name, target_type, join_config);
-                            join_dependencies.insert(field_name.to_string(), (target_type, join_config));
-                        }
-                        None => {
-                            #[cfg(feature = "debug")]
-                            eprintln!("DEBUG: No join config found for field: {}", field_name);
-                        }
-                    }
-                }
-                Err(e) => {
-                    #[cfg(feature = "debug")]
-                    eprintln!("DEBUG: Failed to extract target type for field {}: {}", field_name, e);
+            if let Ok(target_type) = extract_target_entity_type(&field.ty) {
+                if let Some(join_config) = get_join_config(field) {
+                    join_dependencies.insert(field_name.to_string(), (target_type, join_config));
                 }
             }
-        } else {
-            #[cfg(feature = "debug")]
-            eprintln!("DEBUG: Field has no identifier: {:?}", field);
         }
     }
 
@@ -90,9 +52,8 @@ pub fn generate_cyclic_dependency_check(
                     " -> ",
                     #target_entity,
                     ". This will cause infinite recursion during join loading. ",
-                    "To fix this, specify explicit depth: #[crudcrate(join(one, all, depth = ",
-                    #suggested_depth,
-                    "))]"
+                    "To fix this, add the depth parameter to your join() statement: depth = ",
+                    #suggested_depth
                 ));
             });
         }

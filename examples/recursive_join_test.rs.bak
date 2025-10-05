@@ -17,7 +17,7 @@ pub struct Model {
     pub name: String,
 
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(all))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(all, depth = 2))]
     pub vehicles: Vec<vehicle::Model>,
 }
 
@@ -37,7 +37,6 @@ impl ActiveModelBehavior for ActiveModel {}
 
 mod vehicle {
     use super::*;
-    use sea_orm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "vehicles")]
@@ -54,7 +53,7 @@ mod vehicle {
         pub make: String,
 
         #[sea_orm(ignore)]
-        #[crudcrate(non_db_attr = true, exclude(create, update), join(one))]
+        #[crudcrate(non_db_attr = true, exclude(create, update), join(one, depth = 2))]
         pub customer: Option<super::Model>,
     }
 
@@ -75,4 +74,9 @@ mod vehicle {
     }
 
     impl ActiveModelBehavior for ActiveModel {}
+}
+
+fn main() {
+    println!("This example demonstrates cyclic dependency detection with depth limits.");
+    println!("Run with: cargo run --example recursive_join_test");
 }

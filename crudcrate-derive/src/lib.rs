@@ -13,7 +13,6 @@ use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::parse::Parser;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, parse_macro_input, punctuated::Punctuated, token::Comma};
-use convert_case::{Case, Casing};
 use heck::ToPascalCase;
 
 use structs::{CRUDResourceMeta, EntityFieldAnalysis};
@@ -370,10 +369,10 @@ fn generate_api_struct(
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
     // Check if we have fields excluded from create/update models
-    let has_create_exclusions = analysis.db_fields.iter()
+    let _has_create_exclusions = analysis.db_fields.iter()
         .chain(analysis.non_db_fields.iter())
         .any(|field| attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false));
-    let has_update_exclusions = analysis.db_fields.iter()
+    let _has_update_exclusions = analysis.db_fields.iter()
         .chain(analysis.non_db_fields.iter())
         .any(|field| attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false));
 
@@ -445,11 +444,8 @@ fn generate_conditional_crud_impl(
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        eprintln!("DEBUG: Generating router for {api_struct_name}");
         macro_implementation::generate_router_impl(api_struct_name)
     } else {
-        eprintln!("DEBUG: NOT generating router for {} - generate_router: {}, has_crud_resource_fields: {}", 
-                  api_struct_name, crud_meta.generate_router, has_crud_resource_fields);
         quote! {}
     };
 
@@ -714,7 +710,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 /// This generates:
 /// - An API struct with the specified name (e.g., `Experiment`)
 /// - `ToCreateModel` and `ToUpdateModel` implementations
-/// - From<Model> implementation for the API struct
+/// - `From<Model>` implementation for the API struct
 /// - Support for non-db attributes
 ///
 /// Derive macro for generating complete CRUD API structures from Sea-ORM entities.

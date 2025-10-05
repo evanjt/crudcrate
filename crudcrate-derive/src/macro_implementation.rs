@@ -597,7 +597,7 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// Generate recursive join loading implementation for get_one method
+/// Generate recursive join loading implementation for `get_one` method
 fn generate_recursive_loading_implementation(
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
@@ -615,7 +615,7 @@ fn generate_recursive_loading_implementation(
     // Process only join(one) fields for get_one method
     for field in &analysis.join_on_one_fields {
         if let Some(field_name) = &field.ident {
-            let join_config = get_join_config(field).unwrap_or_default();
+            let _join_config = get_join_config(field).unwrap_or_default();
             let is_vec_field = is_vec_type(&field.ty);
 
             // Extract entity from the field type - this gives us the exact entity path
@@ -817,7 +817,7 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
 
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident {
-            let join_config = get_join_config(field).unwrap_or_default();
+            let _join_config = get_join_config(field).unwrap_or_default();
             let is_vec_field = is_vec_type(&field.ty);
             
             // Extract entity from the field type - this gives us the exact entity path
@@ -1427,8 +1427,7 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
 }
 
 /// Manual generation functions for Create and Update models when exclusions are present
-
-/// Generate field declarations for manual Create struct based on EntityFieldAnalysis
+/// Generate field declarations for manual Create struct based on `EntityFieldAnalysis`
 pub(crate) fn generate_create_struct_fields_manual(
     analysis: &EntityFieldAnalysis,
 ) -> Vec<proc_macro2::TokenStream> {
@@ -1491,10 +1490,10 @@ pub(crate) fn generate_create_struct_fields_manual(
 /// Generate conversion logic for manual Create struct
 pub(crate) fn generate_create_conversion_manual(
     analysis: &EntityFieldAnalysis,
-    active_model_path: &str,
+    _active_model_path: &str,
 ) -> Vec<proc_macro2::TokenStream> {
     let mut conversions = Vec::new();
-    let active_model_ident = syn::Ident::new(active_model_path, proc_macro2::Span::call_site());
+    let _active_model_ident = syn::Ident::new(_active_model_path, proc_macro2::Span::call_site());
 
     // Process database fields
     for field in &analysis.db_fields {
@@ -1556,7 +1555,7 @@ pub(crate) fn generate_create_conversion_manual(
     conversions
 }
 
-/// Generate field declarations for manual Update struct based on EntityFieldAnalysis
+/// Generate field declarations for manual Update struct based on `EntityFieldAnalysis`
 pub(crate) fn generate_update_struct_fields_manual(
     analysis: &EntityFieldAnalysis,
 ) -> Vec<proc_macro2::TokenStream> {
@@ -1608,7 +1607,7 @@ pub(crate) fn generate_update_struct_fields_manual(
 /// Generate conversion logic for manual Update struct
 pub(crate) fn generate_update_conversion_manual(
     analysis: &EntityFieldAnalysis,
-    active_model_path: &str,
+    _active_model_path: &str,
 ) -> Vec<proc_macro2::TokenStream> {
     let mut conversions = Vec::new();
 
