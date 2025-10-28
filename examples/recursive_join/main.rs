@@ -23,7 +23,7 @@ use uuid::Uuid;
 // Import local models
 mod models;
 use models::{
-    Customer, MaintenanceRecord, Vehicle, VehiclePart,
+    Customer, MaintenanceRecord, Vehicle, VehiclePart,  // API structs - now available!
     customer, maintenance_record, vehicle, vehicle_part,
     CustomerEntity, VehicleEntity, VehiclePartEntity, MaintenanceRecordEntity,
     CustomerColumn,

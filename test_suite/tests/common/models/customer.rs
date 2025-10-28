@@ -4,10 +4,11 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 use super::vehicle::Vehicle;
+use super::vehicle::Vehicle as VehicleAPI;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "customers")]
-#[crudcrate(api_struct = "Customer", generate_router, debug_output)]
+#[crudcrate(api_struct = "Customer", generate_router)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -21,8 +22,8 @@ pub struct Model {
     #[crudcrate(sortable, exclude(one), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(all, depth = 2))]
-    pub vehicles: Vec<Vehicle>,
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 2))]
+    pub vehicles: Vec<VehicleAPI>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -639,6 +639,7 @@ fn generate_recursive_loading_implementation(
                 // For Vec<T> fields (has_many relationships) - depth-aware loading
                 if has_depth_limit {
                     // Depth-limited loading - NO recursive calls to prevent stack overflow
+                    // Use direct conversion without triggering nested join loading
                     loading_statements.push(quote! {
                         let #field_name = model.find_related(#entity_path)
                             .all(db)
@@ -670,6 +671,7 @@ fn generate_recursive_loading_implementation(
                 // For single T or Option<T> fields (belongs_to/has_one relationships) - depth-aware loading
                 if has_depth_limit {
                     // Depth-limited loading - NO recursive calls to prevent stack overflow
+                    // Use direct conversion without triggering nested join loading
                     loading_statements.push(quote! {
                         let #field_name = model.find_related(#entity_path)
                             .one(db)
@@ -1451,7 +1453,15 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
             }
         } else if let Some(segment) = type_path.path.segments.last() {
             // Fallback: Convert TypeName to snake_case::Entity for simple paths
-            let entity_name = segment.ident.to_string().to_case(Case::Snake);
+            // Handle API struct aliases by stripping common suffixes
+            let type_name = segment.ident.to_string();
+            let base_name = if type_name.ends_with("API") {
+                // Convert VehicleAPI → Vehicle
+                type_name.strip_suffix("API").unwrap_or(&type_name)
+            } else {
+                &type_name
+            };
+            let entity_name = base_name.to_case(Case::Snake);
             let entity_path = format_ident!("{}", entity_name);
             return quote! { super::#entity_path::Entity };
         }

@@ -4,7 +4,8 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 // Import the API structs needed for join fields
-use crate::models::vehicle_part::VehiclePart;
+use super::VehiclePart;  // Temporarily re-enabling to test
+use super::MaintenanceRecord;  // Temporarily re-enabling to test
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "vehicles")]
@@ -27,10 +28,14 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
-    // Add back a simple join field for testing
+    // Re-enabled join fields for recursive joins with depth limits
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one))]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 1))]
     pub parts: Vec<VehiclePart>,
+
+    #[sea_orm(ignore)]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 1))]
+    pub maintenance_records: Vec<MaintenanceRecord>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

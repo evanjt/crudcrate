@@ -5,6 +5,8 @@ use uuid::Uuid;
 
 use super::maintenance_record::MaintenanceRecord;
 use super::vehicle_part::VehiclePart;
+use super::maintenance_record::MaintenanceRecord as MaintenanceRecordAPI;
+use super::vehicle_part::VehiclePart as VehiclePartAPI;
 use super::customer::Customer;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
@@ -29,11 +31,11 @@ pub struct Model {
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 2))]
-    pub parts: Vec<VehiclePart>,
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 1))]
+    pub parts: Vec<VehiclePartAPI>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 2))]
-    pub maintenance_records: Vec<MaintenanceRecord>,
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 1))]
+    pub maintenance_records: Vec<MaintenanceRecordAPI>,
   }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

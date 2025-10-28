@@ -261,9 +261,10 @@ fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenSt
 
 fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
-) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
+) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
     let mut api_struct_fields = Vec::new();
     let mut from_model_assignments = Vec::new();
+    let mut required_imports = Vec::new();
 
     for field in &analysis.db_fields {
         let field_name = &field.ident;
@@ -346,8 +347,15 @@ fn generate_api_struct_content(
         // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
         let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
 
-        if is_excluded_from_one {
-            continue; // Skip this field - it's excluded from the get_one response
+        // Check if field has join(one) configuration - if so, it should be included in get_one() responses
+        let join_config = attribute_parser::get_join_config(field);
+        let has_join_one = join_config.as_ref().map_or(false, |config| config.on_one);
+
+        // Include the field if:
+        // 1. It's not excluded from one_model, OR
+        // 2. It has join(one) configuration (which overrides exclusion for join fields)
+        if is_excluded_from_one && !has_join_one {
+            continue; // Skip this field - it's excluded from the get_one response and doesn't have join(one)
         }
 
         let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
@@ -360,17 +368,15 @@ fn generate_api_struct_content(
             .filter(|attr| attr.path().is_ident("crudcrate"))
             .collect();
 
-        // Check if this is a join field - if so, add serde skip to prevent infinite recursion in serialization
-        let has_join_config = attribute_parser::get_join_config(field).is_some();
-        let serde_skip = if has_join_config {
-            quote! { #[serde(skip)] }
-        } else {
-            quote! {}
-        };
+        // REMOVED: Automatic serde skip for join fields
+        // Join fields should be included in API responses - infinite recursion
+        // should be prevented by proper depth limiting in the join loading logic
+        let serde_skip = quote! {};
 
         // For join fields, use the field type as-is since the join loading logic will handle population
-        // The cross-module type resolution will be handled by the import structure
         let resolved_field_type = if attribute_parser::get_join_config(field).is_some() {
+            // For join fields, use the original field type
+            // The type should be available through proper module imports
             quote! { #field_type }
         } else {
             // For other non-db fields, use the field type as-is
@@ -388,7 +394,38 @@ fn generate_api_struct_content(
         });
     }
 
-    (api_struct_fields, from_model_assignments)
+    (api_struct_fields, from_model_assignments, required_imports)
+}
+
+/// Extract the target type from a join field (e.g., Vec<Vehicle> -> Vehicle)
+fn extract_join_target_type(field_type: &syn::Type) -> Option<syn::Type> {
+    match field_type {
+        syn::Type::Path(type_path) => {
+            if let Some(last_seg) = type_path.path.segments.last() {
+                let ident = &last_seg.ident;
+
+                // Handle Vec<T> - extract the inner type T
+                if ident == "Vec"
+                    && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
+                    && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    Some(inner_ty.clone())
+                } else if ident == "Option"
+                    && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
+                    && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    // For Option<T>, extract the inner type
+                    extract_join_target_type(inner_ty)
+                } else {
+                    // For direct types (T), return the type as-is
+                    Some(field_type.clone())
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 fn generate_api_struct(
@@ -888,7 +925,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return cyclic_dependency_check.into();
     }
 
-    let (api_struct_fields, from_model_assignments) =
+    let (api_struct_fields, from_model_assignments, required_imports) =
         generate_api_struct_content(&field_analysis);
     let api_struct =
         generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta, &field_analysis);
