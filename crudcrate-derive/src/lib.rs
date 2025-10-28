@@ -5,6 +5,7 @@ mod macro_implementation;
 // mod join_generators; // Removed - functions moved to macro_implementation.rs
 mod relation_validator;
 mod attributes;
+mod two_pass_generator;
 #[cfg(feature = "debug")]
 mod debug_output;
 
@@ -261,6 +262,7 @@ fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenSt
 
 fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
 ) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
     let mut api_struct_fields = Vec::new();
     let mut from_model_assignments = Vec::new();
@@ -373,11 +375,15 @@ fn generate_api_struct_content(
         // should be prevented by proper depth limiting in the join loading logic
         let serde_skip = quote! {};
 
-        // For join fields, use the field type as-is since the join loading logic will handle population
+        // For join fields, use the global type registry to resolve the proper API struct type
         let resolved_field_type = if attribute_parser::get_join_config(field).is_some() {
-            // For join fields, use the original field type
-            // The type should be available through proper module imports
-            quote! { #field_type }
+            // Try to resolve the join field type using the global registry
+            if let Some(resolved_type) = two_pass_generator::resolve_join_type_globally(field_type) {
+                resolved_type
+            } else {
+                // Fallback to original field type if resolution fails
+                quote! { #field_type }
+            }
         } else {
             // For other non-db fields, use the field type as-is
             quote! { #field_type }
@@ -916,6 +922,13 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return e;
     }
 
+    // === PASS 1: Discovery Phase ===
+    // Register this entity in the global type registry for join field resolution
+    // Extract the actual entity name from table name or API struct name
+    let entity_name = table_name.to_pascal_case(); // Use table name converted to PascalCase
+    let api_name = api_struct_name.to_string();
+    two_pass_generator::register_entity_globally(entity_name, api_name);
+
     // Generate compile-time validation for join relationships
     let join_validation = relation_validator::generate_join_relation_validation(&field_analysis);
 
@@ -926,7 +939,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     }
 
     let (api_struct_fields, from_model_assignments, required_imports) =
-        generate_api_struct_content(&field_analysis);
+        generate_api_struct_content(&field_analysis, &api_struct_name);
     let api_struct =
         generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta, &field_analysis);
     let from_impl =
