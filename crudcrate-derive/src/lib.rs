@@ -206,7 +206,7 @@ fn analyze_entity_fields(
 
     for field in fields {
         let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
-        
+
         // Check for join attributes regardless of db/non_db status
         if let Some(join_config) = attribute_parser::get_join_config(field) {
             if join_config.on_one {
@@ -217,7 +217,7 @@ fn analyze_entity_fields(
             }
             // Note: join_configs removed to avoid HashMap key issues with syn::Field
         }
-        
+
         if is_non_db {
             analysis.non_db_fields.push(field);
         } else {
@@ -260,13 +260,105 @@ fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenSt
     Ok(())
 }
 
+/// Helper function to resolve inner types (Vec<Model>, Option<Model>, Model) to API structs
+/// Vec<super::vehicle::Model> -> Vec<Vehicle>
+/// Option<super::customer::Model> -> Option<Customer>
+/// super::vehicle::Model -> Vehicle
+fn resolve_inner_type_to_api_struct(field_type: &syn::Type) -> proc_macro2::TokenStream {
+    // Try to extract base type using the global registry
+    if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
+        if let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str) {
+            let api_struct_ident = quote::format_ident!("{}", api_name);
+
+            // Check if this is a container type (Vec, Option)
+            if let syn::Type::Path(type_path) = field_type {
+                if let Some(segment) = type_path.path.segments.last() {
+                    if segment.ident == "Vec" {
+                        // Vec<super::vehicle::Model> -> Vec<Vehicle>
+                        return quote! { Vec<#api_struct_ident> };
+                    } else if segment.ident == "Option" {
+                        // Option<super::vehicle::Model> -> Option<Vehicle>
+                        return quote! { Option<#api_struct_ident> };
+                    }
+                }
+            }
+
+            // Direct type: super::vehicle::Model -> Vehicle
+            return quote! { #api_struct_ident };
+        }
+    }
+
+    // Fallback: keep original type if we can't resolve
+    #[cfg(feature = "debug")]
+    eprintln!("WARNING: Could not resolve inner type to API struct: {:?}", quote! { #field_type });
+    quote! { #field_type }
+}
+
+/// Resolve join field type - extract inner type from JoinField and transform Model -> API struct
+/// This is used for API struct field definitions for join fields
+/// JoinField<Vec<super::vehicle::Model>> -> JoinField<Vec<Vehicle>> (resolve Model to API struct)
+/// Vec<super::vehicle::Model> -> JoinField<Vec<Vehicle>> (wrap and resolve)
+fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_macro2::TokenStream {
+    // Check if the field type is already JoinField<...>
+    if let syn::Type::Path(type_path) = field_type {
+        if let Some(segment) = type_path.path.segments.last() {
+            if segment.ident == "JoinField" {
+                // Extract inner type from JoinField<T> and resolve it
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        // Recursively resolve the inner type (Vec<Model> -> Vec<APIStruct>)
+                        let resolved_inner = resolve_inner_type_to_api_struct(inner_ty);
+                        #[cfg(feature = "debug")]
+                        eprintln!("DEBUG: JoinField inner type resolved: {:?} -> {:?}", quote! { #inner_ty }, quote! { #resolved_inner });
+                        return quote! { crudcrate::JoinField<#resolved_inner> };
+                    }
+                }
+                // Couldn't extract inner type, keep as-is
+                #[cfg(feature = "debug")]
+                eprintln!("DEBUG: Field already JoinField, but couldn't extract inner type: {:?}", quote! { #field_type });
+                return quote! { #field_type };
+            }
+        }
+    }
+
+    // Try to extract base type from the field type using the global registry
+    if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
+        // Look up the API struct name for this base type
+        if let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str) {
+            let api_struct_ident = quote::format_ident!("{}", api_name);
+
+            // Check if this is a Vec<T> to preserve collection structure
+            if let syn::Type::Path(type_path) = field_type {
+                if let Some(segment) = type_path.path.segments.last() {
+                    if segment.ident == "Vec" {
+                        // Vec<super::vehicle::Model> -> JoinField<Vec<Vehicle>>
+                        return quote! { crudcrate::JoinField<Vec<#api_struct_ident>> };
+                    } else if segment.ident == "Option" {
+                        // Option<super::vehicle::Model> -> JoinField<Option<Vehicle>>
+                        return quote! { crudcrate::JoinField<Option<#api_struct_ident>> };
+                    }
+                }
+            }
+
+            // Direct type: super::vehicle::Model -> JoinField<Vehicle>
+            return quote! { crudcrate::JoinField<#api_struct_ident> };
+        }
+    }
+
+    // Fallback: if we can't resolve, keep the original type
+    #[cfg(feature = "debug")]
+    eprintln!("WARNING: Could not resolve join field type, keeping as-is: {:?}", quote! { #field_type });
+
+    quote! { #field_type }
+}
+
 fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
-) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
+) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>, std::collections::HashSet<String>) {
     let mut api_struct_fields = Vec::new();
     let mut from_model_assignments = Vec::new();
-    let mut required_imports = Vec::new();
+    let mut required_imports = std::collections::HashSet::new();
 
     for field in &analysis.db_fields {
         let field_name = &field.ident;
@@ -370,35 +462,65 @@ fn generate_api_struct_content(
             .filter(|attr| attr.path().is_ident("crudcrate"))
             .collect();
 
-        // REMOVED: Automatic serde skip for join fields
-        // Join fields should be included in API responses - infinite recursion
-        // should be prevented by proper depth limiting in the join loading logic
-        let serde_skip = quote! {};
+        // Add schema(no_recursion) attribute for join fields to prevent circular dependencies
+        // This is the proper utoipa way to handle recursive relationships
+        let schema_attrs = if attribute_parser::get_join_config(field).is_some() {
+            quote! { #[schema(no_recursion)] }
+        } else {
+            quote! {}
+        };
 
-        // For join fields, use the global type registry to resolve the proper API struct type
-        let resolved_field_type = if attribute_parser::get_join_config(field).is_some() {
-            // Try to resolve the join field type using the global registry
-            if let Some(resolved_type) = two_pass_generator::resolve_join_type_globally(field_type) {
-                resolved_type
-            } else {
-                // Fallback to original field type if resolution fails
-                quote! { #field_type }
-            }
+        // For join fields, resolve type and wrap in JoinField<>
+        let final_field_type = if attribute_parser::get_join_config(field).is_some() {
+            // For join fields, keep the type as-is since user already declares it as JoinField<Vec<T>>
+            // If they use the old Vec<super::vehicle::Model> syntax, resolve it
+            resolve_join_field_type_preserving_container(field_type)
         } else {
             // For other non-db fields, use the field type as-is
             quote! { #field_type }
         };
 
-        api_struct_fields.push(quote! {
-            #serde_skip
+        // Generate field definition with proper type handling
+        let field_definition = quote! {
+            #schema_attrs
             #(#crudcrate_attrs)*
-            pub #field_name: #resolved_field_type
-        });
+            pub #field_name: #final_field_type
+        };
 
-        from_model_assignments.push(quote! {
-            #field_name: #default_expr
-        });
+        api_struct_fields.push(field_definition);
+
+        // For join fields, check if already JoinField in Model, otherwise initialize to NotLoaded
+        let assignment = if attribute_parser::get_join_config(field).is_some() {
+            // Check if the field is already JoinField<T> in the Model struct
+            let is_already_join_field = if let syn::Type::Path(type_path) = field_type {
+                type_path.path.segments.last()
+                    .map(|seg| seg.ident == "JoinField")
+                    .unwrap_or(false)
+            } else {
+                false
+            };
+
+            // For join fields, always initialize to Default (NotLoaded)
+            // We can't copy from the model because:
+            // - Model has JoinField<Vec<vehicle_part::Model>>
+            // - API struct has JoinField<Vec<VehiclePart>>
+            // These types are incompatible and can't be directly assigned
+            // Join fields are populated by the CRUDResource::get_one() implementation, not by From<Model>
+            quote! {
+                #field_name: Default::default()
+            }
+        } else {
+            quote! {
+                #field_name: #default_expr
+            }
+        };
+
+        from_model_assignments.push(assignment);
     }
+
+  
+      #[cfg(feature = "debug")]
+    eprintln!("DEBUG: required_imports = {:?}", required_imports);
 
     (api_struct_fields, from_model_assignments, required_imports)
 }
@@ -440,6 +562,7 @@ fn generate_api_struct(
     active_model_path: &str,
     crud_meta: &structs::CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
+    required_imports: &std::collections::HashSet<String>,
 ) -> proc_macro2::TokenStream {
     // Check if we have fields excluded from create/update models
     let _has_create_exclusions = analysis.db_fields.iter()
@@ -449,30 +572,148 @@ fn generate_api_struct(
         .chain(analysis.non_db_fields.iter())
         .any(|field| attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false));
 
+    // Check if we have join fields that require Default implementation
+    let has_join_fields = !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
+
+    // Check if any non-db fields need Default (for join loading or excluded fields)
+    let has_fields_needing_default = has_join_fields ||
+        analysis.non_db_fields.iter().any(|field| {
+            // Fields excluded from create/update need Default for join loading
+            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false) ||
+            attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+        }) ||
+        analysis.db_fields.iter().any(|field| {
+            // Database fields excluded from create/update need Default
+            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false) ||
+            attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+        });
+
     // Build derive clause based on user preferences
     let mut derives = vec![
         quote!(Clone),
         quote!(Debug),
-        quote!(ToSchema),
         quote!(Serialize),
         quote!(Deserialize),
         quote!(ToCreateModel),
         quote!(ToUpdateModel),
     ];
-    
+
+    // Always include ToSchema, but handle circular dependencies with schema(no_recursion)
+    // This is the proper utoipa approach for recursive relationships
+    derives.push(quote!(ToSchema));
+
+    #[cfg(feature = "debug")]
+    eprintln!("DEBUG: Including ToSchema for '{}' (using schema(no_recursion) for join fields)", api_struct_name);
+
+    // Add Default derive if needed for join fields or excluded fields
+    // BUT: don't derive Default if we have join fields, as it causes E0282 type inference errors
+    // We'll manually implement Default instead
+    if has_fields_needing_default && !has_join_fields {
+        derives.push(quote!(Default));
+    }
+
     if crud_meta.derive_partial_eq {
         derives.push(quote!(PartialEq));
     }
-    
+
     if crud_meta.derive_eq {
         derives.push(quote!(Eq));
     }
     
+    // Collect import statements for join field target types
+    // When we have join fields like `JoinField<Vec<super::vehicle::Model>>`,
+    // we need to import the corresponding API struct (`super::vehicle::Vehicle`)
+    let mut import_statements: Vec<proc_macro2::TokenStream> = vec![];
+    let mut seen_imports: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Collect all join fields from the analysis
+    let all_join_fields: Vec<_> = analysis.join_on_one_fields.iter().chain(analysis.join_on_all_fields.iter()).collect();
+
+    #[cfg(feature = "debug")]
+    eprintln!("DEBUG generate_api_struct: Found {} join fields", all_join_fields.len());
+
+    for field in all_join_fields {
+        #[cfg(feature = "debug")]
+        {
+            let field_ty = &field.ty;
+            eprintln!("DEBUG generate_api_struct: Processing join field: {} with type: {}", field.ident.as_ref().unwrap(), quote!{#field_ty});
+        }
+
+        // Extract the base type from the join field (e.g., "Vehicle" from "JoinField<Vec<super::vehicle::Model>>")
+        if let Some(base_type_str) = two_pass_generator::extract_base_type_string(&field.ty) {
+            #[cfg(feature = "debug")]
+            eprintln!("DEBUG generate_api_struct: Base type: {}", base_type_str);
+
+            if let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str) {
+                #[cfg(feature = "debug")]
+                eprintln!("DEBUG generate_api_struct: API name: {}", api_name);
+
+                // The field type is JoinField<Vec<super::vehicle::Model>> or similar
+                // We need to extract the inner-most path (super::vehicle::Model) and get its module path
+                // Then import super::vehicle::Vehicle (the API struct)
+
+                // Helper function to recursively extract the innermost Type::Path
+                fn extract_innermost_path(ty: &syn::Type) -> Option<&syn::TypePath> {
+                    if let syn::Type::Path(type_path) = ty {
+                        // Check if this is a container type (JoinField, Vec, Option)
+                        if let Some(segment) = type_path.path.segments.last() {
+                            if segment.ident == "JoinField" || segment.ident == "Vec" || segment.ident == "Option" {
+                                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                                        // Recursively extract from inner type
+                                        return extract_innermost_path(inner_ty);
+                                    }
+                                }
+                            }
+                        }
+                        // Base case: return this path (it's not a container type)
+                        return Some(type_path);
+                    }
+                    None
+                }
+
+                if let Some(inner_type_path) = extract_innermost_path(&field.ty) {
+                    // inner_type_path is now super::vehicle_part::Model
+                    // Build the module path by extracting path segments and replacing Model with API struct name
+                    let path_segments: Vec<_> = inner_type_path.path.segments.iter()
+                        .take(inner_type_path.path.segments.len() - 1) // Take all except the last (Model)
+                        .map(|seg| seg.ident.clone())
+                        .collect();
+
+                    #[cfg(feature = "debug")]
+                    eprintln!("DEBUG generate_api_struct: Path segments: {:?}", path_segments.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+
+                    if !path_segments.is_empty() {
+                        let api_ident = quote::format_ident!("{}", api_name);
+                        let module_path = quote! { #(#path_segments)::* };
+
+                        // Create a unique key for deduplication
+                        let import_key = format!("{}::{}", quote!{#module_path}, api_name);
+
+                        if !seen_imports.contains(&import_key) {
+                            seen_imports.insert(import_key);
+
+                            let import_stmt = quote! {
+                                use #module_path::#api_ident;
+                            };
+
+                            #[cfg(feature = "debug")]
+                            eprintln!("DEBUG generate_api_struct: Adding import: {}", quote!{#import_stmt});
+
+                            import_statements.push(import_stmt);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     quote! {
         use sea_orm::ActiveValue;
         use utoipa::ToSchema;
         use serde::{Serialize, Deserialize};
         use crudcrate::{ToUpdateModel, ToCreateModel};
+        #(#import_statements)*
 
         #[derive(#(#derives),*)]
         #[active_model = #active_model_path]
@@ -505,6 +746,8 @@ fn generate_conditional_crud_impl(
     analysis: &EntityFieldAnalysis,
     table_name: &str,
 ) -> proc_macro2::TokenStream {
+    // Note: join fields should not be considered for CRUD resource generation
+    // They are populated by join loading, not direct CRUD operations
     let has_crud_resource_fields = analysis.primary_key_field.is_some()
         || !analysis.sortable_fields.is_empty()
         || !analysis.filterable_fields.is_empty()
@@ -572,8 +815,12 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     let create_struct_fields = macro_implementation::generate_create_struct_fields(&fields);
     let conv_lines = macro_implementation::generate_create_conversion_lines(&fields);
 
+    // Always include ToSchema for Create models
+    // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
+    let create_derives = quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
+
     let expanded = quote! {
-        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+        #[derive(#create_derives)]
         pub struct #create_name {
             #(#create_struct_fields),*
         }
@@ -631,8 +878,12 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let (included_merge, excluded_merge) =
         generate_update_merge_code(&fields, &included_fields);
 
+    // Always include ToSchema for Update models
+    // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
+    let update_derives = quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
+
     let expanded = quote! {
-        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+        #[derive(#update_derives)]
         pub struct #update_name {
             #(#update_struct_fields),*
         }
@@ -705,8 +956,12 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     let list_struct_fields = macro_implementation::generate_list_struct_fields(&fields);
     let list_from_assignments = macro_implementation::generate_list_from_assignments(&fields);
 
+    // Always include ToSchema for List models
+    // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
+    let list_derives = quote! { Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
+
     let expanded = quote! {
-        #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+        #[derive(#list_derives)]
         pub struct #list_name {
             #(#list_struct_fields),*
         }
@@ -924,8 +1179,8 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
 
     // === PASS 1: Discovery Phase ===
     // Register this entity in the global type registry for join field resolution
-    // Extract the actual entity name from table name or API struct name
-    let entity_name = table_name.to_pascal_case(); // Use table name converted to PascalCase
+    // Use the API struct name as the entity name to ensure proper type resolution
+    let entity_name = api_struct_name.to_string();
     let api_name = api_struct_name.to_string();
     two_pass_generator::register_entity_globally(entity_name, api_name);
 
@@ -941,7 +1196,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let (api_struct_fields, from_model_assignments, required_imports) =
         generate_api_struct_content(&field_analysis, &api_struct_name);
     let api_struct =
-        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta, &field_analysis);
+        generate_api_struct(&api_struct_name, &api_struct_fields, &active_model_path, &crud_meta, &field_analysis, &required_imports);
     let from_impl =
         generate_from_impl(struct_name, &api_struct_name, &from_model_assignments);
     let crud_impl = generate_conditional_crud_impl(
@@ -959,8 +1214,12 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let list_from_assignments = macro_implementation::generate_list_from_assignments(&raw_fields);
     let list_from_model_assignments = macro_implementation::generate_list_from_model_assignments(&field_analysis);
     
+    // Always include ToSchema for List models in EntityToModels
+    // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
+    let list_derives = quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
+
     let list_model = quote! {
-        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+        #[derive(#list_derives)]
         pub struct #list_name {
             #(#list_struct_fields),*
         }

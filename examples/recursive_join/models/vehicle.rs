@@ -1,13 +1,9 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{EntityToModels, traits::CRUDResource};
+use crudcrate::{EntityToModels, traits::CRUDResource, JoinField};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
-// Import the API structs needed for join fields
-use super::VehiclePart;  // Temporarily re-enabling to test
-use super::MaintenanceRecord;  // Temporarily re-enabling to test
-
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+#[derive(Clone, Debug, PartialEq, EntityToModels, DeriveEntityModel)]
 #[sea_orm(table_name = "vehicles")]
 #[crudcrate(api_struct = "Vehicle", generate_router)]
 pub struct Model {
@@ -28,15 +24,18 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
-    // Re-enabled join fields for recursive joins with depth limits
+
+    // Join fields for parts and maintenance records - automatically loaded with join(one, all)
+    // JoinField wrapper handles automatic loading and avoids circular dependencies
+    // Using module paths to reference the Models (not API structs)
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 1))]
-    pub parts: Vec<VehiclePart>,
+    #[crudcrate(non_db_attr, join(one, all, depth = 1))]
+    pub parts: JoinField<Vec<super::vehicle_part::Model>>,
 
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 1))]
-    pub maintenance_records: Vec<MaintenanceRecord>,
-}
+    #[crudcrate(non_db_attr, join(one, all, depth = 1))]
+    pub maintenance_records: JoinField<Vec<super::maintenance_record::Model>>,
+    }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {

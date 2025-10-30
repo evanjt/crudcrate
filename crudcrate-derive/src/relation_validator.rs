@@ -316,20 +316,40 @@ fn is_unsafe_cycle(
     has_potential_cycle(entity_name, target_entity, field_name, join_config)
 }
 
-/// Extract the base entity name from a full path like "`vehicle::Model`" -> "vehicle"
-/// or "`super::Model`" -> "super"
-fn extract_entity_name_from_path(path: &str) -> &str {
-    // Split by :: and take the first meaningful segment
+/// Extract the base entity name from a full path like "`vehicle::Model`" -> "Vehicle"
+/// or "`super::vehicle::Model`" -> "Vehicle"
+fn extract_entity_name_from_path(path: &str) -> String {
+    // Split by :: and take the meaningful segment
     let segments: Vec<&str> = path.split("::").collect();
 
     if segments.is_empty() {
-        return path;
+        return path.to_string();
     }
 
-    // For "super::Model", return "super"
-    // For "vehicle::Model", return "vehicle"
-    // For single segment like "Model", return "Model"
-    segments.first().unwrap_or(&path)
+    // Handle different path patterns
+    match segments.as_slice() {
+        // "super::vehicle::Model" -> "Vehicle" (take second segment and PascalCase)
+        ["super", module, "Model"] => module.to_pascal_case(),
+
+        // "vehicle::Model" -> "Vehicle" (take first segment and PascalCase)
+        [module, "Model"] => module.to_pascal_case(),
+
+        // "super::Model" -> "Super" (unlikely but handle)
+        ["super", "Model"] => "Super".to_string(),
+
+        // Single segment like "Model" -> "Model"
+        [single] => single.to_string(),
+
+        // Fallback: take first meaningful segment (skip "super") and PascalCase
+        segments => {
+            let meaningful_segment = if segments.first() == Some(&"super") {
+                segments.get(1).unwrap_or(&"Unknown")
+            } else {
+                segments.first().unwrap_or(&"Unknown")
+            };
+            meaningful_segment.to_pascal_case()
+        }
+    }
 }
 
 /// Calculate safe recursion depth based on relationship analysis

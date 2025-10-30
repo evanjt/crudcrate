@@ -39,7 +39,41 @@ impl EntityTypeRegistry {
 
     /// Resolve a join field type to its proper API struct type
     pub fn resolve_join_type(&self, field_type: &Type) -> Option<TokenStream> {
-        // Extract the base type from Vec<T> or Option<T>
+        // For type aliases, we need to preserve the container structure while resolving the inner type
+        if let Type::Path(type_path) = field_type {
+            if let Some(segment) = type_path.path.segments.last() {
+                let type_name = segment.ident.to_string();
+
+                // Handle type aliases that end with "Join" (VehicleJoin, VehiclePartJoin, etc.)
+                if type_name.ends_with("Join") {
+                    // These are type aliases like `pub type VehicleJoin = Vec<super::vehicle::Vehicle>;`
+                    // We assume they are collection types (Vec<T>) based on the pattern
+                    let base_type = self.extract_base_type(field_type)?;
+
+                    // Try multiple resolution strategies
+                    let api_struct_name = if let Some(api_name) = self.entity_to_api.get(&base_type) {
+                        // Direct mapping found
+                        api_name
+                    } else if let Some(api_name) = self.entity_to_api.get(&format!("{}API", base_type)) {
+                        // Try with API suffix
+                        api_name
+                    } else if let Some(api_name) = self.entity_to_api.get(&self.pluralize(&base_type)) {
+                        // Try with plural form (Vehicle -> Vehicles)
+                        api_name
+                    } else {
+                        // Fallback to base type (this should work for most cases)
+                        &base_type
+                    };
+
+                    // Type aliases ending with "Join" are assumed to be Vec<T> based on the pattern
+                    // e.g., VehicleJoin = Vec<super::vehicle::Vehicle> -> Vec<Vehicle>
+                    let api_ident = format_ident!("{}", api_struct_name);
+                    return Some(quote! { Vec<#api_ident> });
+                }
+            }
+        }
+
+        // For regular types (Vec<T>, Option<T>, or direct T), use the standard resolution
         let base_type = self.extract_base_type(field_type)?;
 
         // Try multiple resolution strategies
@@ -72,17 +106,59 @@ impl EntityTypeRegistry {
         }
     }
 
-    /// Extract base type name from Vec<T> or Option<T>
+    /// Extract base type name from Vec<T>, Option<T>, or JoinField<T>
     fn extract_base_type(&self, field_type: &Type) -> Option<String> {
         if let Type::Path(type_path) = field_type {
             if let Some(segment) = type_path.path.segments.last() {
                 let ident = segment.ident.to_string();
 
-                if ident == "Vec" || ident == "Option" {
+                if ident == "Vec" || ident == "Option" || ident == "JoinField" {
                     // Extract inner type from generic arguments
                     if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                         if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
                             return self.extract_base_type(inner_ty);
+                        }
+                    }
+                }
+
+                // Handle type aliases that end with "Join" (VehicleJoin -> Vehicle)
+                // These are special type aliases used for join fields to avoid circular dependencies
+                // We need to extract the base entity name from the alias
+                if ident.ends_with("Join") {
+                    let base_name = ident.strip_suffix("Join").unwrap_or(&ident);
+                    return Some(heck::ToPascalCase::to_pascal_case(base_name));
+                }
+
+                // Handle Sea-ORM model paths (super::vehicle::Model -> Vehicle)
+                let path_segments: Vec<String> = type_path.path.segments
+                    .iter()
+                    .map(|seg| seg.ident.to_string())
+                    .collect();
+
+                // Convert Sea-ORM model paths to entity names
+                if path_segments.len() == 3 && path_segments[0] == "super" && path_segments[2] == "Model" {
+                    // "super::vehicle::Model" -> "Vehicle"
+                    return Some(heck::ToPascalCase::to_pascal_case(path_segments[1].as_str()));
+                } else if path_segments.len() == 2 && path_segments[1] == "Model" {
+                    // "vehicle::Model" -> "Vehicle"
+                    return Some(heck::ToPascalCase::to_pascal_case(path_segments[0].as_str()));
+                } else {
+                    // Handle other patterns
+                    // Skip "super" and take the next meaningful segment
+                    let meaningful_segment = if path_segments.first().map(|s| s.as_str()) == Some("super") {
+                        path_segments.get(1)
+                    } else {
+                        path_segments.first()
+                    };
+
+                    if let Some(segment) = meaningful_segment {
+                        if segment.as_str() == "Model" {
+                            // If we only have "Model", use the previous segment as entity name
+                            if path_segments.len() >= 2 {
+                                return Some(heck::ToPascalCase::to_pascal_case(path_segments[path_segments.len() - 2].as_str()));
+                            }
+                        } else {
+                            return Some(heck::ToPascalCase::to_pascal_case(segment.as_str()));
                         }
                     }
                 }
@@ -92,7 +168,7 @@ impl EntityTypeRegistry {
                     return Some(ident.strip_suffix("API").unwrap_or(&ident).to_string());
                 }
 
-                return Some(ident);
+                return Some(heck::ToPascalCase::to_pascal_case(ident.as_str()));
             }
         }
         None
@@ -111,7 +187,7 @@ impl EntityTypeRegistry {
             if let Some(segment) = type_path.path.segments.last() {
                 let ident = segment.ident.to_string();
 
-                if ident == "Vec" || ident == "Option" {
+                if ident == "Vec" || ident == "Option" || ident == "JoinField" {
                     // Need to extract inner type and reconstruct
                     if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                         if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
@@ -121,24 +197,41 @@ impl EntityTypeRegistry {
                             // Resolve the inner base type to get the correct API struct name
                             let resolved_inner_name = if let Some(resolved_api) = self.entity_to_api.get(&inner_base_type) {
                                 resolved_api
+                            } else if let Some(resolved_api) = self.entity_to_api.get(&self.pluralize(&inner_base_type)) {
+                                // Try plural form (Vehicle -> Vehicles)
+                                resolved_api
                             } else {
-                                // If no specific mapping, use the resolved api_struct_name
-                                api_struct_name
+                                // Fallback to the inner base type itself (most API structs have same name as entity)
+                                &inner_base_type
                             };
 
                             let api_ident = format_ident!("{}", resolved_inner_name);
 
                             if ident == "Vec" {
                                 return Some(quote! { Vec<#api_ident> });
-                            } else {
+                            } else if ident == "Option" {
                                 return Some(quote! { Option<#api_ident> });
+                            } else {
+                                // JoinField case - we need to recursively reconstruct the inner type
+                                // then wrap it back in JoinField
+                                let reconstructed_inner = self.reconstruct_type(inner_ty, resolved_inner_name)?;
+                                return Some(quote! { JoinField<#reconstructed_inner> });
                             }
                         }
                     }
                 } else {
-                    // Direct type replacement
-                    let api_ident = format_ident!("{}", api_struct_name);
-                    return Some(quote! { #api_ident });
+                    // Check if the original type name ends with "Join" (type alias case)
+                    if ident.ends_with("Join") {
+                        // For type aliases like "VehicleJoin", we need to check if the original field type
+                        // was a Vec<T> or Option<T> and preserve that structure
+                        // This is handled by the caller, so just return the resolved type
+                        let api_ident = format_ident!("{}", api_struct_name);
+                        return Some(quote! { #api_ident });
+                    } else {
+                        // Direct type replacement for non-Join types
+                        let api_ident = format_ident!("{}", api_struct_name);
+                        return Some(quote! { #api_ident });
+                    }
                 }
             }
         }
@@ -253,6 +346,36 @@ pub fn resolve_join_type_globally(field_type: &Type) -> Option<TokenStream> {
     } else {
         #[cfg(feature = "debug")]
         eprintln!("🔍 RESOLVE: no registry available");
+        None
+    }
+}
+
+/// Extract the base type name as a string (e.g., "Vehicle" from Vec<Vehicle> or super::vehicle::Model)
+pub fn extract_base_type_string(field_type: &Type) -> Option<String> {
+    let registry = GLOBAL_TYPE_REGISTRY.lock().unwrap();
+    if let Some(ref reg) = *registry {
+        reg.extract_base_type(field_type)
+    } else {
+        None
+    }
+}
+
+/// Find the API struct name for a given base type (e.g., "Vehicle" -> "Vehicle")
+pub fn find_api_struct_name(base_type: &str) -> Option<String> {
+    let registry = GLOBAL_TYPE_REGISTRY.lock().unwrap();
+    if let Some(ref reg) = *registry {
+        // Try multiple resolution strategies
+        if let Some(api_name) = reg.entity_to_api.get(base_type) {
+            Some(api_name.clone())
+        } else if let Some(api_name) = reg.entity_to_api.get(&format!("{}API", base_type)) {
+            Some(api_name.clone())
+        } else if let Some(api_name) = reg.entity_to_api.get(&reg.pluralize(base_type)) {
+            Some(api_name.clone())
+        } else {
+            // Default to the base type itself
+            Some(base_type.to_string())
+        }
+    } else {
         None
     }
 }

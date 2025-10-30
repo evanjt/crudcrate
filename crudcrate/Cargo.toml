@@ -85,6 +85,11 @@ name = "test_router_only"
 path = "../examples/test_router_only.rs"
 required-features = ["derive"]
 
+[[example]]
+name = "simple_join"
+path = "../examples/simple_join.rs"
+required-features = ["derive"]
+
 
 
 
