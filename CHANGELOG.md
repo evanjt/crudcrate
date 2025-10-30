@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unlimited join depth support with default depth warnings for relationships > 3 levels
 - `exclude()` function-style syntax for model exclusion: `#[crudcrate(exclude(create, update))]`
 - The get one response is now its own model, allowing for exclusion of fields from get one/create/update responses
-- Comprehensive integration tests for join loading and model exclusion
 - New `recursive_join` example demonstrating nested relationship loading
 - Debug output functionality for procedural macros with `debug_output` attribute
 

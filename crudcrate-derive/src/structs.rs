@@ -40,9 +40,10 @@ impl Default for CRUDResourceMeta {
             fn_delete_many: None,
             generate_router: false,
             fulltext_language: None,
-            // Default to true for backward compatibility, but users can opt out
+            // Default to true for backward compatibility - most common types implement PartialEq
+            // Users can opt-out with no_partial_eq if needed
             derive_partial_eq: true,
-            // Default to false - Eq is more restrictive, users must opt in
+            // Default to false - Eq is more restrictive, users must opt in with derive_eq
             derive_eq: false,
             #[cfg(feature = "debug")]
             debug_output: false,

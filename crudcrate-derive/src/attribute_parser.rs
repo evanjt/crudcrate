@@ -178,7 +178,11 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                             && let Lit::Bool(b) = &expr_lit.lit
                         {
                             // Emit deprecation error for old model exclusion syntax
-                            if (key == "create_model" || key == "update_model" || key == "list_model") && !b.value() {
+                            if (key == "create_model"
+                                || key == "update_model"
+                                || key == "list_model")
+                                && !b.value()
+                            {
                                 let error = create_deprecation_error(key, &nv.path);
                                 // Convert to compile error by panicking with structured error message
                                 panic!("Compilation failed: {error}");
@@ -271,12 +275,12 @@ fn create_deprecation_error(key: &str, path: &syn::Path) -> syn::Error {
         "one_model" => "exclude(one)",
         _ => "exclude(...)",
     };
-    
+
     syn::Error::new_spanned(
         path,
         format!(
             "The `{key} = false` syntax is deprecated. Use `{new_syntax}` instead for cleaner, more idiomatic code."
-        )
+        ),
     )
 }
 
@@ -288,10 +292,9 @@ fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Opti
         for meta in nested_metas {
             if let Meta::Path(path) = meta {
                 // Check for exclude(all) which means both list_model and one_model should be false
-                if path.is_ident("all") {
-                    if target_key == "list_model" || target_key == "one_model" {
-                        return Some(true); // exclude(all) excludes from both list and one
-                    }
+                if path.is_ident("all") && (target_key == "list_model" || target_key == "one_model")
+                {
+                    return Some(true); // exclude(all) excludes from both list and one
                 }
 
                 let excluded_type = if path.is_ident("create") {
