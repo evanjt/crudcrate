@@ -670,9 +670,18 @@ fn generate_recursive_loading_implementation(
 
     // Process both join(one) and join(all) fields for get_one method
     // Fields with either join(one) or join(all) should appear in get_one() responses
+    // IMPORTANT: Deduplicate fields - if a field has join(one, all), it appears in both lists
+    let mut seen_fields = std::collections::HashSet::new();
     let all_join_fields_for_get_one: Vec<_> = analysis.join_on_one_fields
         .iter()
         .chain(analysis.join_on_all_fields.iter())
+        .filter(|field| {
+            if let Some(field_name) = &field.ident {
+                seen_fields.insert(field_name.to_string())
+            } else {
+                true // Include fields without names (shouldn't happen)
+            }
+        })
         .collect();
 
     for field in all_join_fields_for_get_one {
@@ -684,9 +693,12 @@ fn generate_recursive_loading_implementation(
             let entity_path = get_entity_path_from_field_type(&field.ty);
             let model_path = get_model_path_from_field_type(&field.ty);
 
-            // Check if this join has depth limitations
-            let has_depth_limit = join_config.depth.is_some();
-            let depth_value = join_config.depth.unwrap_or(3); // Default depth for safety
+            // Check if this join should stop recursion at this level
+            // depth=1 means "load this level but don't recurse into nested joins"
+            // depth=2+ means "load this level AND recurse into nested joins"
+            // None means "unlimited recursion"
+            let stop_recursion = join_config.depth == Some(1);
+            let should_recurse = join_config.depth.is_none() || join_config.depth.unwrap_or(1) > 1;
 
             if is_vec_field {
                 // Extract the inner type from Vec<T> (or JoinField<Vec<T>>) and resolve it to the API struct type
@@ -741,11 +753,20 @@ fn generate_recursive_loading_implementation(
                                 };
 
                                 // For Vec<T> fields (has_many relationships) - depth-aware loading
-                                if has_depth_limit {
-                                    // Depth-limited loading (depth=1) - Don't load at all, just mark as NotLoaded
-                                    // This prevents infinite recursion while still allowing the API struct to be created
-                                    // The join field will be NotLoaded and can be manually loaded later if needed
-                                    // NO loading statement needed - field will default to NotLoaded
+                                if stop_recursion {
+                                    // Depth-limited loading (depth=1) - Load data but don't recurse
+                                    // This prevents infinite recursion by converting Models directly to API structs
+                                    // without calling their get_one() methods (which would load nested joins)
+                                    let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);
+                                    let loaded_var_name = quote::format_ident!("loaded_{}", field_name);
+                                    loading_statements.push(quote! {
+                                        let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                                        let #loaded_var_name: Vec<#api_struct_type> = related_models.into_iter()
+                                            .map(|related_model| Into::<#api_struct_type>::into(related_model))
+                                            .collect();
+                                    });
+                                    // Wrap the loaded Vec in JoinField::Loaded
+                                    field_assignments.push(quote! { result.#field_name = crudcrate::JoinField::Loaded(#loaded_var_name); });
                                 } else {
                                     // Unlimited recursion - use the original recursive approach
                                     let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);
@@ -773,11 +794,22 @@ fn generate_recursive_loading_implementation(
                 let inner_type = extract_option_or_direct_inner_type(&field.ty);
 
                 // For single T or Option<T> fields (belongs_to/has_one relationships) - depth-aware loading
-                if has_depth_limit {
-                    // Depth-limited loading (depth=1) - Don't load at all, just mark as NotLoaded
-                    // This prevents infinite recursion while still allowing the API struct to be created
-                    // The join field will be NotLoaded and can be manually loaded later if needed
-                    // NO loading statement needed - field will default to NotLoaded
+                if stop_recursion {
+                    // Depth-limited loading (depth=1) - Load data but don't recurse
+                    // This prevents infinite recursion by converting Models directly to API structs
+                    // without calling their get_one() methods (which would load nested joins)
+                    let loaded_var_name = quote::format_ident!("loaded_{}", field_name);
+                    loading_statements.push(quote! {
+                        let #loaded_var_name = if let Ok(Some(related_model)) = model.find_related(#entity_path).one(db).await {
+                            Some(Into::<#inner_type>::into(related_model))
+                        } else {
+                            None
+                        };
+                    });
+                    // Wrap the loaded Option in JoinField::Loaded if it's Some, otherwise use Default
+                    field_assignments.push(quote! {
+                        result.#field_name = #loaded_var_name.map(crudcrate::JoinField::Loaded).unwrap_or_default();
+                    });
                 } else {
                     // Unlimited recursion - use the original recursive approach
                     loading_statements.push(quote! {
@@ -958,9 +990,11 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
 
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident {
-            let _join_config = get_join_config(field).unwrap_or_default();
+            let join_config = get_join_config(field).unwrap_or_default();
             let is_vec_field = is_vec_type(&field.ty);
-            
+            // Check if this join should stop recursion at this level
+            let stop_recursion = join_config.depth == Some(1);
+
             // Extract entity and model paths from the field type
             let entity_path = get_entity_path_from_field_type(&field.ty);
             let model_path = get_model_path_from_field_type(&field.ty);
@@ -1001,49 +1035,80 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                     syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty)).unwrap_or_else(|_| field.ty.clone())
                 };
 
-                // For Vec<T> relationships, load all related models
+                // For Vec<T> relationships, load all related models - depth-aware
                 let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);
-                loading_statements.push(quote! {
-                    let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
-                    let mut #field_name = Vec::new();
-                    for related_model in related_models {
-                        // Try recursive loading by calling the target type's get_one method
-                        match #api_struct_type::get_one(db, related_model.id).await {
-                            Ok(loaded_entity) => #field_name.push(loaded_entity),
-                            Err(_) => {
-                                // Fallback: convert Model to API struct using explicit Into::into with full path
-                                #field_name.push(Into::<#api_struct_type>::into(related_model))
-                            },
-                        }
-                    }
-                });
-                // Wrap the loaded Vec in JoinField::Loaded for get_all
-                field_assignments.push(quote! {
-                    result.#field_name = crudcrate::JoinField::Loaded(#field_name);
-                });
-            } else {
-                // For single relationships (Option<T> or T), load one related model
-                let target_type = extract_option_or_direct_inner_type(&field.ty);
 
-                loading_statements.push(quote! {
-                    let #field_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
-                        Some(related_model) => {
+                if stop_recursion {
+                    // Depth-limited loading (depth=1) - Load data but don't recurse
+                    let loaded_var_name = quote::format_ident!("loaded_{}", field_name);
+                    loading_statements.push(quote! {
+                        let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                        let #loaded_var_name: Vec<#api_struct_type> = related_models.into_iter()
+                            .map(|related_model| Into::<#api_struct_type>::into(related_model))
+                            .collect();
+                    });
+                    field_assignments.push(quote! {
+                        result.#field_name = crudcrate::JoinField::Loaded(#loaded_var_name);
+                    });
+                } else {
+                    // Unlimited recursion - use recursive get_one calls
+                    loading_statements.push(quote! {
+                        let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                        let mut #field_name = Vec::new();
+                        for related_model in related_models {
                             // Try recursive loading by calling the target type's get_one method
-                            match #target_type::get_one(db, related_model.id).await {
-                                Ok(loaded_entity) => Some(loaded_entity),
+                            match #api_struct_type::get_one(db, related_model.id).await {
+                                Ok(loaded_entity) => #field_name.push(loaded_entity),
                                 Err(_) => {
-                                    // Fallback: convert Model to API struct using explicit Into::into
-                                    Some(Into::<#target_type>::into(related_model))
+                                    // Fallback: convert Model to API struct using explicit Into::into with full path
+                                    #field_name.push(Into::<#api_struct_type>::into(related_model))
                                 },
                             }
                         }
-                        None => None,
-                    };
-                });
-                // Wrap the loaded Option/value in JoinField::Loaded for get_all
-                field_assignments.push(quote! {
-                    result.#field_name = crudcrate::JoinField::Loaded(#field_name.unwrap_or_default());
-                });
+                    });
+                    // Wrap the loaded Vec in JoinField::Loaded for get_all
+                    field_assignments.push(quote! {
+                        result.#field_name = crudcrate::JoinField::Loaded(#field_name);
+                    });
+                }
+            } else {
+                // For single relationships (Option<T> or T), load one related model - depth-aware
+                let target_type = extract_option_or_direct_inner_type(&field.ty);
+
+                if stop_recursion {
+                    // Depth-limited loading (depth=1) - Load data but don't recurse
+                    let loaded_var_name = quote::format_ident!("loaded_{}", field_name);
+                    loading_statements.push(quote! {
+                        let #loaded_var_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
+                            Some(related_model) => Some(Into::<#target_type>::into(related_model)),
+                            None => None,
+                        };
+                    });
+                    field_assignments.push(quote! {
+                        result.#field_name = crudcrate::JoinField::Loaded(#loaded_var_name.unwrap_or_default());
+                    });
+                } else {
+                    // Unlimited recursion - use recursive get_one calls
+                    loading_statements.push(quote! {
+                        let #field_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
+                            Some(related_model) => {
+                                // Try recursive loading by calling the target type's get_one method
+                                match #target_type::get_one(db, related_model.id).await {
+                                    Ok(loaded_entity) => Some(loaded_entity),
+                                    Err(_) => {
+                                        // Fallback: convert Model to API struct using explicit Into::into
+                                        Some(Into::<#target_type>::into(related_model))
+                                    },
+                                }
+                            }
+                            None => None,
+                        };
+                    });
+                    // Wrap the loaded Option/value in JoinField::Loaded for get_all
+                    field_assignments.push(quote! {
+                        result.#field_name = crudcrate::JoinField::Loaded(#field_name.unwrap_or_default());
+                    });
+                }
             }
         }
     }

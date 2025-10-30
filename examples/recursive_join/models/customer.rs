@@ -22,6 +22,7 @@ pub struct Model {
     // Join field for vehicles - automatically loaded with join(one, all)
     // JoinField wrapper handles automatic loading and avoids circular dependencies
     // Using module path to reference the vehicle Model (not API struct)
+    // depth=1 means: Customer -> Vehicles (1 level deep, vehicles won't load their nested parts)
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 1))]
     pub vehicles: JoinField<Vec<super::vehicle::Model>>,
