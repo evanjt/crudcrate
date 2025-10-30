@@ -4,6 +4,11 @@ use super::field_analyzer::find_crudcrate_join_attr;
 use heck::ToPascalCase;
 use std::collections::HashMap;
 
+// Recursion depth constants
+const DEFAULT_RECURSION_DEPTH: u8 = 3;
+const SAFE_EXPLICIT_DEPTH: u8 = 2;
+const WARNING_DEPTH_THRESHOLD: u8 = 3;
+
 /// Detects potentially dangerous cyclic join dependencies that could cause stack overflow
 /// Returns a compile-time error if unsafe cycles are detected
 pub fn generate_cyclic_dependency_check(
@@ -40,19 +45,21 @@ pub fn generate_cyclic_dependency_check(
         if join_config.is_unlimited_recursion() {
             let estimated_depth = estimate_relationship_depth(entity_name, target_entity, field_name);
 
-            if estimated_depth > 3 {
+            if estimated_depth > WARNING_DEPTH_THRESHOLD {
                 let warning_path = if target_entity.starts_with("super::") {
                     format!("{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})")
                 } else {
                     format!("{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})")
                 };
 
+                let default_depth = DEFAULT_RECURSION_DEPTH;
+                let safe_depth = SAFE_EXPLICIT_DEPTH;
                 deep_recursion_warnings.push(quote! {
                     compile_error!(concat!(
                         "Deep recursion warning: ",
                         #warning_path,
-                        ". This join will recurse more than 3 levels deep by default, which may impact performance. ",
-                        "Consider adding explicit depth control: join(..., depth = 3) or join(..., depth = 2)."
+                        ". This join will recurse more than ", stringify!(#default_depth), " levels deep by default, which may impact performance. ",
+                        "Consider adding explicit depth control: join(..., depth = ", stringify!(#default_depth), ") or join(..., depth = ", stringify!(#safe_depth), ")."
                     ));
                 });
             }
@@ -120,7 +127,7 @@ pub fn generate_cyclic_dependency_check(
     let relation_validation_warnings: Vec<proc_macro2::TokenStream> = join_dependencies
         .iter()
         .map(|(_field_name, (target_entity, _join_config))| {
-            // Extract module path and entity name from target (e.g., "vehicle::Model" -> "vehicle", "Model")
+            // Extract module path and entity name from target (e.g., "entity::Model" -> "entity", "Model")
             let target_parts: Vec<&str> = target_entity.split("::").collect();
             let (target_module, target_model_name) = if target_parts.len() >= 2 {
                 (target_parts[0], target_parts[1])
@@ -128,24 +135,24 @@ pub fn generate_cyclic_dependency_check(
                 ("unknown", "Unknown")
             };
 
-            // Generate a helpful comment that will appear in generated code
+            // Generate helpful validation guidance for Sea-ORM relations
             quote! {
-                // Sea-ORM Relation Required for: #target_entity
-                // If compilation fails here, ensure you have:
-                // 1. #[derive(DeriveRelation)] on #target_model_name
-                // 2. Relation enum variant pointing back to this entity
-                // 3. impl Related<ThisEntity> for #target_module::Entity
+                // Sea-ORM Relation Required: #target_entity
+                // If compilation fails, ensure your target entity has:
+                // 1. #[derive(DeriveRelation)] on the Relation enum
+                // 2. A Relation variant pointing to this entity
+                // 3. An impl Related<ThisEntity> block
                 //
-                // Example for #target_model_name:
+                // Example structure for #target_model_name:
                 // #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
                 // pub enum Relation {
-                //     #[sea_orm(belongs_to = "super::current_entity::Entity", from = "Column::CurrentId", to = "super::current_entity::Column::Id")]
-                //     CurrentEntity,
+                //     #[sea_orm(belongs_to = "super::source_entity::Entity", ...)]
+                //     SourceEntity,
                 // }
                 //
-                // impl Related<super::current_entity::Entity> for Entity {
+                // impl Related<super::source_entity::Entity> for Entity {
                 //     fn to() -> RelationDef {
-                //         Relation::CurrentEntity.def()
+                //         Relation::SourceEntity.def()
                 //     }
                 // }
             }
@@ -232,17 +239,9 @@ fn has_potential_cycle(
     let field_lower = field_name.to_lowercase();
     let target_entity_lower = target_entity_name.to_lowercase();
 
-    // If field name contains the target entity name (e.g., "vehicles" field pointing to "vehicle::*")
+    // If field name contains the target entity name (e.g., "items" field pointing to "item::Model")
     // this suggests a potential bidirectional relationship
     if field_lower.contains(&target_entity_lower) || target_entity_lower.contains(&field_lower) {
-        return true;
-    }
-
-    // Pattern 3: Check for reverse relationships by analyzing common bidirectional patterns
-    // This catches cases like Customer.vehicles ↔ Vehicle.customer
-    // Only trigger if the field name exactly matches the expected reverse pattern
-    if (field_lower == "customer" && target_entity_lower.contains("vehicle")) ||
-       (field_lower == "vehicles" && target_entity_lower.contains("customer")) {
         return true;
     }
 
@@ -316,8 +315,8 @@ fn is_unsafe_cycle(
     has_potential_cycle(entity_name, target_entity, field_name, join_config)
 }
 
-/// Extract the base entity name from a full path like "`vehicle::Model`" -> "Vehicle"
-/// or "`super::vehicle::Model`" -> "Vehicle"
+/// Extract the base entity name from a full path
+/// Examples: "entity::Model" -> "Entity", "super::entity::Model" -> "Entity"
 fn extract_entity_name_from_path(path: &str) -> String {
     // Split by :: and take the meaningful segment
     let segments: Vec<&str> = path.split("::").collect();
@@ -328,19 +327,19 @@ fn extract_entity_name_from_path(path: &str) -> String {
 
     // Handle different path patterns
     match segments.as_slice() {
-        // "super::vehicle::Model" -> "Vehicle" (take second segment and PascalCase)
+        // "super::entity::Model" -> "Entity" (take module name and convert to PascalCase)
         ["super", module, "Model"] => module.to_pascal_case(),
 
-        // "vehicle::Model" -> "Vehicle" (take first segment and PascalCase)
+        // "entity::Model" -> "Entity" (take module name and convert to PascalCase)
         [module, "Model"] => module.to_pascal_case(),
 
-        // "super::Model" -> "Super" (unlikely but handle)
+        // "super::Model" -> "Super" (edge case)
         ["super", "Model"] => "Super".to_string(),
 
         // Single segment like "Model" -> "Model"
         [single] => single.to_string(),
 
-        // Fallback: take first meaningful segment (skip "super") and PascalCase
+        // Fallback: take first meaningful segment (skip "super") and convert to PascalCase
         segments => {
             let meaningful_segment = if segments.first() == Some(&"super") {
                 segments.get(1).unwrap_or(&"Unknown")
@@ -358,8 +357,8 @@ fn calculate_safe_depth(entity_name: &str, target_entity: &str) -> u8 {
     if entity_name == target_entity {
         1
     } else {
-        // For different entities, suggest depth=2 as a safe starting point
-        2
+        // For different entities, use safe explicit depth as a starting point
+        SAFE_EXPLICIT_DEPTH
     }
 }
 
@@ -439,8 +438,8 @@ fn is_optional_type(ty: &syn::Type) -> bool {
 /// Estimate the potential recursion depth for a relationship
 /// This is a heuristic that analyzes relationship patterns to estimate how deep recursion might go
 fn estimate_relationship_depth(current_entity: &str, target_entity: &str, field_name: &str) -> u8 {
-    // For now, use a simple heuristic based on relationship patterns
-    // In the future, this could be enhanced with actual graph analysis
+    // Simple heuristic based on relationship patterns
+    // Could be enhanced with graph analysis in the future
 
     // Base case: direct relationships typically add 1 level
     let mut estimated_depth = 1;
@@ -448,32 +447,32 @@ fn estimate_relationship_depth(current_entity: &str, target_entity: &str, field_
     // Check field name patterns that suggest deeper relationships
     let field_lower = field_name.to_lowercase();
 
-    // Plural field names (like "vehicles", "parts", "records") often lead to deeper recursion
+    // Plural field names often indicate collection relationships
     if field_lower.ends_with('s') && field_lower.len() > 3 {
-        estimated_depth += 2; // Increase from 1 to 2 for testing
+        estimated_depth += 2;
     }
 
-    // Common deep relationship patterns
+    // Common hierarchical patterns
     if field_lower.contains("sub") || field_lower.contains("child") || field_lower.contains("nested") {
         estimated_depth += 2;
     }
 
-    // Hierarchical relationships (categories, trees, etc.)
+    // Tree-like structures
     if field_lower.contains("categor") || field_lower.contains("tree") || field_lower.contains("parent") {
         estimated_depth += 2;
     }
 
-    // Chain relationships (next, previous, etc.)
+    // Chain-like structures
     if field_lower.contains("next") || field_lower.contains("prev") || field_lower.contains("chain") {
         estimated_depth += 3;
     }
 
-    // If target entity suggests self-reference (super:: or same entity type), add more depth
+    // Self-referencing relationships suggest deeper recursion
     if target_entity.starts_with("super::") || target_entity.contains(current_entity) {
         estimated_depth += 2;
     }
 
-    
+
     estimated_depth
 }
 
