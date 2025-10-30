@@ -633,22 +633,11 @@ fn generate_join_loading_for_direct_query(
     statements
 }
 
-/// Helper function to determine if a type is Vec<T> or JoinField<Vec<T>>
 pub fn is_vec_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
-            // Check if it's Vec<T>
             if segment.ident == "Vec" {
                 return true;
-            }
-            // Check if it's JoinField<Vec<T>>
-            if segment.ident == "JoinField" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        // Recursively check the inner type
-                        return is_vec_type(inner_ty);
-                    }
-                }
             }
         }
     }
@@ -712,29 +701,10 @@ fn generate_recursive_loading_implementation(
                                     false
                                 };
 
-                                // For depth-limited loading, we want to keep the Model type, not resolve to API struct
-                                // Extract the raw inner type without resolving through the global registry
                                 let inner_type = if is_join_field_type {
-                                    // For JoinField<Vec<super::vehicle_part::Model>>, extract super::vehicle_part::Model
                                     syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty)).unwrap_or_else(|_| field.ty.clone())
                                 } else if false && let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
-                                    // SKIP global registry resolution for depth-limited loading - we want Model types, not API structs
-                                    // Parse the resolved tokens back into a Type
                                     if let Ok(mut resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
-                                        // First, strip JoinField<T> if present
-                                        if let syn::Type::Path(type_path) = &resolved_type {
-                                            if let Some(segment) = type_path.path.segments.last() {
-                                                if segment.ident == "JoinField" {
-                                                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                                                        if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                                                            resolved_type = inner_ty.clone();
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        // Then extract from Vec<T>
                                         if let syn::Type::Path(type_path) = &resolved_type {
                                             if let Some(segment) = type_path.path.segments.last()
                                                 && segment.ident == "Vec"
@@ -1261,32 +1231,7 @@ fn generate_method_impls(
 }
 
 fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-    // First, strip JoinField<T> wrapper if present
-    let unwrapped_type = if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "JoinField" {
-                // Extract T from JoinField<T>
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        ty
-                    }
-                } else {
-                    ty
-                }
-            } else {
-                ty
-            }
-        } else {
-            ty
-        }
-    } else {
-        ty
-    };
-
-    // Then extract from Vec<T>
-    if let syn::Type::Path(type_path) = unwrapped_type {
+    if let syn::Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
             if segment.ident == "Vec" {
                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
@@ -1300,34 +1245,8 @@ fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
     quote! { () } // Fallback
 }
 
-/// Extract the inner type from Option<T> or return T directly
 fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-    // First, strip JoinField<T> wrapper if present
-    let unwrapped_type = if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "JoinField" {
-                // Extract T from JoinField<T>
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        ty
-                    }
-                } else {
-                    ty
-                }
-            } else {
-                ty
-            }
-        } else {
-            ty
-        }
-    } else {
-        ty
-    };
-
-    // Then check if it's Option<T>
-    if let syn::Type::Path(type_path) = unwrapped_type {
+    if let syn::Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
             if segment.ident == "Option" {
                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
@@ -1338,33 +1257,23 @@ fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStre
             }
         }
     }
-    // If it's not Option<T>, return the unwrapped type
-    quote! { #unwrapped_type }
+    quote! { #ty }
 }
 
 /// Extract the API struct type for recursive get_one() calls from field types
-/// This ALWAYS extracts the inner type and resolves Model -> API struct
-/// JoinField<Vec<super::vehicle::Model>> -> Vehicle
-/// Vec<super::customer::Model> -> Customer
 fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    // Helper function to extract inner type from any Type (JoinField<T>, Vec<T>, Option<T>, or direct T)
-    // and resolve Model -> API struct name
     fn extract_inner_type_from_type(ty: &syn::Type) -> proc_macro2::TokenStream {
         if let syn::Type::Path(type_path) = ty {
             if let Some(segment) = type_path.path.segments.last() {
-                if segment.ident == "JoinField" || segment.ident == "Vec" || segment.ident == "Option" {
+                if segment.ident == "Vec" || segment.ident == "Option" {
                     if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                         if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                            // Recursively extract from the inner type (handles JoinField<Vec<T>>, Vec<Option<T>> etc.)
                             return extract_inner_type_from_type(inner_ty);
                         }
                     }
                 }
             }
         }
-        // Base case: resolve Model path to API struct with FULL PATH
-        // super::vehicle_part::Model -> super::vehicle_part::VehiclePart (not just VehiclePart)
-        // This is critical for macro expansion order - we need the full path so Rust can resolve it later
         if let syn::Type::Path(type_path) = ty {
             // Extract the module path (everything except the last segment "Model")
             let path_segments: Vec<_> = type_path.path.segments.iter()
@@ -1390,30 +1299,14 @@ fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_ma
         quote! { #ty }
     }
 
-    // Check if field_type is already JoinField<T> - if so, DON'T use global registry
-    // The user has already provided the correct type with proper paths
-    let is_join_field = if let syn::Type::Path(type_path) = field_type {
-        type_path.path.segments.last().map(|seg| seg.ident == "JoinField").unwrap_or(false)
-    } else {
-        false
-    };
-
-    // Only use global registry for non-JoinField types (handles type aliases like VehicleJoin)
-    let resolved_type = if is_join_field {
-        // For JoinField<T>, preserve the original type (user already provided correct paths)
-        #[cfg(feature = "debug")]
-        eprintln!("DEBUG extract_api_struct_type: Field is JoinField, preserving original type");
-        field_type.clone()
-    } else if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(field_type) {
+    let resolved_type = if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(field_type) {
         if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
             #[cfg(feature = "debug")]
             eprintln!("DEBUG extract_api_struct_type (RESOLVED): {:?} -> {:?}", quote!{#field_type}, quote!{#parsed_type});
 
-            // Check if the resolved type is just a bare ident without generics (e.g., just "JoinField")
-            // This indicates a bug in the global resolution - ignore it and use the original type
             if let syn::Type::Path(ref type_path) = parsed_type {
                 if let Some(segment) = type_path.path.segments.last() {
-                    if (segment.ident == "JoinField" || segment.ident == "Vec" || segment.ident == "Option")
+                    if (segment.ident == "Vec" || segment.ident == "Option")
                         && matches!(segment.arguments, syn::PathArguments::None) {
                         #[cfg(feature = "debug")]
                         eprintln!("DEBUG extract_api_struct_type: Ignoring bare {} from resolution, using original type", segment.ident);
@@ -1439,8 +1332,7 @@ fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_ma
         if let Some(segment) = type_path.path.segments.last() {
             let type_name = segment.ident.to_string();
 
-            // For JoinField<T>, Vec<T>, or Option<T> fields, ALWAYS extract the inner type for recursive calls
-            if segment.ident == "JoinField" || segment.ident == "Vec" || segment.ident == "Option" {
+            if segment.ident == "Vec" || segment.ident == "Option" {
                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                     if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
                         let inner_type = extract_inner_type_from_type(inner_ty);

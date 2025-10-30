@@ -342,33 +342,7 @@ fn resolve_base_model_to_api_struct(field_type: &syn::Type) -> proc_macro2::Toke
     quote! { #field_type }
 }
 
-/// Resolve join field type - extract inner type from JoinField and transform Model -> API struct
-/// This is used for API struct field definitions for join fields
-/// JoinField<Vec<super::vehicle::Model>> -> Vec<Vehicle> (unwrap JoinField and resolve Model to API struct)
-/// Vec<super::vehicle::Model> -> Vec<Vehicle> (resolve directly, no JoinField wrapper needed)
 fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    // Check if the field type is already JoinField<...>
-    if let syn::Type::Path(type_path) = field_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "JoinField" {
-                // Extract inner type from JoinField<T> and resolve it
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        // Recursively resolve the inner type (Vec<Model> -> Vec<APIStruct>)
-                        // NO LONGER wrap in JoinField - use direct types with #[schema(no_recursion)]
-                        let resolved_inner = resolve_inner_type_to_api_struct(inner_ty);
-                        #[cfg(feature = "debug")]
-                        eprintln!("DEBUG: JoinField inner type resolved (unwrapped): {:?} -> {:?}", quote! { #inner_ty }, quote! { #resolved_inner });
-                        return resolved_inner;
-                    }
-                }
-                // Couldn't extract inner type, keep as-is
-                #[cfg(feature = "debug")]
-                eprintln!("DEBUG: Field already JoinField, but couldn't extract inner type: {:?}", quote! { #field_type });
-                return quote! { #field_type };
-            }
-        }
-    }
 
     // Try to extract base type from the field type using the global registry
     if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
@@ -380,16 +354,13 @@ fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_
             if let syn::Type::Path(type_path) = field_type {
                 if let Some(segment) = type_path.path.segments.last() {
                     if segment.ident == "Vec" {
-                        // Vec<super::vehicle::Model> -> Vec<Vehicle> (NO JoinField wrapper)
                         return quote! { Vec<#api_struct_ident> };
                     } else if segment.ident == "Option" {
-                        // Option<super::vehicle::Model> -> Option<Vehicle> (NO JoinField wrapper)
                         return quote! { Option<#api_struct_ident> };
                     }
                 }
             }
 
-            // Direct type: super::vehicle::Model -> Vehicle (NO JoinField wrapper)
             return quote! { #api_struct_ident };
         }
     }
@@ -470,13 +441,9 @@ fn generate_api_struct_content(
             quote! {}
         };
 
-        // For join fields, resolve type and wrap in JoinField<>
         let final_field_type = if attribute_parser::get_join_config(field).is_some() {
-            // For join fields, keep the type as-is since user already declares it as JoinField<Vec<T>>
-            // If they use the old Vec<super::vehicle::Model> syntax, resolve it
             resolve_join_field_type_preserving_container(field_type)
         } else {
-            // For other non-db fields, use the field type as-is
             quote! { #field_type }
         };
 
@@ -494,14 +461,7 @@ fn generate_api_struct_content(
 
         api_struct_fields.push(field_definition);
 
-        // For join fields, initialize with empty collection
         let assignment = if attribute_parser::get_join_config(field).is_some() {
-            // For join fields, initialize with appropriate empty value:
-            // - Vec<T> fields -> empty vec![]
-            // - Option<T> fields -> None
-            // - Direct T fields -> Default::default()
-            // Join fields are populated by the CRUDResource::get_one() implementation, not by From<Model>
-            // Use the RESOLVED type (final_field_type) to determine the empty value, not the original field_type
             let empty_value = if let Ok(resolved_type) = syn::parse2::<syn::Type>(quote! { #final_field_type }) {
                 if let syn::Type::Path(type_path) = &resolved_type {
                     if let Some(segment) = type_path.path.segments.last() {

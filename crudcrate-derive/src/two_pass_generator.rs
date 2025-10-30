@@ -106,14 +106,12 @@ impl EntityTypeRegistry {
         }
     }
 
-    /// Extract base type name from Vec<T>, Option<T>, or JoinField<T>
     fn extract_base_type(&self, field_type: &Type) -> Option<String> {
         if let Type::Path(type_path) = field_type {
             if let Some(segment) = type_path.path.segments.last() {
                 let ident = segment.ident.to_string();
 
-                if ident == "Vec" || ident == "Option" || ident == "JoinField" {
-                    // Extract inner type from generic arguments
+                if ident == "Vec" || ident == "Option" {
                     if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                         if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
                             return self.extract_base_type(inner_ty);
@@ -121,9 +119,6 @@ impl EntityTypeRegistry {
                     }
                 }
 
-                // Handle type aliases that end with "Join" (VehicleJoin -> Vehicle)
-                // These are special type aliases used for join fields to avoid circular dependencies
-                // We need to extract the base entity name from the alias
                 if ident.ends_with("Join") {
                     let base_name = ident.strip_suffix("Join").unwrap_or(&ident);
                     return Some(heck::ToPascalCase::to_pascal_case(base_name));

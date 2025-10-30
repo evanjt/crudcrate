@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{traits::CRUDResource, EntityToModels, JoinField};
+use crudcrate::{traits::CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -19,13 +19,9 @@ pub struct Model {
     #[crudcrate(sortable, exclude(one, all, create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
-    // Join field for vehicles - automatically loaded with join(one, all)
-    // Using JoinField wrapper in source Model, unwrapped to Vec in API struct with #[schema(no_recursion)]
-    // Using module path to reference the vehicle Model (not API struct)
-    // depth=1 means: Customer -> Vehicles (1 level deep, vehicles won't load their nested parts)
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 2))]
-    pub vehicles: JoinField<Vec<super::vehicle::Model>>,
+    pub vehicles: Vec<super::vehicle::Model>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

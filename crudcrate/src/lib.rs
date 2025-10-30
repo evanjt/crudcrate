@@ -217,9 +217,6 @@ pub mod relationships;
 pub mod database;
 pub mod dev_experience;
 
-// Join field support for lazy loading
-pub mod join_fields;
-
 // Legacy modules for backward compatibility (re-export from new structure)
 pub mod filter {
     pub use crate::filtering::conditions::*;
@@ -250,7 +247,6 @@ pub use crudcrate_derive::*;
 pub use core::{CRUDResource, MergeIntoActiveModel};
 pub use filtering::{FilterOptions, apply_filters, parse_pagination, parse_range, parse_sorting, calculate_content_range};
 pub use database::{analyse_indexes_for_resource, display_index_recommendations, register_analyser, analyse_all_registered_models, ensure_all_analysers_registered};
-pub use join_fields::JoinField;
 
 /// Macro to register a CRUD resource for automatic index analysis
 /// Usage: `register_crud_analyser!(MyModel)`;
