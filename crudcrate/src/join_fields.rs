@@ -11,8 +11,10 @@ use utoipa::{PartialSchema, ToSchema};
 /// A generic wrapper for join fields that can hold any serializable data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(Default)]
 pub enum JoinField<T> {
     Loaded(T),
+    #[default]
     NotLoaded,
 }
 
@@ -29,11 +31,6 @@ where
     }
 }
 
-impl<T> Default for JoinField<T> {
-    fn default() -> Self {
-        JoinField::NotLoaded
-    }
-}
 
 // Implement additional traits needed for CRUD operations
 impl<T> JoinField<T>
@@ -113,16 +110,16 @@ impl<T> ToSchema for JoinField<T> {
             .unwrap_or("Unknown");
 
         if std::any::type_name::<T>().contains("Vec") {
-            format!("JoinFieldOf{}", type_name).into()
+            format!("JoinFieldOf{type_name}").into()
         } else {
-            format!("JoinFieldOf{}", type_name).into()
+            format!("JoinFieldOf{type_name}").into()
         }
     }
 }
 
 impl<T> PartialSchema for JoinField<T> {
     fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::{schema::{ObjectBuilder, ArrayBuilder, Schema}, Object, Array};
+        use utoipa::openapi::schema::{ObjectBuilder, ArrayBuilder, Schema};
 
         // Check if T is a Vec type and return appropriate schema
         if std::any::type_name::<T>().contains("Vec") {
