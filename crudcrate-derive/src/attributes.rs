@@ -16,11 +16,15 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     // Boolean flags (use just the name, or name = true/false)
     generate_router,              // Auto-generate Axum router
     debug_output,                 // Print generated code (requires --features debug)
-    derive_partial_eq,            // Include PartialEq in generated structs (default: true)
-    derive_eq,                    // Include Eq in main API struct (default: false)
-    no_partial_eq,                // Exclude PartialEq from generated structs
-    no_eq,                        // Exclude Eq from generated structs
-    
+
+    // Derive configuration (default: PartialEq=true, Eq=false)
+    // NOTE: If you get errors like "binary operation `==` cannot be applied to type X",
+    // use no_partial_eq to disable PartialEq on generated structs
+    derive_partial_eq,            // Explicitly enable PartialEq on generated structs (default: true)
+    derive_eq,                    // Enable Eq on generated structs (default: false, requires PartialEq)
+    no_partial_eq,                // Disable PartialEq on generated structs (use if fields don't support it)
+    no_eq,                        // Disable Eq on generated structs
+
     // Named parameters
     api_struct = "CustomName",    // Override API struct name
     active_model = "CustomPath",  // Override ActiveModel path
@@ -50,7 +54,7 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     sortable,                     // Include in sortable columns
     filterable,                   // Include in filterable columns
     fulltext,                     // Enable full-text search
-    non_db_attr,                  // Field not in database
+    non_db_attr,                  // Field not in database (REQUIRES #[sea_orm(ignore)])
     enum_field,                   // Enable enum filtering support
     use_target_models,            // Use target's models instead of full entity
     
@@ -79,6 +83,35 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     join(one, all, depth = 3),   // Recursive loading with depth (default: 3)
     join(one, all, relation = "CustomRelation"), // Custom relation name
 )]
+```
+
+## Important Notes
+
+### Non-Database Fields (`non_db_attr`)
+
+Fields marked with `non_db_attr` **MUST** also have `#[sea_orm(ignore)]` or compilation will fail.
+This is required because:
+1. Sea-ORM needs to know the field doesn't exist in the database
+2. CrudCrate uses this information to generate proper API models
+
+The compiler will produce a helpful error if you forget:
+```text
+error: Field 'my_field' has #[crudcrate(non_db_attr)] but is missing #[sea_orm(ignore)].
+       Non-database fields must be marked with both attributes.
+       Add #[sea_orm(ignore)] above the #[crudcrate(...)] attribute.
+```
+
+**Correct Usage:**
+```rust
+#[sea_orm(ignore)]
+#[crudcrate(non_db_attr, join(one, all))]
+pub related_entities: Vec<RelatedEntity>,
+```
+
+**Incorrect Usage (will not compile):**
+```rust
+#[crudcrate(non_db_attr, join(one, all))]  // ERROR: missing #[sea_orm(ignore)]
+pub related_entities: Vec<RelatedEntity>,
 ```
 
 ## Examples
@@ -143,6 +176,7 @@ pub struct Model {
     pub email: String,
     
     // Recursive join with default depth (depth=3)
+    // NOTE: non_db_attr fields MUST have #[sea_orm(ignore)] or compilation will fail
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all))]
     pub related_entities: Vec<RelatedEntity>,

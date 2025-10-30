@@ -257,7 +257,50 @@ fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenSt
         .to_compile_error()
         .into());
     }
+
+    // Validate that non_db_attr fields have #[sea_orm(ignore)]
+    for field in &analysis.non_db_fields {
+        if !has_sea_orm_ignore(field) {
+            let field_name = field
+                .ident
+                .as_ref()
+                .map_or_else(|| "unknown".to_string(), |i| i.to_string());
+            return Err(syn::Error::new_spanned(
+                field,
+                format!(
+                    "Field '{field_name}' has #[crudcrate(non_db_attr)] but is missing #[sea_orm(ignore)].\n\
+                     Non-database fields must be marked with both attributes.\n\
+                     Add #[sea_orm(ignore)] above the #[crudcrate(...)] attribute."
+                ),
+            )
+            .to_compile_error()
+            .into());
+        }
+    }
+
     Ok(())
+}
+
+/// Check if a field has the #[sea_orm(ignore)] attribute
+fn has_sea_orm_ignore(field: &syn::Field) -> bool {
+    for attr in &field.attrs {
+        if attr.path().is_ident("sea_orm") {
+            if let Meta::List(meta_list) = &attr.meta {
+                if let Ok(metas) =
+                    Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+                {
+                    for meta in metas {
+                        if let Meta::Path(path) = meta {
+                            if path.is_ident("ignore") {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// Helper function to resolve inner types (Vec<Model>, Option<Model>, Model) to API structs
@@ -1132,6 +1175,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let (api_struct_name, active_model_path) =
         parse_entity_attributes(&input, struct_name);
     let table_name = attribute_parser::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
+
     let crud_meta = match attribute_parser::parse_crud_resource_meta(&input.attrs) {
         Ok(meta) => meta.with_defaults(&table_name, &api_struct_name.to_string()),
         Err(e) => return e.to_compile_error().into(),
