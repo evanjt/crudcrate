@@ -15,14 +15,8 @@ pub use maintenance_record::Column as MaintenanceRecordColumn;
 pub use vehicle::Column as VehicleColumn;
 pub use vehicle_part::Column as VehiclePartColumn;
 
-// Re-export active models for database operations
-pub use customer::ActiveModel as CustomerActiveModel;
-pub use maintenance_record::ActiveModel as MaintenanceRecordActiveModel;
-pub use vehicle::ActiveModel as VehicleActiveModel;
-pub use vehicle_part::ActiveModel as VehiclePartActiveModel;
-
 // Re-export CRUD types for API operations
-pub use customer::{Customer, CustomerCreate, CustomerUpdate};
-pub use maintenance_record::{MaintenanceRecord, MaintenanceRecordCreate, MaintenanceRecordUpdate};
-pub use vehicle::{Vehicle, VehicleCreate, VehicleUpdate};
-pub use vehicle_part::{VehiclePart, VehiclePartCreate, VehiclePartUpdate};
+pub use customer::Customer;
+pub use maintenance_record::MaintenanceRecord;
+pub use vehicle::Vehicle;
+pub use vehicle_part::VehiclePart;

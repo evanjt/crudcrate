@@ -4,7 +4,6 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 use super::vehicle::Vehicle;
-use super::vehicle::Vehicle as VehicleAPI;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "customers")]
@@ -23,7 +22,7 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 2))]
-    pub vehicles: Vec<VehicleAPI>,
+    pub vehicles: Vec<Vehicle>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

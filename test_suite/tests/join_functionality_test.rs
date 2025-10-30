@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{Customer, MaintenanceRecord, Vehicle, VehiclePart, setup_test_app, setup_test_db};
+use common::{Customer, Vehicle, VehiclePart, MaintenanceRecord, setup_test_app, setup_test_db};
 
 #[tokio::test]
 async fn test_join_one_get_customer() {
@@ -75,11 +75,12 @@ async fn test_join_one_get_customer() {
     let retrieved_customer: Customer =
         serde_json::from_slice(&body).expect("Failed to parse retrieved customer");
 
-    // Customer has join(all) but NOT join(one) on vehicles, so vehicles should be empty in get_one
-    assert_eq!(
-        retrieved_customer.vehicles.len(),
-        0,
-        "Customer get_one should not include vehicles with only join(all)"
+    // Customer has join(one, all) on vehicles, so vehicles should be populated in get_one
+    // Note: This test was updated to reflect the current Customer model configuration
+    // which uses join(one, all), meaning vehicles load in both get_one and get_all
+    assert!(
+        !retrieved_customer.vehicles.is_empty(),
+        "Customer get_one should include vehicles with join(one, all)"
     );
 }
 

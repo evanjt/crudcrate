@@ -58,9 +58,9 @@ async fn test_relationship_loading() {
     let get_customer_body = axum::body::to_bytes(get_customer_response.into_body(), usize::MAX).await.unwrap();
     let customer_with_vehicles: Customer = serde_json::from_slice(&get_customer_body).unwrap();
 
-    // Verify the relationship was NOT loaded (Customer only has join(all), not join(one))
+    // Verify the relationship WAS loaded (Customer has join(one, all))
     assert_eq!(customer_with_vehicles.id, created_customer.id);
-    assert_eq!(customer_with_vehicles.vehicles.len(), 0, "Customer get_one should not include vehicles with only join(all)");
+    assert_eq!(customer_with_vehicles.vehicles.len(), 1, "Customer get_one should include vehicles with join(one, all)");
 }
 
 #[tokio::test]
