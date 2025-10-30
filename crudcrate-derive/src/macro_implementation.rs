@@ -683,18 +683,18 @@ fn generate_recursive_loading_implementation(
 
             // Extract entity and model paths from the field type
             let entity_path = get_entity_path_from_field_type(&field.ty);
-            let model_path = get_model_path_from_field_type(&field.ty);
+            let _model_path = get_model_path_from_field_type(&field.ty);
 
             // Check if this join should stop recursion at this level
             // depth=1 means "load this level but don't recurse into nested joins"
             // depth=2+ means "load this level AND recurse into nested joins"
             // None means "unlimited recursion"
             let stop_recursion = join_config.depth == Some(1);
-            let should_recurse = join_config.depth.is_none() || join_config.depth.unwrap_or(1) > 1;
+            let _should_recurse = join_config.depth.is_none() || join_config.depth.unwrap_or(1) > 1;
 
             if is_vec_field {
-                                let inner_type = if false && let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
-                                    if let Ok(mut resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
+                                let _inner_type = if false && let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
+                                    if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
                                         if let syn::Type::Path(type_path) = &resolved_type {
                                             if let Some(segment) = type_path.path.segments.last()
                                                 && segment.ident == "Vec"
@@ -956,11 +956,11 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
 
             // Extract entity and model paths from the field type
             let entity_path = get_entity_path_from_field_type(&field.ty);
-            let model_path = get_model_path_from_field_type(&field.ty);
+            let _model_path = get_model_path_from_field_type(&field.ty);
 
             if is_vec_field {
                 // Extract the target type from Vec<TargetType> and resolve it to API struct
-                let target_type = if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
+                let _target_type = if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
                     // Parse the resolved tokens back into a Type
                     if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
                         // If it's Vec<T>, we need to extract the inner type from the resolved type
@@ -1924,6 +1924,7 @@ fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenS
 
 /// Manual generation functions for Create and Update models when exclusions are present
 /// Generate field declarations for manual Create struct based on `EntityFieldAnalysis`
+#[allow(dead_code)]
 pub(crate) fn generate_create_struct_fields_manual(
     analysis: &EntityFieldAnalysis,
 ) -> Vec<proc_macro2::TokenStream> {
@@ -1984,6 +1985,7 @@ pub(crate) fn generate_create_struct_fields_manual(
 }
 
 /// Generate conversion logic for manual Create struct
+#[allow(dead_code)]
 pub(crate) fn generate_create_conversion_manual(
     analysis: &EntityFieldAnalysis,
     _active_model_path: &str,
@@ -2050,6 +2052,7 @@ pub(crate) fn generate_create_conversion_manual(
 }
 
 /// Generate field declarations for manual Update struct based on `EntityFieldAnalysis`
+#[allow(dead_code)]
 pub(crate) fn generate_update_struct_fields_manual(
     analysis: &EntityFieldAnalysis,
 ) -> Vec<proc_macro2::TokenStream> {
@@ -2099,6 +2102,7 @@ pub(crate) fn generate_update_struct_fields_manual(
 }
 
 /// Generate conversion logic for manual Update struct
+#[allow(dead_code)]
 pub(crate) fn generate_update_conversion_manual(
     analysis: &EntityFieldAnalysis,
     _active_model_path: &str,

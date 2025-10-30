@@ -13,11 +13,13 @@ pub struct JoinConfig {
 
 impl JoinConfig {
     /// Get the effective depth for recursive loading (None means unlimited recursion)
+    #[allow(dead_code)]
     pub fn effective_depth(&self) -> Option<u8> {
         self.depth
     }
 
     /// Check if depth was explicitly specified (for cyclic dependency warnings)
+    #[allow(dead_code)]
     pub fn has_explicit_depth(&self) -> bool {
         self.depth.is_some()
     }

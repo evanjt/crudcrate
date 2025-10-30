@@ -1,34 +1,21 @@
-/// Join Loading Example
-///
-/// Demonstrates automatic relationship loading with `#[crudcrate(join(one, all))]`
-/// Customer → Vehicle → Parts/MaintenanceRecord relationships are loaded automatically in API responses.
-///
-/// This example shows multi-level recursive joins:
-/// Customer → Vehicles (3 levels) → Parts + Maintenance Records (3+ levels total)
-///
-/// Run with: `cargo run --example recursive_join`
-/// OpenAPI docs: http://localhost:3000/docs
-use axum::Router;
-use utoipa::OpenApi;
-use utoipa_axum::router::OpenApiRouter;
-use utoipa_scalar::{Scalar, Servable};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, Set, entity::prelude::*,
 };
 use std::time::Duration;
 use tower_http::cors::CorsLayer;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_scalar::{Scalar, Servable};
 use uuid::Uuid;
 
 // Import local models
 mod models;
-use models::{
-    Customer, MaintenanceRecord, Vehicle, VehiclePart,  // API structs - now available!
-    customer, maintenance_record, vehicle, vehicle_part,
-    CustomerEntity, VehicleEntity, VehiclePartEntity, MaintenanceRecordEntity,
-    CustomerColumn,
-};
 use crudcrate::traits::CRUDResource;
+use models::{
+    Customer, CustomerColumn, CustomerEntity, MaintenanceRecordEntity, Vehicle, VehicleEntity,
+    VehiclePartEntity, customer, maintenance_record, vehicle, vehicle_part,
+};
 
 // OpenAPI documentation
 #[derive(OpenApi)]
@@ -226,7 +213,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     name: Set((*name).to_owned()),
                     part_number: Set(format!("{part_number}-{vehicle_idx}")),
                     category: Set((*category).to_owned()),
-                    // price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())), // Temporarily disabled
+                    price: Set(Some(price.parse::<rust_decimal::Decimal>().unwrap())),
                     in_stock: Set(part_idx % 2 == 0), // Alternate stock status
                     created_at: Set(Utc::now()),
                     updated_at: Set(Utc::now()),
@@ -247,7 +234,7 @@ async fn seed_data(db: &DatabaseConnection) {
                     vehicle_id: Set(vehicle_id),
                     service_type: Set((*service_type).to_owned()),
                     description: Set((*description).to_owned()),
-                    // cost: Set(Some(cost.parse::<rust_decimal::Decimal>().unwrap())), // Temporarily disabled
+                    cost: Set(Some(cost.parse::<rust_decimal::Decimal>().unwrap())),
                     service_date: Set(Utc::now()),
                     mechanic_name: Set(Some((*mechanic).to_owned())),
                     completed: Set(maintenance_idx % 3 != 0), // Most completed, some pending

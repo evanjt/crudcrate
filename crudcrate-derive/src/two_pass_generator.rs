@@ -19,6 +19,7 @@ pub struct EntityTypeRegistry {
     /// Handles both same-name and renamed API structs
     entity_to_api: HashMap<String, String>,
     /// Maps module paths to entity names for complex imports
+    #[allow(dead_code)]
     module_to_entity: HashMap<String, String>,
 }
 
@@ -33,6 +34,7 @@ impl EntityTypeRegistry {
     }
 
     /// Register a module path mapping
+    #[allow(dead_code)]
     pub fn register_module(&mut self, module_path: String, entity_name: String) {
         self.module_to_entity.insert(module_path, entity_name);
     }
@@ -170,6 +172,7 @@ impl EntityTypeRegistry {
     }
 
     /// Resolve type from module path (e.g., crate::models::Vehicle -> Vehicle)
+    #[allow(dead_code)]
     fn resolve_from_module_path(&self, _module_path: &str) -> Option<String> {
         // For now, try simple name resolution
         // TODO: Implement more sophisticated module path resolution
@@ -225,11 +228,13 @@ impl EntityTypeRegistry {
 }
 
 /// Context for pass 1: Discovery phase
+#[allow(dead_code)]
 pub struct DiscoveryContext {
     pub registry: EntityTypeRegistry,
 }
 
 impl DiscoveryContext {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             registry: EntityTypeRegistry::new(),
@@ -237,6 +242,7 @@ impl DiscoveryContext {
     }
 
     /// Analyze a struct and register its join field dependencies
+    #[allow(dead_code)]
     pub fn analyze_entity(&mut self, struct_name: &Ident, api_struct_name: &Ident, fields: &syn::FieldsNamed) {
         let entity_name = struct_name.to_string();
         let api_name = api_struct_name.to_string();
@@ -251,6 +257,7 @@ impl DiscoveryContext {
     }
 
     /// Analyze a single field for join attributes
+    #[allow(dead_code)]
     fn analyze_field_for_joins(&mut self, _entity_name: &str, field: &syn::Field) {
         // Check if this field has join attributes
         for attr in &field.attrs {
@@ -264,27 +271,32 @@ impl DiscoveryContext {
 }
 
 /// Context for pass 2: Generation phase
+#[allow(dead_code)]
 pub struct GenerationContext<'a> {
     pub registry: &'a EntityTypeRegistry,
 }
 
 impl<'a> GenerationContext<'a> {
+    #[allow(dead_code)]
     pub fn new(registry: &'a EntityTypeRegistry) -> Self {
         Self { registry }
     }
 
     /// Resolve a join field type using the discovered type registry
+    #[allow(dead_code)]
     pub fn resolve_join_field_type(&self, field_type: &Type) -> Option<TokenStream> {
         self.registry.resolve_join_type(field_type)
     }
 }
 
 /// Main two-pass generator
+#[allow(dead_code)]
 pub struct TwoPassGenerator {
     discovery: DiscoveryContext,
 }
 
 impl TwoPassGenerator {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             discovery: DiscoveryContext::new(),
@@ -292,12 +304,14 @@ impl TwoPassGenerator {
     }
 
     /// Get mutable reference to discovery context for pass 1
+    #[allow(dead_code)]
     pub fn discovery_mut(&mut self) -> &mut DiscoveryContext {
         &mut self.discovery
     }
 
     /// Create generation context for pass 2
-    pub fn generation_context(&self) -> GenerationContext {
+    #[allow(dead_code)]
+    pub fn generation_context(&self) -> GenerationContext<'_> {
         GenerationContext::new(&self.discovery.registry)
     }
 }

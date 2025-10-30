@@ -129,7 +129,7 @@ pub fn generate_cyclic_dependency_check(
         .map(|(_field_name, (target_entity, _join_config))| {
             // Extract module path and entity name from target (e.g., "entity::Model" -> "entity", "Model")
             let target_parts: Vec<&str> = target_entity.split("::").collect();
-            let (target_module, target_model_name) = if target_parts.len() >= 2 {
+            let (_target_module, _target_model_name) = if target_parts.len() >= 2 {
                 (target_parts[0], target_parts[1])
             } else {
                 ("unknown", "Unknown")
@@ -219,7 +219,7 @@ fn has_potential_cycle(
     entity_name: &str,
     target_entity: &str,
     field_name: &str,
-    join_config: &JoinConfig
+    _join_config: &JoinConfig
 ) -> bool {
     // Check for direct entity name match (self-referencing relationships)
     if entity_name == target_entity {
@@ -272,7 +272,7 @@ fn is_unsafe_cycle(
     let target_entity_name = extract_entity_name_from_path(target_entity);
 
     // Look for the reverse relationship (B->A when checking A->B)
-    let has_reverse_relationship = all_dependencies.iter().any(|(reverse_field_name, (reverse_target, reverse_config))| {
+    let has_reverse_relationship = all_dependencies.iter().any(|(_reverse_field_name, (reverse_target, _reverse_config))| {
         let reverse_target_name = extract_entity_name_from_path(reverse_target);
 
         // Check if this is actually a reverse relationship (target entity points back to source entity)
@@ -290,7 +290,7 @@ fn is_unsafe_cycle(
 
     // If we get here, there IS a bidirectional relationship
     // Now check if both sides have explicit depth limits
-    for (reverse_field_name, (reverse_target, reverse_config)) in all_dependencies {
+    for (_reverse_field_name, (reverse_target, reverse_config)) in all_dependencies {
         let reverse_target_name = extract_entity_name_from_path(reverse_target);
 
         // Find the actual reverse relationship
@@ -331,10 +331,8 @@ fn extract_entity_name_from_path(path: &str) -> String {
         ["super", module, "Model"] => module.to_pascal_case(),
 
         // "entity::Model" -> "Entity" (take module name and convert to PascalCase)
+        // This also handles "super::Model" -> "Super" case
         [module, "Model"] => module.to_pascal_case(),
-
-        // "super::Model" -> "Super" (edge case)
-        ["super", "Model"] => "Super".to_string(),
 
         // Single segment like "Model" -> "Model"
         [single] => single.to_string(),
@@ -352,6 +350,7 @@ fn extract_entity_name_from_path(path: &str) -> String {
 }
 
 /// Calculate safe recursion depth based on relationship analysis
+#[allow(dead_code)]
 fn calculate_safe_depth(entity_name: &str, target_entity: &str) -> u8 {
     // Direct relationships (entity_name == target_entity) need minimal depth
     if entity_name == target_entity {
@@ -420,6 +419,7 @@ pub fn generate_join_relation_validation(
 
 /// Convert a field name to the expected relation variant name
 /// Example: "entities" -> "Entities", "`related_items`" -> "`RelatedItems`"
+#[allow(dead_code)]
 fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
     let field_str = field_name.to_string();
     // Convert to PascalCase for relation variant name

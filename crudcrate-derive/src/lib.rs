@@ -264,12 +264,13 @@ fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenSt
 /// Vec<super::vehicle::Model> -> Vec<Vehicle>
 /// Option<super::customer::Model> -> Option<Customer>
 /// super::vehicle::Model -> Vehicle
+#[allow(dead_code)]
 fn resolve_inner_type_to_api_struct(field_type: &syn::Type) -> proc_macro2::TokenStream {
     // Check if this is a container type (Vec, Option) with inner Model type
     if let syn::Type::Path(type_path) = field_type {
         if let Some(segment) = type_path.path.segments.last() {
             // Handle Vec<T> and Option<T>
-            if (segment.ident == "Vec" || segment.ident == "Option") {
+            if segment.ident == "Vec" || segment.ident == "Option" {
                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                     if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
                         // Recursively resolve the inner type
@@ -293,6 +294,7 @@ fn resolve_inner_type_to_api_struct(field_type: &syn::Type) -> proc_macro2::Toke
 /// Helper to resolve a base Model type to its API struct name
 /// super::vehicle::Model -> Vehicle
 /// vehicle_part::Model -> VehiclePart
+#[allow(dead_code)]
 fn resolve_base_model_to_api_struct(field_type: &syn::Type) -> proc_macro2::TokenStream {
     // First try: use global registry
     if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
@@ -374,11 +376,11 @@ fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_
 
 fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
-    api_struct_name: &syn::Ident,
+    _api_struct_name: &syn::Ident,
 ) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>, std::collections::HashSet<String>) {
     let mut api_struct_fields = Vec::new();
     let mut from_model_assignments = Vec::new();
-    let mut required_imports = std::collections::HashSet::new();
+    let required_imports = std::collections::HashSet::new();
 
     for field in &analysis.db_fields {
         let field_name = &field.ident;
@@ -507,6 +509,7 @@ fn generate_api_struct_content(
 }
 
 /// Extract the target type from a join field (e.g., Vec<Vehicle> -> Vehicle)
+#[allow(dead_code)]
 fn extract_join_target_type(field_type: &syn::Type) -> Option<syn::Type> {
     match field_type {
         syn::Type::Path(type_path) => {
@@ -543,7 +546,7 @@ fn generate_api_struct(
     active_model_path: &str,
     crud_meta: &structs::CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
-    required_imports: &std::collections::HashSet<String>,
+    _required_imports: &std::collections::HashSet<String>,
 ) -> proc_macro2::TokenStream {
     // Check if we have fields excluded from create/update models
     let _has_create_exclusions = analysis.db_fields.iter()

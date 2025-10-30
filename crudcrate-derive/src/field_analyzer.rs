@@ -140,6 +140,7 @@ pub(crate) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
 }
 
 /// Extract the inner type from Vec<T> or return the type as-is
+#[allow(dead_code)]
 pub(crate) fn extract_inner_type(field_type: &syn::Type) -> syn::Type {
     if let syn::Type::Path(type_path) = field_type
         && let Some(last_seg) = type_path.path.segments.last()
@@ -153,6 +154,7 @@ pub(crate) fn extract_inner_type(field_type: &syn::Type) -> syn::Type {
 
 /// Get the type name as a string for cyclic dependency detection
 /// Also handles Box<T> patterns for self-references
+#[allow(dead_code)]
 pub(crate) fn get_type_name(ty: &syn::Type) -> Option<String> {
     if let syn::Type::Path(type_path) = ty
         && let Some(last_seg) = type_path.path.segments.last() {
@@ -169,6 +171,7 @@ pub(crate) fn get_type_name(ty: &syn::Type) -> Option<String> {
 
 /// Check for potential cyclic dependencies in join fields
 /// Returns warnings about potential cycles that don't have explicit depth
+#[allow(dead_code)]
 pub(crate) fn detect_cyclic_dependencies(
     current_type: &str,
     field_analysis: &super::structs::EntityFieldAnalysis,

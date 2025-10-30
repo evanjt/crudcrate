@@ -24,8 +24,8 @@ pub struct Model {
     #[crudcrate(filterable, sortable)]
     pub category: String,
 
-    // #[crudcrate(sortable)]
-    // pub price: Option<Decimal>,  // Temporarily disabled for debugging
+    #[crudcrate(sortable)]
+    pub price: Option<Decimal>,
 
     #[crudcrate(filterable)]
     pub in_stock: bool,
