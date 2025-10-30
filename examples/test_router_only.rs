@@ -1,13 +1,13 @@
 /// Test to isolate whether stack overflow happens during router creation or runtime
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection};
-use std::time::Duration;
 use tower_http::cors::CorsLayer;
+use crudcrate::traits::CRUDResource;
 
-// Import local models
+// Use the recursive_join example models
+#[path = "recursive_join/models/mod.rs"]
 mod models;
 use models::{Customer, Vehicle};
-use crudcrate::traits::CRUDResource;
 
 async fn setup_database() -> DatabaseConnection {
     let db = Database::connect("sqlite::memory:").await.unwrap();

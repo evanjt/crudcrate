@@ -182,21 +182,16 @@ impl EntityTypeRegistry {
             if let Some(segment) = type_path.path.segments.last() {
                 let ident = segment.ident.to_string();
 
-                if ident == "Vec" || ident == "Option" || ident == "JoinField" {
-                    // Need to extract inner type and reconstruct
+                if ident == "Vec" || ident == "Option" {
                     if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                         if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                            // Extract the base type from inner type to resolve it
                             let inner_base_type = self.extract_base_type(inner_ty)?;
 
-                            // Resolve the inner base type to get the correct API struct name
                             let resolved_inner_name = if let Some(resolved_api) = self.entity_to_api.get(&inner_base_type) {
                                 resolved_api
                             } else if let Some(resolved_api) = self.entity_to_api.get(&self.pluralize(&inner_base_type)) {
-                                // Try plural form (Vehicle -> Vehicles)
                                 resolved_api
                             } else {
-                                // Fallback to the inner base type itself (most API structs have same name as entity)
                                 &inner_base_type
                             };
 
@@ -204,13 +199,8 @@ impl EntityTypeRegistry {
 
                             if ident == "Vec" {
                                 return Some(quote! { Vec<#api_ident> });
-                            } else if ident == "Option" {
-                                return Some(quote! { Option<#api_ident> });
                             } else {
-                                // JoinField case - we need to recursively reconstruct the inner type
-                                // then wrap it back in JoinField
-                                let reconstructed_inner = self.reconstruct_type(inner_ty, resolved_inner_name)?;
-                                return Some(quote! { JoinField<#reconstructed_inner> });
+                                return Some(quote! { Option<#api_ident> });
                             }
                         }
                     }

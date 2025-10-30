@@ -602,8 +602,6 @@ fn generate_api_struct(
     }
     
     // Collect import statements for join field target types
-    // When we have join fields like `JoinField<Vec<super::vehicle::Model>>`,
-    // we need to import the corresponding API struct (`super::vehicle::Vehicle`)
     let mut import_statements: Vec<proc_macro2::TokenStream> = vec![];
     let mut seen_imports: std::collections::HashSet<String> = std::collections::HashSet::new();
 
@@ -620,7 +618,6 @@ fn generate_api_struct(
             eprintln!("DEBUG generate_api_struct: Processing join field: {} with type: {}", field.ident.as_ref().unwrap(), quote!{#field_ty});
         }
 
-        // Extract the base type from the join field (e.g., "Vehicle" from "JoinField<Vec<super::vehicle::Model>>")
         if let Some(base_type_str) = two_pass_generator::extract_base_type_string(&field.ty) {
             #[cfg(feature = "debug")]
             eprintln!("DEBUG generate_api_struct: Base type: {}", base_type_str);
@@ -629,16 +626,10 @@ fn generate_api_struct(
                 #[cfg(feature = "debug")]
                 eprintln!("DEBUG generate_api_struct: API name: {}", api_name);
 
-                // The field type is JoinField<Vec<super::vehicle::Model>> or similar
-                // We need to extract the inner-most path (super::vehicle::Model) and get its module path
-                // Then import super::vehicle::Vehicle (the API struct)
-
-                // Helper function to recursively extract the innermost Type::Path
                 fn extract_innermost_path(ty: &syn::Type) -> Option<&syn::TypePath> {
                     if let syn::Type::Path(type_path) = ty {
-                        // Check if this is a container type (JoinField, Vec, Option)
                         if let Some(segment) = type_path.path.segments.last() {
-                            if segment.ident == "JoinField" || segment.ident == "Vec" || segment.ident == "Option" {
+                            if segment.ident == "Vec" || segment.ident == "Option" {
                                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                                     if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
                                         // Recursively extract from inner type

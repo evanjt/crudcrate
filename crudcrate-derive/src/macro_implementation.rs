@@ -693,17 +693,7 @@ fn generate_recursive_loading_implementation(
             let should_recurse = join_config.depth.is_none() || join_config.depth.unwrap_or(1) > 1;
 
             if is_vec_field {
-                // Extract the inner type from Vec<T> (or JoinField<Vec<T>>) and resolve it to the API struct type
-                                // Check if field.ty is JoinField - if so, don't use global registry (preserve user's paths)
-                                let is_join_field_type = if let syn::Type::Path(type_path) = &field.ty {
-                                    type_path.path.segments.last().map(|seg| seg.ident == "JoinField").unwrap_or(false)
-                                } else {
-                                    false
-                                };
-
-                                let inner_type = if is_join_field_type {
-                                    syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty)).unwrap_or_else(|_| field.ty.clone())
-                                } else if false && let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
+                                let inner_type = if false && let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
                                     if let Ok(mut resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
                                         if let syn::Type::Path(type_path) = &resolved_type {
                                             if let Some(segment) = type_path.path.segments.last()
@@ -738,7 +728,6 @@ fn generate_recursive_loading_implementation(
                                             .map(|related_model| Into::<#api_struct_type>::into(related_model))
                                             .collect();
                                     });
-                                    // Assign the loaded Vec directly (no JoinField wrapper)
                                     field_assignments.push(quote! { result.#field_name = #loaded_var_name; });
                                 } else {
                                     // Unlimited recursion - use the original recursive approach
@@ -759,7 +748,6 @@ fn generate_recursive_loading_implementation(
                                             }
                                         }
                                     });
-                                    // Assign the loaded Vec directly (no JoinField wrapper)
                                     field_assignments.push(quote! { result.#field_name = #field_name; });
                                 }
             } else {
@@ -779,7 +767,6 @@ fn generate_recursive_loading_implementation(
                             None
                         };
                     });
-                    // Assign the loaded Option directly (no JoinField wrapper)
                     field_assignments.push(quote! {
                         result.#field_name = #loaded_var_name;
                     });
@@ -799,7 +786,6 @@ fn generate_recursive_loading_implementation(
                             None
                         };
                     });
-                    // Assign the loaded Option directly (no JoinField wrapper)
                     field_assignments.push(quote! {
                         result.#field_name = #field_name;
                     });
@@ -974,17 +960,7 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
 
             if is_vec_field {
                 // Extract the target type from Vec<TargetType> and resolve it to API struct
-                // Check if field.ty is JoinField - if so, don't use global registry (preserve user's paths)
-                let is_join_field_type = if let syn::Type::Path(type_path) = &field.ty {
-                    type_path.path.segments.last().map(|seg| seg.ident == "JoinField").unwrap_or(false)
-                } else {
-                    false
-                };
-
-                let target_type = if is_join_field_type {
-                    // For JoinField, preserve the original type and just extract inner
-                    syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty)).unwrap_or_else(|_| field.ty.clone())
-                } else if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
+                let target_type = if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(&field.ty) {
                     // Parse the resolved tokens back into a Type
                     if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
                         // If it's Vec<T>, we need to extract the inner type from the resolved type
@@ -1039,7 +1015,6 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                             }
                         }
                     });
-                    // Assign the loaded Vec directly for get_all (no JoinField wrapper)
                     field_assignments.push(quote! {
                         result.#field_name = #field_name;
                     });
@@ -1077,7 +1052,6 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                             None => None,
                         };
                     });
-                    // Assign the loaded Option/value directly for get_all (no JoinField wrapper)
                     field_assignments.push(quote! {
                         result.#field_name = #field_name.unwrap_or_default();
                     });
@@ -1550,7 +1524,6 @@ pub(crate) fn generate_list_struct_fields(
                     quote! { #ty }
                 }
             } else if get_join_config(field).is_some() {
-                // For join fields, resolve the type from JoinField<Vec<Model>> to Vec<APIStruct>
                 // This ensures List models have proper API struct types, not DB Model types
                 super::resolve_join_field_type_preserving_container(ty)
             } else {
@@ -1708,7 +1681,6 @@ pub(crate) fn generate_list_from_model_assignments(
             if is_join_all {
                 // Join(all) fields: Initialize with empty vec in From<Model> - they'll be populated by get_all() loading logic
                 // The ListModel struct includes them with Vec<APIStruct> type, so we initialize with vec![]
-                // This avoids type mismatch: Model has JoinField<Vec<T>>, ListModel has Vec<T>
                 assignments.push(quote! {
                     #field_name: vec![]
                 });
@@ -1782,29 +1754,7 @@ fn generate_join_helper_methods(analysis: &EntityFieldAnalysis) -> proc_macro2::
 
 /// Map field types to their corresponding entity paths
 fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    // First, strip JoinField<T> wrapper if present
-    let unwrapped_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "JoinField" {
-                // Extract T from JoinField<T>
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
+    let unwrapped_type = field_type;
 
     // Then, resolve the field type using the global registry to handle type aliases
     let resolved_type = if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(unwrapped_type) {
@@ -1889,29 +1839,7 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
 
 /// Map field types to their corresponding model paths
 fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    // First, strip JoinField<T> wrapper if present
-    let unwrapped_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "JoinField" {
-                // Extract T from JoinField<T>
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
+    let unwrapped_type = field_type;
 
     // Then, resolve the field type using the global registry to handle type aliases
     let resolved_type = if let Some(resolved_tokens) = super::two_pass_generator::resolve_join_type_globally(unwrapped_type) {
