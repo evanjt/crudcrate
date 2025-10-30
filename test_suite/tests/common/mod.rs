@@ -1,7 +1,6 @@
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;
-use tokio::sync::Mutex;
 
 // Import local test models
 pub mod models;
@@ -14,49 +13,32 @@ pub use self::models::{
     MaintenanceRecord, MaintenanceRecordEntity, MaintenanceRecordColumn, MaintenanceRecordResponse, MaintenanceRecordList
 };
 
-
-// Global mutex to serialize database setup for PostgreSQL to avoid race conditions
-static POSTGRES_SETUP_MUTEX: Mutex<()> = Mutex::const_new(());
-
 // Helper function to get database URL from environment or default to SQLite
 fn get_test_database_url() -> String {
     std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite::memory:".to_string())
 }
 
-// Cleanup function for persistent databases
-async fn cleanup_test_tables(db: &DatabaseConnection) {
-    // Drop tables in reverse dependency order to avoid foreign key issues
-    let _ = db.execute_unprepared("DROP TABLE IF EXISTS maintenance_records").await;
-    let _ = db.execute_unprepared("DROP TABLE IF EXISTS vehicle_parts").await;
-    let _ = db.execute_unprepared("DROP TABLE IF EXISTS vehicles").await;
-    let _ = db.execute_unprepared("DROP TABLE IF EXISTS customers").await;
-}
-
 #[allow(dead_code)]
 pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let database_url = get_test_database_url();
-    
-    // Serialize PostgreSQL setup to avoid race conditions with custom types
-    if database_url.starts_with("postgres") {
-        let _lock = POSTGRES_SETUP_MUTEX.lock().await;
-        let db = Database::connect(&database_url).await?;
-        cleanup_test_tables(&db).await;
-        CustomerVehicleMigrator::up(&db, None).await?;
-        Ok(db)
-    } else {
-        let db = Database::connect(&database_url).await?;
-        
-        // For persistent databases, clean up any existing tables
-        if !database_url.starts_with("sqlite::memory:") {
-            cleanup_test_tables(&db).await;
-        }
 
-        // Run migrations
-        CustomerVehicleMigrator::up(&db, None).await?;
-        
-        Ok(db)
+    // Connect and run migrations
+    let db = Database::connect(&database_url).await?;
+    CustomerVehicleMigrator::up(&db, None).await?;
+
+    // For persistent databases, clear data between tests
+    // SQLite in-memory: No cleanup needed, database is fresh
+    // PostgreSQL/MySQL: DELETE to clear data (fast, keeps schema)
+    if !database_url.starts_with("sqlite::memory:") {
+        // Clear in reverse dependency order
+        let _ = db.execute_unprepared("DELETE FROM maintenance_records").await;
+        let _ = db.execute_unprepared("DELETE FROM vehicle_parts").await;
+        let _ = db.execute_unprepared("DELETE FROM vehicles").await;
+        let _ = db.execute_unprepared("DELETE FROM customers").await;
     }
+
+    Ok(db)
 }
 
 #[allow(dead_code)]
@@ -319,4 +301,3 @@ impl MigrationTrait for CreateMaintenanceRecordTable {
         Ok(())
     }
 }
-

@@ -74,9 +74,16 @@ where
         db: &DatabaseConnection,
         create_model: Self::CreateModel,
     ) -> Result<Self, DbErr> {
+        use sea_orm::ActiveModelTrait;
         let active_model: Self::ActiveModelType = create_model.into();
-        let result = Self::EntityType::insert(active_model).exec(db).await?;
-        Self::get_one(db, result.last_insert_id.into()).await
+
+        // Use insert and return the model directly
+        // This works across all databases unlike last_insert_id for UUIDs
+        let model = active_model.insert(db).await?;
+
+        // Convert the model to Self which implements CRUDResource
+        // This gives us access to the id field directly
+        Ok(Self::from(model))
     }
 
     async fn update(
