@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{EntityToModels, traits::CRUDResource, JoinField};
+use crudcrate::{traits::CRUDResource, EntityToModels, JoinField};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -20,9 +20,9 @@ pub struct Model {
     pub year: i32,
     #[crudcrate(filterable)]
     pub vin: String,
-    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
+    #[crudcrate(sortable, exclude(one, all, create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
-    #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
+    #[crudcrate(sortable, exclude(one, all, create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
     // Join fields for parts and maintenance records - automatically loaded with join(one, all)
@@ -35,7 +35,7 @@ pub struct Model {
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 1))]
     pub maintenance_records: JoinField<Vec<super::maintenance_record::Model>>,
-    }
+}
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {

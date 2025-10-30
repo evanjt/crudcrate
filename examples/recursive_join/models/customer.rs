@@ -14,9 +14,9 @@ pub struct Model {
     pub name: String,
     #[crudcrate(filterable)]
     pub email: String,
-    #[crudcrate(sortable, exclude(all,one), on_create = Utc::now())]
+    #[crudcrate(sortable, exclude(one, all, create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
-    #[crudcrate(sortable, exclude(one,all), on_create = Utc::now(), on_update = Utc::now())]
+    #[crudcrate(sortable, exclude(one, all, create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
     // Join field for vehicles - automatically loaded with join(one, all)
