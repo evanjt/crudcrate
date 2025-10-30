@@ -7,13 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-10-30
+
 ### Added
 
+- **Recursive Join Loading**: Multi-level relationship loading with `#[crudcrate(join(one, all))]` attribute
+- Cyclic dependency detection at compile-time with actionable error messages
+- Unlimited join depth support with default depth warnings for relationships > 3 levels
+- `exclude()` function-style syntax for model exclusion: `#[crudcrate(exclude(create, update))]`
+- The get one response is now its own model, allowing for exclusion of fields from get one/create/update responses
+- Comprehensive integration tests for join loading and model exclusion
+- New `recursive_join` example demonstrating nested relationship loading
 - Debug output functionality for procedural macros with `debug_output` attribute
-- Feature-gated debug support requiring `--features debug` 
-- Colourised, formatted code output using prettyplease for better readability
-- Debug output for EntityToModels, ToCreateModel, and ToUpdateModel macros
-- Example `minimal_debug.rs` demonstrating debug output capabilities
+
+### Changed
+
+- **derive**: Removed requirement for `Eq` and `PartialEq` derives on generated API structs
+- **derive**: Improved multi-pass code generation to handle cyclic dependencies
+
+### Fixed
+
+- Database test cleanup logic for PostgreSQL and MySQL backends
+- Relationship loading in `get_one()` and `get_all()` endpoints
+
+### Dependencies
+
+- **derive**: Updated with recursive join support, cyclic dependency detection, and enhanced attribute parsing
 
 ## [0.5.0] - 2025-08-28
 
@@ -316,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.6.0]: https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0
 [0.5.0]: https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0
 [0.4.5]: https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5
 [0.4.4]: https://github.com/evanjt/crudcrate/compare/0.4.3...0.4.4
