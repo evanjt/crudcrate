@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, Customer};
+use common::{setup_test_db, setup_test_app, CustomerList};
 
 #[tokio::test]
 async fn test_filtering_and_sorting() {
@@ -43,7 +43,7 @@ async fn test_filtering_and_sorting() {
     
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
     assert_eq!(customers[0].name, "Alice");
 
@@ -58,7 +58,7 @@ async fn test_filtering_and_sorting() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     
     // Should be in descending order: Charlie, Bob, Alice
     assert!(customers.len() >= 3);
@@ -75,7 +75,7 @@ async fn test_filtering_and_sorting() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(customers.len() <= 2);
 }
 
@@ -105,7 +105,7 @@ async fn test_fulltext_search() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     
     // Should find the customer with "Developer" in name
     assert!(!customers.is_empty());

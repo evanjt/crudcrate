@@ -16,7 +16,7 @@ pub use vehicle::Column as VehicleColumn;
 pub use vehicle_part::Column as VehiclePartColumn;
 
 // Re-export CRUD types for API operations
-pub use customer::Customer;
-pub use maintenance_record::MaintenanceRecord;
-pub use vehicle::Vehicle;
-pub use vehicle_part::VehiclePart;
+pub use customer::{Customer, CustomerResponse, CustomerList};
+pub use maintenance_record::{MaintenanceRecord, MaintenanceRecordResponse, MaintenanceRecordList};
+pub use vehicle::{Vehicle, VehicleResponse, VehicleList};
+pub use vehicle_part::{VehiclePart, VehiclePartResponse, VehiclePartList};

@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, Customer};
+use common::{setup_test_db, setup_test_app, CustomerList};
 
 #[tokio::test]
 async fn test_basic_crud_multi_database() {
@@ -42,7 +42,7 @@ async fn test_basic_crud_multi_database() {
     
     assert_eq!(list_response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(list_response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(!customers.is_empty());
     
     let created_customer = customers.iter()
@@ -120,7 +120,7 @@ async fn test_filtering_multi_database() {
     
     assert_eq!(filter_response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(filter_response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
     assert_eq!(customers[0].name, "Alice Database");
 
@@ -135,6 +135,6 @@ async fn test_filtering_multi_database() {
     
     assert_eq!(search_response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(search_response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(customers.len() >= 2); // Should find both customers with "Database" in name
 }

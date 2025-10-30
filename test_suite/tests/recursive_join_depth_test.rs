@@ -10,7 +10,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, Customer, Vehicle};
+use common::{setup_test_db, setup_test_app, CustomerResponse, CustomerList, VehicleResponse, VehicleList};
 
 #[tokio::test]
 async fn test_join_depth_parameter_exists() {
@@ -37,7 +37,7 @@ async fn test_join_depth_parameter_exists() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customer: Customer = serde_json::from_slice(&body).unwrap();
+    let customer: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     // Create a vehicle for this customer
     let vehicle_data = json!({
@@ -69,7 +69,7 @@ async fn test_join_depth_parameter_exists() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customer_with_vehicles: Customer = serde_json::from_slice(&body).unwrap();
+    let customer_with_vehicles: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     // Verify vehicles are loaded (level 1 of recursion)
     assert!(!customer_with_vehicles.vehicles.is_empty(), "Vehicles should be loaded at depth 1");
@@ -104,7 +104,7 @@ async fn test_depth_prevents_infinite_recursion() {
 
     let response = app.clone().oneshot(request).await.unwrap();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customer: Customer = serde_json::from_slice(&body).unwrap();
+    let customer: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     let vehicle_data = json!({
         "customer_id": customer.id,
@@ -179,7 +179,7 @@ async fn test_mixed_depth_configurations() {
 
     let response = app.clone().oneshot(request).await.unwrap();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customer: Customer = serde_json::from_slice(&body).unwrap();
+    let customer: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     let vehicle_data = json!({
         "customer_id": customer.id,
@@ -198,7 +198,7 @@ async fn test_mixed_depth_configurations() {
 
     let vehicle_response = app.clone().oneshot(request).await.unwrap();
     let vehicle_body = axum::body::to_bytes(vehicle_response.into_body(), usize::MAX).await.unwrap();
-    let vehicle: Vehicle = serde_json::from_slice(&vehicle_body).unwrap();
+    let vehicle: VehicleResponse = serde_json::from_slice(&vehicle_body).unwrap();
 
     // Test Customer endpoint (depth = 2)
     let request = Request::builder()

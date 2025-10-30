@@ -241,12 +241,14 @@ pub(crate) fn generate_router_impl(api_struct_name: &syn::Ident) -> proc_macro2:
     let create_model_name = format_ident!("{}Create", api_struct_name);
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
+    let response_model_name = format_ident!("{}Response", api_struct_name);
 
     generate_axum_router(
         api_struct_name,
         &create_model_name,
         &update_model_name,
         &list_model_name,
+        &response_model_name,
     )
 }
 
@@ -255,10 +257,11 @@ fn generate_axum_router(
     create_model_name: &syn::Ident,
     update_model_name: &syn::Ident,
     list_model_name: &syn::Ident,
+    response_model_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
     quote! {
         // Generate CRUD handlers using the crudcrate macro
-        crudcrate::crud_handlers!(#api_struct_name, #update_model_name, #create_model_name, #list_model_name);
+        crudcrate::crud_handlers!(#api_struct_name, #update_model_name, #create_model_name, #list_model_name, #response_model_name);
 
         impl #api_struct_name {
             /// Generate router with all CRUD endpoints
@@ -1586,6 +1589,33 @@ fn generate_optimized_get_all_impl(analysis: &EntityFieldAnalysis) -> proc_macro
     }
 }
 
+pub(crate) fn generate_response_struct_fields(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Vec<proc_macro2::TokenStream> {
+    fields
+        .iter()
+        .filter(|field| {
+            let include_in_response = get_crudcrate_bool(field, "one_model").unwrap_or(true);
+            include_in_response
+        })
+        .map(|field| {
+            let ident = &field.ident;
+            let ty = &field.ty;
+
+            // Similar logic to List model for join fields
+            let final_ty = if get_join_config(field).is_some() {
+                super::resolve_join_field_type_preserving_container(ty)
+            } else {
+                quote! { #ty }
+            };
+
+            quote! {
+                pub #ident: #final_ty
+            }
+        })
+        .collect()
+}
+
 pub(crate) fn generate_list_struct_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<proc_macro2::TokenStream> {
@@ -1637,6 +1667,24 @@ pub(crate) fn generate_list_struct_fields(
 
             quote! {
                 pub #ident: #final_ty
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn generate_response_from_assignments(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Vec<proc_macro2::TokenStream> {
+    fields
+        .iter()
+        .filter(|field| {
+            let include_in_response = get_crudcrate_bool(field, "one_model").unwrap_or(true);
+            include_in_response
+        })
+        .map(|field| {
+            let ident = &field.ident;
+            quote! {
+                #ident: model.#ident
             }
         })
         .collect()

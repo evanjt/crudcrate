@@ -1,19 +1,24 @@
 #[macro_export]
 macro_rules! crud_handlers {
-    // New version with ListModel
-    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
-        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model);
+    // New version with ListModel and ResponseModel
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty) => {
+        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model, $response_model);
     };
 
-    // Backward compatibility - use Self as ListModel
+    // Backward compatibility - use Self as ResponseModel
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
+        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model, $resource);
+    };
+
+    // Backward compatibility - use Self as ListModel and ResponseModel
     ($resource:ty, $update_model:ty, $create_model:ty) => {
-        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $resource);
+        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $resource, $resource);
     };
 }
 
 #[macro_export]
 macro_rules! crud_handlers_impl {
-    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty) => {
         use crudcrate::filter::{apply_filters, parse_pagination};
         use crudcrate::models::FilterOptions;
         use crudcrate::pagination::calculate_content_range;
@@ -33,7 +38,7 @@ macro_rules! crud_handlers_impl {
             get,
             path = "/{id}",
             responses(
-                (status = axum::http::StatusCode::OK, description = "The requested resource", body = $resource),
+                (status = axum::http::StatusCode::OK, description = "The requested resource", body = $response_model),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
@@ -44,9 +49,9 @@ macro_rules! crud_handlers_impl {
         pub async fn get_one_handler(
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
             axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
-        ) -> Result<axum::Json<$resource>, (axum::http::StatusCode, axum::Json<String>)> {
+        ) -> Result<axum::Json<$response_model>, (axum::http::StatusCode, axum::Json<String>)> {
             match <$resource as crudcrate::traits::CRUDResource>::get_one(&db, id).await {
-                Ok(item) => Ok(axum::Json(item)),
+                Ok(item) => Ok(axum::Json(item.into())),
                 Err(sea_orm::DbErr::RecordNotFound(_)) => {
                     Err((axum::http::StatusCode::NOT_FOUND, axum::Json("Not Found".to_string())))
                 }
@@ -142,7 +147,7 @@ macro_rules! crud_handlers_impl {
                 (
                     status =  axum::http::StatusCode::CREATED,
                     description = "Resource created successfully",
-                    body = $resource
+                    body = $response_model
                 ),
                 (
                     status = axum::http::StatusCode::CONFLICT,
@@ -160,13 +165,13 @@ macro_rules! crud_handlers_impl {
         ) -> Result<
             (
                 axum::http::StatusCode,
-                axum::Json<$resource>,
+                axum::Json<$response_model>,
             ),
             (axum::http::StatusCode, axum::Json<String>),
         > {
             <$resource as crudcrate::traits::CRUDResource>::create(&state.0, json.0)
                 .await
-                .map(|res| (axum::http::StatusCode::CREATED, axum::Json(res)))
+                .map(|res| (axum::http::StatusCode::CREATED, axum::Json(res.into())))
                 .map_err(|err| {
                     if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
                         (
@@ -213,7 +218,7 @@ macro_rules! crud_handlers_impl {
             path = "/{id}",
             request_body = $update_model,
             responses(
-            (status =  axum::http::StatusCode::OK, description = "Resource updated successfully", body = $resource),
+            (status =  axum::http::StatusCode::OK, description = "Resource updated successfully", body = $response_model),
             (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
             (status =  axum::http::StatusCode::CONFLICT, description = "Duplicate record", body = String)
             ),
@@ -225,10 +230,10 @@ macro_rules! crud_handlers_impl {
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             path: axum::extract::Path<uuid::Uuid>,
             json: axum::Json<$update_model>,
-        ) -> Result<axum::Json<$resource>, (axum::http::StatusCode, axum::Json<String>)>{
+        ) -> Result<axum::Json<$response_model>, (axum::http::StatusCode, axum::Json<String>)>{
             <$resource as crudcrate::traits::CRUDResource>::update(&state.0, path.0, json.0)
             .await
-            .map(axum::Json)
+            .map(|res| axum::Json(res.into()))
             .map_err(|err| {
                 match err {
                     sea_orm::DbErr::Custom(msg) => (

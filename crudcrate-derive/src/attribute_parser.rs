@@ -285,6 +285,13 @@ fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Opti
     {
         for meta in nested_metas {
             if let Meta::Path(path) = meta {
+                // Check for exclude(all) which means both list_model and one_model should be false
+                if path.is_ident("all") {
+                    if target_key == "list_model" || target_key == "one_model" {
+                        return Some(true); // exclude(all) excludes from both list and one
+                    }
+                }
+
                 let excluded_type = if path.is_ident("create") {
                     "create_model"
                 } else if path.is_ident("update") {

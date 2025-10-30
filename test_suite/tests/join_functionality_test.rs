@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{Customer, Vehicle, VehiclePart, MaintenanceRecord, setup_test_app, setup_test_db};
+use common::{CustomerResponse, CustomerList, VehicleResponse, VehicleList, setup_test_app, setup_test_db};
 
 #[tokio::test]
 async fn test_join_one_get_customer() {
@@ -36,7 +36,7 @@ async fn test_join_one_get_customer() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customer: Customer =
+    let customer: CustomerResponse =
         serde_json::from_slice(&body).expect("Failed to parse created customer");
     let customer_id = customer.id;
 
@@ -72,7 +72,7 @@ async fn test_join_one_get_customer() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let retrieved_customer: Customer =
+    let retrieved_customer: CustomerResponse =
         serde_json::from_slice(&body).expect("Failed to parse retrieved customer");
 
     // Customer has join(one, all) on vehicles, so vehicles should be populated in get_one
@@ -111,7 +111,7 @@ async fn test_join_all_list_customers() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customer: Customer =
+    let customer: CustomerResponse =
         serde_json::from_slice(&body).expect("Failed to parse created customer");
     let customer_id = customer.id;
 
@@ -147,7 +147,7 @@ async fn test_join_all_list_customers() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<Customer> =
+    let customers: Vec<CustomerList> =
         serde_json::from_slice(&body).expect("Failed to parse customers list");
 
     // Find our customer in the list
@@ -193,7 +193,7 @@ async fn test_join_one_all_vehicle() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customer: Customer =
+    let customer: CustomerResponse =
         serde_json::from_slice(&body).expect("Failed to parse created customer");
     let customer_id = customer.id;
 
@@ -219,7 +219,7 @@ async fn test_join_one_all_vehicle() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicle: Vehicle = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
+    let vehicle: VehicleResponse = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
     let vehicle_id = vehicle.id;
 
     // Create a vehicle part
@@ -275,7 +275,7 @@ async fn test_join_one_all_vehicle() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let retrieved_vehicle: Vehicle =
+    let retrieved_vehicle: VehicleResponse =
         serde_json::from_slice(&body).expect("Failed to parse retrieved vehicle");
 
     // Vehicle has join(one, all) on parts and maintenance_records, so they should be populated in get_one
@@ -322,7 +322,7 @@ async fn test_join_one_all_list_vehicles() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customer: Customer =
+    let customer: CustomerResponse =
         serde_json::from_slice(&body).expect("Failed to parse created customer");
     let customer_id = customer.id;
 
@@ -348,7 +348,7 @@ async fn test_join_one_all_list_vehicles() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicle: Vehicle = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
+    let vehicle: VehicleResponse = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
     let vehicle_id = vehicle.id;
 
     // Create a vehicle part
@@ -384,7 +384,7 @@ async fn test_join_one_all_list_vehicles() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicles: Vec<Vehicle> =
+    let vehicles: Vec<VehicleList> =
         serde_json::from_slice(&body).expect("Failed to parse vehicles list");
 
     // Find our vehicle in the list
@@ -428,7 +428,7 @@ async fn test_join_empty_relationships() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customer: Customer =
+    let customer: CustomerResponse =
         serde_json::from_slice(&body).expect("Failed to parse created customer");
     let customer_id = customer.id;
 
@@ -445,7 +445,7 @@ async fn test_join_empty_relationships() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<Customer> =
+    let customers: Vec<CustomerList> =
         serde_json::from_slice(&body).expect("Failed to parse customers list");
 
     // Find our customer in the list

@@ -413,21 +413,6 @@ fn generate_api_struct_content(
         let field_name = &field.ident;
         let field_type = &field.ty;
 
-        // Check if field is excluded from the main API response (one model)
-        // But don't exclude it if it has on_create or on_update expressions (needed for Create/Update models)
-        let has_on_create = attribute_parser::get_crudcrate_expr(field, "on_create").is_some();
-        let has_on_update = attribute_parser::get_crudcrate_expr(field, "on_update").is_some();
-
-        // Check if field is excluded from one_model responses
-        // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
-        let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
-
-        if is_excluded_from_one
-            && !has_on_create
-            && !has_on_update {
-            continue; // Skip this field - it's excluded from the get_one response and not needed for Create/Update models
-        }
-
         let api_field_attrs: Vec<_> = field
             .attrs
             .iter()
@@ -439,67 +424,33 @@ fn generate_api_struct_content(
             pub #field_name: #field_type
         });
 
-        // Only include this field in the From<Model> assignment if it's not excluded from one_model
-        // Check if field is excluded from one_model responses
-        // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
-        let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
-
-        if is_excluded_from_one {
-            // Field is excluded from one_model but included in struct (has on_create/on_update)
-            // Provide a default value - for timestamp fields, use a reasonable default
-            if field_type.to_token_stream().to_string().contains("DateTime") {
-                from_model_assignments.push(quote! {
-                    #field_name: model.#field_name
-                });
-            } else {
-                from_model_assignments.push(quote! {
-                    #field_name: Default::default()
-                });
-            }
-        } else {
-            let assignment = if field_type
-                .to_token_stream()
-                .to_string()
-                .contains("DateTimeWithTimeZone")
-            {
-                if field_analyzer::field_is_optional(field) {
-                    quote! {
-                        #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
-                    }
-                } else {
-                    quote! {
-                        #field_name: model.#field_name.with_timezone(&chrono::Utc)
-                    }
+        // Also populate the From<Model> assignment for this field (since it exists in the struct)
+        let assignment = if field_type
+            .to_token_stream()
+            .to_string()
+            .contains("DateTimeWithTimeZone")
+        {
+            if field_analyzer::field_is_optional(field) {
+                quote! {
+                    #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
                 }
             } else {
                 quote! {
-                    #field_name: model.#field_name
+                    #field_name: model.#field_name.with_timezone(&chrono::Utc)
                 }
-            };
+            }
+        } else {
+            quote! {
+                #field_name: model.#field_name
+            }
+        };
 
-            from_model_assignments.push(assignment);
-        }
+        from_model_assignments.push(assignment);
     }
 
     for field in &analysis.non_db_fields {
         let field_name = &field.ident;
         let field_type = &field.ty;
-
-        // Check if field is excluded from the main API response (one model)
-        // Check if field is excluded from one_model responses
-        // The get_crudcrate_bool function already handles both direct boolean and exclude() parameter syntax
-        let is_excluded_from_one = attribute_parser::get_crudcrate_bool(field, "one_model") == Some(false);
-
-        // Check if field has join(one) configuration - if so, it should be included in get_one() responses
-        let join_config = attribute_parser::get_join_config(field);
-        let has_join_one = join_config.as_ref().map_or(false, |config| config.on_one);
-
-        // Include the field if:
-        // 1. It's not excluded from one_model, OR
-        // 2. It has join(one) configuration (which overrides exclusion for join fields)
-        if is_excluded_from_one && !has_join_one {
-            continue; // Skip this field - it's excluded from the get_one response and doesn't have join(one)
-        }
 
         let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
             .unwrap_or_else(|| syn::parse_quote!(Default::default()));
@@ -1311,11 +1262,34 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         }
     };
 
+    // Generate Response model struct for get_one/create/update responses (excludes exclude(one) fields)
+    let response_name = format_ident!("{}Response", &api_struct_name);
+    let response_struct_fields = macro_implementation::generate_response_struct_fields(&raw_fields);
+    let response_from_assignments = macro_implementation::generate_response_from_assignments(&raw_fields);
+
+    let response_derives = quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
+
+    let response_model = quote! {
+        #[derive(#response_derives)]
+        pub struct #response_name {
+            #(#response_struct_fields),*
+        }
+
+        impl From<#api_struct_name> for #response_name {
+            fn from(model: #api_struct_name) -> Self {
+                Self {
+                    #(#response_from_assignments),*
+                }
+            }
+        }
+    };
+
     let expanded = quote! {
         #api_struct
         #from_impl
         #crud_impl
         #list_model
+        #response_model
         #join_validation
     };
 

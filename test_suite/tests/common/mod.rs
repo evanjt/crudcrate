@@ -8,10 +8,10 @@ pub mod models;
 
 // Re-export local test models for easy access
 pub use self::models::{
-    Customer, CustomerEntity, CustomerColumn,
-    Vehicle, VehicleEntity, VehicleColumn,
-    VehiclePart, VehiclePartEntity, VehiclePartColumn,
-    MaintenanceRecord, MaintenanceRecordEntity, MaintenanceRecordColumn
+    Customer, CustomerEntity, CustomerColumn, CustomerResponse, CustomerList,
+    Vehicle, VehicleEntity, VehicleColumn, VehicleResponse, VehicleList,
+    VehiclePart, VehiclePartEntity, VehiclePartColumn, VehiclePartResponse, VehiclePartList,
+    MaintenanceRecord, MaintenanceRecordEntity, MaintenanceRecordColumn, MaintenanceRecordResponse, MaintenanceRecordList
 };
 
 

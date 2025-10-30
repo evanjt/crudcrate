@@ -14,7 +14,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, Customer};
+use common::{setup_test_db, setup_test_app, CustomerResponse};
 
 // ============================================================================
 // TEST CASE 1: exclude(one) not working correctly
@@ -43,7 +43,7 @@ async fn test_exclude_one_fields_not_in_get_one_responses() {
     assert_eq!(create_response.status(), StatusCode::CREATED);
 
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await.unwrap();
-    let created_customer: Customer = serde_json::from_slice(&body).expect("Failed to parse created customer");
+    let created_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse created customer");
 
     // TEST: get_one() should NOT include excluded fields
     let response = app
@@ -56,32 +56,17 @@ async fn test_exclude_one_fields_not_in_get_one_responses() {
         .await
         .unwrap();
 
-    println!("=== TEST 1: exclude(one) field behavior ===");
-    println!("Response status: {}", response.status());
-
     let response_body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let response_text = String::from_utf8_lossy(&response_body);
-    println!("Response body: {}", response_text);
+    let json_body: serde_json::Value = serde_json::from_slice(&response_body).expect("Failed to parse JSON");
 
-    let json_body: serde_json::Value = serde_json::from_str(&response_text).expect("Failed to parse JSON");
-
-    // CURRENT BROKEN BEHAVIOR: These fields are present when they shouldn't be
     let created_at_present = json_body.get("created_at").is_some();
     let updated_at_present = json_body.get("updated_at").is_some();
 
-    println!("created_at present in get_one(): {}", created_at_present);
-    println!("updated_at present in get_one(): {}", updated_at_present);
-
-    // ASSERTION: These fields should NOT be present (this will fail with current implementation)
-    // TODO: Uncomment these assertions once exclude(one) is properly implemented
-    // assert!(!created_at_present, "created_at should NOT be present in get_one() response due to exclude(one)");
-    // assert!(!updated_at_present, "updated_at should NOT be present in get_one() response due to exclude(one)");
-
-    // CURRENT BEHAVIOR: Document that these fields ARE present (bug)
-    assert!(created_at_present, "KNOWN BUG: created_at IS present in get_one() response (should be excluded)");
-    assert!(updated_at_present, "KNOWN BUG: updated_at IS present in get_one() response (should be excluded)");
-
-    println!("✓ Test documents current behavior - exclude(one) not yet implemented");
+    // Simple assertion with clear message
+    assert!(!created_at_present,
+        "exclude(one) not working: created_at field appears in get_one() but should be excluded");
+    assert!(!updated_at_present,
+        "exclude(all) not working: updated_at field appears in get_one() but should be excluded");
 }
 
 // ============================================================================
@@ -111,7 +96,7 @@ async fn test_join_fields_appear_in_get_one_responses() {
     assert_eq!(create_response.status(), StatusCode::CREATED);
 
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await.unwrap();
-    let created_customer: Customer = serde_json::from_slice(&body).expect("Failed to parse created customer");
+    let created_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse created customer");
 
     // TEST: get_one() should include join fields (even if empty)
     let response = app
@@ -171,7 +156,7 @@ async fn test_consistency_between_get_all_and_get_one() {
     assert_eq!(create_response.status(), StatusCode::CREATED);
 
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await.unwrap();
-    let created_customer: Customer = serde_json::from_slice(&body).expect("Failed to parse created customer");
+    let created_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse created customer");
 
     // TEST: get_all() response
     let get_all_response = app
@@ -230,15 +215,22 @@ async fn test_consistency_between_get_all_and_get_one() {
     println!("  created_at: get_all()={}, get_one()={}", get_all_has_created_at, get_one_has_created_at);
     println!("  updated_at: get_all()={}, get_one()={}", get_all_has_updated_at, get_one_has_updated_at);
 
-    // ASSERTIONS: Behavior should be consistent
+    // ASSERTIONS: Behavior should reflect exclude(one) correctly
+    // vehicles has join(one, all) so should be present in both
     assert_eq!(get_all_has_vehicles, get_one_has_vehicles,
-               "vehicles field should be present in both or neither endpoint");
-    assert_eq!(get_all_has_created_at, get_one_has_created_at,
-               "created_at field should be present in both or neither endpoint");
-    assert_eq!(get_all_has_updated_at, get_one_has_updated_at,
-               "updated_at field should be present in both or neither endpoint");
+               "vehicles field should be present in both endpoints due to join(one, all)");
 
-    // TODO: Once fixed, these consistency assertions should pass
+    // created_at has exclude(one), so should appear in get_all but NOT in get_one
+    assert!(get_all_has_created_at,
+            "created_at should be present in get_all() response");
+    assert!(!get_one_has_created_at,
+            "created_at should NOT be present in get_one() response due to exclude(one)");
+
+    // updated_at has exclude(all), so should NOT appear in either endpoint
+    assert!(!get_all_has_updated_at,
+            "updated_at should NOT be present in get_all() response due to exclude(all)");
+    assert!(!get_one_has_updated_at,
+            "updated_at should NOT be present in get_one() response due to exclude(all)");
 }
 
 // ============================================================================
@@ -270,7 +262,7 @@ async fn test_all_field_exclusion_and_join_issues() {
     assert_eq!(create_response.status(), StatusCode::CREATED);
 
     let body = axum::body::to_bytes(create_response.into_body(), usize::MAX).await.unwrap();
-    let created_customer: Customer = serde_json::from_slice(&body).expect("Failed to parse created customer");
+    let created_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse created customer");
 
     // Test get_all() response
     let get_all_response = app
@@ -309,48 +301,34 @@ async fn test_all_field_exclusion_and_join_issues() {
         .find(|customer| customer["id"] == json!(created_customer.id.to_string()))
         .expect("Customer should be in get_all response");
 
-    println!("Current get_all() customer fields: {}",
-             serde_json::json!(get_all_customer.as_object().unwrap_or(&serde_json::Map::new()).keys().collect::<Vec<_>>()));
-    println!("Current get_one() customer fields: {}",
-             serde_json::json!(get_one_json.as_object().unwrap_or(&serde_json::Map::new()).keys().collect::<Vec<_>>()));
+    // TEST 1: exclude(one) and exclude(all) fields should be absent in get_one()
+    assert!(!get_one_json.get("created_at").is_some(),
+        "exclude(one) not working: created_at appears in get_one()");
+    assert!(!get_one_json.get("updated_at").is_some(),
+        "exclude(all) not working: updated_at appears in get_one()");
 
-    // Document expected vs actual behavior
-    println!("\n=== EXPECTED vs ACTUAL BEHAVIOR ===");
+    // TEST 2: join(one, all) fields should be present in both endpoints
+    assert!(get_one_json.get("vehicles").is_some(),
+        "vehicles field missing in get_one() but has join(one, all)");
+    assert!(get_all_customer.get("vehicles").is_some(),
+        "vehicles field missing in get_all() but has join(one, all)");
 
-    // ISSUE 1: exclude(one) not working
-    println!("ISSUE 1: exclude(one) fields in get_one():");
-    println!("  Expected: created_at and updated_at should be ABSENT");
-    println!("  Actual: created_at={}, updated_at={}",
-             get_one_json.get("created_at").is_some(),
-             get_one_json.get("updated_at").is_some());
+    // TEST 3: Verify correct behavior
+    // created_at has exclude(one) - should appear in get_all but NOT in get_one
+    let get_all_has_created_at = get_all_customer.get("created_at").is_some();
+    let get_one_has_created_at = get_one_json.get("created_at").is_some();
 
-    // ISSUE 2: join(all) fields missing
-    println!("\nISSUE 2: join(all) fields in get_one():");
-    println!("  Expected: vehicles should be PRESENT (even if empty)");
-    println!("  Actual: vehicles={}", get_one_json.get("vehicles").is_some());
+    assert!(get_all_has_created_at,
+        "created_at should be present in get_all() response");
+    assert!(!get_one_has_created_at,
+        "created_at should NOT be present in get_one() response due to exclude(one)");
 
-    // ISSUE 3: Inconsistency
-    println!("\nISSUE 3: Consistency between endpoints:");
-    println!("  get_all() has vehicles: {}", get_all_customer.get("vehicles").is_some());
-    println!("  get_one() has vehicles: {}", get_one_json.get("vehicles").is_some());
-    println!("  Consistent: {}",
-             get_all_customer.get("vehicles").is_some() == get_one_json.get("vehicles").is_some());
+    // updated_at has exclude(all) - should NOT appear in either endpoint
+    let get_all_has_updated_at = get_all_customer.get("updated_at").is_some();
+    let get_one_has_updated_at = get_one_json.get("updated_at").is_some();
 
-    // Document that these tests are expected to fail until issues are fixed
-    println!("\n=== TEST STATUS ===");
-    println!("These tests document current broken behavior.");
-    println!("They will fail until the field exclusion and join loading issues are fixed.");
-    println!("Once fixed, these tests will serve as regression tests.");
-
-    // Mark this test as documenting current issues
-    // TODO: Add proper assertions once bugs are fixed
-
-    // For now, document the current behavior without failing
-    println!("✓ Test documents all current field exclusion and join loading issues");
-    println!("✓ This test will be updated with proper assertions once bugs are fixed");
-
-    // Current behavior validation (documents bugs)
-    assert!(get_one_json.get("created_at").is_some(), "KNOWN BUG: created_at present in get_one()");
-    assert!(get_one_json.get("updated_at").is_some(), "KNOWN BUG: updated_at present in get_one()");
-    assert!(get_one_json.get("vehicles").is_some(), "join(all) working: vehicles present");
+    assert!(!get_all_has_updated_at,
+        "updated_at should NOT be present in get_all() response due to exclude(all)");
+    assert!(!get_one_has_updated_at,
+        "updated_at should NOT be present in get_one() response due to exclude(all)");
 }

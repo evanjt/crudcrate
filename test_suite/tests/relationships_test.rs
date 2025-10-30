@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, Customer};
+use common::{setup_test_db, setup_test_app, CustomerResponse, CustomerList};
 
 #[tokio::test]
 async fn test_relationship_loading() {
@@ -26,7 +26,7 @@ async fn test_relationship_loading() {
     assert_eq!(customer_response.status(), StatusCode::CREATED);
 
     let customer_body = axum::body::to_bytes(customer_response.into_body(), usize::MAX).await.unwrap();
-    let created_customer: Customer = serde_json::from_slice(&customer_body).unwrap();
+    let created_customer: CustomerResponse = serde_json::from_slice(&customer_body).unwrap();
 
     // Create a vehicle for this customer
     let vehicle_request = Request::builder()
@@ -56,7 +56,7 @@ async fn test_relationship_loading() {
     assert_eq!(get_customer_response.status(), StatusCode::OK);
 
     let get_customer_body = axum::body::to_bytes(get_customer_response.into_body(), usize::MAX).await.unwrap();
-    let customer_with_vehicles: Customer = serde_json::from_slice(&get_customer_body).unwrap();
+    let customer_with_vehicles: CustomerResponse = serde_json::from_slice(&get_customer_body).unwrap();
 
     // Verify the relationship WAS loaded (Customer has join(one, all))
     assert_eq!(customer_with_vehicles.id, created_customer.id);
@@ -80,7 +80,7 @@ async fn test_relationship_loading_in_get_all() {
     assert_eq!(customer_response.status(), StatusCode::CREATED);
 
     let customer_body = axum::body::to_bytes(customer_response.into_body(), usize::MAX).await.unwrap();
-    let created_customer: Customer = serde_json::from_slice(&customer_body).unwrap();
+    let created_customer: CustomerResponse = serde_json::from_slice(&customer_body).unwrap();
 
     // Create a vehicle for this customer
     let vehicle_request = Request::builder()
@@ -110,7 +110,7 @@ async fn test_relationship_loading_in_get_all() {
     assert_eq!(get_all_customers_response.status(), StatusCode::OK);
 
     let get_all_customers_body = axum::body::to_bytes(get_all_customers_response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<Customer> = serde_json::from_slice(&get_all_customers_body).unwrap();
+    let customers: Vec<CustomerList> = serde_json::from_slice(&get_all_customers_body).unwrap();
 
     // Find our customer in the list
     let found_customer = customers.iter().find(|c| c.id == created_customer.id).expect("Customer not found in list");
