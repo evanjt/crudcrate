@@ -265,39 +265,87 @@ fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenSt
 /// Option<super::customer::Model> -> Option<Customer>
 /// super::vehicle::Model -> Vehicle
 fn resolve_inner_type_to_api_struct(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    // Try to extract base type using the global registry
-    if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
-        if let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str) {
-            let api_struct_ident = quote::format_ident!("{}", api_name);
+    // Check if this is a container type (Vec, Option) with inner Model type
+    if let syn::Type::Path(type_path) = field_type {
+        if let Some(segment) = type_path.path.segments.last() {
+            // Handle Vec<T> and Option<T>
+            if (segment.ident == "Vec" || segment.ident == "Option") {
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        // Recursively resolve the inner type
+                        let resolved_inner = resolve_base_model_to_api_struct(inner_ty);
 
-            // Check if this is a container type (Vec, Option)
-            if let syn::Type::Path(type_path) = field_type {
-                if let Some(segment) = type_path.path.segments.last() {
-                    if segment.ident == "Vec" {
-                        // Vec<super::vehicle::Model> -> Vec<Vehicle>
-                        return quote! { Vec<#api_struct_ident> };
-                    } else if segment.ident == "Option" {
-                        // Option<super::vehicle::Model> -> Option<Vehicle>
-                        return quote! { Option<#api_struct_ident> };
+                        if segment.ident == "Vec" {
+                            return quote! { Vec<#resolved_inner> };
+                        } else {
+                            return quote! { Option<#resolved_inner> };
+                        }
                     }
                 }
             }
+        }
+    }
 
-            // Direct type: super::vehicle::Model -> Vehicle
+    // Direct Model type - resolve it
+    resolve_base_model_to_api_struct(field_type)
+}
+
+/// Helper to resolve a base Model type to its API struct name
+/// super::vehicle::Model -> Vehicle
+/// vehicle_part::Model -> VehiclePart
+fn resolve_base_model_to_api_struct(field_type: &syn::Type) -> proc_macro2::TokenStream {
+    // First try: use global registry
+    if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
+        if let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str) {
+            let api_struct_ident = quote::format_ident!("{}", api_name);
             return quote! { #api_struct_ident };
+        }
+    }
+
+    // Second try: extract module name from path and use naming convention
+    // super::vehicle_part::Model -> VehiclePart (convert module snake_case to PascalCase)
+    if let syn::Type::Path(type_path) = field_type {
+        let segments: Vec<_> = type_path.path.segments.iter().collect();
+
+        // Look for pattern: [any segments]::module_name::Model
+        if segments.len() >= 2 {
+            let last_seg = &segments[segments.len() - 1];
+            let module_seg = &segments[segments.len() - 2];
+
+            if last_seg.ident == "Model" {
+                // Convert snake_case module name to PascalCase
+                let module_name = module_seg.ident.to_string();
+                let pascal_case = module_name
+                    .split('_')
+                    .map(|s| {
+                        let mut chars = s.chars();
+                        match chars.next() {
+                            Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
+                            None => String::new(),
+                        }
+                    })
+                    .collect::<String>();
+
+                let api_struct_ident = quote::format_ident!("{}", pascal_case);
+
+                #[cfg(feature = "debug")]
+                eprintln!("DEBUG: Inferred API struct name from path: {} -> {}", module_name, pascal_case);
+
+                return quote! { #api_struct_ident };
+            }
         }
     }
 
     // Fallback: keep original type if we can't resolve
     #[cfg(feature = "debug")]
-    eprintln!("WARNING: Could not resolve inner type to API struct: {:?}", quote! { #field_type });
+    eprintln!("WARNING: Could not resolve Model type to API struct: {:?}", quote! { #field_type });
     quote! { #field_type }
 }
 
 /// Resolve join field type - extract inner type from JoinField and transform Model -> API struct
 /// This is used for API struct field definitions for join fields
-/// JoinField<Vec<super::vehicle::Model>> -> JoinField<Vec<Vehicle>> (resolve Model to API struct)
-/// Vec<super::vehicle::Model> -> JoinField<Vec<Vehicle>> (wrap and resolve)
+/// JoinField<Vec<super::vehicle::Model>> -> Vec<Vehicle> (unwrap JoinField and resolve Model to API struct)
+/// Vec<super::vehicle::Model> -> Vec<Vehicle> (resolve directly, no JoinField wrapper needed)
 fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_macro2::TokenStream {
     // Check if the field type is already JoinField<...>
     if let syn::Type::Path(type_path) = field_type {
@@ -307,10 +355,11 @@ fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_
                 if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                     if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
                         // Recursively resolve the inner type (Vec<Model> -> Vec<APIStruct>)
+                        // NO LONGER wrap in JoinField - use direct types with #[schema(no_recursion)]
                         let resolved_inner = resolve_inner_type_to_api_struct(inner_ty);
                         #[cfg(feature = "debug")]
-                        eprintln!("DEBUG: JoinField inner type resolved: {:?} -> {:?}", quote! { #inner_ty }, quote! { #resolved_inner });
-                        return quote! { crudcrate::JoinField<#resolved_inner> };
+                        eprintln!("DEBUG: JoinField inner type resolved (unwrapped): {:?} -> {:?}", quote! { #inner_ty }, quote! { #resolved_inner });
+                        return resolved_inner;
                     }
                 }
                 // Couldn't extract inner type, keep as-is
@@ -331,17 +380,17 @@ fn resolve_join_field_type_preserving_container(field_type: &syn::Type) -> proc_
             if let syn::Type::Path(type_path) = field_type {
                 if let Some(segment) = type_path.path.segments.last() {
                     if segment.ident == "Vec" {
-                        // Vec<super::vehicle::Model> -> JoinField<Vec<Vehicle>>
-                        return quote! { crudcrate::JoinField<Vec<#api_struct_ident>> };
+                        // Vec<super::vehicle::Model> -> Vec<Vehicle> (NO JoinField wrapper)
+                        return quote! { Vec<#api_struct_ident> };
                     } else if segment.ident == "Option" {
-                        // Option<super::vehicle::Model> -> JoinField<Option<Vehicle>>
-                        return quote! { crudcrate::JoinField<Option<#api_struct_ident>> };
+                        // Option<super::vehicle::Model> -> Option<Vehicle> (NO JoinField wrapper)
+                        return quote! { Option<#api_struct_ident> };
                     }
                 }
             }
 
-            // Direct type: super::vehicle::Model -> JoinField<Vehicle>
-            return quote! { crudcrate::JoinField<#api_struct_ident> };
+            // Direct type: super::vehicle::Model -> Vehicle (NO JoinField wrapper)
+            return quote! { #api_struct_ident };
         }
     }
 
@@ -481,6 +530,11 @@ fn generate_api_struct_content(
         };
 
         // Generate field definition with proper type handling
+        #[cfg(feature = "debug")]
+        eprintln!("DEBUG: API struct field '{}' type: {:?}",
+            field_name.as_ref().map(|n| n.to_string()).unwrap_or_default(),
+            quote! { #final_field_type });
+
         let field_definition = quote! {
             #schema_attrs
             #(#crudcrate_attrs)*
@@ -489,25 +543,41 @@ fn generate_api_struct_content(
 
         api_struct_fields.push(field_definition);
 
-        // For join fields, check if already JoinField in Model, otherwise initialize to NotLoaded
+        // For join fields, initialize with empty collection
         let assignment = if attribute_parser::get_join_config(field).is_some() {
-            // Check if the field is already JoinField<T> in the Model struct
-            let is_already_join_field = if let syn::Type::Path(type_path) = field_type {
-                type_path.path.segments.last()
-                    .map(|seg| seg.ident == "JoinField")
-                    .unwrap_or(false)
+            // For join fields, initialize with appropriate empty value:
+            // - Vec<T> fields -> empty vec![]
+            // - Option<T> fields -> None
+            // - Direct T fields -> Default::default()
+            // Join fields are populated by the CRUDResource::get_one() implementation, not by From<Model>
+            // Use the RESOLVED type (final_field_type) to determine the empty value, not the original field_type
+            let empty_value = if let Ok(resolved_type) = syn::parse2::<syn::Type>(quote! { #final_field_type }) {
+                if let syn::Type::Path(type_path) = &resolved_type {
+                    if let Some(segment) = type_path.path.segments.last() {
+                        if segment.ident == "Vec" {
+                            quote! { vec![] }
+                        } else if segment.ident == "Option" {
+                            quote! { None }
+                        } else {
+                            quote! { Default::default() }
+                        }
+                    } else {
+                        quote! { Default::default() }
+                    }
+                } else {
+                    quote! { Default::default() }
+                }
             } else {
-                false
+                quote! { Default::default() }
             };
 
-            // For join fields, always initialize to Default (NotLoaded)
-            // We can't copy from the model because:
-            // - Model has JoinField<Vec<vehicle_part::Model>>
-            // - API struct has JoinField<Vec<VehiclePart>>
-            // These types are incompatible and can't be directly assigned
-            // Join fields are populated by the CRUDResource::get_one() implementation, not by From<Model>
+            #[cfg(feature = "debug")]
+            eprintln!("DEBUG: From<Model> assignment for join field '{}': {:?}",
+                field_name.as_ref().map(|n| n.to_string()).unwrap_or_default(),
+                quote! { #field_name: #empty_value });
+
             quote! {
-                #field_name: Default::default()
+                #field_name: #empty_value
             }
         } else {
             quote! {

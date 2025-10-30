@@ -765,8 +765,8 @@ fn generate_recursive_loading_implementation(
                                             .map(|related_model| Into::<#api_struct_type>::into(related_model))
                                             .collect();
                                     });
-                                    // Wrap the loaded Vec in JoinField::Loaded
-                                    field_assignments.push(quote! { result.#field_name = crudcrate::JoinField::Loaded(#loaded_var_name); });
+                                    // Assign the loaded Vec directly (no JoinField wrapper)
+                                    field_assignments.push(quote! { result.#field_name = #loaded_var_name; });
                                 } else {
                                     // Unlimited recursion - use the original recursive approach
                                     let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);
@@ -786,8 +786,8 @@ fn generate_recursive_loading_implementation(
                                             }
                                         }
                                     });
-                                    // Wrap the loaded Vec in JoinField::Loaded
-                                    field_assignments.push(quote! { result.#field_name = crudcrate::JoinField::Loaded(#field_name); });
+                                    // Assign the loaded Vec directly (no JoinField wrapper)
+                                    field_assignments.push(quote! { result.#field_name = #field_name; });
                                 }
             } else {
                 // Extract the inner type from Option<T> or T
@@ -806,9 +806,9 @@ fn generate_recursive_loading_implementation(
                             None
                         };
                     });
-                    // Wrap the loaded Option in JoinField::Loaded if it's Some, otherwise use Default
+                    // Assign the loaded Option directly (no JoinField wrapper)
                     field_assignments.push(quote! {
-                        result.#field_name = #loaded_var_name.map(crudcrate::JoinField::Loaded).unwrap_or_default();
+                        result.#field_name = #loaded_var_name;
                     });
                 } else {
                     // Unlimited recursion - use the original recursive approach
@@ -826,9 +826,9 @@ fn generate_recursive_loading_implementation(
                             None
                         };
                     });
-                    // Wrap the loaded Option in JoinField::Loaded if it's Some, otherwise use Default
+                    // Assign the loaded Option directly (no JoinField wrapper)
                     field_assignments.push(quote! {
-                        result.#field_name = #field_name.map(crudcrate::JoinField::Loaded).unwrap_or_default();
+                        result.#field_name = #field_name;
                     });
                 }
             }
@@ -1048,7 +1048,7 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                             .collect();
                     });
                     field_assignments.push(quote! {
-                        result.#field_name = crudcrate::JoinField::Loaded(#loaded_var_name);
+                        result.#field_name = #loaded_var_name;
                     });
                 } else {
                     // Unlimited recursion - use recursive get_one calls
@@ -1066,9 +1066,9 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                             }
                         }
                     });
-                    // Wrap the loaded Vec in JoinField::Loaded for get_all
+                    // Assign the loaded Vec directly for get_all (no JoinField wrapper)
                     field_assignments.push(quote! {
-                        result.#field_name = crudcrate::JoinField::Loaded(#field_name);
+                        result.#field_name = #field_name;
                     });
                 }
             } else {
@@ -1085,7 +1085,7 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                         };
                     });
                     field_assignments.push(quote! {
-                        result.#field_name = crudcrate::JoinField::Loaded(#loaded_var_name.unwrap_or_default());
+                        result.#field_name = #loaded_var_name.unwrap_or_default();
                     });
                 } else {
                     // Unlimited recursion - use recursive get_one calls
@@ -1104,9 +1104,9 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
                             None => None,
                         };
                     });
-                    // Wrap the loaded Option/value in JoinField::Loaded for get_all
+                    // Assign the loaded Option/value directly for get_all (no JoinField wrapper)
                     field_assignments.push(quote! {
-                        result.#field_name = crudcrate::JoinField::Loaded(#field_name.unwrap_or_default());
+                        result.#field_name = #field_name.unwrap_or_default();
                     });
                 }
             }
@@ -1593,9 +1593,13 @@ pub(crate) fn generate_list_struct_fields(
         .iter()
         .filter(|field| {
             let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-            // Exclude join fields from List models by default - they're typically too heavy for list responses
-            let is_join_field = get_join_config(field).is_some();
-            include_in_list && !is_join_field
+            // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
+            let is_join_one_only = if let Some(join_config) = get_join_config(field) {
+                !join_config.on_all  // Exclude if NOT loading in get_all (on_all = false)
+            } else {
+                false
+            };
+            include_in_list && !is_join_one_only
         })
         .map(|field| {
             let ident = &field.ident;
@@ -1623,6 +1627,10 @@ pub(crate) fn generate_list_struct_fields(
                 } else {
                     quote! { #ty }
                 }
+            } else if get_join_config(field).is_some() {
+                // For join fields, resolve the type from JoinField<Vec<Model>> to Vec<APIStruct>
+                // This ensures List models have proper API struct types, not DB Model types
+                super::resolve_join_field_type_preserving_container(ty)
             } else {
                 quote! { #ty }
             };
@@ -1641,9 +1649,13 @@ pub(crate) fn generate_list_from_assignments(
         .iter()
         .filter(|field| {
             let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-            // Exclude join fields from List models by default
-            let is_join_field = get_join_config(field).is_some();
-            include_in_list && !is_join_field
+            // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
+            let is_join_one_only = if let Some(join_config) = get_join_config(field) {
+                !join_config.on_all  // Exclude if NOT loading in get_all (on_all = false)
+            } else {
+                false
+            };
+            include_in_list && !is_join_one_only
         })
         .map(|field| {
             let ident = &field.ident;
@@ -1742,19 +1754,34 @@ pub(crate) fn generate_list_from_model_assignments(
         let field_name = &field.ident;
 
         let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-        // Exclude join fields from List models by default
-        let is_join_field = get_join_config(field).is_some();
+        // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
+        let is_join_one_only = if let Some(join_config) = get_join_config(field) {
+            !join_config.on_all  // Exclude if NOT loading in get_all (on_all = false)
+        } else {
+            false
+        };
 
-        if include_in_list && !is_join_field {
-            // Field is included in ListModel - use default since it's not in DB Model
-            let default_expr = get_crudcrate_expr(field, "default")
-                .unwrap_or_else(|| syn::parse_quote!(Default::default()));
+        if include_in_list && !is_join_one_only {
+            // Check if this is a join(all) field
+            let is_join_all = get_join_config(field).map(|c| c.on_all).unwrap_or(false);
 
-            assignments.push(quote! {
-                #field_name: #default_expr
-            });
+            if is_join_all {
+                // Join(all) fields: Initialize with empty vec in From<Model> - they'll be populated by get_all() loading logic
+                // The ListModel struct includes them with Vec<APIStruct> type, so we initialize with vec![]
+                // This avoids type mismatch: Model has JoinField<Vec<T>>, ListModel has Vec<T>
+                assignments.push(quote! {
+                    #field_name: vec![]
+                });
+            } else {
+                // Regular non-DB fields: use default or specified default
+                let default_expr = get_crudcrate_expr(field, "default")
+                    .unwrap_or_else(|| syn::parse_quote!(Default::default()));
+                assignments.push(quote! {
+                    #field_name: #default_expr
+                });
+            }
         }
-        // Fields with list_model = false or join fields are not included in ListModel struct, so skip them
+        // Fields with list_model = false or join(one)-only fields are not included in ListModel struct, so skip them
     }
 
     assignments

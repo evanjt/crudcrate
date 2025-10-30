@@ -20,13 +20,13 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
 
     // Join field for vehicles - automatically loaded with join(one, all)
-    // JoinField wrapper handles automatic loading and avoids circular dependencies
+    // Using JoinField wrapper in source Model, unwrapped to Vec in API struct with #[schema(no_recursion)]
     // Using module path to reference the vehicle Model (not API struct)
     // depth=1 means: Customer -> Vehicles (1 level deep, vehicles won't load their nested parts)
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr, join(one, all, depth = 1))]
+    #[crudcrate(non_db_attr, join(one, all, depth = 2))]
     pub vehicles: JoinField<Vec<super::vehicle::Model>>,
-    }
+}
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {

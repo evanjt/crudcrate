@@ -26,7 +26,7 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
 
     // Join fields for parts and maintenance records - automatically loaded with join(one, all)
-    // JoinField wrapper handles automatic loading and avoids circular dependencies
+    // Using JoinField wrapper in source Model, unwrapped to Vec in API struct with #[schema(no_recursion)]
     // Using module paths to reference the Models (not API structs)
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 1))]
