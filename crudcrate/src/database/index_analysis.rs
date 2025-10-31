@@ -13,8 +13,19 @@ use std::sync::{Arc, Mutex};
 static INDEX_ANALYSIS_SHOWN: AtomicBool = AtomicBool::new(false);
 
 // Global registry for models that should be analysed
-type IndexAnalyzer = Box<dyn Fn(&DatabaseConnection) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IndexRecommendation>, sea_orm::DbErr>> + Send>> + Send + Sync>;
-static GLOBAL_ANALYZERS: std::sync::LazyLock<Arc<Mutex<Vec<IndexAnalyzer>>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
+type IndexAnalyzer = Box<
+    dyn Fn(
+            &DatabaseConnection,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Vec<IndexRecommendation>, sea_orm::DbErr>>
+                    + Send,
+            >,
+        > + Send
+        + Sync,
+>;
+static GLOBAL_ANALYZERS: std::sync::LazyLock<Arc<Mutex<Vec<IndexAnalyzer>>>> =
+    std::sync::LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
 
 #[derive(Debug, Clone)]
 pub struct IndexRecommendation {
@@ -43,18 +54,16 @@ pub enum Priority {
 
 #[derive(Debug)]
 struct ExistingIndex {
-    #[allow(dead_code)]
-    table_name: String,
     column_name: String,
-    #[allow(dead_code)]
+
     index_name: String,
     index_type: String,
 }
 
 /// Analyse database indexes and provide recommendations for CRUD resources
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns a `sea_orm::DbErr` if database queries fail or connection issues occur.
 pub async fn analyse_indexes_for_resource<T: crate::traits::CRUDResource>(
     db: &DatabaseConnection,
@@ -123,7 +132,12 @@ pub async fn analyse_indexes_for_resource<T: crate::traits::CRUDResource>(
                     fulltext_columns.len()
                 ),
                 priority: Priority::High,
-                suggested_sql: generate_fulltext_index_sql(backend, table_name, &fulltext_columns, T::FULLTEXT_LANGUAGE),
+                suggested_sql: generate_fulltext_index_sql(
+                    backend,
+                    table_name,
+                    &fulltext_columns,
+                    T::FULLTEXT_LANGUAGE,
+                ),
             });
         }
     }
@@ -142,7 +156,10 @@ pub fn display_index_recommendations_with_examples(recommendations: &[IndexRecom
 }
 
 /// Internal function to display index recommendations with optional SQL examples
-fn display_index_recommendations_internal(recommendations: &[IndexRecommendation], show_examples: bool) {
+fn display_index_recommendations_internal(
+    recommendations: &[IndexRecommendation],
+    show_examples: bool,
+) {
     if recommendations.is_empty() {
         return;
     }
@@ -158,7 +175,7 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
 
     let mut by_priority: HashMap<Priority, Vec<&IndexRecommendation>> = HashMap::new();
     let mut all_sql_commands: Vec<String> = Vec::new();
-    
+
     for rec in recommendations {
         by_priority
             .entry(rec.priority.clone())
@@ -182,9 +199,9 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
         if let Some(recs) = by_priority.get(&priority) {
             let (icon, _color) = match priority {
                 Priority::Critical => ("CRITICAL", "\x1b[91m"), // Bright red
-                Priority::High => ("HIGH", "\x1b[93m"),    // Yellow
-                Priority::Medium => ("MEDIUM", "\x1b[94m"),   // Blue
-                Priority::Low => ("LOW", "\x1b[92m"),     // Green
+                Priority::High => ("HIGH", "\x1b[93m"),         // Yellow
+                Priority::Medium => ("MEDIUM", "\x1b[94m"),     // Blue
+                Priority::Low => ("LOW", "\x1b[92m"),           // Green
             };
 
             if !recs.is_empty() {
@@ -202,7 +219,7 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
         println!("\n═══════════════════════════");
         println!("Copy-paste SQL commands:");
         println!("═══════════════════════════");
-        
+
         // Remove duplicates while preserving order
         let mut seen = std::collections::HashSet::new();
         for sql in &all_sql_commands {
@@ -210,7 +227,7 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
                 println!("{sql}");
             }
         }
-        
+
         println!("\nExecute these commands to optimize your database indexes");
     } else if !show_examples {
         println!("\nUse analyse_all_registered_models(&db, true) for SQL commands");
@@ -218,55 +235,56 @@ fn display_index_recommendations_internal(recommendations: &[IndexRecommendation
 }
 
 /// Register a model for automatic index analysis
-/// 
+///
 /// # Panics
-/// 
+///
 /// This function may panic if the global index analyzers mutex is poisoned.
 pub fn register_analyser<T: crate::traits::CRUDResource + 'static>() {
     let analyser: IndexAnalyzer = Box::new(|db: &DatabaseConnection| {
         let db = db.clone();
-        Box::pin(async move {
-            analyse_indexes_for_resource::<T>(&db).await
-        })
+        Box::pin(async move { analyse_indexes_for_resource::<T>(&db).await })
     });
-    
+
     GLOBAL_ANALYZERS.lock().unwrap().push(analyser);
 }
 
 /// Run index analysis for all registered models with optional SQL examples
-/// 
+///
 /// # Parameters
 /// - `db`: Database connection for analyzing existing indexes
 /// - `show_examples`: If true, displays SQL CREATE INDEX commands; if false, shows compact summary
-/// 
+///
 /// # Examples
 /// ```rust,no_run
 /// use crudcrate::analyse_all_registered_models;
 /// use sea_orm::Database;
-/// 
+///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let db = Database::connect("sqlite::memory:").await?;
-/// 
+///
 /// // Compact output (default for production)
 /// let _ = analyse_all_registered_models(&db, false).await;
-/// 
+///
 /// // Detailed output with SQL commands (useful for development)
 /// let _ = analyse_all_registered_models(&db, true).await;
 /// # Ok(())
 /// # }
 /// ```
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns a `sea_orm::DbErr` if database operations fail during index analysis.
-/// 
+///
 /// # Panics
-/// 
+///
 /// This function panics if the global analyzers mutex is poisoned.
 #[allow(clippy::await_holding_lock)]
-pub async fn analyse_all_registered_models(db: &DatabaseConnection, show_examples: bool) -> Result<(), sea_orm::DbErr> {
+pub async fn analyse_all_registered_models(
+    db: &DatabaseConnection,
+    show_examples: bool,
+) -> Result<(), sea_orm::DbErr> {
     let mut all_recommendations = Vec::new();
-    
+
     {
         let guard = GLOBAL_ANALYZERS.lock().unwrap();
         for analyser in guard.iter() {
@@ -274,7 +292,7 @@ pub async fn analyse_all_registered_models(db: &DatabaseConnection, show_example
             all_recommendations.extend(recommendations);
         }
     }
-    
+
     if show_examples {
         display_index_recommendations_with_examples(&all_recommendations);
     } else {
@@ -320,13 +338,13 @@ async fn get_existing_indexes(
         DatabaseBackend::MySql => {
             format!(
                 r"
-                SELECT 
+                SELECT
                     TABLE_NAME as table_name,
                     COLUMN_NAME as column_name,
                     INDEX_NAME as index_name,
                     INDEX_TYPE as index_type
-                FROM information_schema.statistics 
-                WHERE TABLE_NAME = '{table_name}' 
+                FROM information_schema.statistics
+                WHERE TABLE_NAME = '{table_name}'
                 AND TABLE_SCHEMA = DATABASE()
                 ORDER BY TABLE_NAME, INDEX_NAME
                 "
@@ -348,13 +366,11 @@ async fn get_existing_indexes(
         let query_results = db.query_all(statement).await?;
 
         for row in query_results {
-            let table_name: String = row.try_get("", "table_name")?;
             let column_name: String = row.try_get("", "column_name")?;
             let index_name: String = row.try_get("", "index_name")?;
             let index_type: String = row.try_get("", "index_type")?;
 
             indexes.push(ExistingIndex {
-                table_name,
                 column_name,
                 index_name,
                 index_type,
@@ -395,7 +411,6 @@ async fn get_sqlite_indexes(
             let column_name: String = info_row.try_get("", "name")?;
 
             indexes.push(ExistingIndex {
-                table_name: table_name.to_string(),
                 column_name,
                 index_name: index_name.clone(),
                 index_type: "btree".to_string(), // SQLite uses B-tree by default
@@ -420,17 +435,17 @@ fn check_fulltext_index_exists(
                 if !is_gin {
                     return false;
                 }
-                
+
                 // Check if it's a traditional fulltext index (matches individual columns)
                 let matches_column = fulltext_columns
                     .iter()
                     .any(|(col, _)| idx.column_name == *col);
-                
+
                 // Check if it's a trigram or expression index (look for common patterns)
-                let is_expression_index = idx.column_name == "expression" || 
-                    idx.index_name.contains("trigram") || 
-                    idx.index_name.contains("fulltext");
-                
+                let is_expression_index = idx.column_name == "expression"
+                    || idx.index_name.contains("trigram")
+                    || idx.index_name.contains("fulltext");
+
                 matches_column || is_expression_index
             })
         }

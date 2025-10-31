@@ -2,16 +2,14 @@
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection};
 use tower_http::cors::CorsLayer;
-use crudcrate::traits::CRUDResource;
 
 // Use the recursive_join example models
 #[path = "recursive_join/models/mod.rs"]
 mod models;
-use models::{Customer, Vehicle};
+use models::{customer::Customer, vehicle::Vehicle};
 
 async fn setup_database() -> DatabaseConnection {
-    let db = Database::connect("sqlite::memory:").await.unwrap();
-    db
+    Database::connect("sqlite::memory:").await.unwrap()
 }
 
 #[tokio::main]
@@ -33,7 +31,7 @@ async fn main() {
     println!("✅ Vehicle router created successfully");
 
     // Test 3: Can we create the combined app?
-    let app = Router::new()
+    let _app = Router::new()
         .nest("/customers", customer_router.into())
         .nest("/vehicles", vehicle_router.into())
         .layer(CorsLayer::default());

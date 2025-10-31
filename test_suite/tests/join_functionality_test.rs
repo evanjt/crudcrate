@@ -7,7 +7,9 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{CustomerResponse, CustomerList, VehicleResponse, VehicleList, setup_test_app, setup_test_db};
+use common::{models::vehicle::Vehicle, setup_test_app, setup_test_db};
+
+use crate::common::customer::{CustomerList, CustomerResponse};
 
 #[tokio::test]
 async fn test_join_one_get_customer() {
@@ -219,7 +221,7 @@ async fn test_join_one_all_vehicle() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicle: VehicleResponse = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
+    let vehicle: Vehicle = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
     let vehicle_id = vehicle.id;
 
     // Create a vehicle part
@@ -275,7 +277,7 @@ async fn test_join_one_all_vehicle() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let retrieved_vehicle: VehicleResponse =
+    let retrieved_vehicle: Vehicle =
         serde_json::from_slice(&body).expect("Failed to parse retrieved vehicle");
 
     // Vehicle has join(one, all) on parts and maintenance_records, so they should be populated in get_one
@@ -348,7 +350,7 @@ async fn test_join_one_all_list_vehicles() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicle: VehicleResponse = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
+    let vehicle: Vehicle = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
     let vehicle_id = vehicle.id;
 
     // Create a vehicle part
@@ -384,7 +386,7 @@ async fn test_join_one_all_list_vehicles() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicles: Vec<VehicleList> =
+    let vehicles: Vec<Vehicle> =
         serde_json::from_slice(&body).expect("Failed to parse vehicles list");
 
     // Find our vehicle in the list

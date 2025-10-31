@@ -10,14 +10,18 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, CustomerResponse, CustomerList, VehicleResponse, VehicleList};
+use common::{models::vehicle::Vehicle, setup_test_app, setup_test_db};
+
+use crate::common::customer::CustomerResponse;
 
 #[tokio::test]
 async fn test_join_depth_parameter_exists() {
     // Test that the depth parameter is properly configured in the model
     // Customer has depth = 2, Vehicle has depth = 1
 
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a customer
@@ -36,7 +40,9 @@ async fn test_join_depth_parameter_exists() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customer: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     // Create a vehicle for this customer
@@ -68,17 +74,24 @@ async fn test_join_depth_parameter_exists() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customer_with_vehicles: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     // Verify vehicles are loaded (level 1 of recursion)
-    assert!(!customer_with_vehicles.vehicles.is_empty(), "Vehicles should be loaded at depth 1");
+    assert!(
+        !customer_with_vehicles.vehicles.is_empty(),
+        "Vehicles should be loaded at depth 1"
+    );
 
     // Vehicle parts and maintenance records should also be loaded (level 2 of recursion)
     // since Customer has depth = 2
-    assert!(!customer_with_vehicles.vehicles[0].parts.is_empty() ||
-            customer_with_vehicles.vehicles[0].parts.is_empty(),
-            "Parts loading behavior depends on data availability");
+    assert!(
+        !customer_with_vehicles.vehicles[0].parts.is_empty()
+            || customer_with_vehicles.vehicles[0].parts.is_empty(),
+        "Parts loading behavior depends on data availability"
+    );
 }
 
 #[tokio::test]
@@ -86,7 +99,9 @@ async fn test_depth_prevents_infinite_recursion() {
     // Test that depth parameter prevents infinite loops in circular relationships
     // This is a critical safety feature
 
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customer with vehicle
@@ -103,7 +118,9 @@ async fn test_depth_prevents_infinite_recursion() {
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customer: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     let vehicle_data = json!({
@@ -137,31 +154,13 @@ async fn test_depth_prevents_infinite_recursion() {
 }
 
 #[tokio::test]
-async fn test_depth_parameter_documentation() {
-    // Document the depth parameter values used in the test suite
-    // Customer: depth = 2 (loads vehicles → parts/maintenance)
-    // Vehicle: depth = 1 (loads parts/maintenance, but not their nested relationships)
-
-    println!("=== Recursive Join Depth Configuration ===");
-    println!("Customer.vehicles: join(one, all, depth = 2)");
-    println!("Vehicle.parts: join(one, all, depth = 1)");
-    println!("Vehicle.maintenance_records: join(one, all, depth = 1)");
-    println!("\n=== What This Means ===");
-    println!("- Fetching a Customer loads up to 2 levels of relationships");
-    println!("- Fetching a Vehicle loads up to 1 level of relationships");
-    println!("- This prevents infinite recursion in circular relationships");
-    println!("- Depth can be customized per field as needed");
-
-    // This test always passes - it's for documentation purposes
-    assert!(true, "Depth parameter configuration documented");
-}
-
-#[tokio::test]
 async fn test_mixed_depth_configurations() {
     // Test that different entities can have different depth configurations
     // Customer has depth = 2, Vehicle has depth = 1
 
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create test data
@@ -178,7 +177,9 @@ async fn test_mixed_depth_configurations() {
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customer: CustomerResponse = serde_json::from_slice(&body).unwrap();
 
     let vehicle_data = json!({
@@ -197,8 +198,10 @@ async fn test_mixed_depth_configurations() {
         .unwrap();
 
     let vehicle_response = app.clone().oneshot(request).await.unwrap();
-    let vehicle_body = axum::body::to_bytes(vehicle_response.into_body(), usize::MAX).await.unwrap();
-    let vehicle: VehicleResponse = serde_json::from_slice(&vehicle_body).unwrap();
+    let vehicle_body = axum::body::to_bytes(vehicle_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let vehicle: Vehicle = serde_json::from_slice(&vehicle_body).unwrap();
 
     // Test Customer endpoint (depth = 2)
     let request = Request::builder()
@@ -234,7 +237,4 @@ async fn test_depth_zero_behavior() {
     println!("- Depth = 2: Load relationships of relationships");
     println!("- Depth = 0 would mean no relationships (typically not used)");
     println!("- Default depth when not specified: implementation-dependent");
-
-    // This is a documentation test
-    assert!(true, "Depth parameter behavior documented");
 }

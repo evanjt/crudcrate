@@ -1,6 +1,6 @@
-use super::structs::EntityFieldAnalysis;
-use super::attribute_parser::{get_join_config, JoinConfig};
+use super::attribute_parser::{JoinConfig, get_join_config};
 use super::field_analyzer::find_crudcrate_join_attr;
+use super::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
 use std::collections::HashMap;
 
@@ -26,31 +26,32 @@ pub fn generate_cyclic_dependency_check(
     for field in &analysis.join_on_one_fields {
         if let Some(field_name) = &field.ident
             && let Ok(target_type) = extract_target_entity_type(&field.ty)
-                && let Some(join_config) = get_join_config(field) {
-                    join_dependencies.insert(field_name.to_string(), (target_type, join_config));
-                }
+            && let Some(join_config) = get_join_config(field)
+        {
+            join_dependencies.insert(field_name.to_string(), (target_type, join_config));
+        }
     }
 
     // Process join_on_all fields
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident
             && let Ok(target_type) = extract_target_entity_type(&field.ty)
-                && let Some(join_config) = get_join_config(field) {
-                    join_dependencies.insert(field_name.to_string(), (target_type, join_config));
-                }
+            && let Some(join_config) = get_join_config(field)
+        {
+            join_dependencies.insert(field_name.to_string(), (target_type, join_config));
+        }
     }
 
     // Check for joins with unlimited recursion (no explicit depth set)
     for (field_name, (target_entity, join_config)) in &join_dependencies {
         if join_config.is_unlimited_recursion() {
-            let estimated_depth = estimate_relationship_depth(entity_name, target_entity, field_name);
+            let estimated_depth =
+                estimate_relationship_depth(entity_name, target_entity, field_name);
 
             if estimated_depth > WARNING_DEPTH_THRESHOLD {
-                let warning_path = if target_entity.starts_with("super::") {
-                    format!("{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})")
-                } else {
-                    format!("{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})")
-                };
+                let warning_path = format!(
+                    "{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})"
+                );
 
                 let default_depth = DEFAULT_RECURSION_DEPTH;
                 let safe_depth = SAFE_EXPLICIT_DEPTH;
@@ -72,11 +73,7 @@ pub fn generate_cyclic_dependency_check(
         .iter()
         .filter_map(|(field_name, (target_entity, join_config))| {
             if is_unsafe_cycle(entity_name, target_entity, field_name, join_config, &join_dependencies) {
-                let warning_path = if target_entity.starts_with("super::") {
-                    format!("{entity_name} -> {field_name} -> {target_entity}")
-                } else {
-                    format!("{entity_name} -> {field_name} -> {target_entity}")
-                };
+                let warning_path = format!("{entity_name} -> {field_name} -> {target_entity}");
 
                 // Provide specific guidance based on the issue
                 let guidance = if join_config.is_unlimited_recursion() {
@@ -90,7 +87,7 @@ pub fn generate_cyclic_dependency_check(
                     .join_on_one_fields
                     .iter()
                     .chain(&analysis.join_on_all_fields)
-                    .find(|f| f.ident.as_ref().map(|id| id.to_string()) == Some(field_name.clone()))
+                    .find(|f| f.ident.as_ref().map(std::string::ToString::to_string) == Some(field_name.clone()))
                     .and_then(|f| find_crudcrate_join_attr(f))
                 {
                     // Target the crudcrate join attribute specifically
@@ -102,7 +99,7 @@ pub fn generate_cyclic_dependency_check(
                     let field_span = analysis.join_on_one_fields
                         .iter()
                         .chain(&analysis.join_on_all_fields)
-                        .find(|f| f.ident.as_ref().map(|id| id.to_string()) == Some(field_name.clone()))
+                        .find(|f| f.ident.as_ref().map(std::string::ToString::to_string) == Some(field_name.clone()))
                         .map(|f| f.ident.as_ref().unwrap().span());
 
                     if let Some(span) = field_span {
@@ -170,45 +167,48 @@ pub fn generate_cyclic_dependency_check(
 /// Returns the full path to uniquely identify different entities
 fn extract_target_entity_type(field_type: &syn::Type) -> Result<String, String> {
     if let syn::Type::Path(type_path) = field_type
-        && let Some(last_seg) = type_path.path.segments.last() {
-            let inner_type = match last_seg.ident.to_string().as_str() {
-                "Vec" => {
-                    if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                            inner_type
-                        } else {
-                            return Err("Invalid Vec type".to_string());
-                        }
+        && let Some(last_seg) = type_path.path.segments.last()
+    {
+        let inner_type = match last_seg.ident.to_string().as_str() {
+            "Vec" => {
+                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
+                        inner_type
                     } else {
-                        return Err("Invalid Vec arguments".to_string());
+                        return Err("Invalid Vec type".to_string());
                     }
-                }
-                "Option" => {
-                    if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                        if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                            inner_type
-                        } else {
-                            return Err("Invalid Option type".to_string());
-                        }
-                    } else {
-                        return Err("Invalid Option arguments".to_string());
-                    }
-                }
-                _ => field_type,
-            };
-
-            // Extract the full path from the inner type to uniquely identify entities
-            if let syn::Type::Path(inner_path) = inner_type {
-                let path_segments: Vec<String> = inner_path.path.segments
-                    .iter()
-                    .map(|seg| seg.ident.to_string())
-                    .collect();
-
-                if !path_segments.is_empty() {
-                    return Ok(path_segments.join("::"));
+                } else {
+                    return Err("Invalid Vec arguments".to_string());
                 }
             }
+            "Option" => {
+                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
+                        inner_type
+                    } else {
+                        return Err("Invalid Option type".to_string());
+                    }
+                } else {
+                    return Err("Invalid Option arguments".to_string());
+                }
+            }
+            _ => field_type,
+        };
+
+        // Extract the full path from the inner type to uniquely identify entities
+        if let syn::Type::Path(inner_path) = inner_type {
+            let path_segments: Vec<String> = inner_path
+                .path
+                .segments
+                .iter()
+                .map(|seg| seg.ident.to_string())
+                .collect();
+
+            if !path_segments.is_empty() {
+                return Ok(path_segments.join("::"));
+            }
         }
+    }
 
     Err("Could not extract entity type".to_string())
 }
@@ -219,7 +219,7 @@ fn has_potential_cycle(
     entity_name: &str,
     target_entity: &str,
     field_name: &str,
-    _join_config: &JoinConfig
+    _join_config: &JoinConfig,
 ) -> bool {
     // Check for direct entity name match (self-referencing relationships)
     if entity_name == target_entity {
@@ -255,7 +255,7 @@ fn is_unsafe_cycle(
     target_entity: &str,
     field_name: &str,
     join_config: &JoinConfig,
-    all_dependencies: &std::collections::HashMap<String, (String, JoinConfig)>
+    all_dependencies: &std::collections::HashMap<String, (String, JoinConfig)>,
 ) -> bool {
     // Self-referencing relationships are always unsafe
     if entity_name == target_entity {
@@ -272,16 +272,21 @@ fn is_unsafe_cycle(
     let target_entity_name = extract_entity_name_from_path(target_entity);
 
     // Look for the reverse relationship (B->A when checking A->B)
-    let has_reverse_relationship = all_dependencies.iter().any(|(_reverse_field_name, (reverse_target, _reverse_config))| {
-        let reverse_target_name = extract_entity_name_from_path(reverse_target);
+    let has_reverse_relationship =
+        all_dependencies
+            .iter()
+            .any(|(_reverse_field_name, (reverse_target, _reverse_config))| {
+                let reverse_target_name = extract_entity_name_from_path(reverse_target);
 
-        // Check if this is actually a reverse relationship (target entity points back to source entity)
-        // This must be a true bidirectional pattern, not just any relationship
-        (reverse_target_name.contains(&entity_name.to_lowercase()) ||
-         entity_name.to_lowercase().contains(&reverse_target_name)) &&
-        (target_entity_name.contains(&reverse_target_name.to_lowercase()) ||
-         reverse_target_name.to_lowercase().contains(&target_entity_name))
-    });
+                // Check if this is actually a reverse relationship (target entity points back to source entity)
+                // This must be a true bidirectional pattern, not just any relationship
+                (reverse_target_name.contains(&entity_name.to_lowercase())
+                    || entity_name.to_lowercase().contains(&reverse_target_name))
+                    && (target_entity_name.contains(&reverse_target_name.to_lowercase())
+                        || reverse_target_name
+                            .to_lowercase()
+                            .contains(&target_entity_name))
+            });
 
     // If there's no reverse relationship, then it's unidirectional and safe with explicit depth
     if !has_reverse_relationship {
@@ -290,15 +295,17 @@ fn is_unsafe_cycle(
 
     // If we get here, there IS a bidirectional relationship
     // Now check if both sides have explicit depth limits
-    for (_reverse_field_name, (reverse_target, reverse_config)) in all_dependencies {
+    for (reverse_target, reverse_config) in all_dependencies.values() {
         let reverse_target_name = extract_entity_name_from_path(reverse_target);
 
         // Find the actual reverse relationship
-        if (reverse_target_name.contains(&entity_name.to_lowercase()) ||
-             entity_name.to_lowercase().contains(&reverse_target_name)) &&
-            (target_entity_name.contains(&reverse_target_name.to_lowercase()) ||
-             reverse_target_name.to_lowercase().contains(&target_entity_name)) {
-
+        if (reverse_target_name.contains(&entity_name.to_lowercase())
+            || entity_name.to_lowercase().contains(&reverse_target_name))
+            && (target_entity_name.contains(&reverse_target_name.to_lowercase())
+                || reverse_target_name
+                    .to_lowercase()
+                    .contains(&target_entity_name))
+        {
             // Both sides have explicit depth limits - this is safe
             if join_config.depth.is_some() && reverse_config.depth.is_some() {
                 return false; // Safe bidirectional with explicit depths
@@ -316,7 +323,7 @@ fn is_unsafe_cycle(
 }
 
 /// Extract the base entity name from a full path
-/// Examples: "entity::Model" -> "Entity", "super::entity::Model" -> "Entity"
+/// Examples: "`entity::Model`" -> "Entity", "`super::entity::Model`" -> "Entity"
 fn extract_entity_name_from_path(path: &str) -> String {
     // Split by :: and take the meaningful segment
     let segments: Vec<&str> = path.split("::").collect();
@@ -327,15 +334,11 @@ fn extract_entity_name_from_path(path: &str) -> String {
 
     // Handle different path patterns
     match segments.as_slice() {
-        // "super::entity::Model" -> "Entity" (take module name and convert to PascalCase)
-        ["super", module, "Model"] => module.to_pascal_case(),
-
-        // "entity::Model" -> "Entity" (take module name and convert to PascalCase)
-        // This also handles "super::Model" -> "Super" case
-        [module, "Model"] => module.to_pascal_case(),
+        // "super::entity::Model" -> "Entity" or "entity::Model" -> "Entity"
+        ["super", module, "Model"] | [module, "Model"] => module.to_pascal_case(),
 
         // Single segment like "Model" -> "Model"
-        [single] => single.to_string(),
+        [single] => (*single).to_string(),
 
         // Fallback: take first meaningful segment (skip "super") and convert to PascalCase
         segments => {
@@ -346,18 +349,6 @@ fn extract_entity_name_from_path(path: &str) -> String {
             };
             meaningful_segment.to_pascal_case()
         }
-    }
-}
-
-/// Calculate safe recursion depth based on relationship analysis
-#[allow(dead_code)]
-fn calculate_safe_depth(entity_name: &str, target_entity: &str) -> u8 {
-    // Direct relationships (entity_name == target_entity) need minimal depth
-    if entity_name == target_entity {
-        1
-    } else {
-        // For different entities, use safe explicit depth as a starting point
-        SAFE_EXPLICIT_DEPTH
     }
 }
 
@@ -375,41 +366,43 @@ pub fn generate_join_relation_validation(
     for field in &analysis.join_on_one_fields {
         if let Some(field_name) = &field.ident
             && let Some(join_config) = get_join_config(field)
-                && let Some(custom_relation) = join_config.relation {
-                    // Only validate if a custom relation name is explicitly provided
-                    let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
+            && let Some(custom_relation) = join_config.relation
+        {
+            // Only validate if a custom relation name is explicitly provided
+            let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
 
-                    // Generate a compile-time check that references the relation
-                    validation_checks.push(quote! {
-                        // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
-                        const _: () = {
-                            fn _validate_relation_exists() {
-                                let _ = Relation::#expected_relation_ident;
-                            }
-                        };
-                    });
-                }
-                // If no custom relation is specified, we use entity path resolution - no validation needed
+            // Generate a compile-time check that references the relation
+            validation_checks.push(quote! {
+                // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
+                const _: () = {
+                    fn _validate_relation_exists() {
+                        let _ = Relation::#expected_relation_ident;
+                    }
+                };
+            });
+        }
+        // If no custom relation is specified, we use entity path resolution - no validation needed
     }
 
     // Generate validation checks for join_on_all fields (only if custom relation is specified)
     for field in &analysis.join_on_all_fields {
         if let Some(field_name) = &field.ident
             && let Some(join_config) = get_join_config(field)
-                && let Some(custom_relation) = join_config.relation {
-                    // Only validate if a custom relation name is explicitly provided
-                    let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
+            && let Some(custom_relation) = join_config.relation
+        {
+            // Only validate if a custom relation name is explicitly provided
+            let expected_relation_ident = syn::Ident::new(&custom_relation, field_name.span());
 
-                    validation_checks.push(quote! {
-                        // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
-                        const _: () = {
-                            fn _validate_relation_exists() {
-                                let _ = Relation::#expected_relation_ident;
-                            }
-                        };
-                    });
-                }
-                // If no custom relation is specified, we use entity path resolution - no validation needed
+            validation_checks.push(quote! {
+                // Compile-time validation: This will fail if Relation::#expected_relation_ident doesn't exist
+                const _: () = {
+                    fn _validate_relation_exists() {
+                        let _ = Relation::#expected_relation_ident;
+                    }
+                };
+            });
+        }
+        // If no custom relation is specified, we use entity path resolution - no validation needed
     }
 
     quote! {
@@ -417,19 +410,11 @@ pub fn generate_join_relation_validation(
     }
 }
 
-/// Convert a field name to the expected relation variant name
-/// Example: "entities" -> "Entities", "`related_items`" -> "`RelatedItems`"
-#[allow(dead_code)]
-fn field_name_to_relation_variant(field_name: &syn::Ident) -> String {
-    let field_str = field_name.to_string();
-    // Convert to PascalCase for relation variant name
-    field_str.to_pascal_case()
-}
-
 #[cfg(test)]
 fn is_optional_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty
-        && let Some(segment) = type_path.path.segments.last() {
+        && let Some(segment) = type_path.path.segments.last()
+    {
         return segment.ident == "Option";
     }
     false
@@ -453,17 +438,24 @@ fn estimate_relationship_depth(current_entity: &str, target_entity: &str, field_
     }
 
     // Common hierarchical patterns
-    if field_lower.contains("sub") || field_lower.contains("child") || field_lower.contains("nested") {
+    if field_lower.contains("sub")
+        || field_lower.contains("child")
+        || field_lower.contains("nested")
+    {
         estimated_depth += 2;
     }
 
     // Tree-like structures
-    if field_lower.contains("categor") || field_lower.contains("tree") || field_lower.contains("parent") {
+    if field_lower.contains("categor")
+        || field_lower.contains("tree")
+        || field_lower.contains("parent")
+    {
         estimated_depth += 2;
     }
 
     // Chain-like structures
-    if field_lower.contains("next") || field_lower.contains("prev") || field_lower.contains("chain") {
+    if field_lower.contains("next") || field_lower.contains("prev") || field_lower.contains("chain")
+    {
         estimated_depth += 3;
     }
 
@@ -472,30 +464,12 @@ fn estimate_relationship_depth(current_entity: &str, target_entity: &str, field_
         estimated_depth += 2;
     }
 
-
     estimated_depth
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_field_name_to_relation_variant() {
-        use quote::format_ident;
-        assert_eq!(
-            field_name_to_relation_variant(&format_ident!("entities")),
-            "Entities"
-        );
-        assert_eq!(
-            field_name_to_relation_variant(&format_ident!("related_items")),
-            "RelatedItems"
-        );
-        assert_eq!(
-            field_name_to_relation_variant(&format_ident!("item")),
-            "Item"
-        );
-    }
 
     #[test]
     fn test_type_validation_helpers() {

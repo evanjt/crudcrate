@@ -102,16 +102,17 @@ error: Field 'my_field' has `#[crudcrate(non_db_attr)]` but is missing `#[sea_or
 ```
 
 **Correct Usage:**
-```rust
+```rustignore
 #[sea_orm(ignore)]
 #[crudcrate(non_db_attr, join(one, all))]
 pub related_entities: Vec<RelatedEntity>,
 ```
 
 **Incorrect Usage (will not compile):**
-```rust
+```rustignore
 #[crudcrate(non_db_attr, join(one, all))]  // ERROR: missing #[sea_orm(ignore)]
 pub related_entities: Vec<RelatedEntity>,
+
 ```
 
 ## Examples
@@ -277,7 +278,7 @@ mod ide_support {
         pub relation: String, // Custom relation name
     }
 
-    /// Exclude configuration options (function-style syntax)  
+    /// Exclude configuration options (function-style syntax)
     pub struct ExcludeConfig {
         pub create: bool, // Exclude from Create model
         pub update: bool, // Exclude from Update model

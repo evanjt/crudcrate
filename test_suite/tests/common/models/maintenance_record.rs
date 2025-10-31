@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{traits::CRUDResource, EntityToModels};
+use crudcrate::{EntityToModels, traits::CRUDResource};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -21,8 +21,8 @@ pub struct Model {
     #[crudcrate(filterable, fulltext)]
     pub description: String,
 
-    // #[crudcrate(sortable)]
-    // pub cost: Option<rust_decimal::Decimal>,  // Temporarily disabled for debugging
+    #[crudcrate(sortable)]
+    pub cost: Option<rust_decimal::Decimal>,
 
     #[crudcrate(filterable, sortable)]
     pub service_date: DateTime<Utc>,

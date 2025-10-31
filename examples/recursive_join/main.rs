@@ -12,12 +12,10 @@ use uuid::Uuid;
 // Import local models
 mod models;
 use crudcrate::traits::CRUDResource;
-use models::{
-    Customer, CustomerColumn, CustomerEntity, MaintenanceRecordEntity, Vehicle, VehicleEntity,
-    VehiclePartEntity, customer, maintenance_record, vehicle, vehicle_part,
-};
+use models::{customer, maintenance_record, vehicle, vehicle_part};
 
 // OpenAPI documentation
+
 #[derive(OpenApi)]
 #[openapi(
     info(
@@ -71,28 +69,28 @@ async fn create_tables(db: &DatabaseConnection) {
 
     // Create all tables
     println!("Creating customers table...");
-    let stmt = schema.create_table_from_entity(CustomerEntity);
+    let stmt = schema.create_table_from_entity(customer::Entity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ customers table created"),
         Err(e) => println!("❌ Failed to create customers table: {e:?}"),
     }
 
     println!("Creating vehicles table...");
-    let stmt = schema.create_table_from_entity(VehicleEntity);
+    let stmt = schema.create_table_from_entity(vehicle::Entity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ vehicles table created"),
         Err(e) => println!("❌ Failed to create vehicles table: {e:?}"),
     }
 
     println!("Creating vehicle_parts table...");
-    let stmt = schema.create_table_from_entity(VehiclePartEntity);
+    let stmt = schema.create_table_from_entity(vehicle_part::Entity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ vehicle_parts table created"),
         Err(e) => println!("❌ Failed to create vehicle_parts table: {e:?}"),
     }
 
     println!("Creating maintenance_records table...");
-    let stmt = schema.create_table_from_entity(MaintenanceRecordEntity);
+    let stmt = schema.create_table_from_entity(maintenance_record::Entity);
     match db.execute(db.get_database_backend().build(&stmt)).await {
         Ok(_) => println!("✅ maintenance_records table created"),
         Err(e) => println!("❌ Failed to create maintenance_records table: {e:?}"),
@@ -265,9 +263,10 @@ async fn main() {
     // Get the customer ID for testing
 
     let condition = Condition::all();
-    let customers = Customer::get_all(&db, &condition, CustomerColumn::Name, Order::Asc, 0, 100)
-        .await
-        .unwrap();
+    let customers =
+        customer::Customer::get_all(&db, &condition, customer::Column::Name, Order::Asc, 0, 100)
+            .await
+            .unwrap();
 
     if let Some(customer) = customers.first() {
         println!("🚀 Server running on http://localhost:3000");
@@ -297,13 +296,13 @@ async fn main() {
     }
 
     // Build the router with OpenAPI documentation using automatic endpoint discovery
-    let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .nest("/customers", Customer::router(&db).into())
-        .nest("/vehicles", Vehicle::router(&db).into())
+    let (router, openapi) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .nest("/customers", customer::Customer::router(&db))
+        .nest("/vehicles", vehicle::Vehicle::router(&db))
         .split_for_parts();
 
     let app = router
-        .merge(Scalar::with_url("/docs", api))
+        .merge(Scalar::with_url("/docs", openapi))
         .layer(CorsLayer::permissive());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

@@ -7,18 +7,21 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_db, setup_test_app, CustomerResponse, CustomerList};
+use common::models::customer::CustomerResponse;
+use common::{setup_test_app, setup_test_db};
 
 #[tokio::test]
 async fn test_customer_crud_operations() {
     // Setup test database and router
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Test 1: Create a customer
     let create_data = json!({
         "name": "John Doe",
-        "email": "john@example.com"
+        "email": "john@example.com",
     });
 
     let request = Request::builder()
@@ -30,22 +33,26 @@ async fn test_customer_crud_operations() {
 
     let response = app.clone().oneshot(request).await.unwrap();
     let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
     // Debug: Print response status and body if not created
     if status != StatusCode::CREATED {
         eprintln!("Create request failed with status: {status}");
         eprintln!("Response body: {}", String::from_utf8_lossy(&body));
         panic!("Expected 201 Created, got {status}");
     }
-    
+
     assert_eq!(status, StatusCode::CREATED);
-    let created_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse created customer");
-    
+
+    let created_customer: CustomerResponse =
+        serde_json::from_slice(&body).expect("Failed to parse created customer");
+
     // Verify customer was created with correct data
     assert_eq!(created_customer.name, "John Doe");
     assert_eq!(created_customer.email, "john@example.com");
-    
+
     let customer_id = created_customer.id;
 
     // Test 2: Get the created customer
@@ -58,9 +65,12 @@ async fn test_customer_crud_operations() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let retrieved_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse retrieved customer");
-    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let retrieved_customer: CustomerResponse =
+        serde_json::from_slice(&body).expect("Failed to parse retrieved customer");
+
     assert_eq!(retrieved_customer.id, customer_id);
     assert_eq!(retrieved_customer.name, "John Doe");
     assert_eq!(retrieved_customer.email, "john@example.com");
@@ -81,9 +91,12 @@ async fn test_customer_crud_operations() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let updated_customer: CustomerResponse = serde_json::from_slice(&body).expect("Failed to parse updated customer");
-    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let updated_customer: CustomerResponse =
+        serde_json::from_slice(&body).expect("Failed to parse updated customer");
+
     assert_eq!(updated_customer.id, customer_id);
     assert_eq!(updated_customer.name, "John Smith");
     assert_eq!(updated_customer.email, "johnsmith@example.com");
@@ -98,11 +111,17 @@ async fn test_customer_crud_operations() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let customers: Vec<CustomerList> = serde_json::from_slice(&body).expect("Failed to parse customers list");
-    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let customers: Vec<CustomerResponse> =
+        serde_json::from_slice(&body).expect("Failed to parse customers list");
+
     assert!(!customers.is_empty());
-    let found_customer = customers.iter().find(|c| c.id == customer_id).expect("Customer not found in list");
+    let found_customer = customers
+        .iter()
+        .find(|c| c.id == customer_id)
+        .expect("Customer not found in list");
     assert_eq!(found_customer.name, "John Smith");
 
     // Test 5: Delete the customer

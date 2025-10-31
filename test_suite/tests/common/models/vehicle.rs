@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{traits::CRUDResource, EntityToModels};
+use crudcrate::{EntityToModels, traits::CRUDResource};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -18,6 +18,7 @@ pub struct Model {
     #[crudcrate(filterable, sortable)]
     pub make: String,
     #[crudcrate(filterable, sortable)]
+    #[allow(clippy::struct_field_names)]
     pub model: String,
     #[crudcrate(filterable, sortable)]
     pub year: i32,
