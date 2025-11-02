@@ -270,8 +270,7 @@ pub fn extract_api_struct_type_for_recursive_call(
     }
 
     // Fallback: extract inner type from the original field type directly
-    let inner_type = extract_inner_type_from_type(field_type);
-    inner_type
+    extract_inner_type_from_type(field_type)
 }
 
 pub fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {

@@ -14,6 +14,7 @@ pub struct Model {
     pub customer_id: Uuid,
     #[crudcrate(filterable, sortable)]
     pub make: String,
+    #[allow(clippy::struct_field_names)]
     #[crudcrate(filterable, sortable)]
     pub model: String,
     #[crudcrate(filterable, sortable)]

@@ -1,28 +1,17 @@
-use crate::codegen::handler::{create, delete, get, update};
-use crate::codegen::type_resolution::{
-    extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
-    extract_vec_inner_type, generate_crud_type_aliases, generate_enum_field_checker,
-    generate_field_entries, generate_fulltext_field_entries, generate_id_column,
-    generate_like_filterable_entries, get_entity_path_from_field_type,
-    get_model_path_from_field_type, is_vec_type, resolve_join_type_globally,
-};
-
-use super::attribute_parser::{
-    field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr, get_join_config,
-};
-use super::field_analyzer::{
-    extract_inner_type_for_update, field_is_optional, resolve_target_models,
-    resolve_target_models_with_list,
-};
-// join_generators functionality consolidated into this file to avoid duplicate/stub implementations
+use super::attribute_parser::{get_crudcrate_bool, get_join_config};
 use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use convert_case::{Case, Casing};
-use proc_macro2::TokenStream;
-use syn::Type;
-
-// register_entity_globally removed - no global registry needed
+use crate::codegen::{
+    handler::{create, delete, get, update},
+    type_resolution::{
+        extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
+        extract_vec_inner_type, generate_crud_type_aliases, generate_enum_field_checker,
+        generate_field_entries, generate_fulltext_field_entries, generate_id_column,
+        generate_like_filterable_entries, get_entity_path_from_field_type,
+        get_model_path_from_field_type, is_vec_type, resolve_join_type_globally,
+    },
+};
 use heck::ToPascalCase;
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 
 /// Filters fields that should be included in update model
 pub(crate) fn filter_update_fields(

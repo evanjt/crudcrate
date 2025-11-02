@@ -1,15 +1,8 @@
 use crate::attribute_parser::{
     field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr, get_join_config,
 };
-use crate::field_analyzer::{
-    extract_inner_type_for_update, field_is_optional, resolve_target_models,
-    resolve_target_models_with_list,
-};
-use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use heck::ToPascalCase;
-use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote};
-use syn::{Type, punctuated::Punctuated, token::Comma};
+use crate::field_analyzer::{field_is_optional, resolve_target_models};
+use quote::quote;
 
 /// Generates the conversion lines for a create model to active model conversion
 pub(crate) fn generate_create_conversion_lines(
@@ -138,27 +131,4 @@ pub(crate) fn generate_create_struct_fields(
             }
         })
         .collect()
-}
-
-/// Generate create method implementation
-fn generate_create_impl(
-    crud_meta: &CRUDResourceMeta,
-    _analysis: &EntityFieldAnalysis,
-) -> proc_macro2::TokenStream {
-    if let Some(fn_path) = &crud_meta.fn_create {
-        quote! {
-            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
-                #fn_path(db, data).await
-            }
-        }
-    } else {
-        quote! {
-            // Default create implementation
-            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
-                let active_model: Self::ActiveModelType = data.into();
-                let result = Self::EntityType::insert(active_model).exec(db).await?;
-                Self::get_one(db, result.last_insert_id.into()).await
-            }
-        }
-    }
 }

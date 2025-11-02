@@ -1,24 +1,14 @@
-use crate::attribute_parser::{
-    field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr, get_join_config,
-};
+use crate::attribute_parser::get_join_config;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
     is_vec_type, resolve_join_type_globally,
 };
-use crate::field_analyzer::{
-    extract_inner_type_for_update, field_is_optional, resolve_target_models,
-    resolve_target_models_with_list,
-};
 use crate::macro_implementation::{
     generate_join_loading_for_direct_query, generate_recursive_loading_implementation,
 };
-// join_generators functionality consolidated into this file to avoid duplicate/stub implementations
 use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use convert_case::{Case, Casing};
-use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Type;
 
 /// Generate join loading logic for `get_all` method
 #[allow(clippy::too_many_lines)]

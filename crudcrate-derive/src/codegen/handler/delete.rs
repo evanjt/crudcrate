@@ -1,16 +1,6 @@
-use crate::attribute_parser::{
-    field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr, get_join_config,
-};
-use crate::field_analyzer::{
-    extract_inner_type_for_update, field_is_optional, resolve_target_models,
-    resolve_target_models_with_list,
-};
 // join_generators functionality consolidated into this file to avoid duplicate/stub implementations
-use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use convert_case::{Case, Casing};
-use proc_macro2::TokenStream;
+use crate::structs::CRUDResourceMeta;
 use quote::quote;
-use syn::Type;
 
 /// Generate delete method implementation
 pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
