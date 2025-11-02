@@ -426,7 +426,7 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
                             config.on_all = true;
                         }
                     }
-                    // Parse named parameters: depth = 2, relation = "Vehicle", path = "crate::routes::styles::db"
+                    // Parse named parameters: depth = 2, relation = "CustomRelation", path = "crate::path::to::module"
                     Meta::NameValue(nv) => {
                         if let syn::Expr::Lit(expr_lit) = &nv.value {
                             match &expr_lit.lit {

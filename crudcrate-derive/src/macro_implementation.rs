@@ -11,8 +11,8 @@ use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use syn::Type;
 
-// Stub functions to replace two_pass_generator logic
-// Since we now use explicit API types, we don't need complex path resolution
+
+// Stub functions - these will be removed in Phase 3 when we extract common patterns
 pub fn resolve_join_type_globally(_field_type: &Type) -> Option<TokenStream> {
     None // No complex resolution needed - types are used as-written
 }
@@ -25,13 +25,10 @@ pub fn find_api_struct_name(_base_type: &str) -> Option<String> {
     None // No API struct lookup needed - types are explicit
 }
 
-pub fn register_entity_globally(_entity_name: &str, _api_struct_name: &str) {
-    // No registration needed - no global registry
-}
+// register_entity_globally removed - no global registry needed
 use heck::ToPascalCase;
 use quote::{ToTokens, format_ident, quote};
 
-/// Generates the field declarations for a create struct
 pub(crate) fn generate_create_struct_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<proc_macro2::TokenStream> {
@@ -44,14 +41,7 @@ pub(crate) fn generate_create_struct_fields(
             // Exclude join fields entirely from Create models - they're populated by recursive loading
             let is_join_field = get_join_config(field).is_some();
 
-            // Debug output to understand what's happening
-            #[cfg(feature = "debug")]
-            if let Some(field_name) = &field.ident {
-                let should_include = include_in_create && !is_join_field;
-                eprintln!("DEBUG CREATE: field '{}' include_in_create={} is_join_field={} should_include={}",
-                    field_name, include_in_create, is_join_field, should_include);
-            }
-
+  
             include_in_create && !is_join_field
         })
         .map(|field| {
@@ -182,15 +172,7 @@ pub(crate) fn filter_update_fields(
             // Exclude join fields entirely from Update models - they're populated by recursive loading
             let is_join_field = get_join_config(field).is_some();
 
-            // Debug output to understand what's happening
-            #[cfg(feature = "debug")]
-            if let Some(field_name) = &field.ident {
-                eprintln!(
-                    "DEBUG UPDATE: field '{}' include_in_update={} is_join_field={}",
-                    field_name, include_in_update, is_join_field
-                );
-            }
-
+    
             include_in_update && !is_join_field
         })
         .collect()
@@ -1314,7 +1296,7 @@ fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_ma
                 && let Some(api_name) =
                     find_api_struct_name(&base_type_str)
             {
-                // We have a path like super::vehicle_part::Model
+                // We have a path like super::module::Model
                 // Extract the base type and get the API struct name
                 let api_ident = quote::format_ident!("{}", api_name);
 
@@ -1366,38 +1348,20 @@ fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_ma
             return inner_type;
         }
 
-        // Handle type aliases that end with "Join" (VehicleJoin -> Vehicle)
+        // Handle type aliases that end with "Join" (ModuleJoin -> Module)
         // This handles cases where the type alias wasn't resolved to Vec<T> properly
         if type_name.ends_with("Join") {
             let base_name = type_name.strip_suffix("Join").unwrap_or(&type_name);
             let api_struct_name = base_name; // Most API structs have the same name as the entity
-            #[cfg(feature = "debug")]
-            eprintln!(
-                "DEBUG extract_api_struct_type (JOIN): {:?} -> {:?}",
-                quote! {#resolved_type},
-                quote! {#api_struct_name}
-            );
-            return quote! { #api_struct_name };
+                        return quote! { #api_struct_name };
         }
 
         // For direct types, use them as-is
-        #[cfg(feature = "debug")]
-        eprintln!(
-            "DEBUG extract_api_struct_type (DIRECT): {:?} -> {:?}",
-            quote! {#resolved_type},
-            quote! {#resolved_type}
-        );
         return quote! { #resolved_type };
     }
 
     // Fallback: extract inner type from the original field type directly
     let inner_type = extract_inner_type_from_type(field_type);
-    #[cfg(feature = "debug")]
-    eprintln!(
-        "DEBUG extract_api_struct_type (FINAL): {:?} -> {:?}",
-        quote! {#field_type},
-        quote! {#inner_type}
-    );
     inner_type
 }
 
@@ -1692,14 +1656,14 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
         field_type
     };
 
-    // Handle fully qualified paths like crate::sites::replicates::db::SiteReplicate
+    // Handle fully qualified paths like crate::path::to::module::StructName
     if let syn::Type::Path(type_path) = target_type {
         if type_path.path.segments.len() > 1 {
-            // For paths like crate::sites::replicates::db::SiteReplicate
+            // For paths like crate::path::to::module::StructName
             // Convert to crate::sites::replicates::db::Entity
             let mut path_segments = type_path.path.segments.clone();
             if let Some(last_segment) = path_segments.last_mut() {
-                // Replace the last segment (e.g., SiteReplicate) with Entity
+                // Replace the last segment (e.g., StructName) with Entity
                 last_segment.ident = syn::Ident::new("Entity", last_segment.ident.span());
                 let modified_path = syn::Path {
                     leading_colon: type_path.path.leading_colon,
@@ -1712,7 +1676,7 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
             // Handle API struct aliases by stripping common suffixes
             let type_name = segment.ident.to_string();
             let base_name = if type_name.ends_with("API") {
-                // Convert VehicleAPI → Vehicle
+                // Convert ModuleAPI → Module
                 type_name.strip_suffix("API").unwrap_or(&type_name)
             } else {
                 &type_name
@@ -1779,14 +1743,14 @@ fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenS
         field_type
     };
 
-    // Handle fully qualified paths like crate::sites::replicates::db::SiteReplicate
+    // Handle fully qualified paths like crate::path::to::module::StructName
     if let syn::Type::Path(type_path) = target_type {
         if type_path.path.segments.len() > 1 {
-            // For paths like crate::sites::replicates::db::SiteReplicate
+            // For paths like crate::path::to::module::StructName
             // Convert to crate::sites::replicates::db::Model
             let mut path_segments = type_path.path.segments.clone();
             if let Some(last_segment) = path_segments.last_mut() {
-                // Replace the last segment (e.g., SiteReplicate) with Model
+                // Replace the last segment (e.g., StructName) with Model
                 last_segment.ident = syn::Ident::new("Model", last_segment.ident.span());
                 let modified_path = syn::Path {
                     leading_colon: type_path.path.leading_colon,
@@ -1799,7 +1763,7 @@ fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenS
             // Handle API struct aliases by stripping common suffixes
             let type_name = segment.ident.to_string();
             let base_name = if type_name.ends_with("API") {
-                // Convert VehicleAPI → Vehicle
+                // Convert ModuleAPI → Module
                 type_name.strip_suffix("API").unwrap_or(&type_name)
             } else {
                 &type_name

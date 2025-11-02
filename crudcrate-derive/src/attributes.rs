@@ -84,7 +84,7 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     join(one, all, relation = "CustomRelation"), // Custom relation name
 
     // Join field type specification (explicit API type)
-    api_type = "VehiclePart",     // Use this specific API struct type
+    api_type = "APITypeName",     // Use this specific API struct type
 )]
 ```
 

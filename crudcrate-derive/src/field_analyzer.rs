@@ -41,7 +41,7 @@ pub(crate) fn resolve_target_models_with_list(
     };
 
     // Convert target type to Create, Update, and List models
-    // For example: crate::routes::treatments::models::Treatment -> (TreatmentCreate, TreatmentUpdate, TreatmentList)
+    // For example: crate::path::to::models::Entity -> (EntityCreate, EntityUpdate, EntityList)
     if let syn::Type::Path(type_path) = target_type
         && let Some(last_seg) = type_path.path.segments.last()
     {
@@ -99,7 +99,7 @@ pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type
     };
 
     // Convert target type to Create and Update models
-    // For example: crate::routes::treatments::models::Treatment -> (TreatmentCreate, TreatmentUpdate)
+    // For example: crate::path::to::models::Entity -> (EntityCreate, EntityUpdate)
     if let syn::Type::Path(type_path) = target_type
         && let Some(last_seg) = type_path.path.segments.last()
     {

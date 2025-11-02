@@ -124,7 +124,7 @@ pub fn generate_cyclic_dependency_check(
     let relation_validation_warnings: Vec<proc_macro2::TokenStream> = join_dependencies
         .iter()
         .map(|(_field_name, (target_entity, _join_config))| {
-            // Extract module path and entity name from target (e.g., "entity::Model" -> "entity", "Model")
+            // Extract module path and entity name from target (e.g., "module::Model" -> "module", "Model")
             let target_parts: Vec<&str> = target_entity.split("::").collect();
             let (_target_module, _target_model_name) = if target_parts.len() >= 2 {
                 (target_parts[0], target_parts[1])
@@ -239,7 +239,7 @@ fn has_potential_cycle(
     let field_lower = field_name.to_lowercase();
     let target_entity_lower = target_entity_name.to_lowercase();
 
-    // If field name contains the target entity name (e.g., "items" field pointing to "item::Model")
+    // If field name contains the target entity name (e.g., "items" field pointing to "module::Model")
     // this suggests a potential bidirectional relationship
     if field_lower.contains(&target_entity_lower) || target_entity_lower.contains(&field_lower) {
         return true;

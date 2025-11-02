@@ -2,17 +2,14 @@ mod attribute_parser;
 mod attributes;
 
 mod field_analyzer;
+mod codegen;
 mod macro_implementation;
 mod relation_validator;
 mod structs;
 // two_pass_generator removed - using explicit types instead
 
-#[cfg(feature = "debug")]
-mod debug_output;
 
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
-use syn::Type;
 
 use heck::ToPascalCase;
 use quote::{ToTokens, format_ident, quote};
@@ -633,9 +630,7 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
         }
     };
 
-    #[cfg(feature = "debug")]
-    debug_output::print_create_model_debug(&expanded, &name.to_string());
-
+    
     TokenStream::from(expanded)
 }
 
@@ -703,9 +698,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         }
     };
 
-    #[cfg(feature = "debug")]
-    debug_output::print_update_model_debug(&expanded, &name.to_string());
-
+    
     TokenStream::from(expanded)
 }
 
@@ -836,7 +829,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// This generates:
-/// - An API struct with the specified name (e.g., `Experiment`)
+/// - An API struct with the specified name (e.g., `EntityName`)
 /// - `ToCreateModel` and `ToUpdateModel` implementations
 /// - `From<Model>` implementation for the API struct
 /// - Support for non-db attributes
@@ -909,7 +902,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 ///
 /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 /// #[sea_orm(table_name = "customers")]
-/// #[crudcrate(api_struct = "Customer", generate_router)]
+/// #[crudcrate(api_struct = "EntityName", generate_router)]
 /// pub struct Model {
 ///     #[sea_orm(primary_key, auto_increment = false)]
 ///     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -930,7 +923,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 ///     // Join field - loads vehicles automatically with depth=3 recursive loading
 ///     #[sea_orm(ignore)]
 ///     #[crudcrate(non_db_attr, join(one, all))]  // depth=3 by default
-///     pub vehicles: Vec<Vehicle>,
+///     pub related_entities: Vec<RelatedEntity>,
 /// }
 ///
 /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
