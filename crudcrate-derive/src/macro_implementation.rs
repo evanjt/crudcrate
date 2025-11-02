@@ -8,6 +8,26 @@ use super::field_analyzer::{
 // join_generators functionality consolidated into this file to avoid duplicate/stub implementations
 use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use convert_case::{Case, Casing};
+use proc_macro2::TokenStream;
+use syn::Type;
+
+// Stub functions to replace two_pass_generator logic
+// Since we now use explicit API types, we don't need complex path resolution
+pub fn resolve_join_type_globally(_field_type: &Type) -> Option<TokenStream> {
+    None // No complex resolution needed - types are used as-written
+}
+
+pub fn extract_base_type_string(_field_type: &Type) -> Option<String> {
+    None // No base type extraction needed - types are explicit
+}
+
+pub fn find_api_struct_name(_base_type: &str) -> Option<String> {
+    None // No API struct lookup needed - types are explicit
+}
+
+pub fn register_entity_globally(_entity_name: &str, _api_struct_name: &str) {
+    // No registration needed - no global registry
+}
 use heck::ToPascalCase;
 use quote::{ToTokens, format_ident, quote};
 
@@ -709,7 +729,7 @@ fn generate_recursive_loading_implementation(
             if is_vec_field {
                 let _inner_type = if false
                     && let Some(resolved_tokens) =
-                        super::two_pass_generator::resolve_join_type_globally(&field.ty)
+                        resolve_join_type_globally(&field.ty)
                 {
                     if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
                         if let syn::Type::Path(type_path) = &resolved_type {
@@ -990,7 +1010,7 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
             if is_vec_field {
                 // Extract the target type from Vec<TargetType> and resolve it to API struct
                 let _target_type = if let Some(resolved_tokens) =
-                    super::two_pass_generator::resolve_join_type_globally(&field.ty)
+                    resolve_join_type_globally(&field.ty)
                 {
                     // Parse the resolved tokens back into a Type
                     if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
@@ -1290,9 +1310,9 @@ fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_ma
                     .segments
                     .last()
                     .is_some_and(|s| s.ident == "Model")
-                && let Some(base_type_str) = super::two_pass_generator::extract_base_type_string(ty)
+                && let Some(base_type_str) = extract_base_type_string(ty)
                 && let Some(api_name) =
-                    super::two_pass_generator::find_api_struct_name(&base_type_str)
+                    find_api_struct_name(&base_type_str)
             {
                 // We have a path like super::vehicle_part::Model
                 // Extract the base type and get the API struct name
@@ -1306,7 +1326,7 @@ fn extract_api_struct_type_for_recursive_call(field_type: &syn::Type) -> proc_ma
     }
 
     let resolved_type = if let Some(resolved_tokens) =
-        super::two_pass_generator::resolve_join_type_globally(field_type)
+        resolve_join_type_globally(field_type)
     {
         if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
             if let syn::Type::Path(ref type_path) = parsed_type {
@@ -1625,7 +1645,7 @@ fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::Token
 
     // Then, resolve the field type using the global registry to handle type aliases
     let resolved_type = if let Some(resolved_tokens) =
-        super::two_pass_generator::resolve_join_type_globally(unwrapped_type)
+        resolve_join_type_globally(unwrapped_type)
     {
         if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
             parsed_type
@@ -1712,7 +1732,7 @@ fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenS
 
     // Then, resolve the field type using the global registry to handle type aliases
     let resolved_type = if let Some(resolved_tokens) =
-        super::two_pass_generator::resolve_join_type_globally(unwrapped_type)
+        resolve_join_type_globally(unwrapped_type)
     {
         if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
             parsed_type

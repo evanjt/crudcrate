@@ -21,7 +21,7 @@ pub struct Model {
 
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 2))]
-    pub vehicles: Vec<super::vehicle::Model>,
+    pub vehicles: Vec<super::vehicle::Vehicle>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

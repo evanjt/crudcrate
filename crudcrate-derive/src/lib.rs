@@ -5,16 +5,20 @@ mod field_analyzer;
 mod macro_implementation;
 mod relation_validator;
 mod structs;
-mod two_pass_generator;
+// two_pass_generator removed - using explicit types instead
 
 #[cfg(feature = "debug")]
 mod debug_output;
 
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
+use syn::Type;
 
 use heck::ToPascalCase;
 use quote::{ToTokens, format_ident, quote};
 use syn::parse::Parser;
+
+// No two_pass_generator - using explicit types instead
 use syn::{
     Data, DeriveInput, Fields, Lit, Meta, parse_macro_input, punctuated::Punctuated, token::Comma,
 };
@@ -304,35 +308,8 @@ fn has_sea_orm_ignore(field: &syn::Field) -> bool {
 fn resolve_join_field_type_preserving_container(
     field_type: &syn::Type,
 ) -> proc_macro2::TokenStream {
-    // Try to extract base type from the field type using the global registry
-    if let Some(base_type_str) = two_pass_generator::extract_base_type_string(field_type) {
-        // Look up the API struct name for this base type
-        if let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str) {
-            let api_struct_ident = quote::format_ident!("{}", api_name);
-
-            // Check if this is a Vec<T> to preserve collection structure
-            if let syn::Type::Path(type_path) = field_type
-                && let Some(segment) = type_path.path.segments.last()
-            {
-                if segment.ident == "Vec" {
-                    return quote! { Vec<#api_struct_ident> };
-                } else if segment.ident == "Option" {
-                    return quote! { Option<#api_struct_ident> };
-                }
-            }
-
-            return quote! { #api_struct_ident };
-        }
-    }
-
-    // Fallback: if we can't resolve, keep the original type
-    #[cfg(feature = "debug")]
-    {
-        eprintln!(
-            "WARNING: Could not resolve join field type, keeping as-is: {:?}",
-            quote! { #field_type }
-        );
-    }
+    // For join fields, use the type exactly as written by the user
+    // This allows any valid Rust path without making assumptions
     quote! { #field_type }
 }
 
@@ -523,75 +500,13 @@ fn generate_api_struct(
         derives.push(quote!(Eq));
     }
 
-    // Collect import statements for join field target types
-    let mut import_statements: Vec<proc_macro2::TokenStream> = vec![];
-    let mut seen_imports: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    // Collect all join fields from the analysis
-    let all_join_fields: Vec<_> = analysis
-        .join_on_one_fields
-        .iter()
-        .chain(analysis.join_on_all_fields.iter())
-        .collect();
-
-    for field in all_join_fields {
-        if let Some(base_type_str) = two_pass_generator::extract_base_type_string(&field.ty)
-            && let Some(api_name) = two_pass_generator::find_api_struct_name(&base_type_str)
-        {
-            fn extract_innermost_path(ty: &syn::Type) -> Option<&syn::TypePath> {
-                if let syn::Type::Path(type_path) = ty {
-                    if let Some(segment) = type_path.path.segments.last()
-                        && (segment.ident == "Vec" || segment.ident == "Option")
-                        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-                        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-                    {
-                        // Recursively extract from inner type
-                        return extract_innermost_path(inner_ty);
-                    }
-                    // Base case: return this path (it's not a container type)
-                    return Some(type_path);
-                }
-                None
-            }
-
-            if let Some(inner_type_path) = extract_innermost_path(&field.ty) {
-                // inner_type_path is now super::vehicle_part::Model
-                // Build the module path by extracting path segments and replacing Model with API struct name
-                let path_segments: Vec<_> = inner_type_path
-                    .path
-                    .segments
-                    .iter()
-                    .take(inner_type_path.path.segments.len() - 1) // Take all except the last (Model)
-                    .map(|seg| seg.ident.clone())
-                    .collect();
-
-                if !path_segments.is_empty() {
-                    let api_ident = quote::format_ident!("{}", api_name);
-                    let module_path = quote! { #(#path_segments)::* };
-
-                    // Create a unique key for deduplication
-                    let import_key = format!("{}::{}", quote! {#module_path}, api_name);
-
-                    if !seen_imports.contains(&import_key) {
-                        seen_imports.insert(import_key);
-
-                        let import_stmt = quote! {
-                            use #module_path::#api_ident;
-                        };
-
-                        import_statements.push(import_stmt);
-                    }
-                }
-            }
-        }
-    }
+    // No import generation needed - types are used as-written
 
     quote! {
         use sea_orm::ActiveValue;
         use utoipa::ToSchema;
         use serde::{Serialize, Deserialize};
         use crudcrate::{ToUpdateModel, ToCreateModel};
-        #(#import_statements)*
 
         #[derive(#(#derives),*)]
         #[active_model = #active_model_path]
@@ -1061,9 +976,7 @@ fn setup_join_validation(
     field_analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
 ) -> Result<proc_macro2::TokenStream, TokenStream> {
-    // Register this entity in the global type registry for join field resolution
-    let entity_name = api_struct_name.to_string();
-    two_pass_generator::register_entity_globally(&entity_name, &entity_name);
+    // No global registry needed - types are used as explicitly written
 
     // Generate compile-time validation for join relationships
     let _join_validation = relation_validator::generate_join_relation_validation(field_analysis);

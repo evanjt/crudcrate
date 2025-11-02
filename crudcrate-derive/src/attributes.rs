@@ -82,6 +82,9 @@ The actual attribute parsing happens in `attribute_parser.rs`.
     join(one, all),              // Load in both get_one() and get_all()
     join(one, all, depth = 3),   // Recursive loading with depth (default: 3)
     join(one, all, relation = "CustomRelation"), // Custom relation name
+
+    // Join field type specification (explicit API type)
+    api_type = "VehiclePart",     // Use this specific API struct type
 )]
 ```
 
@@ -268,6 +271,9 @@ mod ide_support {
         pub on_update: String, // Expression as string
         pub default: String,   // Expression as string
         pub fulltext_language: String,
+
+        // Join field type specification
+        pub api_type: Option<String>, // Explicit API struct type
     }
 
     /// Join configuration options (function-style syntax)
