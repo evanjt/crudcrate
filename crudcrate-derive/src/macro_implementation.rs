@@ -597,6 +597,15 @@ fn generate_join_loading_for_direct_query(
                 format_ident!("{}", field_name.to_string().to_pascal_case())
             };
 
+            // Generate the entity path based on custom path or default super:: prefix
+            let entity_path = if let Some(custom_path) = &join_config.path {
+                // Parse custom path string into a token stream
+                let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
+                quote! { #path_tokens::Entity }
+            } else {
+                quote! { super::#relation_name::Entity }
+            };
+
             // Check if this is a Vec<T> field or a single T field by analyzing the type
             let is_vec_field = is_vec_type(&field.ty);
 
@@ -604,7 +613,7 @@ fn generate_join_loading_for_direct_query(
                 // Generate code for Vec<T> fields (has_many relationships)
                 let loading_stmt = quote! {
                     // Load related entities for #field_name field
-                    if let Ok(related_models) = model.find_related(super::#relation_name::Entity).all(db).await {
+                    if let Ok(related_models) = model.find_related(#entity_path).all(db).await {
                         // Convert related models to API structs (recursive loading happens via their own joins)
                         let mut related_with_joins = Vec::new();
                         for related_model in related_models {
@@ -619,7 +628,7 @@ fn generate_join_loading_for_direct_query(
                 // Generate code for single T or Option<T> fields (belongs_to/has_one relationships)
                 let loading_stmt = quote! {
                     // Load related entity for #field_name field
-                    if let Ok(Some(related_model)) = model.find_related(super::#relation_name::Entity).one(db).await {
+                    if let Ok(Some(related_model)) = model.find_related(#entity_path).one(db).await {
                         result.#field_name = Some(related_model.into());
                     }
                 };
@@ -680,8 +689,14 @@ fn generate_recursive_loading_implementation(
             let join_config = get_join_config(field).unwrap_or_default();
             let is_vec_field = is_vec_type(&field.ty);
 
-            // Extract entity and model paths from the field type
-            let entity_path = get_entity_path_from_field_type(&field.ty);
+            // Extract entity and model paths from the field type or use custom path
+            let entity_path = if let Some(custom_path) = &join_config.path {
+                // Parse custom path string into a token stream
+                let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
+                quote! { #path_tokens::Entity }
+            } else {
+                get_entity_path_from_field_type(&field.ty)
+            };
             let _model_path = get_model_path_from_field_type(&field.ty);
 
             // Check if this join should stop recursion at this level
@@ -962,8 +977,14 @@ fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2:
             // Check if this join should stop recursion at this level
             let stop_recursion = join_config.depth == Some(1);
 
-            // Extract entity and model paths from the field type
-            let entity_path = get_entity_path_from_field_type(&field.ty);
+            // Extract entity and model paths from the field type or use custom path
+            let entity_path = if let Some(custom_path) = &join_config.path {
+                // Parse custom path string into a token stream
+                let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
+                quote! { #path_tokens::Entity }
+            } else {
+                get_entity_path_from_field_type(&field.ty)
+            };
             let _model_path = get_model_path_from_field_type(&field.ty);
 
             if is_vec_field {

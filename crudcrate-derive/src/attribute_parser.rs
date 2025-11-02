@@ -9,6 +9,7 @@ pub struct JoinConfig {
     pub on_all: bool,
     pub depth: Option<u8>,
     pub relation: Option<String>,
+    pub path: Option<String>,
 }
 
 impl JoinConfig {
@@ -425,7 +426,7 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
                             config.on_all = true;
                         }
                     }
-                    // Parse named parameters: depth = 2, relation = "Vehicle"
+                    // Parse named parameters: depth = 2, relation = "Vehicle", path = "crate::routes::styles::db"
                     Meta::NameValue(nv) => {
                         if let syn::Expr::Lit(expr_lit) = &nv.value {
                             match &expr_lit.lit {
@@ -436,6 +437,9 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
                                 }
                                 Lit::Str(str_lit) if nv.path.is_ident("relation") => {
                                     config.relation = Some(str_lit.value());
+                                }
+                                Lit::Str(str_lit) if nv.path.is_ident("path") => {
+                                    config.path = Some(str_lit.value());
                                 }
                                 _ => {}
                             }
