@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn test_type_validation_helpers() {
-        use crate::macro_implementation::is_vec_type;
+        use crate::codegen::type_resolution::is_vec_type;
 
         let vec_type: syn::Type = syn::parse_quote!(Vec<String>);
         let option_type: syn::Type = syn::parse_quote!(Option<String>);

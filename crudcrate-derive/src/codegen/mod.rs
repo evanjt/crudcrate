@@ -10,3 +10,8 @@ pub mod model_generators;
 
 // Re-export for backward compatibility
 pub use model_generators::*;
+pub mod handler;
+pub mod join;
+pub mod model;
+pub mod router;
+pub mod type_resolution;
