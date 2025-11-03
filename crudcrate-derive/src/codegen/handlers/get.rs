@@ -5,7 +5,7 @@ use crate::codegen::join_strategies::recursion::{
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
-    is_vec_type, resolve_join_type_globally,
+    is_vec_type,
 };
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
@@ -34,37 +34,9 @@ pub fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_mac
             let _model_path = get_model_path_from_field_type(&field.ty);
 
             if is_vec_field {
-                // Extract the target type from Vec<TargetType> and resolve it to API struct
-                let _target_type = if let Some(resolved_tokens) =
-                    resolve_join_type_globally(&field.ty)
-                {
-                    // Parse the resolved tokens back into a Type
-                    if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
-                        // If it's Vec<T>, we need to extract the inner type from the resolved type
-                        if let syn::Type::Path(type_path) = &resolved_type {
-                            if let Some(segment) = type_path.path.segments.last()
-                                && segment.ident == "Vec"
-                                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-                                && let Some(syn::GenericArgument::Type(inner_ty)) =
-                                    args.args.first()
-                            {
-                                inner_ty.clone()
-                            } else {
-                                // Not Vec<T>, use the resolved type directly
-                                resolved_type
-                            }
-                        } else {
-                            syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                                .unwrap_or_else(|_| field.ty.clone()) // Fallback
-                        }
-                    } else {
-                        syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                            .unwrap_or_else(|_| field.ty.clone()) // Fallback
-                    }
-                } else {
-                    syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                        .unwrap_or_else(|_| field.ty.clone())
-                };
+                // No complex type resolution needed - extract directly from Vec<T>
+                let _target_type = syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
+                    .unwrap_or_else(|_| field.ty.clone());
 
                 // For Vec<T> relationships, load all related models - depth-aware
                 let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);

@@ -2,7 +2,7 @@ use crate::attribute_parser::get_join_config;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
-    is_vec_type, resolve_join_type_globally,
+    is_vec_type,
 };
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
@@ -65,34 +65,8 @@ pub fn generate_recursive_loading_implementation(
             let _should_recurse = join_config.depth.is_none() || join_config.depth.unwrap_or(1) > 1;
 
             if is_vec_field {
-                let _inner_type = if false
-                    && let Some(resolved_tokens) = resolve_join_type_globally(&field.ty)
-                {
-                    if let Ok(resolved_type) = syn::parse2::<syn::Type>(resolved_tokens) {
-                        if let syn::Type::Path(type_path) = &resolved_type {
-                            if let Some(segment) = type_path.path.segments.last()
-                                && segment.ident == "Vec"
-                                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-                                && let Some(syn::GenericArgument::Type(inner_ty)) =
-                                    args.args.first()
-                            {
-                                inner_ty.clone()
-                            } else {
-                                // Not Vec<T>, use the resolved type directly
-                                resolved_type
-                            }
-                        } else {
-                            syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                                .unwrap_or_else(|_| field.ty.clone()) // Fallback
-                        }
-                    } else {
-                        syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                            .unwrap_or_else(|_| field.ty.clone()) // Fallback
-                    }
-                } else {
-                    syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                        .unwrap_or_else(|_| field.ty.clone())
-                };
+                let _inner_type = syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
+                    .unwrap_or_else(|_| field.ty.clone());
 
                 // For Vec<T> fields (has_many relationships) - depth-aware loading
                 if stop_recursion {

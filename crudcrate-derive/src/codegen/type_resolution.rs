@@ -1,8 +1,6 @@
 use convert_case::{Case, Casing};
 use heck::ToPascalCase;
-use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::Type;
 
 use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 
@@ -10,16 +8,8 @@ use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
     let unwrapped_type = field_type;
 
-    // Then, resolve the field type using the global registry to handle type aliases
-    let resolved_type = if let Some(resolved_tokens) = resolve_join_type_globally(unwrapped_type) {
-        if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
-            parsed_type
-        } else {
-            unwrapped_type.clone()
-        }
-    } else {
-        unwrapped_type.clone()
-    };
+    // No complex type resolution needed - use types as-written
+    let resolved_type = unwrapped_type.clone();
 
     // Extract the target type from Vec<T> or Option<T>
     let target_type = if let syn::Type::Path(type_path) = &resolved_type {
@@ -95,16 +85,8 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
 pub fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
     let unwrapped_type = field_type;
 
-    // Then, resolve the field type using the global registry to handle type aliases
-    let resolved_type = if let Some(resolved_tokens) = resolve_join_type_globally(unwrapped_type) {
-        if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
-            parsed_type
-        } else {
-            unwrapped_type.clone()
-        }
-    } else {
-        unwrapped_type.clone()
-    };
+    // No complex type resolution needed - use types as-written
+    let resolved_type = unwrapped_type.clone();
 
     // Extract the target type from Vec<T> or Option<T>
     let target_type = if let syn::Type::Path(type_path) = &resolved_type {
@@ -189,58 +171,13 @@ pub fn extract_api_struct_type_for_recursive_call(
         {
             return extract_inner_type_from_type(inner_ty);
         }
-        if let syn::Type::Path(type_path) = ty {
-            // Extract the module path (everything except the last segment "Model")
-            let path_segments: Vec<_> = type_path
-                .path
-                .segments
-                .iter()
-                .take(type_path.path.segments.len().saturating_sub(1)) // All except last
-                .collect();
-
-            if !path_segments.is_empty()
-                && type_path
-                    .path
-                    .segments
-                    .last()
-                    .is_some_and(|s| s.ident == "Model")
-                && let Some(base_type_str) = extract_base_type_string(ty)
-                && let Some(api_name) = find_api_struct_name(&base_type_str)
-            {
-                // We have a path like super::module::Model
-                // Extract the base type and get the API struct name
-                let api_ident = quote::format_ident!("{}", api_name);
-
-                return quote! { #(#path_segments)::*::#api_ident };
-            }
-        }
+        if let syn::Type::Path(_type_path) = ty {}
 
         quote! { #ty } // Fallback: return the type as-is
     }
 
-    let resolved_type = if let Some(resolved_tokens) = resolve_join_type_globally(field_type) {
-        if let Ok(parsed_type) = syn::parse2::<syn::Type>(resolved_tokens) {
-            if let syn::Type::Path(ref type_path) = parsed_type {
-                if let Some(segment) = type_path.path.segments.last() {
-                    if (segment.ident == "Vec" || segment.ident == "Option")
-                        && matches!(segment.arguments, syn::PathArguments::None)
-                    {
-                        field_type.clone()
-                    } else {
-                        parsed_type
-                    }
-                } else {
-                    parsed_type
-                }
-            } else {
-                parsed_type
-            }
-        } else {
-            field_type.clone()
-        }
-    } else {
-        field_type.clone()
-    };
+    // No complex type resolution needed - use types as-written
+    let resolved_type = field_type.clone();
 
     // Now extract the inner type from the resolved type
     if let syn::Type::Path(type_path) = &resolved_type
@@ -466,17 +403,4 @@ pub fn is_text_type(ty: &syn::Type) -> bool {
         }
         _ => false,
     }
-}
-
-// Stub functions - these will be removed in Phase 3 when we extract common patterns
-pub fn resolve_join_type_globally(_field_type: &Type) -> Option<TokenStream> {
-    None // No complex resolution needed - types are used as-written
-}
-
-pub fn extract_base_type_string(_field_type: &Type) -> Option<String> {
-    None // No base type extraction needed - types are explicit
-}
-
-pub fn find_api_struct_name(_base_type: &str) -> Option<String> {
-    None // No API struct lookup needed - types are explicit
 }
