@@ -1,4 +1,4 @@
-use crate::attribute_parser::get_join_config;
+use crate::codegen::join_strategies::JoinConfig;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
@@ -7,6 +7,7 @@ use crate::codegen::type_resolution::{
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
 use quote::{format_ident, quote};
+use syn::{Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma};
 
 /// Generate recursive join loading implementation for `get_one` method
 #[allow(clippy::too_many_lines)]
@@ -237,4 +238,79 @@ pub fn generate_join_loading_for_direct_query(
     }
 
     statements
+}
+
+/// Parses join configuration from a field's crudcrate attributes.
+/// Looks for `#[crudcrate(join(...))]` syntax and extracts join parameters.
+pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
+    for attr in &field.attrs {
+        if attr.path().is_ident("crudcrate")
+            && let Meta::List(meta_list) = &attr.meta
+            && let Ok(metas) =
+                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+        {
+            for meta in metas {
+                if let Meta::List(list_meta) = meta
+                    && list_meta.path.is_ident("join")
+                {
+                    return parse_join_parameters(&list_meta);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Parses the parameters inside join(...) function call
+fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
+    let mut config = JoinConfig::default();
+
+    // Try parsing the tokens - if it fails, just return None instead of panicking
+    match Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+        Ok(nested_metas) => {
+            for meta in nested_metas {
+                match meta {
+                    // Parse flags: one, all, on_one, on_all
+                    Meta::Path(path) => {
+                        if path.is_ident("one") || path.is_ident("on_one") {
+                            config.on_one = true;
+                        } else if path.is_ident("all") || path.is_ident("on_all") {
+                            config.on_all = true;
+                        }
+                    }
+                    // Parse named parameters: depth = 2, relation = "CustomRelation", path = "crate::path::to::module"
+                    Meta::NameValue(nv) => {
+                        if let syn::Expr::Lit(expr_lit) = &nv.value {
+                            match &expr_lit.lit {
+                                Lit::Int(int_lit) if nv.path.is_ident("depth") => {
+                                    if let Ok(depth_val) = int_lit.base10_parse::<u8>() {
+                                        config.depth = Some(depth_val);
+                                    }
+                                }
+                                Lit::Str(str_lit) if nv.path.is_ident("relation") => {
+                                    config.relation = Some(str_lit.value());
+                                }
+                                Lit::Str(str_lit) if nv.path.is_ident("path") => {
+                                    config.path = Some(str_lit.value());
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    Meta::List(_) => {}
+                }
+            }
+        }
+        Err(_) => {
+            // If parsing fails, return None - don't fail the entire macro
+            return None;
+        }
+    }
+
+    // Only return config if at least one join type is enabled
+    if config.on_one || config.on_all {
+        Some(config)
+    } else {
+        None
+    }
 }

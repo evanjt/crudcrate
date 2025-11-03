@@ -1,5 +1,5 @@
-use super::attribute_parser::{JoinConfig, get_join_config};
 use super::field_analyzer::find_crudcrate_join_attr;
+use crate::codegen::join_strategies::{JoinConfig, get_join_config};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
 use std::collections::HashMap;

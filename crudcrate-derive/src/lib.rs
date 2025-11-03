@@ -6,6 +6,7 @@ mod macro_implementation;
 mod relation_validator;
 mod traits;
 
+use crate::codegen::join_strategies::get_join_config;
 use heck::ToPascalCase;
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
@@ -198,7 +199,7 @@ fn analyze_entity_fields(
         let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
 
         // Check for join attributes regardless of db/non_db status
-        if let Some(join_config) = attribute_parser::get_join_config(field) {
+        if let Some(join_config) = get_join_config(field) {
             if join_config.on_one {
                 analysis.join_on_one_fields.push(field);
             }
@@ -366,13 +367,13 @@ fn generate_api_struct_content(
 
         // Add schema(no_recursion) attribute for join fields to prevent circular dependencies
         // This is the proper utoipa way to handle recursive relationships
-        let schema_attrs = if attribute_parser::get_join_config(field).is_some() {
+        let schema_attrs = if get_join_config(field).is_some() {
             quote! { #[schema(no_recursion)] }
         } else {
             quote! {}
         };
 
-        let final_field_type = if attribute_parser::get_join_config(field).is_some() {
+        let final_field_type = if get_join_config(field).is_some() {
             resolve_join_field_type_preserving_container(field_type)
         } else {
             quote! { #field_type }
@@ -386,7 +387,7 @@ fn generate_api_struct_content(
 
         api_struct_fields.push(field_definition);
 
-        let assignment = if attribute_parser::get_join_config(field).is_some() {
+        let assignment = if get_join_config(field).is_some() {
             let empty_value = if let Ok(syn::Type::Path(type_path)) =
                 syn::parse2::<syn::Type>(quote! { #final_field_type })
             {

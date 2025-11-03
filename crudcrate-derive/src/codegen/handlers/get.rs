@@ -1,4 +1,4 @@
-use crate::attribute_parser::get_join_config;
+use crate::codegen::join_strategies::get_join_config;
 use crate::codegen::join_strategies::recursion::{
     generate_join_loading_for_direct_query, generate_recursive_loading_implementation,
 };

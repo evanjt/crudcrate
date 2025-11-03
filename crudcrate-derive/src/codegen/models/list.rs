@@ -1,6 +1,5 @@
-use crate::attribute_parser::{
-    field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr, get_join_config,
-};
+use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
+use crate::codegen::join_strategies::get_join_config;
 use crate::field_analyzer::{field_is_optional, resolve_target_models_with_list};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::{ToTokens, quote};

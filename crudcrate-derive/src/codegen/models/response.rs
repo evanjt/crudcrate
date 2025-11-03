@@ -1,4 +1,5 @@
-use crate::attribute_parser::{get_crudcrate_bool, get_join_config};
+use crate::attribute_parser::get_crudcrate_bool;
+use crate::codegen::join_strategies::get_join_config;
 use quote::quote;
 
 pub(crate) fn generate_response_from_assignments(
