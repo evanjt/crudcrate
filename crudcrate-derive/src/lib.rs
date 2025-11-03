@@ -1,29 +1,19 @@
 mod attribute_parser;
 mod attributes;
-
 mod codegen;
 mod field_analyzer;
 mod macro_implementation;
 mod relation_validator;
 mod structs;
-// two_pass_generator removed - using explicit types instead
-
-use proc_macro::TokenStream;
 
 use heck::ToPascalCase;
+use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::parse::Parser;
-
-// No two_pass_generator - using explicit types instead
-use syn::{
-    Data, DeriveInput, Fields, Lit, Meta, parse_macro_input, punctuated::Punctuated, token::Comma,
-};
-
 use structs::{CRUDResourceMeta, EntityFieldAnalysis};
-
-// Don't need explicit imports since we have mod declarations above
-
-// Helper functions moved from helpers.rs
+use syn::{
+    Data, DeriveInput, Fields, Lit, Meta, parse::Parser, parse_macro_input, punctuated::Punctuated,
+    token::Comma,
+};
 
 fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_macro2::TokenStream {
     let mut active_model_override = None;
@@ -606,8 +596,8 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
 
     let active_model_type = extract_active_model_type(&input, name);
     let fields = extract_named_fields(&input);
-    let create_struct_fields = codegen::model::create::generate_create_struct_fields(&fields);
-    let conv_lines = codegen::model::create::generate_create_conversion_lines(&fields);
+    let create_struct_fields = codegen::models::create::generate_create_struct_fields(&fields);
+    let conv_lines = codegen::models::create::generate_create_conversion_lines(&fields);
 
     // Always include ToSchema for Create models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -665,9 +655,9 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
 
     let active_model_type = extract_active_model_type(&input, name);
     let fields = extract_named_fields(&input);
-    let included_fields = macro_implementation::filter_update_fields(&fields);
+    let included_fields = crate::codegen::models::update::filter_update_fields(&fields);
     let update_struct_fields =
-        codegen::model::update::generate_update_struct_fields(&included_fields);
+        crate::codegen::models::update::generate_update_struct_fields(&included_fields);
     let (included_merge, excluded_merge) = generate_update_merge_code(&fields, &included_fields);
 
     // Always include ToSchema for Update models
@@ -743,9 +733,9 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     let list_name = format_ident!("{}List", name);
 
     let fields = extract_named_fields(&input);
-    let list_struct_fields = crate::codegen::model::list::generate_list_struct_fields(&fields);
+    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields);
     let list_from_assignments =
-        crate::codegen::model::list::generate_list_from_assignments(&fields);
+        crate::codegen::models::list::generate_list_from_assignments(&fields);
 
     // Always include ToSchema for List models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -1024,11 +1014,11 @@ fn generate_list_and_response_models(
     // Generate List model
     let list_name = format_ident!("{}List", api_struct_name);
     let raw_fields = extract_named_fields(input);
-    let list_struct_fields = crate::codegen::model::list::generate_list_struct_fields(&raw_fields);
+    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&raw_fields);
     let list_from_assignments =
-        crate::codegen::model::list::generate_list_from_assignments(&raw_fields);
+        crate::codegen::models::list::generate_list_from_assignments(&raw_fields);
     let list_from_model_assignments =
-        crate::codegen::model::list::generate_list_from_model_assignments(field_analysis);
+        crate::codegen::models::list::generate_list_from_model_assignments(field_analysis);
 
     let list_derives =
         quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
@@ -1059,9 +1049,9 @@ fn generate_list_and_response_models(
     // Generate Response model
     let response_name = format_ident!("{}Response", api_struct_name);
     let response_struct_fields =
-        crate::codegen::model::response::generate_response_struct_fields(&raw_fields);
+        crate::codegen::models::response::generate_response_struct_fields(&raw_fields);
     let response_from_assignments =
-        crate::codegen::model::response::generate_response_from_assignments(&raw_fields);
+        crate::codegen::models::response::generate_response_from_assignments(&raw_fields);
 
     let response_derives =
         quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };

@@ -1,11 +1,11 @@
 use crate::attribute_parser::get_join_config;
+use crate::codegen::join_strategies::recursion::{
+    generate_join_loading_for_direct_query, generate_recursive_loading_implementation,
+};
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
     is_vec_type, resolve_join_type_globally,
-};
-use crate::macro_implementation::{
-    generate_join_loading_for_direct_query, generate_recursive_loading_implementation,
 };
 use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;

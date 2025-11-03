@@ -1,4 +1,6 @@
-use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
+use crate::attribute_parser::{
+    field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr, get_join_config,
+};
 use crate::field_analyzer::{extract_inner_type_for_update, resolve_target_models};
 use quote::quote;
 
@@ -60,6 +62,24 @@ pub(crate) fn generate_update_struct_fields(
                     pub #ident: Option<Option<#inner_ty>>
                 }
             }
+        })
+        .collect()
+}
+
+/// Filters fields that should be included in update model
+pub(crate) fn filter_update_fields(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Vec<&syn::Field> {
+    fields
+        .iter()
+        .filter(|field| {
+            // Exclude fields from update model if update_model = false
+            let include_in_update = get_crudcrate_bool(field, "update_model").unwrap_or(true);
+
+            // Exclude join fields entirely from Update models - they're populated by recursive loading
+            let is_join_field = get_join_config(field).is_some();
+
+            include_in_update && !is_join_field
         })
         .collect()
 }
