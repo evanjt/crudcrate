@@ -1,6 +1,6 @@
 use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::join_strategies::get_join_config;
-use crate::field_analyzer::{extract_inner_type_for_update, resolve_target_models};
+use crate::field_analyzer::resolve_target_models;
 use quote::quote;
 
 /// Generates the field declarations for an update struct
@@ -51,7 +51,17 @@ pub(crate) fn generate_update_struct_fields(
                     }
                 }
             } else {
-                let inner_ty = extract_inner_type_for_update(ty);
+                // Extract inner type from Option<T> - inline replacement for extract_inner_type_for_update
+                let inner_ty = if let syn::Type::Path(type_path) = ty
+                    && let Some(last_seg) = type_path.path.segments.last()
+                    && last_seg.ident == "Option"
+                    && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
+                    && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                {
+                    inner.clone()
+                } else {
+                    ty.clone()
+                };
                 quote! {
                     #[serde(
                         default,

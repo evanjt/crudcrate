@@ -45,22 +45,20 @@ pub fn generate_cyclic_dependency_check(
     // Check for joins with unlimited recursion (no explicit depth set)
     for (field_name, (target_entity, join_config)) in &join_dependencies {
         if join_config.is_unlimited_recursion() {
-            let estimated_depth =
-                estimate_relationship_depth(entity_name, target_entity, field_name);
-
-            if estimated_depth > WARNING_DEPTH_THRESHOLD {
+            // Use simple heuristic: unlimited recursion with potential cycles is dangerous
+            if has_potential_cycle(entity_name, target_entity, field_name, join_config) {
                 let warning_path = format!(
-                    "{entity_name} -> {field_name} -> {target_entity} (estimated depth: {estimated_depth})"
+                    "{entity_name} -> {field_name} -> {target_entity}"
                 );
 
-                let default_depth = DEFAULT_RECURSION_DEPTH;
+                let _default_depth = DEFAULT_RECURSION_DEPTH;
                 let safe_depth = SAFE_EXPLICIT_DEPTH;
                 deep_recursion_warnings.push(quote! {
                     compile_error!(concat!(
-                        "Deep recursion warning: ",
+                        "Unlimited recursion warning: ",
                         #warning_path,
-                        ". This join will recurse more than ", stringify!(#default_depth), " levels deep by default, which may impact performance. ",
-                        "Consider adding explicit depth control: join(..., depth = ", stringify!(#default_depth), ") or join(..., depth = ", stringify!(#safe_depth), ")."
+                        ". This join has unlimited recursion which may impact performance. ",
+                        "Consider adding explicit depth control: join(..., depth = ", stringify!(#safe_depth), ")."
                     ));
                 });
             }
@@ -420,52 +418,6 @@ fn is_optional_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// Estimate the potential recursion depth for a relationship
-/// This is a heuristic that analyzes relationship patterns to estimate how deep recursion might go
-fn estimate_relationship_depth(current_entity: &str, target_entity: &str, field_name: &str) -> u8 {
-    // Simple heuristic based on relationship patterns
-    // Could be enhanced with graph analysis in the future
-
-    // Base case: direct relationships typically add 1 level
-    let mut estimated_depth = 1;
-
-    // Check field name patterns that suggest deeper relationships
-    let field_lower = field_name.to_lowercase();
-
-    // Plural field names often indicate collection relationships
-    if field_lower.ends_with('s') && field_lower.len() > 3 {
-        estimated_depth += 2;
-    }
-
-    // Common hierarchical patterns
-    if field_lower.contains("sub")
-        || field_lower.contains("child")
-        || field_lower.contains("nested")
-    {
-        estimated_depth += 2;
-    }
-
-    // Tree-like structures
-    if field_lower.contains("categor")
-        || field_lower.contains("tree")
-        || field_lower.contains("parent")
-    {
-        estimated_depth += 2;
-    }
-
-    // Chain-like structures
-    if field_lower.contains("next") || field_lower.contains("prev") || field_lower.contains("chain")
-    {
-        estimated_depth += 3;
-    }
-
-    // Self-referencing relationships suggest deeper recursion
-    if target_entity.starts_with("super::") || target_entity.contains(current_entity) {
-        estimated_depth += 2;
-    }
-
-    estimated_depth
-}
 
 #[cfg(test)]
 mod tests {

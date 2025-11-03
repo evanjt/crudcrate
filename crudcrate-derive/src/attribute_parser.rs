@@ -152,13 +152,7 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                     Meta::Path(path) if path.is_ident(key) => {
                         return Some(true);
                     }
-                    // Check for positive logic aliases that set model flags to false
-                    Meta::Path(path) => {
-                        if let Some(false_value) = check_positive_logic_alias(key, &path) {
-                            return Some(false_value);
-                        }
-                    }
-                    _ => {}
+                      _ => {}
                 }
             }
         }
@@ -166,42 +160,6 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
     None
 }
 
-/// Check if a path represents a positive logic alias for model exclusion
-fn check_positive_logic_alias(key: &str, path: &syn::Path) -> Option<bool> {
-    match key {
-        "create_model" => {
-            if path.is_ident("exclude_create")
-                || path.is_ident("skip_create")
-                || path.is_ident("no_create")
-            {
-                Some(false) // These aliases mean create_model = false
-            } else {
-                None
-            }
-        }
-        "update_model" => {
-            if path.is_ident("exclude_update")
-                || path.is_ident("skip_update")
-                || path.is_ident("no_update")
-            {
-                Some(false) // These aliases mean update_model = false
-            } else {
-                None
-            }
-        }
-        "list_model" => {
-            if path.is_ident("exclude_list")
-                || path.is_ident("skip_list")
-                || path.is_ident("no_list")
-            {
-                Some(false) // These aliases mean list_model = false
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
 
 /// Check if field has an exclude(...) configuration that affects the given key
 fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
@@ -326,7 +284,7 @@ pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
         {
             for meta in metas {
                 if let Meta::Path(path) = meta
-                    && (path.is_ident(flag) || is_alias_for(flag, &path))
+                    && path.is_ident(flag)
                 {
                     return true;
                 }
@@ -336,23 +294,3 @@ pub(crate) fn field_has_crudcrate_flag(field: &syn::Field, flag: &str) -> bool {
     false
 }
 
-/// Check if a path identifier is an alias for the given flag
-fn is_alias_for(flag: &str, path: &syn::Path) -> bool {
-    match flag {
-        // Support positive logic aliases that map to negative model flags
-        "create_model_false" => {
-            path.is_ident("exclude_create")
-                || path.is_ident("skip_create")
-                || path.is_ident("no_create")
-        }
-        "update_model_false" => {
-            path.is_ident("exclude_update")
-                || path.is_ident("skip_update")
-                || path.is_ident("no_update")
-        }
-        "list_model_false" => {
-            path.is_ident("exclude_list") || path.is_ident("skip_list") || path.is_ident("no_list")
-        }
-        _ => false,
-    }
-}

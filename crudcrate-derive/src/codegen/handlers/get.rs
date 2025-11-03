@@ -1,7 +1,5 @@
 use crate::codegen::join_strategies::get_join_config;
-use crate::codegen::join_strategies::recursion::{
-    generate_join_loading_for_direct_query, generate_recursive_loading_implementation,
-};
+use crate::codegen::join_strategies::recursion::generate_recursive_loading_implementation;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
@@ -219,9 +217,6 @@ pub fn generate_get_one_impl(
             !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
         if has_joins {
-            // Generate the recursive loading statements for ALL join fields (direct query loads all joins)
-            let _join_loading_statements = generate_join_loading_for_direct_query(analysis);
-
             // Generate the actual recursive loading implementation
             let recursive_loading_code = generate_recursive_loading_implementation(analysis);
 
