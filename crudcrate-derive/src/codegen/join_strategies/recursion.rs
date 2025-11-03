@@ -5,8 +5,7 @@ use crate::codegen::type_resolution::{
     is_vec_type,
 };
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
-use heck::ToPascalCase;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma};
 
 /// Generate recursive join loading implementation for `get_one` method
@@ -160,85 +159,6 @@ pub fn generate_recursive_loading_implementation(
     }
 }
 
-/// Generates join loading statements for direct queries (all join fields regardless of one/all flags)
-pub fn generate_join_loading_for_direct_query(
-    analysis: &EntityFieldAnalysis,
-) -> Vec<proc_macro2::TokenStream> {
-    let mut statements = Vec::new();
-
-    // Process ALL join fields for direct queries (both one and all)
-    let mut all_join_fields = analysis.join_on_one_fields.clone();
-    all_join_fields.extend(analysis.join_on_all_fields.iter());
-
-    // Remove duplicates (in case a field has both join(one) and join(all))
-    all_join_fields.sort_by_key(|f| {
-        f.ident
-            .as_ref()
-            .map(std::string::ToString::to_string)
-            .unwrap_or_default()
-    });
-    all_join_fields.dedup_by_key(|f| {
-        f.ident
-            .as_ref()
-            .map(std::string::ToString::to_string)
-            .unwrap_or_default()
-    });
-
-    // Generate loading statements for all join fields
-    for field in &all_join_fields {
-        if let Some(field_name) = &field.ident {
-            let join_config = get_join_config(field).unwrap_or_default();
-            let _depth = join_config.depth.unwrap_or(3);
-
-            // Generate code to load related entities for this field
-            let relation_name = if let Some(custom_relation) = &join_config.relation {
-                format_ident!("{}", custom_relation)
-            } else {
-                format_ident!("{}", field_name.to_string().to_pascal_case())
-            };
-
-            // Generate the entity path based on custom path or default super:: prefix
-            let entity_path = if let Some(custom_path) = &join_config.path {
-                // Parse custom path string into a token stream
-                let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
-                quote! { #path_tokens::Entity }
-            } else {
-                quote! { super::#relation_name::Entity }
-            };
-
-            // Check if this is a Vec<T> field or a single T field by analyzing the type
-            let is_vec_field = is_vec_type(&field.ty);
-
-            if is_vec_field {
-                // Generate code for Vec<T> fields (has_many relationships)
-                let loading_stmt = quote! {
-                    // Load related entities for #field_name field
-                    if let Ok(related_models) = model.find_related(#entity_path).all(db).await {
-                        // Convert related models to API structs (recursive loading happens via their own joins)
-                        let mut related_with_joins = Vec::new();
-                        for related_model in related_models {
-                            let related_api_struct = related_model.into();
-                            related_with_joins.push(related_api_struct);
-                        }
-                        result.#field_name = related_with_joins;
-                    }
-                };
-                statements.push(loading_stmt);
-            } else {
-                // Generate code for single T or Option<T> fields (belongs_to/has_one relationships)
-                let loading_stmt = quote! {
-                    // Load related entity for #field_name field
-                    if let Ok(Some(related_model)) = model.find_related(#entity_path).one(db).await {
-                        result.#field_name = Some(related_model.into());
-                    }
-                };
-                statements.push(loading_stmt);
-            }
-        }
-    }
-
-    statements
-}
 
 /// Parses join configuration from a field's crudcrate attributes.
 /// Looks for `#[crudcrate(join(...))]` syntax and extracts join parameters.

@@ -4,15 +4,11 @@ use quote::{format_ident, quote};
 
 use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 
-/// Map field types to their corresponding entity paths
-pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    let unwrapped_type = field_type;
-
-    // No complex type resolution needed - use types as-written
-    let resolved_type = unwrapped_type.clone();
-
+/// Map field types to their corresponding entity or model paths
+/// This function replaces both get_entity_path_from_field_type and get_model_path_from_field_type
+pub fn get_path_from_field_type(field_type: &syn::Type, target_suffix: &str) -> proc_macro2::TokenStream {
     // Extract the target type from Vec<T> or Option<T>
-    let target_type = if let syn::Type::Path(type_path) = &resolved_type {
+    let target_type = if let syn::Type::Path(type_path) = field_type {
         if let Some(segment) = type_path.path.segments.last() {
             if segment.ident == "Vec" {
                 // Vec<T> - extract T
@@ -51,11 +47,11 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
     if let syn::Type::Path(type_path) = target_type {
         if type_path.path.segments.len() > 1 {
             // For paths like crate::path::to::module::StructName
-            // Convert to crate::sites::replicates::db::Entity
+            // Convert to crate::sites::replicates::db::{Entity|Model}
             let mut path_segments = type_path.path.segments.clone();
             if let Some(last_segment) = path_segments.last_mut() {
-                // Replace the last segment (e.g., StructName) with Entity
-                last_segment.ident = syn::Ident::new("Entity", last_segment.ident.span());
+                // Replace the last segment (e.g., StructName) with target
+                last_segment.ident = syn::Ident::new(target_suffix, last_segment.ident.span());
                 let modified_path = syn::Path {
                     leading_colon: type_path.path.leading_colon,
                     segments: path_segments,
@@ -63,7 +59,7 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
                 return quote! { #modified_path };
             }
         } else if let Some(segment) = type_path.path.segments.last() {
-            // Fallback: Convert TypeName to snake_case for simple paths
+            // Fallback: Convert TypeName to snake_case::{Entity|Model} for simple paths
             // Handle API struct aliases by stripping common suffixes
             let type_name = segment.ident.to_string();
             let base_name = if type_name.ends_with("API") {
@@ -73,89 +69,24 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
                 &type_name
             };
             let entity_name = base_name.to_case(Case::Snake);
-            let entity_path = format_ident!("{}", entity_name);
-            return quote! { super::#entity_path::Entity };
+            let path_name = format_ident!("{}", entity_name);
+            let target_ident = syn::Ident::new(target_suffix, proc_macro2::Span::call_site());
+            return quote! { super::#path_name::#target_ident };
         }
     }
 
-    quote! { Entity } // Fallback
+    let target_ident = syn::Ident::new(target_suffix, proc_macro2::Span::call_site());
+    quote! { #target_ident } // Fallback
+}
+
+/// Map field types to their corresponding entity paths
+pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
+    get_path_from_field_type(field_type, "Entity")
 }
 
 /// Map field types to their corresponding model paths
 pub fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    let unwrapped_type = field_type;
-
-    // No complex type resolution needed - use types as-written
-    let resolved_type = unwrapped_type.clone();
-
-    // Extract the target type from Vec<T> or Option<T>
-    let target_type = if let syn::Type::Path(type_path) = &resolved_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Vec" {
-                // Vec<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else if segment.ident == "Option" {
-                // Option<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                // T (direct type)
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
-
-    // Handle fully qualified paths like crate::path::to::module::StructName
-    if let syn::Type::Path(type_path) = target_type {
-        if type_path.path.segments.len() > 1 {
-            // For paths like crate::path::to::module::StructName
-            // Convert to crate::sites::replicates::db::Model
-            let mut path_segments = type_path.path.segments.clone();
-            if let Some(last_segment) = path_segments.last_mut() {
-                // Replace the last segment (e.g., StructName) with Model
-                last_segment.ident = syn::Ident::new("Model", last_segment.ident.span());
-                let modified_path = syn::Path {
-                    leading_colon: type_path.path.leading_colon,
-                    segments: path_segments,
-                };
-                return quote! { #modified_path };
-            }
-        } else if let Some(segment) = type_path.path.segments.last() {
-            // Fallback: Convert TypeName to snake_case::Model for simple paths
-            // Handle API struct aliases by stripping common suffixes
-            let type_name = segment.ident.to_string();
-            let base_name = if type_name.ends_with("API") {
-                // Convert ModuleAPI → Module
-                type_name.strip_suffix("API").unwrap_or(&type_name)
-            } else {
-                &type_name
-            };
-            let entity_name = base_name.to_case(Case::Snake);
-            let model_path = format_ident!("{}", entity_name);
-            return quote! { super::#model_path::Model };
-        }
-    }
-
-    quote! { Model } // Fallback
+    get_path_from_field_type(field_type, "Model")
 }
 
 /// Extract the API struct type for recursive `get_one()` calls from field types

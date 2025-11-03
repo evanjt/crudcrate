@@ -14,60 +14,26 @@ pub(crate) fn field_is_optional(field: &syn::Field) -> bool {
 
 /// Resolves the target models (Create/Update/List) for a field with `use_target_models` attribute.
 /// Returns (`CreateModel`, `UpdateModel`, `ListModel`) types for the target `CRUDResource`.
+/// If you only need Create/Update, call resolve_target_models() instead.
 pub(crate) fn resolve_target_models_with_list(
     field_type: &syn::Type,
 ) -> Option<(syn::Type, syn::Type, syn::Type)> {
-    // Extract the inner type if it's Vec<T>
-    let target_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(last_seg) = type_path.path.segments.last() {
-            if last_seg.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                        inner_type
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                field_type
+    if let Some((create_model, update_model)) = resolve_target_models(field_type) {
+        // Extract the target type path to create the List model
+        let target_type = extract_inner_type_from_vec_or_direct(field_type);
+        if let syn::Type::Path(type_path) = target_type
+            && let Some(last_seg) = type_path.path.segments.last()
+        {
+            let base_name = &last_seg.ident;
+            let mut list_path = type_path.clone();
+
+            if let Some(last_seg_mut) = list_path.path.segments.last_mut() {
+                last_seg_mut.ident = quote::format_ident!("{}List", base_name);
             }
-        } else {
-            field_type
+
+            let list_model = syn::Type::Path(list_path);
+            return Some((create_model, update_model, list_model));
         }
-    } else {
-        field_type
-    };
-
-    // Convert target type to Create, Update, and List models
-    // For example: crate::path::to::models::Entity -> (EntityCreate, EntityUpdate, EntityList)
-    if let syn::Type::Path(type_path) = target_type
-        && let Some(last_seg) = type_path.path.segments.last()
-    {
-        let base_name = &last_seg.ident;
-
-        // Keep the module path but replace the struct name
-        let mut create_path = type_path.clone();
-        let mut update_path = type_path.clone();
-        let mut list_path = type_path.clone();
-
-        // Update the last segment to be the Create/Update/List versions
-        if let Some(last_seg_mut) = create_path.path.segments.last_mut() {
-            last_seg_mut.ident = quote::format_ident!("{}Create", base_name);
-        }
-        if let Some(last_seg_mut) = update_path.path.segments.last_mut() {
-            last_seg_mut.ident = quote::format_ident!("{}Update", base_name);
-        }
-        if let Some(last_seg_mut) = list_path.path.segments.last_mut() {
-            last_seg_mut.ident = quote::format_ident!("{}List", base_name);
-        }
-
-        let create_model = syn::Type::Path(create_path);
-        let update_model = syn::Type::Path(update_path);
-        let list_model = syn::Type::Path(list_path);
-
-        return Some((create_model, update_model, list_model));
     }
     None
 }
@@ -76,27 +42,7 @@ pub(crate) fn resolve_target_models_with_list(
 /// Returns (`CreateModel`, `UpdateModel`) types for the target `CRUDResource`.
 pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::Type)> {
     // Extract the inner type if it's Vec<T>
-    let target_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(last_seg) = type_path.path.segments.last() {
-            if last_seg.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                        inner_type
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
+    let target_type = extract_inner_type_from_vec_or_direct(field_type);
 
     // Convert target type to Create and Update models
     // For example: crate::path::to::models::Entity -> (EntityCreate, EntityUpdate)
@@ -125,18 +71,20 @@ pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type
     None
 }
 
-/// For an update field type like `Option<T>` or `Option<Option<T>>`, extract the inner `T`.
-pub(crate) fn extract_inner_type_for_update(ty: &syn::Type) -> syn::Type {
-    if let syn::Type::Path(type_path) = ty
+/// Helper function to extract inner type from Vec<T> or return T directly
+fn extract_inner_type_from_vec_or_direct(field_type: &syn::Type) -> &syn::Type {
+    if let syn::Type::Path(type_path) = field_type
         && let Some(last_seg) = type_path.path.segments.last()
-        && last_seg.ident == "Option"
+        && last_seg.ident == "Vec"
         && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
-        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+        && let Some(syn::GenericArgument::Type(inner_type)) = args.args.first()
     {
-        return inner.clone();
+        inner_type
+    } else {
+        field_type
     }
-    ty.clone()
 }
+
 
 /// Try to find the crudcrate join attribute for better error span targeting
 pub fn find_crudcrate_join_attr(field: &syn::Field) -> Option<&syn::Attribute> {
