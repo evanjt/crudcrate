@@ -21,9 +21,6 @@ prettyplease = { version = "0.2", optional = true }
 [lib]
 proc-macro = true
 
-[features]
-debug = ["prettyplease"]
-
 [dev-dependencies]
 sea-orm = { workspace = true, features = ["macros", "with-chrono", "with-uuid", "with-json"] }
 serde = { workspace = true, features = ["derive"] }

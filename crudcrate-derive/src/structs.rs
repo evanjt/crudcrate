@@ -1,6 +1,7 @@
 use convert_case::{Case, Casing};
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
+#[derive(Default)]
 pub(super) struct CRUDResourceMeta {
     pub(super) name_singular: Option<String>,
     pub(super) name_plural: Option<String>,
@@ -15,50 +16,20 @@ pub(super) struct CRUDResourceMeta {
     pub(super) fn_delete_many: Option<syn::Path>,
     pub(super) generate_router: bool,
     pub(super) fulltext_language: Option<String>,
-    /// Whether to derive `PartialEq` on generated structs (default: true for backward compatibility)
     pub(super) derive_partial_eq: bool,
-    /// Whether to derive `Eq` on generated structs (default: false, only added to main API struct when true)
     pub(super) derive_eq: bool,
-    #[cfg(feature = "debug")]
-    pub(super) debug_output: bool,
-}
-
-
-impl Default for CRUDResourceMeta {
-    fn default() -> Self {
-        Self {
-            name_singular: None,
-            name_plural: None,
-            description: None,
-            entity_type: None,
-            column_type: None,
-            fn_get_one: None,
-            fn_get_all: None,
-            fn_create: None,
-            fn_update: None,
-            fn_delete: None,
-            fn_delete_many: None,
-            generate_router: false,
-            fulltext_language: None,
-            // Default to true for backward compatibility - most common types implement PartialEq
-            // Users can opt-out with no_partial_eq if needed
-            derive_partial_eq: true,
-            // Default to false - Eq is more restrictive, users must opt in with derive_eq
-            derive_eq: false,
-            #[cfg(feature = "debug")]
-            debug_output: false,
-        }
-    }
 }
 
 impl CRUDResourceMeta {
     /// Apply smart defaults based on table name and api struct name
-    pub(super) fn with_defaults(mut self, table_name: &str, _api_struct_name: &str) -> Self {
+    pub(super) fn with_defaults(mut self, table_name: &str) -> Self {
         if self.name_singular.is_none() {
+            // Set the table name by default to the snake_case version of the struct name
             self.name_singular = Some(table_name.to_case(Case::Snake));
         }
         if self.name_plural.is_none() {
             // Simple pluralization - add 's' if doesn't end with 's'
+            // Probably not the best strategy, but good enough
             let singular = self.name_singular.as_ref().unwrap();
             self.name_plural = Some(if singular.ends_with('s') {
                 singular.clone()
@@ -91,5 +62,4 @@ pub(super) struct EntityFieldAnalysis<'a> {
     pub(super) fulltext_fields: Vec<&'a syn::Field>,
     pub(super) join_on_one_fields: Vec<&'a syn::Field>,
     pub(super) join_on_all_fields: Vec<&'a syn::Field>,
-    // pub(super) join_configs: std::collections::HashMap<String, crate::attribute_parser::JoinConfig>, // Removed due to HashMap key issues
 }

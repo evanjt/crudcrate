@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{traits::CRUDResource, EntityToModels};
+use crudcrate::{EntityToModels, traits::CRUDResource};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -7,7 +7,7 @@ use super::vehicle::Vehicle;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "customers")]
-#[crudcrate(api_struct = "Customer", generate_router)]
+#[crudcrate(api_struct = "Customer", generate_router, derive_partial_eq)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]

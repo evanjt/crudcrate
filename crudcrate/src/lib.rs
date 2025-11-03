@@ -212,10 +212,9 @@
 
 // Core Feature Groups
 pub mod core;
+pub mod database;
 pub mod filtering;
 pub mod relationships;
-pub mod database;
-pub mod dev_experience;
 
 // Legacy modules for backward compatibility (re-export from new structure)
 pub mod filter {
@@ -245,8 +244,14 @@ pub use crudcrate_derive::*;
 
 // Export commonly used items from feature groups
 pub use core::{CRUDResource, MergeIntoActiveModel};
-pub use filtering::{FilterOptions, apply_filters, parse_pagination, parse_range, parse_sorting, calculate_content_range};
-pub use database::{analyse_indexes_for_resource, display_index_recommendations, register_analyser, analyse_all_registered_models, ensure_all_analysers_registered};
+pub use database::{
+    analyse_all_registered_models, analyse_indexes_for_resource, display_index_recommendations,
+    ensure_all_analysers_registered, register_analyser,
+};
+pub use filtering::{
+    FilterOptions, apply_filters, calculate_content_range, parse_pagination, parse_range,
+    parse_sorting,
+};
 
 /// Macro to register a CRUD resource for automatic index analysis
 /// Usage: `register_crud_analyser!(MyModel)`;

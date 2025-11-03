@@ -21,9 +21,7 @@ impl JoinConfig {
 
 /// Parses CRUD resource metadata from struct-level attributes.
 /// Looks for `#[crudcrate(...)]` attributes and extracts configuration.
-pub(crate) fn parse_crud_resource_meta(
-    attrs: &[syn::Attribute],
-) -> Result<CRUDResourceMeta, syn::Error> {
+pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResourceMeta {
     let mut meta = CRUDResourceMeta::default();
 
     for attr in attrs {
@@ -94,24 +92,12 @@ pub(crate) fn parse_crud_resource_meta(
                         meta.derive_partial_eq = false;
                     } else if path.is_ident("no_eq") {
                         meta.derive_eq = false;
-                    } else if path.is_ident("debug_output") {
-                        #[cfg(feature = "debug")]
-                        {
-                            meta.debug_output = true;
-                        }
-                        #[cfg(not(feature = "debug"))]
-                        {
-                            return Err(syn::Error::new_spanned(
-                                path,
-                                "debug_output requires --features debug",
-                            ));
-                        }
                     }
                 }
             }
         }
     }
-    Ok(meta)
+    meta
 }
 
 /// Extracts the table name from Sea-ORM attributes.

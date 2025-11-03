@@ -8,7 +8,7 @@ use super::vehicle_part::VehiclePart;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "vehicles")]
-#[crudcrate(api_struct = "Vehicle", generate_router)]
+#[crudcrate(api_struct = "Vehicle", generate_router, derive_partial_eq)]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]

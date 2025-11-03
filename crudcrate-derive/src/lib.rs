@@ -929,10 +929,8 @@ fn parse_and_validate_entity_attributes(
     let table_name = attribute_parser::extract_table_name(&input.attrs)
         .unwrap_or_else(|| struct_name.to_string());
 
-    let crud_meta = match attribute_parser::parse_crud_resource_meta(&input.attrs) {
-        Ok(meta) => meta.with_defaults(&table_name, &api_struct_name.to_string()),
-        Err(e) => return Err(e.to_compile_error().into()),
-    };
+    let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
+    let crud_meta = meta.with_defaults(&table_name);
 
     // Validate active model path
     if syn::parse_str::<syn::Type>(&active_model_path).is_err() {
