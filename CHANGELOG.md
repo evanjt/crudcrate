@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-11-03
+
+### Fixed
+
+- Global path resolution of joined structs
+- Restructuring of crudcrate-derive into smaller modules, bit by bit.
+
 ## [0.6.0] - 2025-10-31
 
 ### Added
@@ -334,6 +341,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.6.0]: https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1
 [0.6.0]: https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0
 [0.5.0]: https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0
 [0.4.5]: https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5
