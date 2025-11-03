@@ -7,7 +7,7 @@ use crate::codegen::type_resolution::{
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
     is_vec_type, resolve_join_type_globally,
 };
-use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
 /// Generate join loading logic for `get_all` method

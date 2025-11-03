@@ -2,27 +2,27 @@ use convert_case::{Case, Casing};
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
 #[derive(Default)]
-pub(super) struct CRUDResourceMeta {
-    pub(super) name_singular: Option<String>,
-    pub(super) name_plural: Option<String>,
-    pub(super) description: Option<String>,
-    pub(super) entity_type: Option<String>,
-    pub(super) column_type: Option<String>,
-    pub(super) fn_get_one: Option<syn::Path>,
-    pub(super) fn_get_all: Option<syn::Path>,
-    pub(super) fn_create: Option<syn::Path>,
-    pub(super) fn_update: Option<syn::Path>,
-    pub(super) fn_delete: Option<syn::Path>,
-    pub(super) fn_delete_many: Option<syn::Path>,
-    pub(super) generate_router: bool,
-    pub(super) fulltext_language: Option<String>,
-    pub(super) derive_partial_eq: bool,
-    pub(super) derive_eq: bool,
+pub(crate) struct CRUDResourceMeta {
+    pub(crate) name_singular: Option<String>,
+    pub(crate) name_plural: Option<String>,
+    pub(crate) description: Option<String>,
+    pub(crate) entity_type: Option<String>,
+    pub(crate) column_type: Option<String>,
+    pub(crate) fn_get_one: Option<syn::Path>,
+    pub(crate) fn_get_all: Option<syn::Path>,
+    pub(crate) fn_create: Option<syn::Path>,
+    pub(crate) fn_update: Option<syn::Path>,
+    pub(crate) fn_delete: Option<syn::Path>,
+    pub(crate) fn_delete_many: Option<syn::Path>,
+    pub(crate) generate_router: bool,
+    pub(crate) fulltext_language: Option<String>,
+    pub(crate) derive_partial_eq: bool,
+    pub(crate) derive_eq: bool,
 }
 
 impl CRUDResourceMeta {
     /// Apply smart defaults based on table name and api struct name
-    pub(super) fn with_defaults(mut self, table_name: &str) -> Self {
+    pub(crate) fn with_defaults(mut self, table_name: &str) -> Self {
         if self.name_singular.is_none() {
             // Set the table name by default to the snake_case version of the struct name
             self.name_singular = Some(table_name.to_case(Case::Snake));
@@ -53,13 +53,13 @@ impl CRUDResourceMeta {
     }
 }
 
-pub(super) struct EntityFieldAnalysis<'a> {
-    pub(super) db_fields: Vec<&'a syn::Field>,
-    pub(super) non_db_fields: Vec<&'a syn::Field>,
-    pub(super) primary_key_field: Option<&'a syn::Field>,
-    pub(super) sortable_fields: Vec<&'a syn::Field>,
-    pub(super) filterable_fields: Vec<&'a syn::Field>,
-    pub(super) fulltext_fields: Vec<&'a syn::Field>,
-    pub(super) join_on_one_fields: Vec<&'a syn::Field>,
-    pub(super) join_on_all_fields: Vec<&'a syn::Field>,
+pub(crate) struct EntityFieldAnalysis<'a> {
+    pub(crate) db_fields: Vec<&'a syn::Field>,
+    pub(crate) non_db_fields: Vec<&'a syn::Field>,
+    pub(crate) primary_key_field: Option<&'a syn::Field>,
+    pub(crate) sortable_fields: Vec<&'a syn::Field>,
+    pub(crate) filterable_fields: Vec<&'a syn::Field>,
+    pub(crate) fulltext_fields: Vec<&'a syn::Field>,
+    pub(crate) join_on_one_fields: Vec<&'a syn::Field>,
+    pub(crate) join_on_all_fields: Vec<&'a syn::Field>,
 }

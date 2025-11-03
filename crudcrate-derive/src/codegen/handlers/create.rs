@@ -1,5 +1,5 @@
 // join_generators functionality consolidated into this file to avoid duplicate/stub implementations
-use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
 /// Generate create method implementation

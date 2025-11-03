@@ -1,5 +1,5 @@
 // join_generators functionality consolidated into this file to avoid duplicate/stub implementations
-use crate::structs::CRUDResourceMeta;
+use crate::traits::crudresource::structs::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate delete method implementation

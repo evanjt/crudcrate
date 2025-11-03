@@ -4,16 +4,16 @@ mod codegen;
 mod field_analyzer;
 mod macro_implementation;
 mod relation_validator;
-mod structs;
+mod traits;
 
 use heck::ToPascalCase;
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use syn::{
     Data, DeriveInput, Fields, Lit, Meta, parse::Parser, parse_macro_input, punctuated::Punctuated,
     token::Comma,
 };
+use traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 
 fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_macro2::TokenStream {
     let mut active_model_override = None;
@@ -424,7 +424,7 @@ fn generate_api_struct(
     api_struct_name: &syn::Ident,
     api_struct_fields: &[proc_macro2::TokenStream],
     active_model_path: &str,
-    crud_meta: &structs::CRUDResourceMeta,
+    crud_meta: &crate::traits::crudresource::structs::CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
     _required_imports: &std::collections::HashSet<String>,
 ) -> proc_macro2::TokenStream {

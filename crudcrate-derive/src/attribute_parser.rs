@@ -1,4 +1,4 @@
-use super::structs::CRUDResourceMeta;
+use crate::traits::crudresource::structs::CRUDResourceMeta;
 use syn::parse::Parser;
 use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 

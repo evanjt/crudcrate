@@ -4,7 +4,7 @@ use crate::codegen::type_resolution::{
     extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
     is_vec_type, resolve_join_type_globally,
 };
-use crate::structs::EntityFieldAnalysis;
+use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
 use quote::{format_ident, quote};
 

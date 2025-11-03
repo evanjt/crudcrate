@@ -1,4 +1,4 @@
-use crate::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
 /// Generate update method implementation

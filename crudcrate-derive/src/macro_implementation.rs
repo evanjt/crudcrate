@@ -1,4 +1,3 @@
-use super::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use crate::codegen::{
     handlers::{create, delete, get, update},
     type_resolution::{
@@ -6,6 +5,7 @@ use crate::codegen::{
         generate_fulltext_field_entries, generate_id_column, generate_like_filterable_entries,
     },
 };
+use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
 pub(crate) fn generate_crud_resource_impl(
