@@ -133,8 +133,8 @@ fn generate_method_impls(
 ) {
     let get_one_impl = get::generate_get_one_impl(crud_meta, analysis);
     let get_all_impl = get::generate_get_all_impl(crud_meta, analysis);
-    let create_impl = create::generate_create_impl(crud_meta, analysis);
-    let update_impl = update::generate_update_impl(crud_meta, analysis);
+    let create_impl = create::generate_create_impl(crud_meta);
+    let update_impl = update::generate_update_impl(crud_meta);
     let delete_impl = delete::generate_delete_impl(crud_meta);
     let delete_many_impl = delete::generate_delete_many_impl(crud_meta);
 

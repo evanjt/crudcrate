@@ -89,10 +89,3 @@ fn extract_target_type(field_type: &syn::Type) -> Result<String, ()> {
         Err(())
     }
 }
-
-/// Generate join relation validation (mostly informational comments)
-pub fn generate_join_relation_validation(_analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
-    // Removed complex validation - Sea-ORM handles this at runtime
-    // Just return empty token stream
-    quote! {}
-}

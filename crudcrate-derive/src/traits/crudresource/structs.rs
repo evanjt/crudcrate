@@ -6,8 +6,6 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) name_singular: Option<String>,
     pub(crate) name_plural: Option<String>,
     pub(crate) description: Option<String>,
-    pub(crate) entity_type: Option<String>,
-    pub(crate) column_type: Option<String>,
     pub(crate) fn_get_one: Option<syn::Path>,
     pub(crate) fn_get_all: Option<syn::Path>,
     pub(crate) fn_create: Option<syn::Path>,
@@ -42,12 +40,6 @@ impl CRUDResourceMeta {
                 "This resource manages {} items",
                 self.name_singular.as_ref().unwrap()
             ));
-        }
-        if self.entity_type.is_none() {
-            self.entity_type = Some("Entity".to_string());
-        }
-        if self.column_type.is_none() {
-            self.column_type = Some("Column".to_string());
         }
         self
     }

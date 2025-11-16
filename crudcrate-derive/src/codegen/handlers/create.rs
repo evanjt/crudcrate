@@ -1,11 +1,10 @@
 // join_generators functionality consolidated into this file to avoid duplicate/stub implementations
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::traits::crudresource::structs::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate create method implementation
 pub fn generate_create_impl(
     crud_meta: &CRUDResourceMeta,
-    _analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
     if let Some(fn_path) = &crud_meta.fn_create {
         quote! {

@@ -1,10 +1,9 @@
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::traits::crudresource::structs::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate update method implementation
 pub fn generate_update_impl(
     crud_meta: &CRUDResourceMeta,
-    _analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
     if let Some(fn_path) = &crud_meta.fn_update {
         quote! {

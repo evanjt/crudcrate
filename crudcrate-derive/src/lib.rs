@@ -101,7 +101,6 @@ fn generate_excluded_merge_code(
 
 fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
-    _api_struct_name: &syn::Ident,
 ) -> (
     Vec<proc_macro2::TokenStream>,
     Vec<proc_macro2::TokenStream>,
@@ -221,18 +220,6 @@ fn generate_api_struct(
     crud_meta: &crate::traits::crudresource::structs::CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
-    // Check if we have fields excluded from create/update models
-    let _has_create_exclusions = analysis
-        .db_fields
-        .iter()
-        .chain(analysis.non_db_fields.iter())
-        .any(|field| attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false));
-    let _has_update_exclusions = analysis
-        .db_fields
-        .iter()
-        .chain(analysis.non_db_fields.iter())
-        .any(|field| attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false));
-
     // Check if we have join fields that require Default implementation
     let has_join_fields =
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
@@ -769,7 +756,6 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     }
 
     // Setup join validation - check for cyclic dependencies
-    let _join_validation = relation_validator::generate_join_relation_validation(&field_analysis);
     let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
         &field_analysis,
         &api_struct_name.to_string(),
@@ -780,7 +766,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
 
     // Generate core API model components
     let (api_struct_fields, from_model_assignments) =
-        generate_api_struct_content(&field_analysis, &api_struct_name);
+        generate_api_struct_content(&field_analysis);
     let api_struct = generate_api_struct(
         &api_struct_name,
         &api_struct_fields,
@@ -838,7 +824,6 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         #crud_impl
         #list_model
         #response_model
-        #_join_validation
     };
 
     TokenStream::from(expanded)

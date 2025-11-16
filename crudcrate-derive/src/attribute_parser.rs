@@ -26,10 +26,6 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                     meta.name_plural = Some(value);
                                 } else if nv.path.is_ident("description") {
                                     meta.description = Some(value);
-                                } else if nv.path.is_ident("entity_type") {
-                                    meta.entity_type = Some(value);
-                                } else if nv.path.is_ident("column_type") {
-                                    meta.column_type = Some(value);
                                 } else if nv.path.is_ident("fulltext_language") {
                                     meta.fulltext_language = Some(value);
                                 }

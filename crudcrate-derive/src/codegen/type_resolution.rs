@@ -132,7 +132,7 @@ pub fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
 
 pub fn generate_crud_type_aliases(
     api_struct_name: &syn::Ident,
-    crud_meta: &CRUDResourceMeta,
+    _crud_meta: &CRUDResourceMeta,
     active_model_path: &str,
 ) -> (
     syn::Ident,
@@ -146,17 +146,9 @@ pub fn generate_crud_type_aliases(
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
 
-    let entity_type: syn::Type = crud_meta
-        .entity_type
-        .as_ref()
-        .and_then(|s| syn::parse_str(s).ok())
-        .unwrap_or_else(|| syn::parse_quote!(Entity));
-
-    let column_type: syn::Type = crud_meta
-        .column_type
-        .as_ref()
-        .and_then(|s| syn::parse_str(s).ok())
-        .unwrap_or_else(|| syn::parse_quote!(Column));
+    // Sea-ORM always uses Entity and Column - these are not configurable
+    let entity_type: syn::Type = syn::parse_quote!(Entity);
+    let column_type: syn::Type = syn::parse_quote!(Column);
 
     let active_model_type: syn::Type =
         syn::parse_str(active_model_path).unwrap_or_else(|_| syn::parse_quote!(ActiveModel));
