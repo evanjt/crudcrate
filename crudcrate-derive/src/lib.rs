@@ -1,31 +1,8 @@
-//! # CRUDCrate Derive Macros
+//! Procedural macros for generating CRUD operations from Sea-ORM entities.
 //!
-//! Procedural macros for generating CRUD operations and API models from Sea-ORM entities.
+//! **Main macro**: `#[derive(EntityToModels)]` - see [`entity_to_models`]
 //!
-//! ## Main Entry Point
-//!
-//! - `#[derive(EntityToModels)]` - Generates all CRUD functionality (see [`entity_to_models`])
-//!
-//! ## Module Organization
-//!
-//! ### Core Modules
-//! - **fields**: Field extraction, analysis, and type utilities
-//! - **codegen**: Code generation for models, handlers, joins, and routes
-//! - **attribute_parser**: Parse `#[crudcrate(...)]` attributes
-//! - **relation_validator**: Validate join relationships and check for cycles
-//!
-//! ### Code Generation (`codegen/`)
-//! - **models**: Generate Create/Update/List/Response models
-//! - **handlers**: Generate CRUD method implementations (get, create, update, delete)
-//! - **joins**: Handle join relationship loading (get_one, get_all)
-//! - **router**: Generate Axum route handlers
-//!
-//! ## For Contributors
-//!
-//! New to the codebase? Start here:
-//! 1. Read [`entity_to_models`] macro documentation
-//! 2. Check `fields/mod.rs` for field processing
-//! 3. Browse `codegen/` modules for code generation logic
+//! **Module guide**: `fields/` (field processing) | `codegen/` (models, handlers, joins, routes)
 
 mod attribute_parser;
 mod codegen;
