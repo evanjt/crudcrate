@@ -5,7 +5,7 @@ pub mod shared;
 pub mod update;
 
 use crate::attribute_parser::get_crudcrate_bool;
-use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::joins::get_join_config;
 
 /// Shared field filtering logic for model generation
 /// Determines if a field should be included in a specific model type

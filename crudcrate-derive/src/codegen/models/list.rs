@@ -1,10 +1,10 @@
 use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
-use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::joins::get_join_config;
 use crate::codegen::models::shared::{
     generate_target_model_conversion, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::field_analyzer::field_is_optional;
+use crate::fields::field_is_optional;
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::{ToTokens, quote};
 

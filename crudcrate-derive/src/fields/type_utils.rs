@@ -1,7 +1,12 @@
+//! Type introspection utilities for field analysis
+//!
+//! Provides low-level functions for examining field types, extracting inner types,
+//! and resolving target model types for `use_target_models` attribute.
+
 use crate::codegen::type_resolution::extract_vec_inner_type_ref;
 
 /// Returns true if the field's type is `Option<…>` (including `std::option::Option<…>`).
-pub(crate) fn field_is_optional(field: &syn::Field) -> bool {
+pub fn field_is_optional(field: &syn::Field) -> bool {
     if let syn::Type::Path(type_path) = &field.ty {
         // Look at the *last* segment in the path to see if its identifier is "Option"
         if let Some(last_seg) = type_path.path.segments.last() {
@@ -17,7 +22,7 @@ pub(crate) fn field_is_optional(field: &syn::Field) -> bool {
 /// Resolves the target models (Create/Update/List) for a field with `use_target_models` attribute.
 /// Returns (`CreateModel`, `UpdateModel`, `ListModel`) types for the target `CRUDResource`.
 /// If you only need Create/Update, call resolve_target_models() instead.
-pub(crate) fn resolve_target_models_with_list(
+pub fn resolve_target_models_with_list(
     field_type: &syn::Type,
 ) -> Option<(syn::Type, syn::Type, syn::Type)> {
     if let Some((create_model, update_model)) = resolve_target_models(field_type) {
@@ -42,7 +47,7 @@ pub(crate) fn resolve_target_models_with_list(
 
 /// Resolves the target models (Create/Update) for a field with `use_target_models` attribute.
 /// Returns (`CreateModel`, `UpdateModel`) types for the target `CRUDResource`.
-pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::Type)> {
+pub fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::Type)> {
     // Extract the inner type if it's Vec<T>
     let target_type = extract_vec_inner_type_ref(field_type);
 

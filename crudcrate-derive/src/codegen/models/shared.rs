@@ -1,7 +1,7 @@
 //! Shared utilities for model generation to eliminate code duplication
 
 use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_expr};
-use crate::field_analyzer::{resolve_target_models, resolve_target_models_with_list};
+use crate::fields::{resolve_target_models, resolve_target_models_with_list};
 use quote::quote;
 
 /// Resolves the final type for a field, handling use_target_models transformations

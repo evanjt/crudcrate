@@ -2,9 +2,9 @@
 //!
 //! This module provides shared logic for generating join loading code for both
 //! get_one() and get_all() methods, eliminating the duplication between
-//! handlers/get.rs and join_strategies/recursion.rs
+//! handlers/get.rs and joins/recursion.rs
 
-use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::joins::get_join_config;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     get_path_from_field_type, is_vec_type,

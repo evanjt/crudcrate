@@ -1,4 +1,4 @@
-use crate::codegen::join_loading::{generate_get_all_join_loading, generate_get_one_join_loading};
+use crate::codegen::joins::loading::{generate_get_all_join_loading, generate_get_one_join_loading};
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 

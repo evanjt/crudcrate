@@ -1,12 +1,40 @@
+//! # CRUDCrate Derive Macros
+//!
+//! Procedural macros for generating CRUD operations and API models from Sea-ORM entities.
+//!
+//! ## Main Entry Point
+//!
+//! - `#[derive(EntityToModels)]` - Generates all CRUD functionality (see [`entity_to_models`])
+//!
+//! ## Module Organization
+//!
+//! ### Core Modules
+//! - **fields**: Field extraction, analysis, and type utilities
+//! - **codegen**: Code generation for models, handlers, joins, and routes
+//! - **attribute_parser**: Parse `#[crudcrate(...)]` attributes
+//! - **relation_validator**: Validate join relationships and check for cycles
+//!
+//! ### Code Generation (`codegen/`)
+//! - **models**: Generate Create/Update/List/Response models
+//! - **handlers**: Generate CRUD method implementations (get, create, update, delete)
+//! - **joins**: Handle join relationship loading (get_one, get_all)
+//! - **router**: Generate Axum route handlers
+//!
+//! ## For Contributors
+//!
+//! New to the codebase? Start here:
+//! 1. Read [`entity_to_models`] macro documentation
+//! 2. Check `fields/mod.rs` for field processing
+//! 3. Browse `codegen/` modules for code generation logic
+
 mod attribute_parser;
 mod codegen;
-mod field_analysis;
-mod field_analyzer;
+mod fields;
 mod macro_implementation;
 mod relation_validator;
 mod traits;
 
-use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::joins::get_join_config;
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::{DeriveInput, parse_macro_input};
@@ -38,7 +66,7 @@ fn generate_included_merge_code(included_fields: &[&syn::Field]) -> Vec<proc_mac
         })
         .map(|field| {
             let ident = &field.ident;
-            let is_optional = field_analyzer::field_is_optional(field);
+            let is_optional = fields::field_is_optional(field);
 
             if is_optional {
                 quote! {
@@ -78,7 +106,7 @@ fn generate_excluded_merge_code(
         .filter_map(|field| {
             if let Some(expr) = attribute_parser::get_crudcrate_expr(field, "on_update") {
                 let ident = &field.ident;
-                if field_analyzer::field_is_optional(field) {
+                if fields::field_is_optional(field) {
                     Some(quote! {
                         model.#ident = sea_orm::ActiveValue::Set(Some((#expr).into()));
                     })
@@ -125,7 +153,7 @@ fn generate_api_struct_content(
             .to_string()
             .contains("DateTimeWithTimeZone")
         {
-            if field_analyzer::field_is_optional(field) {
+            if fields::field_is_optional(field) {
                 quote! {
                     #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
                 }
@@ -329,7 +357,7 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     let create_name = format_ident!("{}Create", name);
 
     let active_model_type = extract_active_model_type(&input, name);
-    let fields = field_analysis::extract_named_fields(&input);
+    let fields = fields::extract_named_fields(&input);
     let create_struct_fields = codegen::models::create::generate_create_struct_fields(&fields);
     let conv_lines = codegen::models::create::generate_create_conversion_lines(&fields);
 
@@ -388,7 +416,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let update_name = format_ident!("{}Update", name);
 
     let active_model_type = extract_active_model_type(&input, name);
-    let fields = field_analysis::extract_named_fields(&input);
+    let fields = fields::extract_named_fields(&input);
     let included_fields = crate::codegen::models::update::filter_update_fields(&fields);
     let update_struct_fields =
         crate::codegen::models::update::generate_update_struct_fields(&included_fields);
@@ -467,7 +495,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
 
-    let fields = field_analysis::extract_named_fields(&input);
+    let fields = fields::extract_named_fields(&input);
     let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&fields);
@@ -664,7 +692,7 @@ fn generate_list_and_response_models(
 ) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     // Generate List model
     let list_name = format_ident!("{}List", api_struct_name);
-    let raw_fields = field_analysis::extract_named_fields(input);
+    let raw_fields = fields::extract_named_fields(input);
     let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&raw_fields);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&raw_fields);
@@ -737,7 +765,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let struct_name = &input.ident;
 
     // Parse and validate attributes
-    let (api_struct_name, active_model_path) = field_analysis::parse_entity_attributes(&input, struct_name);
+    let (api_struct_name, active_model_path) = fields::parse_entity_attributes(&input, struct_name);
     let table_name = attribute_parser::extract_table_name(&input.attrs)
         .unwrap_or_else(|| struct_name.to_string());
     let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
@@ -754,12 +782,12 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     }
 
     // Extract fields and create field analysis
-    let fields = match field_analysis::extract_entity_fields(&input) {
+    let fields = match fields::extract_entity_fields(&input) {
         Ok(f) => f,
         Err(e) => return e,
     };
-    let field_analysis = field_analysis::analyze_entity_fields(fields);
-    if let Err(e) = field_analysis::validate_field_analysis(&field_analysis) {
+    let field_analysis = fields::analyze_entity_fields(fields);
+    if let Err(e) = fields::validate_field_analysis(&field_analysis) {
         return e;
     }
 

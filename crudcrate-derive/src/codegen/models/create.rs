@@ -3,7 +3,7 @@ use crate::codegen::models::shared::{
     generate_field_with_optional_default, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::field_analyzer::field_is_optional;
+use crate::fields::field_is_optional;
 use quote::quote;
 
 /// Generates the conversion lines for a create model to active model conversion

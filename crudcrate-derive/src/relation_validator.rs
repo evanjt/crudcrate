@@ -2,7 +2,7 @@
 //!
 //! Philosophy: Trust Sea-ORM to handle relationships correctly. Only warn about performance issues.
 
-use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::joins::get_join_config;
 use crate::codegen::type_resolution::{extract_option_inner_type_ref, extract_vec_inner_type_ref};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
@@ -40,7 +40,7 @@ pub fn generate_cyclic_dependency_check(
 /// Check if join depth is potentially problematic for performance
 fn check_join_depth(
     field: &syn::Field,
-    join_config: &crate::codegen::join_strategies::JoinConfig,
+    join_config: &crate::codegen::joins::JoinConfig,
     entity_name: &str,
     warnings: &mut Vec<proc_macro2::TokenStream>,
 ) {
