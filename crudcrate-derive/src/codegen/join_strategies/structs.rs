@@ -10,13 +10,6 @@ pub struct JoinConfig {
     pub path: Option<String>,
 }
 
-impl JoinConfig {
-    /// Check if recursion is unlimited (no explicit depth set)
-    pub fn is_unlimited_recursion(&self) -> bool {
-        self.depth.is_none()
-    }
-}
-
 /// Parses join configuration from a field's crudcrate attributes.
 /// Looks for `#[crudcrate(join(...))]` syntax and extracts join parameters.
 pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {

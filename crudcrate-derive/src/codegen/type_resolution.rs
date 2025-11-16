@@ -80,18 +80,6 @@ pub fn extract_api_struct_type_for_recursive_call(
     quote! { #current_type }
 }
 
-pub fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-    if let syn::Type::Path(type_path) = ty
-        && let Some(segment) = type_path.path.segments.last()
-        && segment.ident == "Vec"
-        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-    {
-        return quote! { #inner_ty };
-    }
-    quote! { () } // Fallback
-}
-
 pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()

@@ -72,19 +72,3 @@ pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type
     }
     None
 }
-
-/// Try to find the crudcrate join attribute for better error span targeting
-pub fn find_crudcrate_join_attr(field: &syn::Field) -> Option<&syn::Attribute> {
-    for attr in &field.attrs {
-        if attr.path().is_ident("crudcrate") {
-            // Check if this attribute contains join configuration
-            if let Ok(meta) = attr.meta.require_list() {
-                let attr_str = meta.tokens.to_string();
-                if attr_str.contains("join") {
-                    return Some(attr);
-                }
-            }
-        }
-    }
-    None
-}
