@@ -1,6 +1,8 @@
-use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
+use crate::attribute_parser::get_crudcrate_bool;
+use crate::codegen::models::shared::{
+    generate_field_with_optional_default, resolve_field_type_with_target_models,
+};
 use crate::codegen::models::should_include_in_model;
-use crate::field_analyzer::resolve_target_models;
 use quote::quote;
 
 /// Generates the field declarations for an update struct
@@ -14,42 +16,9 @@ pub(crate) fn generate_update_struct_fields(
             let ty = &field.ty;
 
             if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
-                // Check if this field uses target models
-                let final_ty = if field_has_crudcrate_flag(field, "use_target_models") {
-                    if let Some((_, update_model)) = resolve_target_models(ty) {
-                        // Replace the type with the target's Update model
-                        if let syn::Type::Path(type_path) = ty {
-                            if let Some(last_seg) = type_path.path.segments.last() {
-                                if last_seg.ident == "Vec" {
-                                    // Vec<Treatment> -> Vec<TreatmentUpdate>
-                                    quote! { Vec<#update_model> }
-                                } else {
-                                    // Treatment -> TreatmentUpdate
-                                    quote! { #update_model }
-                                }
-                            } else {
-                                quote! { #ty }
-                            }
-                        } else {
-                            quote! { #ty }
-                        }
-                    } else {
-                        quote! { #ty }
-                    }
-                } else {
-                    quote! { #ty }
-                };
-
-                if get_crudcrate_expr(field, "default").is_some() {
-                    quote! {
-                        #[serde(default)]
-                        pub #ident: #final_ty
-                    }
-                } else {
-                    quote! {
-                        pub #ident: #final_ty
-                    }
-                }
+                // Resolve type with target models (update model)
+                let final_ty = resolve_field_type_with_target_models(ty, field, |_, update, _| update.clone());
+                generate_field_with_optional_default(ident, final_ty, field)
             } else {
                 // Extract inner type from Option<T> - inline replacement for extract_inner_type_for_update
                 let inner_ty = if let syn::Type::Path(type_path) = ty

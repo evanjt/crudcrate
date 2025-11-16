@@ -1,6 +1,7 @@
 pub mod create;
 pub mod list;
 pub mod response;
+pub mod shared;
 pub mod update;
 
 use crate::attribute_parser::get_crudcrate_bool;
