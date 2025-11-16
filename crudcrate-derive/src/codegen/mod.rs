@@ -1,4 +1,5 @@
 pub mod handlers;
+pub mod join_loading;
 pub mod join_strategies;
 pub mod models;
 pub mod router;
