@@ -1,5 +1,4 @@
 mod attribute_parser;
-mod attributes;
 mod codegen;
 mod field_analysis;
 mod field_analyzer;
