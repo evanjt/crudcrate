@@ -1,5 +1,6 @@
 use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::models::should_include_in_model;
 use crate::field_analyzer::{field_is_optional, resolve_target_models_with_list};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::{ToTokens, quote};
@@ -9,16 +10,7 @@ pub(crate) fn generate_list_struct_fields(
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
-        .filter(|field| {
-            let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-            // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
-            let is_join_one_only = if let Some(join_config) = get_join_config(field) {
-                !join_config.on_all // Exclude if NOT loading in get_all (on_all = false)
-            } else {
-                false
-            };
-            include_in_list && !is_join_one_only
-        })
+        .filter(|field| should_include_in_model(field, "list_model"))
         .map(|field| {
             let ident = &field.ident;
             let ty = &field.ty;
@@ -64,16 +56,7 @@ pub(crate) fn generate_list_from_assignments(
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
-        .filter(|field| {
-            let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-            // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
-            let is_join_one_only = if let Some(join_config) = get_join_config(field) {
-                !join_config.on_all // Exclude if NOT loading in get_all (on_all = false)
-            } else {
-                false
-            };
-            include_in_list && !is_join_one_only
-        })
+        .filter(|field| should_include_in_model(field, "list_model"))
         .map(|field| {
             let ident = &field.ident;
             let ty = &field.ty;

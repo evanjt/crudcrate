@@ -306,11 +306,9 @@ fn generate_api_struct_content(
 ) -> (
     Vec<proc_macro2::TokenStream>,
     Vec<proc_macro2::TokenStream>,
-    std::collections::HashSet<String>,
 ) {
     let mut api_struct_fields = Vec::new();
     let mut from_model_assignments = Vec::new();
-    let required_imports = std::collections::HashSet::new();
 
     for field in &analysis.db_fields {
         let field_name = &field.ident;
@@ -418,7 +416,7 @@ fn generate_api_struct_content(
         from_model_assignments.push(assignment);
     }
 
-    (api_struct_fields, from_model_assignments, required_imports)
+    (api_struct_fields, from_model_assignments)
 }
 
 fn generate_api_struct(
@@ -427,7 +425,6 @@ fn generate_api_struct(
     active_model_path: &str,
     crud_meta: &crate::traits::crudresource::structs::CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
-    _required_imports: &std::collections::HashSet<String>,
 ) -> proc_macro2::TokenStream {
     // Check if we have fields excluded from create/update models
     let _has_create_exclusions = analysis
@@ -981,7 +978,7 @@ fn generate_core_api_models(
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
 ) {
-    let (api_struct_fields, from_model_assignments, required_imports) =
+    let (api_struct_fields, from_model_assignments) =
         generate_api_struct_content(field_analysis, api_struct_name);
     let api_struct = generate_api_struct(
         api_struct_name,
@@ -989,7 +986,6 @@ fn generate_core_api_models(
         active_model_path,
         crud_meta,
         field_analysis,
-        &required_imports,
     );
     let from_impl = generate_from_impl(struct_name, api_struct_name, &from_model_assignments);
     let crud_impl = generate_conditional_crud_impl(

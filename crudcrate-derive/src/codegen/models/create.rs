@@ -1,5 +1,5 @@
 use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
-use crate::codegen::join_strategies::get_join_config;
+use crate::codegen::models::should_include_in_model;
 use crate::field_analyzer::{field_is_optional, resolve_target_models};
 use quote::quote;
 
@@ -69,15 +69,7 @@ pub(crate) fn generate_create_struct_fields(
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
-        .filter(|field| {
-            // Exclude fields from create model if create_model = false
-            let include_in_create = get_crudcrate_bool(field, "create_model").unwrap_or(true);
-
-            // Exclude join fields entirely from Create models - they're populated by recursive loading
-            let is_join_field = get_join_config(field).is_some();
-
-            include_in_create && !is_join_field
-        })
+        .filter(|field| should_include_in_model(field, "create_model"))
         .map(|field| {
             let ident = &field.ident;
             let ty = &field.ty;

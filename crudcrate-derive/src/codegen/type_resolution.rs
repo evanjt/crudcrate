@@ -7,41 +7,9 @@ use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 /// Map field types to their corresponding entity or model paths
 /// This function replaces both get_entity_path_from_field_type and get_model_path_from_field_type
 pub fn get_path_from_field_type(field_type: &syn::Type, target_suffix: &str) -> proc_macro2::TokenStream {
-    // Extract the target type from Vec<T> or Option<T>
-    let target_type = if let syn::Type::Path(type_path) = field_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Vec" {
-                // Vec<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else if segment.ident == "Option" {
-                // Option<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                // T (direct type)
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
+    // Extract the target type from Vec<T> or Option<T> using canonical helpers
+    let target_type = extract_vec_inner_type_ref(field_type);
+    let target_type = extract_option_inner_type_ref(target_type);
 
     // Handle fully qualified paths like crate::path::to::module::StructName
     if let syn::Type::Path(type_path) = target_type {
@@ -79,66 +47,37 @@ pub fn get_path_from_field_type(field_type: &syn::Type, target_suffix: &str) -> 
     quote! { #target_ident } // Fallback
 }
 
-/// Map field types to their corresponding entity paths
-pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    get_path_from_field_type(field_type, "Entity")
-}
-
-/// Map field types to their corresponding model paths
-pub fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    get_path_from_field_type(field_type, "Model")
-}
-
 /// Extract the API struct type for recursive `get_one()` calls from field types
+/// Recursively unwraps Vec/Option wrappers and handles Join type aliases
 pub fn extract_api_struct_type_for_recursive_call(
     field_type: &syn::Type,
 ) -> proc_macro2::TokenStream {
-    fn extract_inner_type_from_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-        if let syn::Type::Path(type_path) = ty
-            && let Some(segment) = type_path.path.segments.last()
-            && (segment.ident == "Vec" || segment.ident == "Option")
-            && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-            && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-        {
-            return extract_inner_type_from_type(inner_ty);
-        }
-        if let syn::Type::Path(_type_path) = ty {}
+    // Recursively unwrap Vec and Option wrappers using canonical helpers
+    let mut current_type = field_type;
+    loop {
+        let unwrapped_vec = extract_vec_inner_type_ref(current_type);
+        let unwrapped_option = extract_option_inner_type_ref(unwrapped_vec);
 
-        quote! { #ty } // Fallback: return the type as-is
+        // If no more unwrapping happened, we've reached the inner type
+        if std::ptr::eq(unwrapped_option, current_type) {
+            break;
+        }
+        current_type = unwrapped_option;
     }
 
-    // No complex type resolution needed - use types as-written
-    let resolved_type = field_type.clone();
-
-    // Now extract the inner type from the resolved type
-    if let syn::Type::Path(type_path) = &resolved_type
+    // Handle type aliases that end with "Join" (ModuleJoin -> Module)
+    if let syn::Type::Path(type_path) = current_type
         && let Some(segment) = type_path.path.segments.last()
     {
         let type_name = segment.ident.to_string();
-
-        if (segment.ident == "Vec" || segment.ident == "Option")
-            && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-            && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-        {
-            let inner_type = extract_inner_type_from_type(inner_ty);
-
-            return inner_type;
-        }
-
-        // Handle type aliases that end with "Join" (ModuleJoin -> Module)
-        // This handles cases where the type alias wasn't resolved to Vec<T> properly
         if type_name.ends_with("Join") {
             let base_name = type_name.strip_suffix("Join").unwrap_or(&type_name);
-            let api_struct_name = base_name; // Most API structs have the same name as the entity
-            return quote! { #api_struct_name };
+            return quote! { #base_name };
         }
-
-        // For direct types, use them as-is
-        return quote! { #resolved_type };
     }
 
-    // Fallback: extract inner type from the original field type directly
-    extract_inner_type_from_type(field_type)
+    // Return the fully unwrapped type
+    quote! { #current_type }
 }
 
 pub fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
@@ -172,6 +111,35 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
         return true;
     }
     false
+}
+
+/// Extract inner type from Vec<T>, or return the type itself if not a Vec
+/// This is the canonical implementation used across the codebase
+/// Returns a reference to the inner syn::Type
+pub fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Vec"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        return inner_ty;
+    }
+    ty
+}
+
+/// Extract inner type from Option<T>, or return the type itself if not an Option
+/// Returns a reference to the inner syn::Type
+pub fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        return inner_ty;
+    }
+    ty
 }
 
 pub fn generate_crud_type_aliases(

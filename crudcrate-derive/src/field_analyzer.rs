@@ -1,3 +1,5 @@
+use crate::codegen::type_resolution::extract_vec_inner_type_ref;
+
 /// Returns true if the field's type is `Option<…>` (including `std::option::Option<…>`).
 pub(crate) fn field_is_optional(field: &syn::Field) -> bool {
     if let syn::Type::Path(type_path) = &field.ty {
@@ -20,7 +22,7 @@ pub(crate) fn resolve_target_models_with_list(
 ) -> Option<(syn::Type, syn::Type, syn::Type)> {
     if let Some((create_model, update_model)) = resolve_target_models(field_type) {
         // Extract the target type path to create the List model
-        let target_type = extract_inner_type_from_vec_or_direct(field_type);
+        let target_type = extract_vec_inner_type_ref(field_type);
         if let syn::Type::Path(type_path) = target_type
             && let Some(last_seg) = type_path.path.segments.last()
         {
@@ -42,7 +44,7 @@ pub(crate) fn resolve_target_models_with_list(
 /// Returns (`CreateModel`, `UpdateModel`) types for the target `CRUDResource`.
 pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::Type)> {
     // Extract the inner type if it's Vec<T>
-    let target_type = extract_inner_type_from_vec_or_direct(field_type);
+    let target_type = extract_vec_inner_type_ref(field_type);
 
     // Convert target type to Create and Update models
     // For example: crate::path::to::models::Entity -> (EntityCreate, EntityUpdate)
@@ -70,21 +72,6 @@ pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type
     }
     None
 }
-
-/// Helper function to extract inner type from Vec<T> or return T directly
-fn extract_inner_type_from_vec_or_direct(field_type: &syn::Type) -> &syn::Type {
-    if let syn::Type::Path(type_path) = field_type
-        && let Some(last_seg) = type_path.path.segments.last()
-        && last_seg.ident == "Vec"
-        && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
-        && let Some(syn::GenericArgument::Type(inner_type)) = args.args.first()
-    {
-        inner_type
-    } else {
-        field_type
-    }
-}
-
 
 /// Try to find the crudcrate join attribute for better error span targeting
 pub fn find_crudcrate_join_attr(field: &syn::Field) -> Option<&syn::Attribute> {

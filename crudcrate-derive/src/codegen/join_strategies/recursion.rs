@@ -1,8 +1,7 @@
 use crate::codegen::join_strategies::JoinConfig;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
-    extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
-    is_vec_type,
+    extract_vec_inner_type, get_path_from_field_type, is_vec_type,
 };
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
@@ -53,9 +52,9 @@ pub fn generate_recursive_loading_implementation(
                 let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
                 quote! { #path_tokens::Entity }
             } else {
-                get_entity_path_from_field_type(&field.ty)
+                get_path_from_field_type(&field.ty, "Entity")
             };
-            let _model_path = get_model_path_from_field_type(&field.ty);
+            let _model_path = get_path_from_field_type(&field.ty, "Model");
 
             // Check if this join should stop recursion at this level
             // depth=1 means "load this level but don't recurse into nested joins"

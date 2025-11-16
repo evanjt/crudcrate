@@ -2,8 +2,7 @@ use crate::codegen::join_strategies::get_join_config;
 use crate::codegen::join_strategies::recursion::generate_recursive_loading_implementation;
 use crate::codegen::type_resolution::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
-    extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
-    is_vec_type,
+    extract_vec_inner_type, get_path_from_field_type, is_vec_type,
 };
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
@@ -27,9 +26,9 @@ pub fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_mac
                 let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
                 quote! { #path_tokens::Entity }
             } else {
-                get_entity_path_from_field_type(&field.ty)
+                get_path_from_field_type(&field.ty, "Entity")
             };
-            let _model_path = get_model_path_from_field_type(&field.ty);
+            let _model_path = get_path_from_field_type(&field.ty, "Model");
 
             if is_vec_field {
                 // No complex type resolution needed - extract directly from Vec<T>

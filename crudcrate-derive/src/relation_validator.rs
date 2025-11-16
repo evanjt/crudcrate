@@ -1,5 +1,6 @@
 use super::field_analyzer::find_crudcrate_join_attr;
 use crate::codegen::join_strategies::{JoinConfig, get_join_config};
+use crate::codegen::type_resolution::{extract_vec_inner_type_ref, extract_option_inner_type_ref};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
 use std::collections::HashMap;
@@ -7,7 +8,6 @@ use std::collections::HashMap;
 // Recursion depth constants
 const DEFAULT_RECURSION_DEPTH: u8 = 3;
 const SAFE_EXPLICIT_DEPTH: u8 = 2;
-const WARNING_DEPTH_THRESHOLD: u8 = 3;
 
 /// Detects potentially dangerous cyclic join dependencies that could cause stack overflow
 /// Returns a compile-time error if unsafe cycles are detected
@@ -163,48 +163,23 @@ pub fn generate_cyclic_dependency_check(
 
 /// Extract the target entity type from a field type (Vec<T> or Option<T>)
 /// Returns the full path to uniquely identify different entities
+/// Uses canonical type extraction helpers from type_resolution module
 fn extract_target_entity_type(field_type: &syn::Type) -> Result<String, String> {
-    if let syn::Type::Path(type_path) = field_type
-        && let Some(last_seg) = type_path.path.segments.last()
-    {
-        let inner_type = match last_seg.ident.to_string().as_str() {
-            "Vec" => {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                        inner_type
-                    } else {
-                        return Err("Invalid Vec type".to_string());
-                    }
-                } else {
-                    return Err("Invalid Vec arguments".to_string());
-                }
-            }
-            "Option" => {
-                if let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) = args.args.first() {
-                        inner_type
-                    } else {
-                        return Err("Invalid Option type".to_string());
-                    }
-                } else {
-                    return Err("Invalid Option arguments".to_string());
-                }
-            }
-            _ => field_type,
-        };
+    // Unwrap Vec<T> if present, then unwrap Option<T> if present
+    let inner_type = extract_vec_inner_type_ref(field_type);
+    let inner_type = extract_option_inner_type_ref(inner_type);
 
-        // Extract the full path from the inner type to uniquely identify entities
-        if let syn::Type::Path(inner_path) = inner_type {
-            let path_segments: Vec<String> = inner_path
-                .path
-                .segments
-                .iter()
-                .map(|seg| seg.ident.to_string())
-                .collect();
+    // Extract the full path from the inner type to uniquely identify entities
+    if let syn::Type::Path(inner_path) = inner_type {
+        let path_segments: Vec<String> = inner_path
+            .path
+            .segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect();
 
-            if !path_segments.is_empty() {
-                return Ok(path_segments.join("::"));
-            }
+        if !path_segments.is_empty() {
+            return Ok(path_segments.join("::"));
         }
     }
 
