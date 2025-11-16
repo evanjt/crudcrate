@@ -14,64 +14,62 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                 Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
         {
             for item in metas {
-                if let Meta::NameValue(nv) = item {
-                    // Handle literal values (strings, booleans, etc.)
-                    if let syn::Expr::Lit(expr_lit) = &nv.value {
-                        match &expr_lit.lit {
-                            Lit::Str(s) => {
-                                let value = s.value();
-                                if nv.path.is_ident("name_singular") {
-                                    meta.name_singular = Some(value);
-                                } else if nv.path.is_ident("name_plural") {
-                                    meta.name_plural = Some(value);
-                                } else if nv.path.is_ident("description") {
-                                    meta.description = Some(value);
-                                } else if nv.path.is_ident("fulltext_language") {
-                                    meta.fulltext_language = Some(value);
+                match item {
+                    Meta::NameValue(nv) => {
+                        // Handle literal values (strings, booleans, etc.)
+                        if let syn::Expr::Lit(expr_lit) = &nv.value {
+                            match &expr_lit.lit {
+                                Lit::Str(s) => {
+                                    let value = s.value();
+                                    let ident = nv.path.get_ident().map(|i| i.to_string());
+                                    match ident.as_deref() {
+                                        Some("name_singular") => meta.name_singular = Some(value),
+                                        Some("name_plural") => meta.name_plural = Some(value),
+                                        Some("description") => meta.description = Some(value),
+                                        Some("fulltext_language") => meta.fulltext_language = Some(value),
+                                        _ => {}
+                                    }
                                 }
-                            }
-                            Lit::Bool(b) => {
-                                let value = b.value();
-                                if nv.path.is_ident("generate_router") {
-                                    meta.generate_router = value;
-                                } else if nv.path.is_ident("derive_partial_eq") {
-                                    meta.derive_partial_eq = value;
-                                } else if nv.path.is_ident("derive_eq") {
-                                    meta.derive_eq = value;
+                                Lit::Bool(b) => {
+                                    let value = b.value();
+                                    let ident = nv.path.get_ident().map(|i| i.to_string());
+                                    match ident.as_deref() {
+                                        Some("generate_router") => meta.generate_router = value,
+                                        Some("derive_partial_eq") => meta.derive_partial_eq = value,
+                                        Some("derive_eq") => meta.derive_eq = value,
+                                        _ => {}
+                                    }
                                 }
+                                _ => {}
                             }
+                        } else if let syn::Expr::Path(expr_path) = &nv.value {
+                            // Handle function path values
+                            let path = &expr_path.path;
+                            let ident = nv.path.get_ident().map(|i| i.to_string());
+                            match ident.as_deref() {
+                                Some("fn_get_one") => meta.fn_get_one = Some(path.clone()),
+                                Some("fn_get_all") => meta.fn_get_all = Some(path.clone()),
+                                Some("fn_create") => meta.fn_create = Some(path.clone()),
+                                Some("fn_update") => meta.fn_update = Some(path.clone()),
+                                Some("fn_delete") => meta.fn_delete = Some(path.clone()),
+                                Some("fn_delete_many") => meta.fn_delete_many = Some(path.clone()),
+                                _ => {}
+                            }
+                        }
+                    }
+                    // Handle boolean flags (like generate_router)
+                    Meta::Path(path) => {
+                        let ident = path.get_ident().map(|i| i.to_string());
+                        match ident.as_deref() {
+                            Some("generate_router") => meta.generate_router = true,
+                            Some("derive_partial_eq") => meta.derive_partial_eq = true,
+                            Some("derive_eq") => meta.derive_eq = true,
+                            Some("no_partial_eq") => meta.derive_partial_eq = false,
+                            Some("no_eq") => meta.derive_eq = false,
                             _ => {}
                         }
-                    } else if let syn::Expr::Path(expr_path) = &nv.value {
-                        // Handle function path values
-                        if nv.path.is_ident("fn_get_one") {
-                            meta.fn_get_one = Some(expr_path.path.clone());
-                        } else if nv.path.is_ident("fn_get_all") {
-                            meta.fn_get_all = Some(expr_path.path.clone());
-                        } else if nv.path.is_ident("fn_create") {
-                            meta.fn_create = Some(expr_path.path.clone());
-                        } else if nv.path.is_ident("fn_update") {
-                            meta.fn_update = Some(expr_path.path.clone());
-                        } else if nv.path.is_ident("fn_delete") {
-                            meta.fn_delete = Some(expr_path.path.clone());
-                        } else if nv.path.is_ident("fn_delete_many") {
-                            meta.fn_delete_many = Some(expr_path.path.clone());
-                        }
                     }
-                }
-                // Handle boolean flags (like generate_router)
-                else if let Meta::Path(path) = item {
-                    if path.is_ident("generate_router") {
-                        meta.generate_router = true;
-                    } else if path.is_ident("derive_partial_eq") {
-                        meta.derive_partial_eq = true;
-                    } else if path.is_ident("derive_eq") {
-                        meta.derive_eq = true;
-                    } else if path.is_ident("no_partial_eq") {
-                        meta.derive_partial_eq = false;
-                    } else if path.is_ident("no_eq") {
-                        meta.derive_eq = false;
-                    }
+                    _ => {}
                 }
             }
         }
