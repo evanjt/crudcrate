@@ -8,13 +8,9 @@ mod relation_validator;
 mod traits;
 
 use crate::codegen::join_strategies::get_join_config;
-use heck::ToPascalCase;
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{
-    Data, DeriveInput, Fields, Lit, Meta, parse::Parser, parse_macro_input, punctuated::Punctuated,
-    token::Comma,
-};
+use syn::{DeriveInput, parse_macro_input};
 use traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 
 fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_macro2::TokenStream {
@@ -33,15 +29,6 @@ fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_mac
         let ident = format_ident!("{}ActiveModel", name);
         quote! { #ident }
     }
-}
-
-fn generate_update_merge_code(
-    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    included_fields: &[&syn::Field],
-) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
-    let included_merge = generate_included_merge_code(included_fields);
-    let excluded_merge = generate_excluded_merge_code(fields);
-    (included_merge, excluded_merge)
 }
 
 fn generate_included_merge_code(included_fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
@@ -106,14 +93,6 @@ fn generate_excluded_merge_code(
             }
         })
         .collect()
-}
-
-fn resolve_join_field_type_preserving_container(
-    field_type: &syn::Type,
-) -> proc_macro2::TokenStream {
-    // For join fields, use the type exactly as written by the user
-    // This allows any valid Rust path without making assumptions
-    quote! { #field_type }
 }
 
 fn generate_api_struct_content(
@@ -187,11 +166,7 @@ fn generate_api_struct_content(
             quote! {}
         };
 
-        let final_field_type = if get_join_config(field).is_some() {
-            resolve_join_field_type_preserving_container(field_type)
-        } else {
-            quote! { #field_type }
-        };
+        let final_field_type = quote! { #field_type };
 
         let field_definition = quote! {
             #schema_attrs
@@ -316,60 +291,6 @@ fn generate_api_struct(
     }
 }
 
-fn generate_from_impl(
-    struct_name: &syn::Ident,
-    api_struct_name: &syn::Ident,
-    from_model_assignments: &[proc_macro2::TokenStream],
-) -> proc_macro2::TokenStream {
-    quote! {
-        impl From<#struct_name> for #api_struct_name {
-            fn from(model: #struct_name) -> Self {
-                Self {
-                    #(#from_model_assignments),*
-                }
-            }
-        }
-    }
-}
-
-fn generate_conditional_crud_impl(
-    api_struct_name: &syn::Ident,
-    crud_meta: &CRUDResourceMeta,
-    active_model_path: &str,
-    analysis: &EntityFieldAnalysis,
-    table_name: &str,
-) -> proc_macro2::TokenStream {
-    // Note: join fields should not be considered for CRUD resource generation
-    // They are populated by join loading, not direct CRUD operations
-    let has_crud_resource_fields = analysis.primary_key_field.is_some()
-        || !analysis.sortable_fields.is_empty()
-        || !analysis.filterable_fields.is_empty()
-        || !analysis.fulltext_fields.is_empty();
-
-    let crud_impl = if has_crud_resource_fields {
-        macro_implementation::generate_crud_resource_impl(
-            api_struct_name,
-            crud_meta,
-            active_model_path,
-            analysis,
-            table_name,
-        )
-    } else {
-        quote! {}
-    };
-
-    let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        crate::codegen::router::axum::generate_router_impl(api_struct_name)
-    } else {
-        quote! {}
-    };
-
-    quote! {
-        #crud_impl
-        #router_impl
-    }
-}
-
 /// ===================
 /// `ToCreateModel` Macro
 /// ===================
@@ -472,7 +393,8 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let included_fields = crate::codegen::models::update::filter_update_fields(&fields);
     let update_struct_fields =
         crate::codegen::models::update::generate_update_struct_fields(&included_fields);
-    let (included_merge, excluded_merge) = generate_update_merge_code(&fields, &included_fields);
+    let included_merge = generate_included_merge_code(&included_fields);
+    let excluded_merge = generate_excluded_merge_code(&fields);
 
     // Always include ToSchema for Update models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -734,87 +656,6 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 /// impl ActiveModelBehavior for ActiveModel {}
 /// ```
 ///
-/// Parse and validate attributes for `EntityToModels` macro
-fn parse_and_validate_entity_attributes(
-    input: &DeriveInput,
-    struct_name: &syn::Ident,
-) -> Result<(String, syn::Ident, String, CRUDResourceMeta), TokenStream> {
-    let (api_struct_name, active_model_path) = field_analysis::parse_entity_attributes(input, struct_name);
-    let table_name = attribute_parser::extract_table_name(&input.attrs)
-        .unwrap_or_else(|| struct_name.to_string());
-
-    let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
-    let crud_meta = meta.with_defaults(&table_name);
-
-    // Validate active model path
-    if syn::parse_str::<syn::Type>(&active_model_path).is_err() {
-        return Err(syn::Error::new_spanned(
-            input,
-            format!("Invalid active_model path: {active_model_path}"),
-        )
-        .to_compile_error()
-        .into());
-    }
-
-    Ok((table_name, api_struct_name, active_model_path, crud_meta))
-}
-
-/// Setup join validation and entity registration
-fn setup_join_validation(
-    field_analysis: &EntityFieldAnalysis,
-    api_struct_name: &syn::Ident,
-) -> Result<proc_macro2::TokenStream, TokenStream> {
-    // No global registry needed - types are used as explicitly written
-
-    // Generate compile-time validation for join relationships
-    let _join_validation = relation_validator::generate_join_relation_validation(field_analysis);
-
-    // Check for cyclic dependencies and emit compile-time error if detected
-    let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
-        field_analysis,
-        &api_struct_name.to_string(),
-    );
-    if !cyclic_dependency_check.is_empty() {
-        return Err(cyclic_dependency_check.into());
-    }
-
-    Ok(quote! {})
-}
-
-/// Generate core API model components
-fn generate_core_api_models(
-    struct_name: &syn::Ident,
-    api_struct_name: &syn::Ident,
-    crud_meta: &CRUDResourceMeta,
-    active_model_path: &str,
-    field_analysis: &EntityFieldAnalysis,
-    table_name: &str,
-) -> (
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-) {
-    let (api_struct_fields, from_model_assignments) =
-        generate_api_struct_content(field_analysis, api_struct_name);
-    let api_struct = generate_api_struct(
-        api_struct_name,
-        &api_struct_fields,
-        active_model_path,
-        crud_meta,
-        field_analysis,
-    );
-    let from_impl = generate_from_impl(struct_name, api_struct_name, &from_model_assignments);
-    let crud_impl = generate_conditional_crud_impl(
-        api_struct_name,
-        crud_meta,
-        active_model_path,
-        field_analysis,
-        table_name,
-    );
-
-    (api_struct, from_impl, crud_impl)
-}
-
 /// Generate list and response models
 fn generate_list_and_response_models(
     input: &DeriveInput,
@@ -897,11 +738,21 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let struct_name = &input.ident;
 
     // Parse and validate attributes
-    let (table_name, api_struct_name, active_model_path, crud_meta) =
-        match parse_and_validate_entity_attributes(&input, struct_name) {
-            Ok(result) => result,
-            Err(e) => return e,
-        };
+    let (api_struct_name, active_model_path) = field_analysis::parse_entity_attributes(&input, struct_name);
+    let table_name = attribute_parser::extract_table_name(&input.attrs)
+        .unwrap_or_else(|| struct_name.to_string());
+    let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
+    let crud_meta = meta.with_defaults(&table_name);
+
+    // Validate active model path
+    if syn::parse_str::<syn::Type>(&active_model_path).is_err() {
+        return syn::Error::new_spanned(
+            &input,
+            format!("Invalid active_model path: {active_model_path}"),
+        )
+        .to_compile_error()
+        .into();
+    }
 
     // Extract fields and create field analysis
     let fields = match field_analysis::extract_entity_fields(&input) {
@@ -913,21 +764,64 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return e;
     }
 
-    // Setup join validation and entity registration
-    let _join_validation = match setup_join_validation(&field_analysis, &api_struct_name) {
-        Ok(validation) => validation,
-        Err(e) => return e,
-    };
+    // Setup join validation - check for cyclic dependencies
+    let _join_validation = relation_validator::generate_join_relation_validation(&field_analysis);
+    let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
+        &field_analysis,
+        &api_struct_name.to_string(),
+    );
+    if !cyclic_dependency_check.is_empty() {
+        return cyclic_dependency_check.into();
+    }
 
     // Generate core API model components
-    let (api_struct, from_impl, crud_impl) = generate_core_api_models(
-        struct_name,
+    let (api_struct_fields, from_model_assignments) =
+        generate_api_struct_content(&field_analysis, &api_struct_name);
+    let api_struct = generate_api_struct(
         &api_struct_name,
-        &crud_meta,
+        &api_struct_fields,
         &active_model_path,
+        &crud_meta,
         &field_analysis,
-        &table_name,
     );
+    let from_impl = quote! {
+        impl From<#struct_name> for #api_struct_name {
+            fn from(model: #struct_name) -> Self {
+                Self {
+                    #(#from_model_assignments),*
+                }
+            }
+        }
+    };
+
+    // Generate CRUD implementation
+    let has_crud_resource_fields = field_analysis.primary_key_field.is_some()
+        || !field_analysis.sortable_fields.is_empty()
+        || !field_analysis.filterable_fields.is_empty()
+        || !field_analysis.fulltext_fields.is_empty();
+
+    let crud_impl_inner = if has_crud_resource_fields {
+        macro_implementation::generate_crud_resource_impl(
+            &api_struct_name,
+            &crud_meta,
+            &active_model_path,
+            &field_analysis,
+            &table_name,
+        )
+    } else {
+        quote! {}
+    };
+
+    let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
+        crate::codegen::router::axum::generate_router_impl(&api_struct_name)
+    } else {
+        quote! {}
+    };
+
+    let crud_impl = quote! {
+        #crud_impl_inner
+        #router_impl
+    };
 
     // Generate list and response models
     let (list_model, response_model) =

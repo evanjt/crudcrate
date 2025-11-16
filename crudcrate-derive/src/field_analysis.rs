@@ -6,11 +6,10 @@
 //! - Validating field relationships and join configurations
 
 use crate::attribute_parser;
-use crate::codegen::join_strategies::{get_join_config, JoinConfig};
+use crate::codegen::join_strategies::get_join_config;
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use heck::ToPascalCase;
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma};
 

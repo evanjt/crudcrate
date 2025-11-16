@@ -37,9 +37,6 @@ pub(crate) fn generate_list_struct_fields(
                 } else {
                     quote! { #ty }
                 }
-            } else if get_join_config(field).is_some() {
-                // This ensures List models have proper API struct types, not DB Model types
-                crate::resolve_join_field_type_preserving_container(ty)
             } else {
                 quote! { #ty }
             };
