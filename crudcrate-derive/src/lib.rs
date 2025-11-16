@@ -230,34 +230,22 @@ fn generate_api_struct(
                 || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
         });
 
-    // Build derive clause based on user preferences
-    let mut derives = vec![
-        quote!(Clone),
-        quote!(Debug),
-        quote!(Serialize),
-        quote!(Deserialize),
-        quote!(ToCreateModel),
-        quote!(ToUpdateModel),
-    ];
-
-    // Always include ToSchema, but handle circular dependencies with schema(no_recursion)
-    // This is the proper utoipa approach for recursive relationships
-    derives.push(quote!(ToSchema));
-
-    // Add Default derive if needed for join fields or excluded fields
-    // BUT: don't derive Default if we have join fields, as it causes E0282 type inference errors
-    // We'll manually implement Default instead
-    if has_fields_needing_default && !has_join_fields {
-        derives.push(quote!(Default));
-    }
-
-    if crud_meta.derive_partial_eq {
-        derives.push(quote!(PartialEq));
-    }
-
-    if crud_meta.derive_eq {
-        derives.push(quote!(Eq));
-    }
+    // Build derive clause declaratively based on requirements
+    let derives: Vec<_> = [
+        (true, quote!(Clone)),
+        (true, quote!(Debug)),
+        (true, quote!(Serialize)),
+        (true, quote!(Deserialize)),
+        (true, quote!(ToCreateModel)),
+        (true, quote!(ToUpdateModel)),
+        (true, quote!(ToSchema)),
+        (has_fields_needing_default && !has_join_fields, quote!(Default)),
+        (crud_meta.derive_partial_eq, quote!(PartialEq)),
+        (crud_meta.derive_eq, quote!(Eq)),
+    ]
+    .into_iter()
+    .filter_map(|(include, derive)| include.then_some(derive))
+    .collect();
 
     // No import generation needed - types are used as-written
 
