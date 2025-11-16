@@ -1,6 +1,7 @@
 use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::models::shared::{
-    generate_field_with_optional_default, resolve_field_type_with_target_models,
+    generate_active_value_set, generate_field_with_optional_default,
+    resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
 use crate::fields::field_is_optional;
@@ -47,15 +48,7 @@ pub(crate) fn generate_create_conversion_lines(
                 });
             }
         } else if let Some(expr) = get_crudcrate_expr(field, "on_create") {
-            if is_optional {
-                conv_lines.push(quote! {
-                    #ident: sea_orm::ActiveValue::Set(Some((#expr).into()))
-                });
-            } else {
-                conv_lines.push(quote! {
-                    #ident: sea_orm::ActiveValue::Set((#expr).into())
-                });
-            }
+            conv_lines.push(generate_active_value_set(ident, &expr, is_optional));
         } else {
             // Field is excluded from Create model and has no on_create - set to NotSet
             // This allows the field to be set manually later in custom create functions

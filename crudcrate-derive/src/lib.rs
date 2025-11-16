@@ -74,6 +74,8 @@ fn generate_included_merge_code(included_fields: &[&syn::Field]) -> Vec<proc_mac
 fn generate_excluded_merge_code(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<proc_macro2::TokenStream> {
+    use codegen::models::shared::generate_active_value_assignment;
+
     fields
         .iter()
         .filter(|field| {
@@ -81,20 +83,11 @@ fn generate_excluded_merge_code(
                 && !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
         })
         .filter_map(|field| {
-            if let Some(expr) = attribute_parser::get_crudcrate_expr(field, "on_update") {
-                let ident = &field.ident;
-                if fields::field_is_optional(field) {
-                    Some(quote! {
-                        model.#ident = sea_orm::ActiveValue::Set(Some((#expr).into()));
-                    })
-                } else {
-                    Some(quote! {
-                        model.#ident = sea_orm::ActiveValue::Set((#expr).into());
-                    })
-                }
-            } else {
-                None
-            }
+            attribute_parser::get_crudcrate_expr(field, "on_update").map(|expr| {
+                let ident = field.ident.as_ref().unwrap();
+                let is_optional = fields::field_is_optional(field);
+                generate_active_value_assignment(ident, &expr, is_optional)
+            })
         })
         .collect()
 }

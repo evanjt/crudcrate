@@ -98,3 +98,35 @@ pub(crate) fn generate_target_model_conversion(
         })
     }
 }
+
+/// Generates the value expression for ActiveValue::Set with proper optional handling
+/// Returns just the Set(...) part without field name, for maximum reusability
+fn generate_set_value(expr: &syn::Expr, is_optional: bool) -> proc_macro2::TokenStream {
+    if is_optional {
+        quote! { sea_orm::ActiveValue::Set(Some((#expr).into())) }
+    } else {
+        quote! { sea_orm::ActiveValue::Set((#expr).into()) }
+    }
+}
+
+/// Generates field initialization: `ident: ActiveValue::Set(...)`
+/// Used in From<T> implementations for struct initialization
+pub(crate) fn generate_active_value_set(
+    ident: &syn::Ident,
+    expr: &syn::Expr,
+    is_optional: bool,
+) -> proc_macro2::TokenStream {
+    let value = generate_set_value(expr, is_optional);
+    quote! { #ident: #value }
+}
+
+/// Generates field assignment: `model.ident = ActiveValue::Set(...)`
+/// Used in merge/update implementations
+pub(crate) fn generate_active_value_assignment(
+    ident: &syn::Ident,
+    expr: &syn::Expr,
+    is_optional: bool,
+) -> proc_macro2::TokenStream {
+    let value = generate_set_value(expr, is_optional);
+    quote! { model.#ident = #value; }
+}
