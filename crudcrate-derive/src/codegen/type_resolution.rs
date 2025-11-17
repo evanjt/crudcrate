@@ -202,18 +202,6 @@ pub fn generate_like_filterable_entries(fields: &[&syn::Field]) -> Vec<proc_macr
         .collect()
 }
 
-pub fn generate_fulltext_field_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_str = ident_to_string(field_name);
-            let column_name = format_ident!("{}", field_str.to_pascal_case());
-            quote! { (#field_str, Self::ColumnType::#column_name) }
-        })
-        .collect()
-}
-
 /// Generate enum field checker using explicit annotations only
 /// Users must mark enum fields with `#[crudcrate(enum_field)]` for enum filtering to work
 pub fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::TokenStream {

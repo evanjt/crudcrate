@@ -2,7 +2,7 @@ use crate::codegen::{
     handlers::{create, delete, get, update},
     type_resolution::{
         generate_crud_type_aliases, generate_enum_field_checker, generate_field_entries,
-        generate_fulltext_field_entries, generate_id_column, generate_like_filterable_entries,
+        generate_id_column, generate_like_filterable_entries,
     },
 };
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
@@ -28,7 +28,7 @@ pub(crate) fn generate_crud_resource_impl(
     let sortable_entries = generate_field_entries(&analysis.sortable_fields);
     let filterable_entries = generate_field_entries(&analysis.filterable_fields);
     let like_filterable_entries = generate_like_filterable_entries(&analysis.filterable_fields);
-    let fulltext_entries = generate_fulltext_field_entries(&analysis.fulltext_fields);
+    let fulltext_entries = generate_field_entries(&analysis.fulltext_fields);
     let enum_field_checker = generate_enum_field_checker(&analysis.db_fields);
     let name_singular = crud_meta.name_singular.as_deref().unwrap_or("resource");
     let description = crud_meta.description.as_deref().unwrap_or("");
