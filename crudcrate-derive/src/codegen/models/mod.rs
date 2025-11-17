@@ -1,5 +1,7 @@
+pub mod api_struct;
 pub mod create;
 pub mod list;
+pub mod merge;
 pub mod response;
 pub mod shared;
 pub mod update;

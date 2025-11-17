@@ -11,9 +11,8 @@ mod macro_implementation;
 mod relation_validator;
 mod traits;
 
-use crate::codegen::joins::get_join_config;
 use proc_macro::TokenStream;
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::{DeriveInput, parse_macro_input};
 use traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 
@@ -35,176 +34,6 @@ fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_mac
     }
 }
 
-fn generate_included_merge_code(included_fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    included_fields
-        .iter()
-        .filter(|field| {
-            !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
-        })
-        .map(|field| {
-            let ident = &field.ident;
-            let is_optional = fields::field_is_optional(field);
-
-            if is_optional {
-                quote! {
-                    model.#ident = match self.#ident {
-                        Some(Some(value)) => sea_orm::ActiveValue::Set(Some(value.into())),
-                        Some(None)      => sea_orm::ActiveValue::Set(None),
-                        None            => sea_orm::ActiveValue::NotSet,
-                    };
-                }
-            } else {
-                quote! {
-                    model.#ident = match self.#ident {
-                        Some(Some(value)) => sea_orm::ActiveValue::Set(value.into()),
-                        Some(None) => {
-                            return Err(sea_orm::DbErr::Custom(format!(
-                                "Field '{}' is required and cannot be set to null",
-                                stringify!(#ident)
-                            )));
-                        },
-                        None => sea_orm::ActiveValue::NotSet,
-                    };
-                }
-            }
-        })
-        .collect()
-}
-
-fn generate_excluded_merge_code(
-    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Vec<proc_macro2::TokenStream> {
-    use codegen::models::shared::generate_active_value_assignment;
-
-    fields
-        .iter()
-        .filter(|field| {
-            attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-                && !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
-        })
-        .filter_map(|field| {
-            attribute_parser::get_crudcrate_expr(field, "on_update").map(|expr| {
-                let ident = field.ident.as_ref().unwrap();
-                let is_optional = fields::field_is_optional(field);
-                generate_active_value_assignment(ident, &expr, is_optional)
-            })
-        })
-        .collect()
-}
-
-fn generate_api_struct_content(
-    analysis: &EntityFieldAnalysis,
-) -> (
-    Vec<proc_macro2::TokenStream>,
-    Vec<proc_macro2::TokenStream>,
-) {
-    let mut api_struct_fields = Vec::new();
-    let mut from_model_assignments = Vec::new();
-
-    for field in &analysis.db_fields {
-        let field_name = &field.ident;
-        let field_type = &field.ty;
-
-        let api_field_attrs: Vec<_> = field
-            .attrs
-            .iter()
-            .filter(|attr| !attr.path().is_ident("sea_orm"))
-            .collect();
-
-        api_struct_fields.push(quote! {
-            #(#api_field_attrs)*
-            pub #field_name: #field_type
-        });
-
-        // Also populate the From<Model> assignment for this field (since it exists in the struct)
-        let assignment = if field_type
-            .to_token_stream()
-            .to_string()
-            .contains("DateTimeWithTimeZone")
-        {
-            if fields::field_is_optional(field) {
-                quote! {
-                    #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
-                }
-            } else {
-                quote! {
-                    #field_name: model.#field_name.with_timezone(&chrono::Utc)
-                }
-            }
-        } else {
-            quote! {
-                #field_name: model.#field_name
-            }
-        };
-
-        from_model_assignments.push(assignment);
-    }
-
-    for field in &analysis.non_db_fields {
-        let field_name = &field.ident;
-        let field_type = &field.ty;
-
-        let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
-            .unwrap_or_else(|| syn::parse_quote!(Default::default()));
-
-        // Preserve all original crudcrate attributes while ensuring required ones are present
-        let crudcrate_attrs: Vec<_> = field
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("crudcrate"))
-            .collect();
-
-        // Add schema(no_recursion) attribute for join fields to prevent circular dependencies
-        // This is the proper utoipa way to handle recursive relationships
-        let schema_attrs = if get_join_config(field).is_some() {
-            quote! { #[schema(no_recursion)] }
-        } else {
-            quote! {}
-        };
-
-        let final_field_type = quote! { #field_type };
-
-        let field_definition = quote! {
-            #schema_attrs
-            #(#crudcrate_attrs)*
-            pub #field_name: #final_field_type
-        };
-
-        api_struct_fields.push(field_definition);
-
-        let assignment = if get_join_config(field).is_some() {
-            let empty_value = if let Ok(syn::Type::Path(type_path)) =
-                syn::parse2::<syn::Type>(quote! { #final_field_type })
-            {
-                if let Some(segment) = type_path.path.segments.last() {
-                    if segment.ident == "Vec" {
-                        quote! { vec![] }
-                    } else if segment.ident == "Option" {
-                        quote! { None }
-                    } else {
-                        quote! { Default::default() }
-                    }
-                } else {
-                    quote! { Default::default() }
-                }
-            } else {
-                quote! { Default::default() }
-            };
-
-            quote! {
-                #field_name: #empty_value
-            }
-        } else {
-            quote! {
-                #field_name: #default_expr
-            }
-        };
-
-        from_model_assignments.push(assignment);
-    }
-
-    (api_struct_fields, from_model_assignments)
-}
 
 fn generate_api_struct(
     api_struct_name: &syn::Ident,
@@ -365,8 +194,8 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let included_fields = crate::codegen::models::update::filter_update_fields(&fields);
     let update_struct_fields =
         crate::codegen::models::update::generate_update_struct_fields(&included_fields);
-    let included_merge = generate_included_merge_code(&included_fields);
-    let excluded_merge = generate_excluded_merge_code(&fields);
+    let included_merge = codegen::models::merge::generate_included_merge_code(&included_fields);
+    let excluded_merge = codegen::models::merge::generate_excluded_merge_code(&fields);
 
     // Always include ToSchema for Update models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -747,7 +576,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
 
     // Generate core API model components
     let (api_struct_fields, from_model_assignments) =
-        generate_api_struct_content(&field_analysis);
+        codegen::models::api_struct::generate_api_struct_content(&field_analysis);
     let api_struct = generate_api_struct(
         &api_struct_name,
         &api_struct_fields,
