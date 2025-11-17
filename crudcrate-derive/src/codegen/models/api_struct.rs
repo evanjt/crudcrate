@@ -5,11 +5,12 @@
 //! - From<Model> conversion assignments
 //! - DateTime timezone conversion
 //! - Join field initialization
+//! - Derive clause generation based on requirements
 
 use crate::attribute_parser;
 use crate::codegen::joins::get_join_config;
 use crate::fields;
-use crate::traits::crudresource::structs::EntityFieldAnalysis;
+use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::{quote, ToTokens};
 
 /// Generates API struct fields and From<Model> conversion assignments
@@ -130,4 +131,61 @@ pub(crate) fn generate_api_struct_content(
     }
 
     (api_struct_fields, from_model_assignments)
+}
+
+/// Generates the complete API struct definition with derives
+/// Determines which derives to include based on field requirements
+pub(crate) fn generate_api_struct(
+    api_struct_name: &syn::Ident,
+    api_struct_fields: &[proc_macro2::TokenStream],
+    active_model_path: &str,
+    crud_meta: &CRUDResourceMeta,
+    analysis: &EntityFieldAnalysis,
+) -> proc_macro2::TokenStream {
+    // Check if we have join fields that require Default implementation
+    let has_join_fields =
+        !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
+
+    // Check if any non-db fields need Default (for join loading or excluded fields)
+    let has_fields_needing_default = has_join_fields
+        || analysis.non_db_fields.iter().any(|field| {
+            // Fields excluded from create/update need Default for join loading
+            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
+                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+        })
+        || analysis.db_fields.iter().any(|field| {
+            // Database fields excluded from create/update need Default
+            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
+                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+        });
+
+    // Build derive clause declaratively based on requirements
+    let derives: Vec<_> = [
+        (true, quote!(Clone)),
+        (true, quote!(Debug)),
+        (true, quote!(Serialize)),
+        (true, quote!(Deserialize)),
+        (true, quote!(ToCreateModel)),
+        (true, quote!(ToUpdateModel)),
+        (true, quote!(ToSchema)),
+        (has_fields_needing_default && !has_join_fields, quote!(Default)),
+        (crud_meta.derive_partial_eq, quote!(PartialEq)),
+        (crud_meta.derive_eq, quote!(Eq)),
+    ]
+    .into_iter()
+    .filter_map(|(include, derive)| include.then_some(derive))
+    .collect();
+
+    quote! {
+        use sea_orm::ActiveValue;
+        use utoipa::ToSchema;
+        use serde::{Serialize, Deserialize};
+        use crudcrate::{ToUpdateModel, ToCreateModel};
+
+        #[derive(#(#derives),*)]
+        #[active_model = #active_model_path]
+        pub struct #api_struct_name {
+            #(#api_struct_fields),*
+        }
+    }
 }

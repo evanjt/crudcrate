@@ -35,95 +35,9 @@ fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_mac
 }
 
 
-fn generate_api_struct(
-    api_struct_name: &syn::Ident,
-    api_struct_fields: &[proc_macro2::TokenStream],
-    active_model_path: &str,
-    crud_meta: &crate::traits::crudresource::structs::CRUDResourceMeta,
-    analysis: &EntityFieldAnalysis,
-) -> proc_macro2::TokenStream {
-    // Check if we have join fields that require Default implementation
-    let has_join_fields =
-        !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
-
-    // Check if any non-db fields need Default (for join loading or excluded fields)
-    let has_fields_needing_default = has_join_fields
-        || analysis.non_db_fields.iter().any(|field| {
-            // Fields excluded from create/update need Default for join loading
-            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
-                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-        })
-        || analysis.db_fields.iter().any(|field| {
-            // Database fields excluded from create/update need Default
-            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
-                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-        });
-
-    // Build derive clause declaratively based on requirements
-    let derives: Vec<_> = [
-        (true, quote!(Clone)),
-        (true, quote!(Debug)),
-        (true, quote!(Serialize)),
-        (true, quote!(Deserialize)),
-        (true, quote!(ToCreateModel)),
-        (true, quote!(ToUpdateModel)),
-        (true, quote!(ToSchema)),
-        (has_fields_needing_default && !has_join_fields, quote!(Default)),
-        (crud_meta.derive_partial_eq, quote!(PartialEq)),
-        (crud_meta.derive_eq, quote!(Eq)),
-    ]
-    .into_iter()
-    .filter_map(|(include, derive)| include.then_some(derive))
-    .collect();
-
-    // No import generation needed - types are used as-written
-
-    quote! {
-        use sea_orm::ActiveValue;
-        use utoipa::ToSchema;
-        use serde::{Serialize, Deserialize};
-        use crudcrate::{ToUpdateModel, ToCreateModel};
-
-        #[derive(#(#derives),*)]
-        #[active_model = #active_model_path]
-        pub struct #api_struct_name {
-            #(#api_struct_fields),*
-        }
-    }
-}
-
-/// ===================
-/// `ToCreateModel` Macro
-/// ===================
-/// This macro:
-/// 1. Generates a struct named `<OriginalName>Create` that includes only the fields
-///    where `#[crudcrate(create_model = false)]` is NOT specified (default = true).
-///    If a field has an `on_create` expression, its type becomes `Option<…>`
-///    (with `#[serde(default)]`) so the user can override that default.
-/// 2. Generates an `impl From<<OriginalName>Create> for <ActiveModelType>>` where:
-///    - For each field with `on_create`:
-///       - If the original type was `Option<T>`, then `create.<field>` is `Option<Option<T>>`.
-///         We match on that and do:
-///           ```rust,ignore
-///           match create.field {
-///             Some(Some(v)) => Some(v.into()),      // user overrode with T
-///             Some(None)    => None,                // user explicitly set null
-///             None          => Some((expr).into()), // fallback to expr
-///           }
-///           ```
-///       - If the original type was non‐optional `T`, then `create.<field>` is `Option<T>`.
-///         We match on that and do:
-///           ```rust,ignore
-///           match create.field {
-///             Some(v) => v.into(),
-///             None    => (expr).into(),
-///           }
-///           ```
-///    - For each field without `on_create`:
-///       - If the original type was `Option<T>`, we do `create.<field>.map(|v| v.into())`.
-///       - If it was non‐optional `T`, we do `create.<field>.into()`.
-///    - For any field excluded (`create_model = false`) but having `on_create`, we do
-///      `Some((expr).into())` if it was `Option<T>`, or just `(expr).into()` otherwise.
+/// Generates `<Name>Create` struct with fields not excluded by `exclude(create)`.
+/// Fields with `on_create` become `Option<T>` to allow user override.
+/// Implements `From<NameCreate>` for ActiveModel with automatic value generation.
 #[proc_macro_derive(ToCreateModel, attributes(crudcrate, active_model))]
 pub fn to_create_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -158,31 +72,9 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// ===================
-/// `ToUpdateModel` Macro
-/// ===================
-/// This macro:
-/// 1. Generates a struct named `<OriginalName>Update` that includes only the fields
-///    where `#[crudcrate(update_model = false)]` is NOT specified (default = true).
-/// 2. Generates an impl for a method
-///    `merge_into_activemodel(self, mut model: ActiveModelType) -> ActiveModelType`
-///    that, for each field:
-///    - If it's included in the update struct, and the user provided a value:
-///       - If the original field type was `Option<T>`, we match on
-///         `Option<Option<T>>`:
-///           ```rust,ignore
-///           Some(Some(v)) => ActiveValue::Set(Some(v.into())),
-///           Some(None)    => ActiveValue::Set(None),     // explicit set to None
-///           None          => ActiveValue::NotSet,       // no change
-///           ```
-///       - If the original field type was non‐optional `T`, we match on `Option<T>`:
-///           ```rust,ignore
-///           Some(val) => ActiveValue::Set(val.into()),
-///           _         => ActiveValue::NotSet,
-///           ```
-///    - If it's excluded (`update_model = false`) but has `on_update = expr`, we do
-///      `ActiveValue::Set(expr.into())` (wrapped in `Some(...)` if the original field was `Option<T>`).
-///    - All other fields remain unchanged.
+/// Generates `<Name>Update` struct with fields not excluded by `exclude(update)`.
+/// All fields are `Option<Option<T>>` to support partial updates and explicit null.
+/// Implements `MergeIntoActiveModel` trait with `on_update` expression handling.
 #[proc_macro_derive(ToUpdateModel, attributes(crudcrate, active_model))]
 pub fn to_update_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -226,43 +118,9 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// ===================
-/// `ToListModel` Macro
-/// ===================
-/// This macro generates a struct named `<OriginalName>List` that includes only the fields
-/// where `#[crudcrate(list_model = false)]` is NOT specified (default = true).
-/// This allows creating optimized list views by excluding heavy fields like relationships,
-/// large text fields, or computed properties from collection endpoints.
-///
-/// Generated struct:
-/// ```rust,ignore
-/// #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-/// pub struct <OriginalName>List {
-///     // All fields where list_model != false
-///     pub field_name: FieldType,
-/// }
-///
-/// impl From<Model> for <OriginalName>List {
-///     fn from(model: Model) -> Self {
-///         Self {
-///             field_name: model.field_name,
-///             // ... other included fields
-///         }
-///     }
-/// }
-/// ```
-///
-/// Usage:
-/// ```rust,ignore
-/// pub struct Model {
-///     pub id: Uuid,
-///     pub name: String,
-///     #[crudcrate(list_model = false)]  // Exclude from list view
-///     pub large_description: Option<String>,
-///     #[crudcrate(list_model = false)]  // Exclude relationships from list
-///     pub related_items: Vec<RelatedItem>,
-/// }
-/// ```
+/// Generates `<Name>List` struct with fields not excluded by `exclude(list)`.
+/// Optimizes API payloads by excluding heavy fields (joins, large text) from list endpoints.
+/// Implements `From<Name>` and `From<Model>` conversions.
 #[proc_macro_derive(ToListModel, attributes(crudcrate))]
 pub fn to_list_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -296,167 +154,13 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// =====================
-/// `EntityToModels` Macro
-/// =====================
-/// This macro generates an API struct from a Sea-ORM entity Model struct, along with
-/// `ToCreateModel` and `ToUpdateModel` implementations.
+/// Generates complete CRUD API structures from Sea-ORM entities.
 ///
-/// ## Available Struct-Level Attributes
+/// Creates API struct, List/Response models, and CRUDResource implementation.
+/// Supports custom functions, joins, filtering, sorting, and fulltext search.
 ///
-/// ```rust,ignore
-/// #[crudcrate(
-///     api_struct = "TodoItem",              // Override API struct name
-///     active_model = "ActiveModel",         // Override ActiveModel path
-///     name_singular = "todo",               // Resource name (singular)
-///     name_plural = "todos",                // Resource name (plural)
-///     description = "Manages todo items",   // Resource description
-///     entity_type = "Entity",               // Entity type for CRUDResource
-///     column_type = "Column",               // Column type for CRUDResource
-///     fn_get_one = self::custom_get_one,    // Custom get_one function
-///     fn_get_all = self::custom_get_all,    // Custom get_all function
-///     fn_create = self::custom_create,      // Custom create function
-///     fn_update = self::custom_update,      // Custom update function
-///     fn_delete = self::custom_delete,      // Custom delete function
-///     fn_delete_many = self::custom_delete_many, // Custom delete_many function
-/// )]
-/// ```
-///
-/// ## Available Field-Level Attributes
-///
-/// ```rust,ignore
-/// #[crudcrate(
-///     primary_key,                          // Mark as primary key
-///     sortable,                             // Include in sortable columns
-///     filterable,                           // Include in filterable columns
-///     create_model = false,                 // Exclude from Create model
-///     update_model = false,                 // Exclude from Update model
-///     on_create = Uuid::new_v4(),          // Auto-generate on create
-///     on_update = chrono::Utc::now(),      // Auto-update on update
-///     non_db_attr = true,                  // Non-database field
-///     default = vec![],                    // Default for non-DB fields
-///     use_target_models,                   // Use target's Create/Update models for relationships
-/// )]
-/// ```
-///
-/// Usage:
-/// ```ignore
-/// use uuid::Uuid;
-/// #[derive(EntityToModels)]
-/// #[crudcrate(api_struct = "Experiment", active_model = "spice_entity::experiments::ActiveModel")]
-/// pub struct Model {
-///     #[crudcrate(update_model = false, create_model = false, on_create = Uuid::new_v4())]
-///     pub id: Uuid,
-///     pub name: String,
-///     #[crudcrate(non_db_attr = true, default = vec![])]
-///     pub regions: Vec<RegionInput>,
-/// }
-/// ```
-///
-/// This generates:
-/// - An API struct with the specified name (e.g., `EntityName`)
-/// - `ToCreateModel` and `ToUpdateModel` implementations
-/// - `From<Model>` implementation for the API struct
-/// - Support for non-db attributes
-///
-/// Derive macro for generating complete CRUD API structures from Sea-ORM entities.
-///
-/// # Struct-Level Attributes (all optional)
-///
-/// **Boolean Flags** (can be used as just `flag` or `flag = true/false`):
-/// - `generate_router` - Auto-generate Axum router with all CRUD endpoints
-/// - `debug_output` - Print generated code to console (requires `--features debug`)
-///
-/// **Named Parameters**:
-/// - `api_struct = "Name"` - Override API struct name (default: table name in `PascalCase`)
-/// - `active_model = "Path"` - Override `ActiveModel` path (default: `ActiveModel`)
-/// - `name_singular = "name"` - Resource singular name (default: table name)
-/// - `name_plural = "names"` - Resource plural name (default: singular + "s")
-/// - `description = "desc"` - Resource description for documentation
-/// - `entity_type = "Entity"` - Entity type for `CRUDResource` (default: "Entity")
-/// - `column_type = "Column"` - Column type for `CRUDResource` (default: "Column")
-/// - `fulltext_language = "english"` - Default language for full-text search
-///
-/// **Function Overrides** (for custom CRUD behavior):
-/// - `fn_get_one = path::to::function` - Custom `get_one` function override
-/// - `fn_get_all = path::to::function` - Custom `get_all` function override
-/// - `fn_create = path::to::function` - Custom create function override
-/// - `fn_update = path::to::function` - Custom update function override
-/// - `fn_delete = path::to::function` - Custom delete function override
-/// - `fn_delete_many = path::to::function` - Custom `delete_many` function override
-///
-/// # Field-Level Attributes
-///
-/// **Boolean Flags** (can be used as just `flag` or `flag = true/false`):
-/// - `primary_key` - Mark field as primary key (only one allowed)
-/// - `sortable` - Include field in `sortable_columns()`
-/// - `filterable` - Include field in `filterable_columns()`
-/// - `fulltext` - Enable full-text search for this field
-/// - `non_db_attr` - Field is not in database, won't appear in DB operations
-/// - `use_target_models` - Use target's Create/Update models instead of full entity model
-///
-/// **Named Parameters**:
-/// - `create_model = false` - Exclude from Create model (default: true)
-/// - `update_model = false` - Exclude from Update model (default: true)
-/// - `list_model = false` - Exclude from List model (default: true)
-/// - `on_create = expression` - Auto-generate value on create (e.g., `Uuid::new_v4()`)
-/// - `on_update = expression` - Auto-generate value on update (e.g., `Utc::now()`)
-/// - `default = expression` - Default value for non-DB fields
-/// - `fulltext_language = "english"` - Language for full-text search
-///
-/// **Model Exclusion** (Rust-idiomatic alternative to negative boolean flags):
-/// - `exclude(create)` - Exclude from Create model (same as `create_model = false`)
-/// - `exclude(update)` - Exclude from Update model (same as `update_model = false`)
-/// - `exclude(list)` - Exclude from List model (same as `list_model = false`)
-/// - `exclude(create, update)` - Exclude from multiple models
-/// - `exclude(create, update, list)` - Exclude from all models
-///
-/// **Join Configuration** (for relationship loading):
-/// - `join(one)` - Load this relationship in `get_one()` calls
-/// - `join(all)` - Load this relationship in `get_all()` calls
-/// - `join(one, all)` - Load in both `get_one()` and `get_all()` calls
-/// - `join(one, all, depth = 2)` - Recursive loading with specified depth
-/// - `join(one, all, relation = "CustomRelation")` - Use custom Sea-ORM relation name
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use uuid::Uuid;
-/// use crudcrate_derive::EntityToModels;
-/// use sea_orm::prelude::*;
-///
-/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-/// #[sea_orm(table_name = "customers")]
-/// #[crudcrate(api_struct = "EntityName", generate_router)]
-/// pub struct Model {
-///     #[sea_orm(primary_key, auto_increment = false)]
-///     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-///     pub id: Uuid,
-///
-///     #[crudcrate(sortable, filterable)]
-///     pub name: String,
-///
-///     #[crudcrate(filterable)]
-///     pub email: String,
-///
-///     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
-///     pub created_at: DateTime<Utc>,
-///
-///     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
-///     pub updated_at: DateTime<Utc>,
-///
-///     // Join field - loads vehicles automatically with depth=3 recursive loading
-///     #[sea_orm(ignore)]
-///     #[crudcrate(non_db_attr, join(one, all))]  // depth=3 by default
-///     pub related_entities: Vec<RelatedEntity>,
-/// }
-///
-/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-/// pub enum Relation {}
-///
-/// impl ActiveModelBehavior for ActiveModel {}
-/// ```
-///
+/// Key attributes: `api_struct`, `generate_router`, `exclude()`, `join()`, `on_create/update`.
+/// See crate documentation for full attribute reference and examples.
 /// Generate list and response models
 fn generate_list_and_response_models(
     input: &DeriveInput,
@@ -577,7 +281,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     // Generate core API model components
     let (api_struct_fields, from_model_assignments) =
         codegen::models::api_struct::generate_api_struct_content(&field_analysis);
-    let api_struct = generate_api_struct(
+    let api_struct = codegen::models::api_struct::generate_api_struct(
         &api_struct_name,
         &api_struct_fields,
         &active_model_path,
