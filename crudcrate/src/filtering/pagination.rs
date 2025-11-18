@@ -48,13 +48,22 @@ mod tests {
         assert_eq!(value, "users 0-9/100");
     }
 
-    /// Test that resource names with special characters cause panic - DOCUMENTS VULNERABILITY
+    /// TDD: Resource names with special characters should be handled gracefully
+    /// This test will FAIL until we add proper error handling
     #[test]
-    #[should_panic(expected = "InvalidHeaderValue")]
-    fn test_content_range_panic_on_newline() {
-        // VULNERABILITY: Resource names with newlines will panic
-        let _headers = calculate_content_range(0, 10, 100, "users\r\nInjected: evil");
-        // This panics because newlines aren't allowed in HTTP headers
+    fn test_content_range_handles_special_chars_gracefully() {
+        // Should NOT panic - should sanitize or return error
+        let headers = calculate_content_range(0, 10, 100, "users\r\nInjected: evil");
+
+        // After fix: Should either sanitize the name or use a safe fallback
+        let value = headers.get("Content-Range");
+        assert!(value.is_some(), "Should return a valid header even with bad input");
+
+        // The value should not contain the injection attempt
+        if let Some(val) = value {
+            let val_str = val.to_str().unwrap_or("");
+            assert!(!val_str.contains("Injected"), "Should not contain injection attempt");
+        }
     }
 
     /// Test that resource names with unicode might cause issues

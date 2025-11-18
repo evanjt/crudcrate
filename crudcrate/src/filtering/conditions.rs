@@ -434,52 +434,76 @@ mod tests {
         assert!(!validate_field_value(&too_long_value), "Overly long values should be invalid");
     }
 
-    /// Test pagination bounds - DOCUMENTS CURRENT VULNERABILITY
+    /// TDD: Pagination should enforce maximum page size
+    /// This test will FAIL until we add MAX_PAGE_SIZE enforcement
     #[test]
-    fn test_pagination_no_bounds_vulnerability_documented() {
-        // VULNERABILITY: No max limits on page size or offset
+    fn test_pagination_enforces_max_page_size() {
+        const MAX_PAGE_SIZE: u64 = 1000;
+
         let params = crate::models::FilterOptions {
-            page: Some(1_000_000),  // Huge page number
-            per_page: Some(999_999),  // Huge page size
+            page: Some(1),
+            per_page: Some(999_999),  // Requesting huge page size
             ..Default::default()
         };
 
-        let (offset, limit) = parse_pagination(&params);
+        let (_offset, limit) = parse_pagination(&params);
 
-        // Currently NO limits are enforced - this is a DoS vulnerability
-        assert!(offset > 100_000, "VULNERABILITY: No max offset limit");
-        assert!(limit > 10_000, "VULNERABILITY: No max page size limit");
-
-        // After fix, should enforce MAX_PAGE_SIZE and MAX_OFFSET
+        // After fix: Should be capped at MAX_PAGE_SIZE
+        assert!(
+            limit <= MAX_PAGE_SIZE,
+            "Page size should be capped at {}, got {}", MAX_PAGE_SIZE, limit
+        );
     }
 
-    /// Test pagination integer overflow protection
+    /// TDD: Pagination should enforce maximum offset
+    /// This test will FAIL until we add MAX_OFFSET enforcement
     #[test]
-    #[should_panic(expected = "attempt to multiply with overflow")]
-    fn test_pagination_overflow_causes_panic() {
-        // VULNERABILITY DOCUMENTED: Multiplication overflow causes panic in debug mode
+    fn test_pagination_enforces_max_offset() {
+        const MAX_OFFSET: u64 = 1_000_000;
+
+        let params = crate::models::FilterOptions {
+            page: Some(1_000_000),  // Huge page number
+            per_page: Some(100),
+            ..Default::default()
+        };
+
+        let (offset, _limit) = parse_pagination(&params);
+
+        // After fix: Should be capped at MAX_OFFSET
+        assert!(
+            offset <= MAX_OFFSET,
+            "Offset should be capped at {}, got {}", MAX_OFFSET, offset
+        );
+    }
+
+    /// TDD: Pagination should handle overflow with saturating_mul
+    /// This test will FAIL until we fix the overflow panic
+    #[test]
+    fn test_pagination_handles_overflow_gracefully() {
         let params = crate::models::FilterOptions {
             page: Some(u64::MAX),
             per_page: Some(u64::MAX),
             ..Default::default()
         };
 
+        // Should NOT panic - should use saturating arithmetic
         let (_offset, _limit) = parse_pagination(&params);
-        // This panics due to overflow: (u64::MAX - 1) * u64::MAX
+        // After fix: This should succeed without panic
     }
 
-    /// Test that build_like_condition is vulnerable to SQL injection in column names
+    /// TDD: Column names should be safely quoted, not interpolated
+    /// This test will FAIL until we fix SQL injection
     #[test]
-    fn test_like_condition_column_injection_vulnerability_documented() {
-        let malicious_column = "id); DROP TABLE users; --";
-        let result = build_like_condition(malicious_column, "safe_value");
+    fn test_like_condition_safely_quotes_column_names() {
+        let result = build_like_condition("title", "test");
         let sql = format!("{result:?}");
 
-        // VULNERABILITY CONFIRMED: Column name is directly interpolated
-        assert!(sql.contains(malicious_column),
-            "VULNERABILITY: Column name directly in SQL");
-
-        // After fix with Expr::col(), this should FAIL
+        // After fix: Should use Expr::col() which properly quotes identifiers
+        // Not just UPPER({key}) which is string interpolation
+        assert!(
+            sql.contains("\"title\"") || sql.contains("`title`") || !sql.contains("UPPER(title)"),
+            "Column should be properly quoted, got: {}", sql
+        );
     }
 
     /// Test that single quotes in values are properly escaped

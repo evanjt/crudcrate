@@ -98,38 +98,52 @@ pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sea_orm::sea_query::Expr;
 
-    /// Test that malicious column names are not directly interpolated into SQL
+    /// TDD: Column names should be safely quoted, not string-interpolated
+    /// This test will FAIL until we fix the SQL injection vulnerability
     #[test]
-    fn test_sql_injection_in_column_names() {
-        // These would be SQL injection attempts if column names come from user input
+    fn test_column_names_are_safely_quoted() {
+        // After fix: column names should be wrapped in proper quoting
+        let result = build_like_condition("user_name", "test");
+        let sql = format!("{result:?}");
+
+        // After fix with Expr::col(), SQL should contain quoted identifiers
+        // For now this will FAIL because we use format!("{key}")
+        assert!(
+            sql.contains("\"user_name\"") || sql.contains("`user_name`") || sql.contains("[user_name]"),
+            "Column names should be properly quoted, got: {}", sql
+        );
+    }
+
+    /// TDD: Malicious column names should be rejected or safely escaped
+    /// This test will FAIL until we add proper validation
+    #[test]
+    fn test_rejects_malicious_column_names() {
         let malicious_names = vec![
             "id); DROP TABLE users; --",
             "id' OR '1'='1",
-            "id; DELETE FROM users WHERE '1'='1",
-            "id\"; DROP TABLE users; --",
-            "id' UNION SELECT * FROM passwords --",
         ];
 
         for malicious_name in malicious_names {
-            // The current implementation uses format!() which is vulnerable
-            // This test documents the vulnerability
             let result = build_like_condition(malicious_name, "test");
             let sql = format!("{result:?}");
 
-            // After fix, these should NOT contain the raw malicious input
-            // For now, this test will PASS but documents the issue
-            assert!(sql.contains("UPPER"), "Should generate SQL, currently vulnerable to: {}", malicious_name);
+            // After fix: malicious SQL should NOT appear literally in output
+            // Should be quoted/escaped or rejected entirely
+            assert!(
+                !sql.contains("); DROP") && !sql.contains("' OR '"),
+                "Malicious SQL should be escaped/quoted, not literal: {}", sql
+            );
         }
     }
 
-    /// Test that search query values are properly escaped
+    /// Test that search query values are properly escaped (this one already works)
     #[test]
     fn test_search_query_value_escaping() {
         let malicious_values = vec![
             "'; DROP TABLE users; --",
             "' OR '1'='1",
-            "test' UNION SELECT * FROM passwords --",
         ];
 
         for malicious_value in malicious_values {
@@ -138,11 +152,10 @@ mod tests {
 
             // Single quotes should be doubled ('') to escape them
             assert!(sql.contains("''"), "Should escape single quotes for: {}", malicious_value);
-            // This prevents SQL injection - the '' becomes a literal quote in SQL
         }
     }
 
-    /// Test that excessively long queries are truncated
+    /// Test that excessively long queries are truncated (this one already works)
     #[test]
     fn test_search_query_length_limit() {
         let very_long_query = "a".repeat(20_000);
@@ -150,23 +163,5 @@ mod tests {
 
         assert!(sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
             "Query should be truncated to max length");
-    }
-
-    /// Test that column name interpolation creates potential SQL injection
-    /// This test DOCUMENTS the current vulnerability
-    #[test]
-    fn test_column_name_injection_vulnerability_documented() {
-        // CURRENT BEHAVIOR (VULNERABLE):
-        // Column names are directly interpolated via format!()
-        let malicious_column = "id); DROP TABLE users; --";
-        let result = build_like_condition(malicious_column, "safe_value");
-        let sql = format!("{result:?}");
-
-        // This currently DOES contain the malicious code (proving vulnerability)
-        assert!(sql.contains(malicious_column),
-            "VULNERABILITY CONFIRMED: Column name is directly interpolated");
-
-        // After fix with sea-query Expr::col(), this test should FAIL
-        // because column names will be properly quoted/validated
     }
 }
