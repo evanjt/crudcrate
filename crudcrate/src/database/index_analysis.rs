@@ -250,16 +250,21 @@ fn display_index_recommendations_internal(
 
 /// Register a model for automatic index analysis
 ///
-/// # Panics
-///
-/// This function may panic if the global index analyzers mutex is poisoned.
+/// If the global analyzers mutex is poisoned, this logs an error and skips registration.
+/// Index analysis is a diagnostic feature, so poisoning should not crash the application.
 pub fn register_analyser<T: crate::traits::CRUDResource + 'static>() {
     let analyser: IndexAnalyzer = Box::new(|db: &DatabaseConnection| {
         let db = db.clone();
         Box::pin(async move { analyse_indexes_for_resource::<T>(&db).await })
     });
 
-    GLOBAL_ANALYZERS.lock().unwrap().push(analyser);
+    match GLOBAL_ANALYZERS.lock() {
+        Ok(mut guard) => guard.push(analyser),
+        Err(e) => {
+            eprintln!("Warning: Failed to register index analyzer due to poisoned mutex: {}", e);
+            eprintln!("Index analysis will not be available for this resource");
+        }
+    }
 }
 
 /// Run index analysis for all registered models with optional SQL examples
@@ -289,9 +294,8 @@ pub fn register_analyser<T: crate::traits::CRUDResource + 'static>() {
 ///
 /// Returns a `sea_orm::DbErr` if database operations fail during index analysis.
 ///
-/// # Panics
-///
-/// This function panics if the global analyzers mutex is poisoned.
+/// If the global analyzers mutex is poisoned, this function will attempt to recover
+/// the data and continue. Index analysis is a diagnostic feature, not critical functionality.
 #[allow(clippy::await_holding_lock)]
 pub async fn analyse_all_registered_models(
     db: &DatabaseConnection,
@@ -300,7 +304,13 @@ pub async fn analyse_all_registered_models(
     let mut all_recommendations = Vec::new();
 
     {
-        let guard = GLOBAL_ANALYZERS.lock().unwrap();
+        let guard = match GLOBAL_ANALYZERS.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                eprintln!("Warning: Index analyzers mutex was poisoned, recovering data");
+                poisoned.into_inner()
+            }
+        };
         for analyser in guard.iter() {
             let recommendations = analyser(db).await?;
             all_recommendations.extend(recommendations);
