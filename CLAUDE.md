@@ -1274,7 +1274,7 @@ let guard = match GLOBAL_ANALYZERS.lock() {
 | 🟢 Quick | Inline trivial wrappers | search.rs, pagination.rs | 24 | ✅ Done |
 | 🔴 Critical | Consolidate sorting logic | sort.rs | 50 | ⏳ Pending |
 | 🔴 Critical | Reduce test code overhead | conditions.rs | 100 | ⏳ Pending |
-| 🔴 Critical | Consolidate comparison functions | conditions.rs | 15 | ⏳ Pending |
+| 🔴 Critical | Consolidate comparison functions | conditions.rs | 15 | ✅ Done |
 | 🔴 Critical | Extract quote_identifier pattern | index_analysis.rs | 35 | ⏳ Pending |
 | 🟠 High | Simplify index display logic | index_analysis.rs | 35 | ⏳ Pending |
 | 🟠 High | Consolidate filter processing | conditions.rs | 22 | ⏳ Pending |
@@ -1293,13 +1293,22 @@ let guard = match GLOBAL_ANALYZERS.lock() {
 
 ---
 
-### Session 2: Consolidate Numeric Comparisons (Target: 15 lines)
+### Session 2: Consolidate Numeric Comparisons ✅ COMPLETE
 
 **Task**: Merge `apply_numeric_comparison()` and `apply_float_comparison()` into single generic function
 
-**Current Problem**: Identical 15-line functions differing only in type (i64 vs f64)
+**Result**: -15 lines, 100% tests passing (21/21)
+**Commit**: 43c71a6
 
-**Approach**: Use generic `Into<sea_orm::Value>` bound to accept both types
+---
 
-**Expected Result**: -15 lines, 100% tests passing
+### Session 3: Extract Quote Identifier Helper (Target: 35 lines)
+
+**Task**: Create SqlIdentifiers struct to eliminate repetitive quote_identifier() calls
+
+**Current Problem**: 13 separate calls with temp variables, pattern repeated throughout file
+
+**Approach**: Create builder struct with methods like `build_index_sql()`, `build_table_ref()`
+
+**Expected Result**: -35 lines, cleaner SQL generation code
 
