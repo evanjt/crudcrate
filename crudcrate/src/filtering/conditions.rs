@@ -9,6 +9,8 @@ use super::search::build_fulltext_condition;
 
 // Basic safety limits
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
+const MAX_PAGE_SIZE: u64 = 1000;
+const MAX_OFFSET: u64 = 1_000_000;
 
 /// Basic field name validation
 fn is_valid_field_name(field_name: &str) -> bool {
@@ -349,13 +351,22 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 #[must_use] pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
-        let offset = (page.saturating_sub(1)) * per_page;
-        (offset, per_page)
+        // Enforce maximum page size to prevent DoS
+        let safe_per_page = per_page.min(MAX_PAGE_SIZE);
+
+        // Use saturating_mul to prevent overflow panic
+        let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
+
+        // Enforce maximum offset to prevent excessive database queries
+        let safe_offset = offset.min(MAX_OFFSET);
+
+        (safe_offset, safe_per_page)
     } else if let Some(range) = &params.range {
         // React Admin pagination
         let (start, end) = parse_range(Some(range.clone()));
-        let limit = end.saturating_sub(start) + 1;
-        (start, limit)
+        let limit = (end.saturating_sub(start) + 1).min(MAX_PAGE_SIZE);
+        let safe_start = start.min(MAX_OFFSET);
+        (safe_start, limit)
     } else {
         // Default pagination
         (0, 10)
