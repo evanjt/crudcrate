@@ -74,7 +74,7 @@ fn generate_join_loading_impl(
                 // Depth=1: Load data, no recursion
                 let loaded_var = quote::format_ident!("loaded_{}", field_name);
                 loading_statements.push(quote! {
-                    let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                    let related_models = model.find_related(#entity_path).all(db).await?;
                     let #loaded_var: Vec<#api_struct_type> = related_models
                         .into_iter()
                         .map(Into::into)
@@ -84,7 +84,7 @@ fn generate_join_loading_impl(
             } else {
                 // Unlimited depth: Recursive loading via get_one()
                 loading_statements.push(quote! {
-                    let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
+                    let related_models = model.find_related(#entity_path).all(db).await?;
                     let mut #field_name = Vec::new();
                     for related_model in related_models {
                         match #api_struct_type::get_one(db, related_model.id).await {
@@ -106,17 +106,16 @@ fn generate_join_loading_impl(
                     let #loaded_var = model
                         .find_related(#entity_path)
                         .one(db)
-                        .await
-                        .unwrap_or_default()
+                        .await?
                         .map(Into::into);
                 });
                 field_assignments.push(quote! {
-                    result.#field_name = #loaded_var.unwrap_or_default();
+                    result.#field_name = #loaded_var;
                 });
             } else {
                 // Unlimited depth: Recursive loading via get_one()
                 loading_statements.push(quote! {
-                    let #field_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
+                    let #field_name = match model.find_related(#entity_path).one(db).await? {
                         Some(related_model) => {
                             match #target_type::get_one(db, related_model.id).await {
                                 Ok(entity) => Some(entity),
@@ -127,7 +126,7 @@ fn generate_join_loading_impl(
                     };
                 });
                 field_assignments.push(quote! {
-                    result.#field_name = #field_name.unwrap_or_default();
+                    result.#field_name = #field_name;
                 });
             }
         }
