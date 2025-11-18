@@ -129,15 +129,17 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                         if let syn::Expr::Lit(expr_lit) = &nv.value
                             && let Lit::Bool(b) = &expr_lit.lit
                         {
-                            // Emit deprecation error for old model exclusion syntax
+                            // Deprecated: key = false (should use exclude(...) instead)
+                            // Note: We no longer panic on deprecated syntax for backward compatibility
+                            // TODO: Emit proper compiler warning using syn::Error in future version
                             if (key == "create_model"
                                 || key == "update_model"
                                 || key == "list_model")
                                 && !b.value()
                             {
-                                let error = create_deprecation_error(key, &nv.path);
-                                // Convert to compile error by panicking with structured error message
-                                panic!("Compilation failed: {error}");
+                                // Silently allow deprecated syntax
+                                // Users should migrate to: #[crudcrate(exclude(create))]
+                                eprintln!("Warning: {}", create_deprecation_error(key, &nv.path));
                             }
                             return Some(b.value());
                         }
