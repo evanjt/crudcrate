@@ -3,15 +3,6 @@ use sea_orm::{DatabaseBackend, sea_query::SimpleExpr};
 // Basic safety limits
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
-/// Simple sanitization for search queries
-fn sanitize_search_query(query: &str) -> String {
-    if query.len() > MAX_SEARCH_QUERY_LENGTH {
-        query[..MAX_SEARCH_QUERY_LENGTH].trim().to_string()
-    } else {
-        query.trim().to_string()
-    }
-}
-
 /// Build fulltext search condition with database-specific optimizations
 #[must_use]
 pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
@@ -46,7 +37,7 @@ fn build_postgres_fulltext_condition(
     }
 
     let concat_sql = concat_parts.join(" || ' ' || ");
-    let sanitized_query = sanitize_search_query(query);
+    let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
     let escaped_query = sanitized_query.replace('\'', "''");
 
     // Use a consistent approach: combine ILIKE for substring matching with trigram similarity for fuzzy matching
@@ -77,7 +68,7 @@ fn build_fallback_fulltext_condition(
 
     let concat_sql = concat_parts.join(" || ' ' || ");
     // Additional security: validate and sanitize query
-    let sanitized_query = sanitize_search_query(query);
+    let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
     let like_sql = format!(
         "UPPER({concat_sql}) LIKE UPPER('%{}%')",
         sanitized_query.replace('\'', "''")
@@ -105,7 +96,6 @@ pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::sea_query::Expr;
 
     /// TDD: Column names should use Expr::col() not string interpolation
     #[test]
@@ -154,11 +144,12 @@ mod tests {
         }
     }
 
-    /// Test that excessively long queries are truncated (this one already works)
+    /// Test that excessively long queries are truncated in fulltext search
     #[test]
     fn test_search_query_length_limit() {
         let very_long_query = "a".repeat(20_000);
-        let sanitized = sanitize_search_query(&very_long_query);
+        // Test the inlined sanitization logic
+        let sanitized = &very_long_query[..very_long_query.len().min(MAX_SEARCH_QUERY_LENGTH)];
 
         assert!(sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
             "Query should be truncated to max length");

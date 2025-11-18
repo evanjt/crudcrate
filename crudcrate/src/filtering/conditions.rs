@@ -5,7 +5,7 @@ use sea_orm::{
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use super::search::build_fulltext_condition;
+use super::search::{build_fulltext_condition, build_like_condition};
 
 // Basic safety limits
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
@@ -86,21 +86,6 @@ fn apply_float_comparison(
         _ => column.eq(value), // fallback to equality
     }
 }
-
-/// Build condition for string field with LIKE queries (case-insensitive)
-#[must_use] pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
-    use sea_orm::sea_query::{ExprTrait, Func};
-
-    // Use Expr::col() to properly quote column names instead of string interpolation
-    let column = Expr::col(Alias::new(key));
-
-    // Build UPPER(column) LIKE UPPER('%value%')
-    // Case-insensitive pattern matching
-    let pattern = format!("%{}%", trimmed_value.to_uppercase());
-
-    Func::upper(column).like(pattern)
-}
-
 
 fn parse_filter_json(filter_str: Option<String>) -> HashMap<String, serde_json::Value> {
     filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {

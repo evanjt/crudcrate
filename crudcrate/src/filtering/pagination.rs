@@ -1,14 +1,8 @@
 use axum::http::header::HeaderMap;
 
-/// Sanitize resource name for use in HTTP headers
-/// Removes control characters and other invalid header value characters
+/// Sanitize resource name by removing control characters for HTTP headers
 fn sanitize_resource_name(name: &str) -> String {
-    name.chars()
-        .filter(|c| {
-            // Keep only visible ASCII and space, reject control characters
-            c.is_ascii() && !c.is_ascii_control()
-        })
-        .collect()
+    name.chars().filter(|c| c.is_ascii() && !c.is_ascii_control()).collect()
 }
 
 /// Function to calculate the total count and generate the Content-Range header.
