@@ -126,7 +126,13 @@ where
 
     async fn total_count(db: &DatabaseConnection, condition: &Condition) -> u64 {
         let query = Self::EntityType::find().filter(condition.clone());
-        PaginatorTrait::count(query, db).await.unwrap()
+        match PaginatorTrait::count(query, db).await {
+            Ok(count) => count,
+            Err(e) => {
+                eprintln!("Database error in total_count: {}", e);
+                0
+            }
+        }
     }
 
     #[must_use]
