@@ -87,9 +87,16 @@ fn apply_float_comparison(
 
 /// Build condition for string field with LIKE queries (case-insensitive)
 #[must_use] pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
-    let escaped_value = trimmed_value.replace('\'', "''");
-    let like_sql = format!("UPPER({key}) LIKE UPPER('%{escaped_value}%')");
-    SimpleExpr::Custom(like_sql)
+    use sea_orm::sea_query::{ExprTrait, Func};
+
+    // Use Expr::col() to properly quote column names instead of string interpolation
+    let column = Expr::col(Alias::new(key));
+
+    // Build UPPER(column) LIKE UPPER('%value%')
+    // Case-insensitive pattern matching
+    let pattern = format!("%{}%", trimmed_value.to_uppercase());
+
+    Func::upper(column).like(pattern)
 }
 
 
@@ -491,32 +498,29 @@ mod tests {
         // After fix: This should succeed without panic
     }
 
-    /// TDD: Column names should be safely quoted, not interpolated
-    /// This test will FAIL until we fix SQL injection
+    /// TDD: Column names should use Expr::col() not string interpolation
     #[test]
-    fn test_like_condition_safely_quotes_column_names() {
+    fn test_like_condition_uses_expr_col() {
         let result = build_like_condition("title", "test");
         let sql = format!("{result:?}");
 
-        // After fix: Should use Expr::col() which properly quotes identifiers
-        // Not just UPPER({key}) which is string interpolation
+        // Verify we're using Expr::col() which wraps in Column()
+        // This proves we're NOT using format!("UPPER({key})") anymore
         assert!(
-            sql.contains("\"title\"") || sql.contains("`title`") || !sql.contains("UPPER(title)"),
-            "Column should be properly quoted, got: {}", sql
+            sql.contains("Column(") && sql.contains("title"),
+            "Column should be wrapped in Column() AST node, got: {}", sql
         );
     }
 
-    /// Test that single quotes in values are properly escaped
+    /// Test that values are safely wrapped
     #[test]
-    fn test_like_condition_value_escaping() {
+    fn test_like_condition_value_safe() {
         let malicious_value = "'; DROP TABLE users; --";
         let result = build_like_condition("title", malicious_value);
         let sql = format!("{result:?}");
 
-        // Single quotes should be doubled ('') which prevents SQL injection
-        assert!(sql.contains("''"), "Should escape single quotes");
-        // The literal string "'; DROP" should NOT appear unescaped
-        // After escaping it becomes "''; DROP" which is safe
+        // Values are wrapped in Value() which sea-query handles safely
+        assert!(sql.contains("Value(String"), "Values should be wrapped in Value(): {}", sql);
     }
 
     /// Test comparison operator parsing
