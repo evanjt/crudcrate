@@ -53,29 +53,11 @@ fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
     )
 }
 
-/// Apply numeric comparison for integer values
-fn apply_numeric_comparison(
-    field_name: &str,
-    operator: &str,
-    value: i64,
-) -> sea_orm::sea_query::SimpleExpr {
-    let column = Expr::col(Alias::new(field_name));
-    match operator {
-        ">=" => column.gte(value),
-        "<=" => column.lte(value),
-        ">" => column.gt(value),
-        "<" => column.lt(value),
-        "!=" => column.ne(value),
-        _ => column.eq(value), // fallback to equality
-    }
-}
-
-/// Apply numeric comparison for float values
-fn apply_float_comparison(
-    field_name: &str,
-    operator: &str,
-    value: f64,
-) -> sea_orm::sea_query::SimpleExpr {
+/// Apply numeric comparison for any numeric type (i64, f64, etc.)
+fn apply_numeric_comparison<V>(field_name: &str, operator: &str, value: V) -> SimpleExpr
+where
+    V: Into<sea_orm::Value> + Copy,
+{
     let column = Expr::col(Alias::new(field_name));
     match operator {
         ">=" => column.gte(value),
@@ -212,13 +194,9 @@ fn process_number_filter(
             .any(|(col_name, _)| *col_name == base_field)
         {
             if let Some(int_value) = number.as_i64() {
-                return Some(apply_numeric_comparison(
-                    base_field, operator, int_value,
-                ));
+                return Some(apply_numeric_comparison(base_field, operator, int_value));
             } else if let Some(float_value) = number.as_f64() {
-                return Some(apply_float_comparison(
-                    base_field, operator, float_value,
-                ));
+                return Some(apply_numeric_comparison(base_field, operator, float_value));
             }
         }
     } else {

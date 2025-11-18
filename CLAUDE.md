@@ -1271,7 +1271,7 @@ let guard = match GLOBAL_ANALYZERS.lock() {
 
 | Priority | Task | Files | Lines Saved | Status |
 |----------|------|-------|-------------|--------|
-| 🟢 Quick | Inline trivial wrappers | search.rs, pagination.rs | 24 | ⏳ Pending |
+| 🟢 Quick | Inline trivial wrappers | search.rs, pagination.rs | 24 | ✅ Done |
 | 🔴 Critical | Consolidate sorting logic | sort.rs | 50 | ⏳ Pending |
 | 🔴 Critical | Reduce test code overhead | conditions.rs | 100 | ⏳ Pending |
 | 🔴 Critical | Consolidate comparison functions | conditions.rs | 15 | ⏳ Pending |
@@ -1281,12 +1281,25 @@ let guard = match GLOBAL_ANALYZERS.lock() {
 | 🟠 High | Merge fulltext builders | search.rs | 20 | ⏳ Pending |
 | **TOTAL** | **15 opportunities** | **Multiple** | **~440** | **0%** |
 
-### Session 1: Quick Wins (Target: 24 lines)
+### Session 1: Quick Wins ✅ COMPLETE
 
 **Tasks**:
-- [ ] Remove duplicate `build_like_condition()` from conditions.rs (12 lines)
-- [ ] Inline `sanitize_search_query()` (7 lines)
-- [ ] Simplify `sanitize_resource_name()` (5 lines)
+- [x] Remove duplicate `build_like_condition()` from conditions.rs (12 lines)
+- [x] Inline `sanitize_search_query()` (7 lines)
+- [x] Simplify `sanitize_resource_name()` (5 lines)
 
-**Expected Result**: -24 lines, 100% tests passing
+**Result**: -24 lines, 100% tests passing (21/21)
+**Commit**: 373e652
+
+---
+
+### Session 2: Consolidate Numeric Comparisons (Target: 15 lines)
+
+**Task**: Merge `apply_numeric_comparison()` and `apply_float_comparison()` into single generic function
+
+**Current Problem**: Identical 15-line functions differing only in type (i64 vs f64)
+
+**Approach**: Use generic `Into<sea_orm::Value>` bound to accept both types
+
+**Expected Result**: -15 lines, 100% tests passing
 
