@@ -45,7 +45,10 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     let create_name = format_ident!("{}Create", name);
 
     let active_model_type = extract_active_model_type(&input, name);
-    let fields = fields::extract_named_fields(&input);
+    let fields = match fields::extract_named_fields(&input) {
+        Ok(f) => f,
+        Err(e) => return e,
+    };
     let create_struct_fields = codegen::models::create::generate_create_struct_fields(&fields);
     let conv_lines = codegen::models::create::generate_create_conversion_lines(&fields);
 
@@ -82,7 +85,10 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let update_name = format_ident!("{}Update", name);
 
     let active_model_type = extract_active_model_type(&input, name);
-    let fields = fields::extract_named_fields(&input);
+    let fields = match fields::extract_named_fields(&input) {
+        Ok(f) => f,
+        Err(e) => return e,
+    };
     let included_fields = crate::codegen::models::update::filter_update_fields(&fields);
     let update_struct_fields =
         crate::codegen::models::update::generate_update_struct_fields(&included_fields);
@@ -127,7 +133,10 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
 
-    let fields = fields::extract_named_fields(&input);
+    let fields = match fields::extract_named_fields(&input) {
+        Ok(f) => f,
+        Err(e) => return e,
+    };
     let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&fields);

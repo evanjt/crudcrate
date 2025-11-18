@@ -19,7 +19,14 @@ pub(crate) fn generate_list_and_response_models(
 ) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     // Generate List model
     let list_name = format_ident!("{}List", api_struct_name);
-    let raw_fields = fields::extract_named_fields(input);
+    let raw_fields = match fields::extract_named_fields(input) {
+        Ok(f) => f,
+        Err(_e) => {
+            // This shouldn't happen since we validated earlier at entry point
+            // Return empty token stream - error already emitted
+            return (quote::quote! {}, quote::quote! {});
+        }
+    };
     let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&raw_fields);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&raw_fields);

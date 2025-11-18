@@ -9,18 +9,26 @@ use proc_macro::TokenStream;
 use quote::format_ident;
 use syn::{Data, DeriveInput, Fields, Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma};
 
-/// Extract named fields from a struct, panicking if not a struct with named fields
+/// Extract named fields from a struct, returning proper compile error if not valid
 pub fn extract_named_fields(
     input: &DeriveInput,
-) -> syn::punctuated::Punctuated<syn::Field, syn::token::Comma> {
-    if let Data::Struct(data) = &input.data {
-        if let Fields::Named(named) = &data.fields {
-            named.named.clone()
-        } else {
-            panic!("ToCreateModel only supports structs with named fields");
-        }
-    } else {
-        panic!("ToCreateModel can only be derived for structs");
+) -> Result<syn::punctuated::Punctuated<syn::Field, syn::token::Comma>, TokenStream> {
+    match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(named) => Ok(named.named.clone()),
+            _ => Err(syn::Error::new_spanned(
+                input,
+                "This derive macro only supports structs with named fields",
+            )
+            .to_compile_error()
+            .into()),
+        },
+        _ => Err(syn::Error::new_spanned(
+            input,
+            "This derive macro only supports structs"
+        )
+        .to_compile_error()
+        .into()),
     }
 }
 
