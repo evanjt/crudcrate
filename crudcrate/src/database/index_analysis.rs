@@ -10,6 +10,20 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+/// Quote SQL identifier to prevent injection (double quotes for Postgres/SQLite, backticks for MySQL)
+fn quote_identifier(identifier: &str, backend: DatabaseBackend) -> String {
+    match backend {
+        DatabaseBackend::MySql => {
+            // MySQL uses backticks, escape by doubling them
+            format!("`{}`", identifier.replace('`', "``"))
+        }
+        DatabaseBackend::Postgres | DatabaseBackend::Sqlite => {
+            // Postgres and SQLite use double quotes, escape by doubling them
+            format!("\"{}\"", identifier.replace('"', "\"\""))
+        }
+    }
+}
+
 static INDEX_ANALYSIS_SHOWN: AtomicBool = AtomicBool::new(false);
 
 // Global registry for models that should be analysed
@@ -315,8 +329,10 @@ async fn get_existing_indexes(
     table_name: &str,
     backend: DatabaseBackend,
 ) -> Result<Vec<ExistingIndex>, sea_orm::DbErr> {
+    let quoted_table = quote_identifier(table_name, backend);
     let query = match backend {
         DatabaseBackend::Postgres => {
+            // Use quoted table name in WHERE clause
             format!(
                 r"
                 SELECT DISTINCT
@@ -329,13 +345,14 @@ async fn get_existing_indexes(
                 JOIN pg_class i ON i.oid = ix.indexrelid
                 LEFT JOIN pg_attribute a ON t.oid = a.attrelid AND a.attnum = ANY(ix.indkey)
                 JOIN pg_am am ON i.relam = am.oid
-                WHERE t.relname = '{table_name}'
+                WHERE t.relname = {quoted_table}
                 AND t.relkind = 'r'
                 ORDER BY t.relname, i.relname
                 "
             )
         }
         DatabaseBackend::MySql => {
+            // Use quoted table name in WHERE clause
             format!(
                 r"
                 SELECT
@@ -344,15 +361,15 @@ async fn get_existing_indexes(
                     INDEX_NAME as index_name,
                     INDEX_TYPE as index_type
                 FROM information_schema.statistics
-                WHERE TABLE_NAME = '{table_name}'
+                WHERE TABLE_NAME = {quoted_table}
                 AND TABLE_SCHEMA = DATABASE()
                 ORDER BY TABLE_NAME, INDEX_NAME
                 "
             )
         }
         DatabaseBackend::Sqlite => {
-            // SQLite requires a different approach - we'll use PRAGMA index_list and index_info
-            format!("PRAGMA index_list({table_name})")
+            // SQLite PRAGMA requires quoted identifier
+            format!("PRAGMA index_list({quoted_table})")
         }
     };
 
@@ -388,10 +405,11 @@ async fn get_sqlite_indexes(
 ) -> Result<Vec<ExistingIndex>, sea_orm::DbErr> {
     let mut indexes = Vec::new();
 
-    // Get index list
+    // Get index list with quoted table name
+    let quoted_table = quote_identifier(table_name, DatabaseBackend::Sqlite);
     let index_list_query = Statement::from_string(
         DatabaseBackend::Sqlite,
-        format!("PRAGMA index_list({table_name})"),
+        format!("PRAGMA index_list({quoted_table})"),
     );
 
     let index_results = db.query_all(index_list_query).await?;
@@ -399,10 +417,11 @@ async fn get_sqlite_indexes(
     for row in index_results {
         let index_name: String = row.try_get("", "name")?;
 
-        // Get index info for each index
+        // Get index info for each index with quoted index name
+        let quoted_index = quote_identifier(&index_name, DatabaseBackend::Sqlite);
         let index_info_query = Statement::from_string(
             DatabaseBackend::Sqlite,
-            format!("PRAGMA index_info({index_name})"),
+            format!("PRAGMA index_info({quoted_index})"),
         );
 
         let info_results = db.query_all(index_info_query).await?;
@@ -470,11 +489,15 @@ fn generate_btree_index_sql(
     table_name: &str,
     column_name: &str,
 ) -> String {
-    let index_name = format!("idx_{table_name}_{column_name}");
+    // Quote all identifiers to prevent injection
+    let index_name = format!("idx_{}_{}", table_name, column_name);
+    let quoted_index = quote_identifier(&index_name, backend);
+    let quoted_table = quote_identifier(table_name, backend);
+    let quoted_column = quote_identifier(column_name, backend);
 
     match backend {
         DatabaseBackend::Postgres | DatabaseBackend::MySql | DatabaseBackend::Sqlite => {
-            format!("CREATE INDEX {index_name} ON {table_name} ({column_name});")
+            format!("CREATE INDEX {quoted_index} ON {quoted_table} ({quoted_column});")
         }
     }
 }
@@ -490,15 +513,33 @@ fn generate_fulltext_index_sql(
 
     match backend {
         DatabaseBackend::Postgres => {
-            let combined_columns = column_names.join(" || ' ' || ");
+            // Quote all identifiers to prevent injection
+            let quoted_columns: Vec<String> = column_names
+                .iter()
+                .map(|col| quote_identifier(col, backend))
+                .collect();
+            let combined_columns = quoted_columns.join(" || ' ' || ");
+            let index_name = format!("idx_{}_fulltext", table_name);
+            let quoted_index = quote_identifier(&index_name, backend);
+            let quoted_table = quote_identifier(table_name, backend);
+            // Language is a string literal, but sanitize it to prevent injection
+            let safe_language = language.replace('\'', "''");
             format!(
-                "CREATE INDEX idx_{table_name}_fulltext ON {table_name} USING GIN (to_tsvector('{language}', {combined_columns}));"
+                "CREATE INDEX {quoted_index} ON {quoted_table} USING GIN (to_tsvector('{safe_language}', {combined_columns}));"
             )
         }
         DatabaseBackend::MySql => {
-            let column_list = column_names.join(", ");
+            // Quote all identifiers to prevent injection
+            let quoted_columns: Vec<String> = column_names
+                .iter()
+                .map(|col| quote_identifier(col, backend))
+                .collect();
+            let column_list = quoted_columns.join(", ");
+            let index_name = format!("idx_{}_fulltext", table_name);
+            let quoted_index = quote_identifier(&index_name, backend);
+            let quoted_table = quote_identifier(table_name, backend);
             format!(
-                "CREATE FULLTEXT INDEX idx_{table_name}_fulltext ON {table_name} ({column_list});"
+                "CREATE FULLTEXT INDEX {quoted_index} ON {quoted_table} ({column_list});"
             )
         }
         DatabaseBackend::Sqlite => {
