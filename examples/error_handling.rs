@@ -1,16 +1,17 @@
 //! # Error Handling Example
 //!
-//! Demonstrates how CrudCrate's ApiError system provides:
-//! - Sanitized user-facing error messages
-//! - Proper HTTP status codes
-//! - Internal error logging (via tracing)
-//! - Prevention of sensitive data leakage
+//! Demonstrates CrudCrate's ApiError system with:
+//! - All ApiError constructor methods (bad_request, forbidden, custom, etc.)
+//! - Automatic DbErr → ApiError conversion
+//! - Sanitized user-facing messages vs internal logging
+//! - Proper HTTP status codes (400, 401, 403, 404, 409, 422, 500, etc.)
+//! - Custom status codes with internal/external message separation
 //!
 //! Run with: `cargo run --example error_handling`
 
 use async_trait::async_trait;
 use axum::Router;
-use crudcrate::{CRUDOperations, CRUDResource, EntityToModels};
+use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use uuid::Uuid;
 
@@ -39,7 +40,7 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
 //
-// Operations with error handling demonstrations
+// Operations demonstrating ALL ApiError patterns
 //
 
 pub struct ProductOperations;
@@ -48,36 +49,148 @@ pub struct ProductOperations;
 impl CRUDOperations for ProductOperations {
     type Resource = Product;
 
-    /// Demonstrate validation error (400 Bad Request)
+    /// Example 1: ApiError::bad_request() - 400 Bad Request
+    /// Used for validation errors and malformed input
     async fn before_create(
         &self,
         _db: &DatabaseConnection,
         data: &ProductCreate,
-    ) -> Result<(), DbErr> {
-        // Validation that returns user-friendly error
+    ) -> Result<(), ApiError> {
+        tracing::info!("Validating product creation...");
+
+        // Simple validation - bad request
         if data.price <= 0 {
-            return Err(DbErr::Custom(
-                "Invalid price: must be greater than 0".to_string(),
-            ));
+            return Err(ApiError::bad_request("Price must be greater than 0"));
         }
 
         if data.name.trim().is_empty() {
-            return Err(DbErr::Custom("Invalid name: cannot be empty".to_string()));
+            return Err(ApiError::bad_request("Product name cannot be empty"));
+        }
+
+        // Example: Multiple validation errors - 422 Unprocessable Entity
+        let mut errors = vec![];
+        if data.name.len() < 3 {
+            errors.push("Product name must be at least 3 characters".to_string());
+        }
+        if data.price > 1_000_000 {
+            errors.push("Price exceeds maximum allowed value".to_string());
+        }
+        if !errors.is_empty() {
+            return Err(ApiError::validation_failed(errors));
         }
 
         Ok(())
     }
 
-    /// Demonstrate permission error (403 Forbidden)
-    async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), DbErr> {
-        // Simulate permission check
-        // In real code, you'd check user permissions here
+    /// Example 2: ApiError::forbidden() - 403 Forbidden
+    /// Used for permission/authorization failures
+    async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
         tracing::info!("Checking delete permission for product {}", id);
 
-        // For demo: prevent deletion (you could return ApiError::forbidden instead)
+        // Simulate permission check
         if id.to_string().starts_with('a') {
-            return Err(DbErr::Custom(
-                "Forbidden: You don't have permission to delete this product".to_string(),
+            return Err(ApiError::forbidden(
+                "You don't have permission to delete this product"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Example 3: ApiError::unauthorized() - 401 Unauthorized
+    /// Used for authentication failures
+    async fn before_update(
+        &self,
+        _db: &DatabaseConnection,
+        id: Uuid,
+        _data: &ProductUpdate,
+    ) -> Result<(), ApiError> {
+        // Simulate authentication check
+        if id.to_string().starts_with('b') {
+            return Err(ApiError::unauthorized("Authentication required to update products"));
+        }
+
+        Ok(())
+    }
+
+    /// Example 4: ApiError::conflict() - 409 Conflict
+    /// Used for duplicate records or conflicting state
+    async fn after_create(
+        &self,
+        _db: &DatabaseConnection,
+        entity: &mut Product,
+    ) -> Result<(), ApiError> {
+        // Simulate duplicate check (normally done in before_create)
+        if entity.name == "DuplicateTest" {
+            return Err(ApiError::conflict(
+                format!("Product with name '{}' already exists", entity.name)
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Example 5: ApiError::custom() - Any HTTP status code
+    /// Used for custom status codes with internal/external message separation
+    async fn before_get_one(
+        &self,
+        _db: &DatabaseConnection,
+        id: Uuid,
+    ) -> Result<(), ApiError> {
+        // Example: Custom 429 Too Many Requests with internal logging
+        if id.to_string().starts_with('c') {
+            return Err(ApiError::custom(
+                axum::http::StatusCode::TOO_MANY_REQUESTS,
+                "Rate limit exceeded. Please try again in 60 seconds",  // User sees this
+                Some(format!("Product {} hit rate limit at {}", id, chrono::Utc::now()))  // Logged internally
+            ));
+        }
+
+        // Example: Custom 503 Service Unavailable
+        if id.to_string().starts_with('d') {
+            return Err(ApiError::custom(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "Service temporarily unavailable",
+                Some("Database connection pool exhausted".to_string())
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Example 6: Automatic DbErr → ApiError conversion
+    /// The ? operator automatically converts DbErr to ApiError!
+    async fn fetch_one(
+        &self,
+        db: &DatabaseConnection,
+        id: Uuid,
+    ) -> Result<Product, ApiError> {
+        use sea_orm::EntityTrait;
+
+        // This returns Result<Model, DbErr>
+        // The ? operator automatically converts to ApiError:
+        // - DbErr::RecordNotFound → ApiError::NotFound (404)
+        // - Other DbErr → ApiError::Database (500, sanitized)
+        let model = <Product as CRUDResource>::EntityType::find_by_id(id)
+            .one(db)
+            .await?  // ← Automatic conversion! No manual handling needed
+            .ok_or_else(|| ApiError::not_found("Product", Some(id.to_string())))?;
+
+        Ok(Product::from(model))
+    }
+
+    /// Example 7: ApiError::internal() - 500 with internal details
+    /// Used for unexpected errors you want to log but not expose
+    async fn after_get_one(
+        &self,
+        _db: &DatabaseConnection,
+        entity: &mut Product,
+    ) -> Result<(), ApiError> {
+        // Simulate an unexpected error
+        if entity.name == "ErrorTest" {
+            return Err(ApiError::internal(
+                "An unexpected error occurred",  // User sees this generic message
+                Some(format!("Cache service returned invalid data for product {}", entity.id))  // Logged internally
             ));
         }
 
