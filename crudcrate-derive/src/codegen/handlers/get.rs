@@ -7,7 +7,22 @@ pub fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
-    if let Some(fn_path) = &crud_meta.fn_get_all {
+    // If operations is specified, use it; otherwise fall back to fn_get_all or default
+    if let Some(ops_path) = &crud_meta.operations {
+        quote! {
+            async fn get_all(
+                db: &sea_orm::DatabaseConnection,
+                condition: &sea_orm::Condition,
+                order_column: Self::ColumnType,
+                order_direction: sea_orm::Order,
+                offset: u64,
+                limit: u64,
+            ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
+            }
+        }
+    } else if let Some(fn_path) = &crud_meta.fn_get_all {
         quote! {
             async fn get_all(
                 db: &sea_orm::DatabaseConnection,
@@ -89,7 +104,15 @@ pub fn generate_get_one_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
-    if let Some(fn_path) = &crud_meta.fn_get_one {
+    // If operations is specified, use it; otherwise fall back to fn_get_one or default
+    if let Some(ops_path) = &crud_meta.operations {
+        quote! {
+            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::get_one(&ops, db, id).await
+            }
+        }
+    } else if let Some(fn_path) = &crud_meta.fn_get_one {
         quote! {
             async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
                 #fn_path(db, id).await

@@ -32,7 +32,8 @@ pub fn calculate_content_range(
     resource_name: &str,
 ) -> HeaderMap {
     // Calculate max offset limit for the content range
-    let max_offset_limit = (offset + limit - 1).min(total_count);
+    // Use saturating arithmetic to prevent integer overflow
+    let max_offset_limit = offset.saturating_add(limit).saturating_sub(1).min(total_count);
 
     // Sanitize resource name to prevent header injection
     let safe_name = sanitize_resource_name(resource_name);

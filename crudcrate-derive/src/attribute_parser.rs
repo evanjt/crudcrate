@@ -53,6 +53,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                 Some("fn_update") => meta.fn_update = Some(path.clone()),
                                 Some("fn_delete") => meta.fn_delete = Some(path.clone()),
                                 Some("fn_delete_many") => meta.fn_delete_many = Some(path.clone()),
+                                Some("operations") => meta.operations = Some(path.clone()),
                                 _ => {}
                             }
                         }
@@ -130,16 +131,16 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                             && let Lit::Bool(b) = &expr_lit.lit
                         {
                             // Deprecated: key = false (should use exclude(...) instead)
-                            // Note: We no longer panic on deprecated syntax for backward compatibility
-                            // TODO: Emit proper compiler warning using syn::Error in future version
+                            // Note: We keep this for backward compatibility but warn users to migrate
+                            // Cannot use compile_error!() here as that would break existing code
+                            // eprintln!() during macro expansion is the standard way to emit deprecation warnings
                             if (key == "create_model"
                                 || key == "update_model"
                                 || key == "list_model")
                                 && !b.value()
                             {
-                                // Silently allow deprecated syntax
-                                // Users should migrate to: #[crudcrate(exclude(create))]
-                                eprintln!("Warning: {}", create_deprecation_error(key, &nv.path));
+                                // Emit visible deprecation warning during compilation
+                                eprintln!("\n⚠️  DEPRECATION WARNING: {}\n", create_deprecation_error(key, &nv.path));
                             }
                             return Some(b.value());
                         }
@@ -178,7 +179,10 @@ fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
     None
 }
 
-/// Create a deprecation error for old model exclusion syntax
+/// Create a deprecation message for old model exclusion syntax
+///
+/// Note: Returns syn::Error for consistent formatting, but we extract the message
+/// rather than using to_compile_error() to avoid breaking backward compatibility.
 fn create_deprecation_error(key: &str, path: &syn::Path) -> syn::Error {
     let new_syntax = match key {
         "create_model" => "exclude(create)",

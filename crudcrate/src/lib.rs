@@ -214,7 +214,9 @@
 pub mod core;
 pub mod database;
 pub mod filtering;
+pub mod operations;
 pub mod relationships;
+pub mod validation;
 
 // Legacy modules for backward compatibility (re-export from new structure)
 pub mod filter {
@@ -245,5 +247,6 @@ pub use filtering::{
     FilterOptions, apply_filters, calculate_content_range, parse_pagination, parse_range,
     parse_sorting,
 };
+pub use operations::{CRUDOperations, DefaultCRUDOperations};
 
 pub use serde_with;

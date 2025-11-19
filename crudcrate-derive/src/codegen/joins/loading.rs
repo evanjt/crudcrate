@@ -3,6 +3,34 @@
 //! This module provides shared logic for generating join loading code for both
 //! `get_one()` and `get_all()` methods, eliminating the duplication between
 //! handlers/get.rs and joins/recursion.rs
+//!
+//! ## Security Limits
+//!
+//! **MAX_JOIN_DEPTH = 5**: Join recursion is capped at depth 5 to prevent:
+//! - Infinite recursion with circular references
+//! - Exponential query growth (N+1 problem)
+//! - Database connection pool exhaustion
+//!
+//! **To use deeper joins**:
+//! - Explicitly set `depth` parameter: `#[crudcrate(join(all, depth = 3))]`
+//! - Maximum allowed: 5 (values > 5 are capped to 5)
+//! - Unspecified depth defaults to 5 for safety
+//!
+//! **Example**:
+//! ```ignore
+//! #[crudcrate(join(all, depth = 1))]  // Shallow: load related entities only
+//! pub users: Vec<User>
+//!
+//! #[crudcrate(join(all, depth = 3))]  // Medium: 3 levels deep
+//! pub organization: Option<Organization>
+//!
+//! #[crudcrate(join(all))]  // Defaults to depth = 5 (maximum)
+//! pub vehicles: Vec<Vehicle>
+//! ```
+
+// Security: Maximum join depth to prevent infinite recursion and resource exhaustion
+// Users cannot exceed this limit - values > 5 are automatically capped
+const MAX_JOIN_DEPTH: u8 = 5;
 
 use crate::codegen::joins::get_join_config;
 use crate::codegen::type_resolution::{
@@ -56,7 +84,11 @@ fn generate_join_loading_impl(
 
         let join_config = get_join_config(field).unwrap_or_default();
         let is_vec_field = is_vec_type(&field.ty);
-        let depth_limited = join_config.depth == Some(1);
+
+        // Security: Cap depth at MAX_JOIN_DEPTH to prevent infinite recursion
+        // If depth is None (unlimited), default to safe maximum
+        let effective_depth = join_config.depth.unwrap_or(MAX_JOIN_DEPTH).min(MAX_JOIN_DEPTH);
+        let depth_limited = effective_depth == 1;
 
         // Get entity path (custom or derived from type)
         let entity_path = if let Some(custom_path) = &join_config.path {

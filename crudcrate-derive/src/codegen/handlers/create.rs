@@ -6,7 +6,15 @@ use quote::quote;
 pub fn generate_create_impl(
     crud_meta: &CRUDResourceMeta,
 ) -> proc_macro2::TokenStream {
-    if let Some(fn_path) = &crud_meta.fn_create {
+    // If operations is specified, use it; otherwise fall back to fn_create or default
+    if let Some(ops_path) = &crud_meta.operations {
+        quote! {
+            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::create(&ops, db, data).await
+            }
+        }
+    } else if let Some(fn_path) = &crud_meta.fn_create {
         quote! {
             async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
                 #fn_path(db, data).await

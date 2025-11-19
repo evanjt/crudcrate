@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 description = "Rust traits and functions to aid in building CRUD APIs with Axum and Sea-ORM"
 license = "MIT"
@@ -19,7 +19,7 @@ spring-rs = ["spring", "spring-web", "derive"]
 
 [dependencies]
 # Proc macro dependency (optional)
-crudcrate-derive = { version = "=0.6.1", optional = true, path = "../crudcrate-derive" }
+crudcrate-derive = { version = "=0.7.0", optional = true, path = "../crudcrate-derive" }
 
 # Core dependencies using workspace versions
 async-trait = { workspace = true }
@@ -84,7 +84,40 @@ name = "test_router_only"
 path = "../examples/test_router_only.rs"
 required-features = ["derive", "sqlite"]
 
+[[example]]
+name = "jwt_authentication"
+path = "../examples/jwt_authentication.rs"
+required-features = ["derive"]
 
+[[example]]
+name = "row_level_security"
+path = "../examples/row_level_security.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "input_validation"
+path = "../examples/input_validation.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "rate_limiting"
+path = "../examples/rate_limiting.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "validation_with_trait"
+path = "../examples/validation_with_trait.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "crud_operations"
+path = "../examples/crud_operations.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "lifecycle_hooks"
+path = "../examples/lifecycle_hooks/main.rs"
+required-features = ["derive"]
 
 
 [[bench]]

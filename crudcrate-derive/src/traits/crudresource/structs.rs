@@ -12,6 +12,7 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) fn_update: Option<syn::Path>,
     pub(crate) fn_delete: Option<syn::Path>,
     pub(crate) fn_delete_many: Option<syn::Path>,
+    pub(crate) operations: Option<syn::Path>,
     pub(crate) generate_router: bool,
     pub(crate) fulltext_language: Option<String>,
     pub(crate) derive_partial_eq: bool,

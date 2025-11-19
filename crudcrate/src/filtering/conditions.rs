@@ -22,10 +22,13 @@ fn escape_like_wildcards(input: &str) -> String {
 
 /// Basic field name validation
 fn is_valid_field_name(field_name: &str) -> bool {
+    // Strengthen validation to prevent injection attempts (defense-in-depth)
+    // Note: Actual field names are validated against a whitelist, but this adds an extra layer
     !field_name.is_empty()
         && field_name.len() <= 100
+        && field_name.chars().all(|c| c.is_alphanumeric() || c == '_')
         && !field_name.starts_with('_')
-        && !field_name.contains("..")
+        && !field_name.starts_with(|c: char| c.is_ascii_digit())
 }
 
 /// Basic value length check
@@ -80,8 +83,10 @@ where
 fn parse_filter_json(filter_str: Option<String>) -> HashMap<String, serde_json::Value> {
     filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
         Ok(parsed) => parsed,
-        Err(e) => {
-            eprintln!("Warning: Invalid JSON in filter string: {e}");
+        Err(_e) => {
+            // Don't log user input in production to avoid exposing sensitive data
+            #[cfg(debug_assertions)]
+            eprintln!("Warning: Invalid JSON in filter parameter");
             HashMap::new()
         }
     })

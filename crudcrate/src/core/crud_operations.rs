@@ -98,7 +98,12 @@ macro_rules! crud_handlers_impl {
             );
             let items = match <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit).await {
                 Ok(items) => items,
-                Err(err) => return Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string())),
+                Err(_err) => {
+                    // Log error server-side but don't expose details to client
+                    #[cfg(debug_assertions)]
+                    eprintln!("Database error in get_all: {}", _err);
+                    return Err((axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error".to_string()));
+                }
             };
             let total_count = <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
             let headers = crudcrate::pagination::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);
@@ -173,10 +178,12 @@ macro_rules! crud_handlers_impl {
                 .await
                 .map(|res| (axum::http::StatusCode::CREATED, axum::Json(res.into())))
                 .map_err(|err| {
-                    if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                    if let Some(_detail) = err.sql_err() {
+                        #[cfg(debug_assertions)]
+                        eprintln!("Database constraint error: {:?}", _detail);
                         (
                             axum::http::StatusCode::CONFLICT,
-                            axum::Json(format!("Conflict: {}", detail)),
+                            axum::Json("Conflict: A record with this value already exists".to_string()),
                         )
                     } else {
                         (
@@ -236,19 +243,24 @@ macro_rules! crud_handlers_impl {
             .map(|res| axum::Json(res.into()))
             .map_err(|err| {
                 match err {
-                    sea_orm::DbErr::Custom(msg) => (
-                        axum::http::StatusCode::UNPROCESSABLE_ENTITY,
-                        axum::Json(msg),
-                    ),
+                    sea_orm::DbErr::Custom(msg) => {
+                        // Custom errors are from application logic, safe to expose
+                        (
+                            axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                            axum::Json(msg),
+                        )
+                    },
                     sea_orm::DbErr::RecordNotFound(_) => (
                         axum::http::StatusCode::NOT_FOUND,
                         axum::Json("Not Found".to_string()),
                     ),
                     _ => {
-                        if let Some(sea_orm::SqlErr::UniqueConstraintViolation(detail)) = err.sql_err() {
+                        if let Some(_detail) = err.sql_err() {
+                            #[cfg(debug_assertions)]
+                            eprintln!("Database constraint error: {:?}", _detail);
                             (
                                 axum::http::StatusCode::CONFLICT,
-                                axum::Json(format!("Conflict: {}", detail)),
+                                axum::Json("Conflict: A record with this value already exists".to_string()),
                             )
                         } else {
                             (

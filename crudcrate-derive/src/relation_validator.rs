@@ -7,8 +7,8 @@ use crate::codegen::type_resolution::{extract_option_inner_type_ref, extract_vec
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
-// Performance warning threshold
-const PERFORMANCE_WARNING_DEPTH: u8 = 5;
+// Maximum allowed join depth (enforced at runtime, warned at compile-time)
+const MAX_ALLOWED_DEPTH: u8 = 5;
 
 /// Generate simple validation warnings for join configurations
 /// Only warns about potential performance issues, trusts Sea-ORM for correctness
@@ -46,27 +46,27 @@ fn check_join_depth(
 ) {
     let field_name = field.ident.as_ref().map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
-    // Get the actual depth from join_config
-    let depth = join_config.depth.unwrap_or(3);
-
-    // Warn if depth is excessive (performance concern)
-    if depth > PERFORMANCE_WARNING_DEPTH {
-        let warning_msg = format!(
-            "Join field '{field_name}' in '{entity_name}' has recursion depth {depth} which may impact performance. Consider reducing to {PERFORMANCE_WARNING_DEPTH} or less."
-        );
-        warnings.push(quote! {
-            compile_error!(#warning_msg);
-        });
-    }
-
-    // Warn about unlimited recursion
-    if join_config.depth.is_none() {
+    // Get the actual depth from join_config (None defaults to MAX_ALLOWED_DEPTH at runtime)
+    if let Some(depth) = join_config.depth {
+        // Warn if depth exceeds maximum (will be capped at runtime)
+        if depth > MAX_ALLOWED_DEPTH {
+            let warning_msg = format!(
+                "Join field '{field_name}' in '{entity_name}' has depth {depth}, but MAX_JOIN_DEPTH={MAX_ALLOWED_DEPTH}. \
+                 Depth will be capped to {MAX_ALLOWED_DEPTH} at runtime. Consider using depth={MAX_ALLOWED_DEPTH} or less."
+            );
+            warnings.push(quote! {
+                compile_error!(#warning_msg);
+            });
+        }
+    } else {
+        // None = unlimited, which defaults to MAX_ALLOWED_DEPTH at runtime
         // Extract target type for self-reference check
         if let Ok(target_type) = extract_target_type(&field.ty) {
             // Check if this is a self-referencing join (e.g., Category -> Category)
             if target_type.contains(entity_name) {
                 let warning_msg = format!(
-                    "Self-referencing join field '{field_name}' in '{entity_name}' has no depth limit. This will use default depth (3) and may cause performance issues. Consider adding explicit depth: join(..., depth = 2)"
+                    "Self-referencing join field '{field_name}' in '{entity_name}' has no explicit depth limit. \
+                     This will default to depth={MAX_ALLOWED_DEPTH} at runtime. For self-referencing joins, consider using a lower depth: #[crudcrate(join(..., depth = 2))]"
                 );
                 warnings.push(quote! {
                     compile_error!(#warning_msg);
