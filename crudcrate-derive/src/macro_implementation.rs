@@ -42,9 +42,6 @@ pub(crate) fn generate_crud_resource_impl(
     let has_join_fields =
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
-    // Index analysis removed - no registration needed
-    let (registration_static, auto_register_call) = (quote! {}, quote! {});
-
     // Generate resource name plural constant
     let resource_name_plural_impl = {
         let name_plural = crud_meta.name_plural.clone().unwrap_or_default();
@@ -54,8 +51,6 @@ pub(crate) fn generate_crud_resource_impl(
     };
 
     quote! {
-        #registration_static
-
         #[async_trait::async_trait]
         impl crudcrate::CRUDResource for #api_struct_name {
             type EntityType = #entity_type;
@@ -73,12 +68,10 @@ pub(crate) fn generate_crud_resource_impl(
             const FULLTEXT_LANGUAGE: &'static str = #fulltext_language;
 
             fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-                #auto_register_call
                 vec![#(#sortable_entries),*]
             }
 
             fn filterable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-                #auto_register_call
                 vec![#(#filterable_entries),*]
             }
 
@@ -91,7 +84,6 @@ pub(crate) fn generate_crud_resource_impl(
             }
 
             fn fulltext_searchable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-                #auto_register_call
                 vec![#(#fulltext_entries),*]
             }
 
