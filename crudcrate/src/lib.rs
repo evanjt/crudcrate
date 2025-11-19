@@ -235,36 +235,15 @@ pub mod sort {
 pub mod traits {
     pub use crate::core::traits::*;
 }
-pub mod index_analysis {
-    pub use crate::database::index_analysis::*;
-}
 
 // Export procedural macros
 pub use crudcrate_derive::*;
 
 // Export commonly used items from feature groups
 pub use core::{CRUDResource, MergeIntoActiveModel};
-pub use database::{
-    analyse_all_registered_models, analyse_indexes_for_resource, display_index_recommendations,
-    ensure_all_analysers_registered, register_analyser,
-};
 pub use filtering::{
     FilterOptions, apply_filters, calculate_content_range, parse_pagination, parse_range,
     parse_sorting,
 };
-
-/// Macro to register a CRUD resource for automatic index analysis
-/// Usage: `register_crud_analyser!(MyModel)`;
-#[macro_export]
-macro_rules! register_crud_analyser {
-    ($model_type:ty) => {
-        $crate::register_analyser::<$model_type>();
-    };
-    ($($model_type:ty),+ $(,)?) => {
-        $(
-            $crate::register_analyser::<$model_type>();
-        )+
-    };
-}
 
 pub use serde_with;
