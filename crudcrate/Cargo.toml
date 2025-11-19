@@ -67,64 +67,19 @@ path = "../examples/minimal/main.rs"
 required-features = ["derive"]
 
 [[example]]
-name = "minimal_spring"
-path = "../examples/minimal_spring.rs"
-required-features = ["spring-rs"]
-
-[[example]]
-name = "minimal_debug"
-path = "../examples/minimal_debug.rs"
-required-features = ["derive"]
-
-[[example]]
-name = "recursive_join"
-path = "../examples/recursive_join/main.rs"
-required-features = ["derive", "sqlite"]
-
-[[example]]
-name = "test_router_only"
-path = "../examples/test_router_only.rs"
-required-features = ["derive", "sqlite"]
-
-[[example]]
-name = "jwt_authentication"
-path = "../examples/jwt_authentication.rs"
-required-features = ["derive"]
-
-[[example]]
-name = "row_level_security"
-path = "../examples/row_level_security.rs"
-required-features = ["derive"]
-
-[[example]]
-name = "input_validation"
-path = "../examples/input_validation.rs"
-required-features = ["derive"]
-
-[[example]]
-name = "rate_limiting"
-path = "../examples/rate_limiting.rs"
-required-features = ["derive"]
-
-[[example]]
-name = "validation_with_trait"
-path = "../examples/validation_with_trait.rs"
-required-features = ["derive"]
-
-[[example]]
 name = "crud_operations"
 path = "../examples/crud_operations.rs"
-required-features = ["derive"]
-
-[[example]]
-name = "lifecycle_hooks"
-path = "../examples/lifecycle_hooks/main.rs"
 required-features = ["derive"]
 
 [[example]]
 name = "error_handling"
 path = "../examples/error_handling.rs"
 required-features = ["derive"]
+
+[[example]]
+name = "recursive_join"
+path = "../examples/recursive_join/main.rs"
+required-features = ["derive", "sqlite"]
 
 
 [[bench]]

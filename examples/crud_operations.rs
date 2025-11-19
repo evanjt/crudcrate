@@ -1,39 +1,36 @@
-//! # CRUDOperations Trait Example
+//! # CRUDOperations & Lifecycle Hooks
 //!
-//! This example demonstrates the **Operations Pattern** - a clean way to customize CRUD behavior
-//! by separating your data model from your business logic.
+//! Demonstrates the CRUDOperations trait - customize CRUD behavior by implementing hooks
+//! and overriding operations. All customization logic lives in one place.
 //!
-//! ## The Pattern: Data vs Operations
+//! ## Available Customization Levels:
 //!
-//! - **`Asset`** (generated) = What your data looks like
-//! - **`AssetOperations`** (you write) = How you work with it
+//! **Level 1: Lifecycle Hooks** (before_*/after_*)
+//! - Validation, logging, side effects
+//! - Original operation logic stays intact
 //!
-//! This separation keeps code clean and makes customizations obvious. Instead of scattered
-//! `fn_*` attributes, all your custom CRUD logic lives in one place.
+//! **Level 2: Core Method Overrides** (fetch_one, fetch_all, etc.)
+//! - Custom queries, filtering, authorization
+//! - Full control over data retrieval
 //!
-//! ## Real-World Example
-//!
-//! Our Asset entity needs to delete files from S3 before deleting from database. We only
-//! override `delete()` - everything else (get, create, update) uses sensible defaults.
+//! **Level 3: Full Operation Overrides** (create, update, delete)
+//! - Complex multi-step operations
+//! - External service integration
 //!
 //! Run with: `cargo run --example crud_operations`
 
 use async_trait::async_trait;
 use axum::Router;
-use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
+use sea_orm::{Condition, Database, DatabaseConnection, Order, entity::prelude::*};
 use uuid::Uuid;
 use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
 
-//
-// STEP 1: Define your entity with the operations attribute
-//
-
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-#[sea_orm(table_name = "assets")]
+#[sea_orm(table_name = "products")]
 #[crudcrate(
-    api_struct = "Asset",
+    api_struct = "Product",
     generate_router,
-    operations = AssetOperations  // ← Your custom operations
+    operations = ProductOperations
 )]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -43,8 +40,12 @@ pub struct Model {
     #[crudcrate(filterable, sortable)]
     pub name: String,
 
-    #[crudcrate(filterable)]
-    pub s3_key: String,
+    pub price: i32,
+    pub published: bool,
+    pub image_s3_key: Option<String>,
+
+    #[crudcrate(exclude(create, update))]
+    pub view_count: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -52,115 +53,160 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-//
-// STEP 2: Define your operations struct
-//
-// This is just a unit struct - it holds no data, just behavior.
-// Think of it as a "handler" or "service" for your Asset model.
-//
-
-pub struct AssetOperations;
+pub struct ProductOperations;
 
 #[async_trait]
-impl CRUDOperations for AssetOperations {
-    type Resource = Asset;
+impl CRUDOperations for ProductOperations {
+    type Resource = Product;
 
-    // Override delete to add S3 cleanup
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
-        use sea_orm::EntityTrait;
+    // LEVEL 1: Lifecycle Hooks
 
-        // First, fetch the asset to get the S3 key (uses default fetch_one)
-        let asset = self.fetch_one(db, id).await?;
-
-        // Delete from S3 (simulated here)
-        delete_from_s3(&asset.s3_key).await
-            .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {}", e), None))?;
-
-        // Then delete from database using entity methods directly
-        let res = <Asset as CRUDResource>::EntityType::delete_by_id(id).exec(db).await?;
-        match res.rows_affected {
-            0 => Err(ApiError::not_found("Asset", Some(id.to_string()))),
-            _ => Ok(id),
+    /// Validation before creation
+    async fn before_create(
+        &self,
+        _db: &DatabaseConnection,
+        data: &ProductCreate,
+    ) -> Result<(), ApiError> {
+        if data.price <= 0 {
+            return Err(ApiError::bad_request("Price must be positive"));
         }
+        if data.name.trim().is_empty() {
+            return Err(ApiError::bad_request("Name cannot be empty"));
+        }
+        Ok(())
     }
 
-    // All other methods (get_one, get_all, create, update, delete_many) use defaults!
-    // No need to write them - sensible implementations are provided.
+    /// Actions after creation (logging, notifications, etc.)
+    async fn after_create(
+        &self,
+        _db: &DatabaseConnection,
+        entity: &mut Product,
+    ) -> Result<(), ApiError> {
+        // Send notification, trigger webhook, log event, etc.
+        println!("✓ Created product: {}", entity.name);
+        Ok(())
+    }
+
+    /// Enrich data after fetching
+    async fn after_get_one(
+        &self,
+        _db: &DatabaseConnection,
+        entity: &mut Product,
+    ) -> Result<(), ApiError> {
+        // Populate computed fields, fetch related data, etc.
+        entity.view_count = 42; // In real code: fetch from analytics
+        Ok(())
+    }
+
+    /// Permission checks before deletion
+    async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+        // Check user permissions, validate business rules, etc.
+        // if !current_user.can_delete() { return Err(ApiError::forbidden(...)) }
+        println!("Deleting product {id}");
+        Ok(())
+    }
+
+    // LEVEL 2: Core Method Overrides
+
+    /// Custom fetch_all - add default filters
+    async fn fetch_all(
+        &self,
+        db: &DatabaseConnection,
+        condition: &Condition,
+        order_column: <Self::Resource as CRUDResource>::ColumnType,
+        order_direction: Order,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+
+        // Add published=true filter by default
+        let mut custom_condition = condition.clone();
+        custom_condition = custom_condition.add(Column::Published.eq(true));
+
+        let models = <Self::Resource as CRUDResource>::EntityType::find()
+            .filter(custom_condition)
+            .order_by(order_column, order_direction)
+            .offset(offset)
+            .limit(limit)
+            .all(db)
+            .await?;
+
+        Ok(models
+            .into_iter()
+            .map(|model| <Self::Resource as CRUDResource>::ListModel::from(Self::Resource::from(model)))
+            .collect())
+    }
+
+    // LEVEL 3: Full Operation Overrides
+
+    /// Complete delete override with external cleanup
+    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+        // Multi-step operation: fetch, cleanup external resources, delete
+        let product = self.fetch_one(db, id).await?;
+
+        if let Some(s3_key) = &product.image_s3_key {
+            delete_from_s3(s3_key).await
+                .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {e}"), None))?;
+        }
+
+        self.perform_delete(db, id).await
+    }
 }
 
-/// Simulated S3 deletion function
+// Simulated external service
 async fn delete_from_s3(s3_key: &str) -> Result<(), String> {
-    println!("🗑️  Deleting S3 object: {}", s3_key);
-    // In real code: s3_client.delete_object().send().await?
+    println!("  Deleting S3: {s3_key}");
     Ok(())
 }
-
-//
-// STEP 3: Use it in your application
-//
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Setup database (in-memory SQLite for demo)
     let db = Database::connect("sqlite::memory:").await?;
-
-    // Create schema
     create_schema(&db).await?;
 
-    // Build router - the Asset::router() uses AssetOperations automatically!
-    let app = Router::new()
-        .nest("/api/assets", Asset::router(&db).into())
-        .route("/", axum::routing::get(|| async { "CRUDOperations Example - try /api/assets" }));
+    let _app = Router::new()
+        .nest("/products", Product::router(&db).into())
+        .route("/", axum::routing::get(|| async { "CRUD Operations Example" }));
 
-    // Demo: Create and delete an asset
-    demo_operations(&db).await?;
+    // Demo the hooks
+    demo(&db).await?;
 
-    println!("\n✅ CRUDOperations example completed successfully!");
-    println!("\n📚 The Operations Pattern:");
-    println!("  1. Define your model: Asset (generated by macro)");
-    println!("  2. Define your operations: AssetOperations (your custom logic)");
-    println!("  3. Use #[crudcrate(operations = AssetOperations)]");
-    println!("  4. Override only what you need - defaults handle the rest");
-    println!("\n💡 Benefits:");
-    println!("  ✓ Clean separation: data vs behavior");
-    println!("  ✓ All CRUD logic in one place (not scattered fn_* attributes)");
-    println!("  ✓ Easy to test operations independently");
-    println!("  ✓ Compose operations (delete called self.get_one)");
-    println!("\nThis is the recommended pattern for complex CRUD customizations!");
+    println!("\n✅ All operations complete!");
+    println!("\n📚 What you can customize:");
+    println!("  • Hooks: before_create, after_create, before_delete, after_get_one, etc.");
+    println!("  • Methods: fetch_all, fetch_one (custom queries)");
+    println!("  • Full ops: create, update, delete (multi-step operations)");
 
     Ok(())
 }
 
-async fn demo_operations(db: &DatabaseConnection) -> Result<(), ApiError> {
-    println!("\n📝 Creating test asset...");
-    let create_data = AssetCreate {
-        name: "test-file.pdf".to_string(),
-        s3_key: "uploads/2024/test-file.pdf".to_string(),
-    };
-    let asset = Asset::create(db, create_data).await?;
-    println!("   Created: {} (ID: {})", asset.name, asset.id);
+async fn demo(db: &DatabaseConnection) -> Result<(), ApiError> {
+    let product = Product::create(db, ProductCreate {
+        name: "Laptop".to_string(),
+        price: 1000,
+        published: true,
+        image_s3_key: Some("images/laptop.jpg".to_string()),
+    }).await?;
 
-    println!("\n🗑️  Deleting asset (will trigger S3 cleanup)...");
-    let deleted_id = Asset::delete(db, asset.id).await?;
-    println!("   Deleted: {}", deleted_id);
+    let _fetched = Product::get_one(db, product.id).await?; // Triggers after_get_one
+    Product::delete(db, product.id).await?; // Triggers S3 cleanup
 
     Ok(())
 }
 
 async fn create_schema(db: &DatabaseConnection) -> Result<(), ApiError> {
     use sea_orm::{ConnectionTrait, Statement};
-
     db.execute(Statement::from_string(
         sea_orm::DatabaseBackend::Sqlite,
-        r#"
-        CREATE TABLE IF NOT EXISTS assets (
-            id TEXT PRIMARY KEY NOT NULL,
+        "CREATE TABLE IF NOT EXISTS products (
+            id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            s3_key TEXT NOT NULL
-        )
-        "#
-    ))
-    .await?;  // ← Automatic DbErr → ApiError conversion
-
+            price INTEGER NOT NULL,
+            published BOOLEAN NOT NULL DEFAULT 0,
+            image_s3_key TEXT,
+            view_count INTEGER NOT NULL DEFAULT 0
+        )"
+    )).await?;
     Ok(())
 }
