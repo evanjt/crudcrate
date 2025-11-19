@@ -489,9 +489,9 @@ async fn test_filter_sort_paginate_combined() {
     // Create 20 customers with varied names
     for i in 1..=20 {
         let name = if i % 2 == 0 {
-            format!("Developer {}", i)
+            format!("Developer {i}")
         } else {
-            format!("Designer {}", i)
+            format!("Designer {i}")
         };
 
         let request = Request::builder()

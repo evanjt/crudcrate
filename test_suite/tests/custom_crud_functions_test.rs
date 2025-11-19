@@ -31,7 +31,7 @@ impl MockExternalService {
 
     async fn delete_object(&self, key: &str) -> Result<(), String> {
         if *self.should_fail.lock().unwrap() {
-            return Err(format!("External service failure for key: {}", key));
+            return Err(format!("External service failure for key: {key}"));
         }
         self.deleted_keys.lock().unwrap().push(key.to_string());
         Ok(())
@@ -109,7 +109,7 @@ async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<
     get_mock_service()
         .delete_object(&asset.external_key)
         .await
-        .map_err(|e| DbErr::Custom(format!("External service error: {}", e)))?;
+        .map_err(|e| DbErr::Custom(format!("External service error: {e}")))?;
 
     // 3. Delete from database
     Entity::delete_by_id(id).exec(db).await?;
@@ -158,13 +158,13 @@ async fn setup_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
 
     db.execute(sea_orm::Statement::from_string(
         db.get_database_backend(),
-        r#"CREATE TABLE assets (
+        r"CREATE TABLE assets (
             id TEXT PRIMARY KEY,
             filename TEXT NOT NULL,
             external_key TEXT NOT NULL,
             size_bytes INTEGER NOT NULL,
             created_at TEXT NOT NULL
-        )"#
+        )"
         .to_owned(),
     ))
     .await?;
@@ -215,7 +215,7 @@ async fn test_custom_delete_single_with_cleanup() {
     // Delete the asset
     let request = Request::builder()
         .method("DELETE")
-        .uri(format!("/assets/{}", asset_id))
+        .uri(format!("/assets/{asset_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -230,7 +230,7 @@ async fn test_custom_delete_single_with_cleanup() {
     // Verify asset was deleted from database
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/assets/{}", asset_id))
+        .uri(format!("/assets/{asset_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -270,7 +270,7 @@ async fn test_custom_delete_single_external_failure() {
     // Try to delete - should fail
     let request = Request::builder()
         .method("DELETE")
-        .uri(format!("/assets/{}", asset_id))
+        .uri(format!("/assets/{asset_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -281,7 +281,7 @@ async fn test_custom_delete_single_external_failure() {
     get_mock_service().set_should_fail(false);
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/assets/{}", asset_id))
+        .uri(format!("/assets/{asset_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -302,7 +302,7 @@ async fn test_custom_delete_not_found() {
     // Try to delete non-existent asset
     let request = Request::builder()
         .method("DELETE")
-        .uri(format!("/assets/{}", fake_id))
+        .uri(format!("/assets/{fake_id}"))
         .body(Body::empty())
         .unwrap();
 

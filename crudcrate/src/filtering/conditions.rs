@@ -344,7 +344,7 @@ mod tests {
 
         for malicious_name in rejected_names {
             assert!(!is_valid_field_name(malicious_name),
-                "Should reject malicious field name: {}", malicious_name);
+                "Should reject malicious field name: {malicious_name}");
         }
 
         // Test too long separately
@@ -366,7 +366,7 @@ mod tests {
 
         for valid_name in valid_names {
             assert!(is_valid_field_name(valid_name),
-                "Should accept valid field name: {}", valid_name);
+                "Should accept valid field name: {valid_name}");
         }
 
         // Test max length separately
@@ -388,7 +388,7 @@ mod tests {
     }
 
     /// TDD: Pagination should enforce maximum page size
-    /// This test will FAIL until we add MAX_PAGE_SIZE enforcement
+    /// This test will FAIL until we add `MAX_PAGE_SIZE` enforcement
     #[test]
     fn test_pagination_enforces_max_page_size() {
         const MAX_PAGE_SIZE: u64 = 1000;
@@ -404,12 +404,12 @@ mod tests {
         // After fix: Should be capped at MAX_PAGE_SIZE
         assert!(
             limit <= MAX_PAGE_SIZE,
-            "Page size should be capped at {}, got {}", MAX_PAGE_SIZE, limit
+            "Page size should be capped at {MAX_PAGE_SIZE}, got {limit}"
         );
     }
 
     /// TDD: Pagination should enforce maximum offset
-    /// This test will FAIL until we add MAX_OFFSET enforcement
+    /// This test will FAIL until we add `MAX_OFFSET` enforcement
     #[test]
     fn test_pagination_enforces_max_offset() {
         const MAX_OFFSET: u64 = 1_000_000;
@@ -425,11 +425,11 @@ mod tests {
         // After fix: Should be capped at MAX_OFFSET
         assert!(
             offset <= MAX_OFFSET,
-            "Offset should be capped at {}, got {}", MAX_OFFSET, offset
+            "Offset should be capped at {MAX_OFFSET}, got {offset}"
         );
     }
 
-    /// TDD: Pagination should handle overflow with saturating_mul
+    /// TDD: Pagination should handle overflow with `saturating_mul`
     /// This test will FAIL until we fix the overflow panic
     #[test]
     fn test_pagination_handles_overflow_gracefully() {

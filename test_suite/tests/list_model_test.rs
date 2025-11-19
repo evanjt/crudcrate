@@ -78,7 +78,7 @@ async fn setup_products_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
 
     db.execute(sea_orm::Statement::from_string(
         db.get_database_backend(),
-        r#"CREATE TABLE products (
+        r"CREATE TABLE products (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             price REAL NOT NULL,
@@ -88,7 +88,7 @@ async fn setup_products_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
             dimensions TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        )"#
+        )"
         .to_owned(),
     ))
     .await?;
@@ -275,8 +275,8 @@ async fn test_list_optimization_reduces_payload_size() {
 
     // List payload should be significantly smaller than detail payload
     // Since we're hiding ~4KB of data (description + specifications)
-    println!("Detail view size: {} bytes", detail_size);
-    println!("List view size: {} bytes", list_size);
+    println!("Detail view size: {detail_size} bytes");
+    println!("List view size: {list_size} bytes");
     println!(
         "Size reduction: {:.1}%",
         (1.0 - (list_size as f64 / detail_size as f64)) * 100.0
@@ -348,10 +348,10 @@ async fn test_list_model_multiple_items() {
     for i in 1..=5 {
         let create_data = json!({
             "name": format!("Product {}", i),
-            "price": i as f64 * 10.0,
-            "description": format!("Description for product {}", i).repeat(20),
-            "specifications": format!("Specs for product {}", i).repeat(15),
-            "weight_kg": i as f64,
+            "price": f64::from(i) * 10.0,
+            "description": format!("Description for product {i}").repeat(20),
+            "specifications": format!("Specs for product {i}").repeat(15),
+            "weight_kg": f64::from(i),
             "dimensions": format!("{}x{}x{}cm", i, i*2, i*3)
         });
 
@@ -399,7 +399,7 @@ async fn test_list_model_multiple_items() {
         .map(|p| p["name"].as_str().unwrap().to_string())
         .collect();
     for i in 1..=5 {
-        assert!(names.contains(&format!("Product {}", i)));
+        assert!(names.contains(&format!("Product {i}")));
     }
 }
 
@@ -416,7 +416,7 @@ async fn test_list_model_with_sorting_on_hidden_field() {
         let create_data = json!({
             "name": format!("Product {}", i),
             "price": 10.0,
-            "weight_kg": (4 - i) as f64  // 3.0, 2.0, 1.0
+            "weight_kg": f64::from(4 - i)  // 3.0, 2.0, 1.0
         });
 
         let request = Request::builder()

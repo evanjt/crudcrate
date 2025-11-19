@@ -97,7 +97,7 @@ pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
 mod tests {
     use super::*;
 
-    /// TDD: Column names should use Expr::col() not string interpolation
+    /// TDD: Column names should use `Expr::col()` not string interpolation
     #[test]
     fn test_column_names_use_expr_col() {
         // After fix: column names should be wrapped in Column() AST node
@@ -108,7 +108,7 @@ mod tests {
         // This proves we're NOT using format!("{key}") anymore
         assert!(
             sql.contains("Column(") && sql.contains("user_name"),
-            "Column should be wrapped in Column() AST node, got: {}", sql
+            "Column should be wrapped in Column() AST node, got: {sql}"
         );
     }
 
@@ -140,7 +140,7 @@ mod tests {
 
             // Values are wrapped in Value() which sea-query parameterizes safely
             // The pattern is uppercased and wrapped, so SQL injection is prevented
-            assert!(sql.contains("Value(String"), "Values should be wrapped safely: {}", sql);
+            assert!(sql.contains("Value(String"), "Values should be wrapped safely: {sql}");
         }
     }
 
