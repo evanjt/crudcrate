@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::{entity::prelude::*, Database, DatabaseConnection, EntityTrait};
 use serde_json::json;
+use serial_test::serial;
 use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -47,6 +48,13 @@ impl MockExternalService {
 
     fn record_delete_many(&self, keys: Vec<String>) {
         self.delete_many_calls.lock().unwrap().push(keys);
+    }
+
+    /// Reset the mock service state (for test isolation)
+    fn reset(&self) {
+        self.deleted_keys.lock().unwrap().clear();
+        self.delete_many_calls.lock().unwrap().clear();
+        *self.should_fail.lock().unwrap() = false;
     }
 }
 
@@ -171,12 +179,6 @@ async fn setup_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
 }
 
 fn setup_app(db: &DatabaseConnection) -> Router {
-    // Reset mock service
-    let service = get_mock_service();
-    service.deleted_keys.lock().unwrap().clear();
-    service.delete_many_calls.lock().unwrap().clear();
-    service.set_should_fail(false);
-
     Router::new().nest("/assets", Asset::router(db).into())
 }
 
@@ -185,7 +187,9 @@ fn setup_app(db: &DatabaseConnection) -> Router {
 // ============================================================================
 
 #[tokio::test]
+#[serial]
 async fn test_custom_delete_single_with_cleanup() {
+    get_mock_service().reset(); // Reset mock state for test isolation
     let db = setup_db().await.expect("Failed to setup database");
     let app = setup_app(&db);
 
@@ -237,7 +241,9 @@ async fn test_custom_delete_single_with_cleanup() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_custom_delete_single_external_failure() {
+    get_mock_service().reset(); // Reset mock state for test isolation
     let db = setup_db().await.expect("Failed to setup database");
     let app = setup_app(&db);
 
@@ -288,7 +294,9 @@ async fn test_custom_delete_single_external_failure() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_custom_delete_not_found() {
+    get_mock_service().reset(); // Reset mock state for test isolation
     let db = setup_db().await.expect("Failed to setup database");
     let app = setup_app(&db);
 
