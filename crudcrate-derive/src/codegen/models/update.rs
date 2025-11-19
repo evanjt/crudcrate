@@ -18,7 +18,7 @@ pub(crate) fn generate_update_struct_fields(
             if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
                 // Resolve type with target models (update model)
                 let final_ty = resolve_field_type_with_target_models(ty, field, |_, update, _| update.clone());
-                generate_field_with_optional_default(ident, final_ty, field)
+                generate_field_with_optional_default(ident.as_ref(), &final_ty, field)
             } else {
                 // Extract inner type from Option<T> - inline replacement for extract_inner_type_for_update
                 let inner_ty = if let syn::Type::Path(type_path) = ty

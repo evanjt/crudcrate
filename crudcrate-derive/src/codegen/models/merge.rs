@@ -2,7 +2,7 @@
 //!
 //! Handles generation of:
 //! - Included field merge logic (fields in Update model)
-//! - Excluded field merge logic (fields with on_update but excluded from Update model)
+//! - Excluded field merge logic (fields with `on_update` but excluded from Update model)
 
 use crate::attribute_parser;
 use crate::codegen::models::shared::generate_active_value_assignment;
@@ -49,8 +49,8 @@ pub(crate) fn generate_included_merge_code(
         .collect()
 }
 
-/// Generates merge code for fields excluded from Update model but with on_update
-/// These fields are automatically updated with the on_update expression
+/// Generates merge code for fields excluded from Update model but with `on_update`
+/// These fields are automatically updated with the `on_update` expression
 pub(crate) fn generate_excluded_merge_code(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Vec<proc_macro2::TokenStream> {

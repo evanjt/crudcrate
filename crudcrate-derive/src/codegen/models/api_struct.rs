@@ -3,7 +3,7 @@
 //! This module handles generation of:
 //! - API struct field definitions
 //! - From<Model> conversion assignments
-//! - DateTime timezone conversion
+//! - `DateTime` timezone conversion
 //! - Join field initialization
 //! - Derive clause generation based on requirements
 
@@ -14,7 +14,7 @@ use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis
 use quote::{quote, ToTokens};
 
 /// Generates API struct fields and From<Model> conversion assignments
-/// Returns (field_definitions, from_model_assignments)
+/// Returns (`field_definitions`, `from_model_assignments`)
 pub(crate) fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
 ) -> (

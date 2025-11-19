@@ -21,7 +21,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             match &expr_lit.lit {
                                 Lit::Str(s) => {
                                     let value = s.value();
-                                    let ident = nv.path.get_ident().map(|i| i.to_string());
+                                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
                                     match ident.as_deref() {
                                         Some("name_singular") => meta.name_singular = Some(value),
                                         Some("name_plural") => meta.name_plural = Some(value),
@@ -32,7 +32,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                 }
                                 Lit::Bool(b) => {
                                     let value = b.value();
-                                    let ident = nv.path.get_ident().map(|i| i.to_string());
+                                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
                                     match ident.as_deref() {
                                         Some("generate_router") => meta.generate_router = value,
                                         Some("derive_partial_eq") => meta.derive_partial_eq = value,
@@ -45,7 +45,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                         } else if let syn::Expr::Path(expr_path) = &nv.value {
                             // Handle function path values
                             let path = &expr_path.path;
-                            let ident = nv.path.get_ident().map(|i| i.to_string());
+                            let ident = nv.path.get_ident().map(std::string::ToString::to_string);
                             match ident.as_deref() {
                                 Some("fn_get_one") => meta.fn_get_one = Some(path.clone()),
                                 Some("fn_get_all") => meta.fn_get_all = Some(path.clone()),
@@ -59,7 +59,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                     }
                     // Handle boolean flags (like generate_router)
                     Meta::Path(path) => {
-                        let ident = path.get_ident().map(|i| i.to_string());
+                        let ident = path.get_ident().map(std::string::ToString::to_string);
                         match ident.as_deref() {
                             Some("generate_router") => meta.generate_router = true,
                             Some("derive_partial_eq") => meta.derive_partial_eq = true,
@@ -69,7 +69,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             _ => {}
                         }
                     }
-                    _ => {}
+                    Meta::List(_) => {}
                 }
             }
         }

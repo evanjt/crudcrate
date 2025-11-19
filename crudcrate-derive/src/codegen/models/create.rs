@@ -72,7 +72,7 @@ pub(crate) fn generate_create_struct_fields(
             if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
                 // Resolve type with target models (create model)
                 let final_ty = resolve_field_type_with_target_models(ty, field, |create, _, _| create.clone());
-                generate_field_with_optional_default(ident, final_ty, field)
+                generate_field_with_optional_default(ident.as_ref(), &final_ty, field)
             } else if get_crudcrate_expr(field, "on_create").is_some() {
                 quote! {
                     #[serde(default)]

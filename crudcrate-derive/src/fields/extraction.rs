@@ -54,7 +54,7 @@ pub fn extract_entity_fields(
     }
 }
 
-/// Parse entity-level attributes (api_struct, active_model)
+/// Parse entity-level attributes (`api_struct`, `active_model`)
 pub fn parse_entity_attributes(input: &DeriveInput, struct_name: &syn::Ident) -> (syn::Ident, String) {
     let mut api_struct_name = None;
     let mut active_model_path = None;
@@ -93,7 +93,7 @@ pub fn parse_entity_attributes(input: &DeriveInput, struct_name: &syn::Ident) ->
     (api_struct_name, active_model_path)
 }
 
-/// Check if a field has the #[sea_orm(ignore)] attribute
+/// Check if a field has the #[`sea_orm(ignore)`] attribute
 pub fn has_sea_orm_ignore(field: &syn::Field) -> bool {
     for attr in &field.attrs {
         if attr.path().is_ident("sea_orm")

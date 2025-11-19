@@ -129,7 +129,7 @@ where
         match PaginatorTrait::count(query, db).await {
             Ok(count) => count,
             Err(e) => {
-                eprintln!("Database error in total_count: {}", e);
+                eprintln!("Database error in total_count: {e}");
                 0
             }
         }

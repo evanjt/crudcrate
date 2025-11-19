@@ -39,7 +39,7 @@ pub(crate) fn generate_crud_resource_impl(
 
     // Generate registration lazy static and auto-registration call only for models without join fields
     // Models with join fields may have circular dependencies that prevent CRUDResource compilation
-    let has_join_fields =
+    let _has_join_fields =
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
     // Generate resource name plural constant

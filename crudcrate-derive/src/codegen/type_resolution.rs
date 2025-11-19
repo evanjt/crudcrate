@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 
 /// Map field types to their corresponding entity or model paths
-/// This function replaces both get_entity_path_from_field_type and get_model_path_from_field_type
+/// This function replaces both `get_entity_path_from_field_type` and `get_model_path_from_field_type`
 pub fn get_path_from_field_type(field_type: &syn::Type, target_suffix: &str) -> proc_macro2::TokenStream {
     // Extract the target type from Vec<T> or Option<T> using canonical helpers
     let target_type = extract_vec_inner_type_ref(field_type);
@@ -103,7 +103,7 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
 
 /// Extract inner type from Vec<T>, or return the type itself if not a Vec
 /// This is the canonical implementation used across the codebase
-/// Returns a reference to the inner syn::Type
+/// Returns a reference to the inner `syn::Type`
 pub fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
@@ -117,7 +117,7 @@ pub fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
 }
 
 /// Extract inner type from Option<T>, or return the type itself if not an Option
-/// Returns a reference to the inner syn::Type
+/// Returns a reference to the inner `syn::Type`
 pub fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()

@@ -44,7 +44,7 @@ fn check_join_depth(
     entity_name: &str,
     warnings: &mut Vec<proc_macro2::TokenStream>,
 ) {
-    let field_name = field.ident.as_ref().map(|i| i.to_string()).unwrap_or_else(|| "unknown".to_string());
+    let field_name = field.ident.as_ref().map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
     // Get the actual depth from join_config
     let depth = join_config.depth.unwrap_or(3);
@@ -52,8 +52,7 @@ fn check_join_depth(
     // Warn if depth is excessive (performance concern)
     if depth > PERFORMANCE_WARNING_DEPTH {
         let warning_msg = format!(
-            "Join field '{field_name}' in '{entity_name}' has recursion depth {} which may impact performance. Consider reducing to {} or less.",
-            depth, PERFORMANCE_WARNING_DEPTH
+            "Join field '{field_name}' in '{entity_name}' has recursion depth {depth} which may impact performance. Consider reducing to {PERFORMANCE_WARNING_DEPTH} or less."
         );
         warnings.push(quote! {
             compile_error!(#warning_msg);

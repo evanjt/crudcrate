@@ -19,7 +19,8 @@ pub(crate) fn generate_list_struct_fields(
             let ty = &field.ty;
 
             // Resolve type with target models (list model)
-            let final_ty = resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone());
+            let final_ty =
+                resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone());
 
             quote! {
                 pub #ident: #final_ty
@@ -38,7 +39,7 @@ pub(crate) fn generate_list_from_assignments(
             let ident = &field.ident;
 
             // Try to generate target model conversion, fallback to direct assignment
-            generate_target_model_conversion(field, ident).unwrap_or_else(|| {
+            generate_target_model_conversion(field, ident.as_ref()).unwrap_or_else(|| {
                 quote! {
                     #ident: model.#ident
                 }
@@ -58,7 +59,7 @@ pub(crate) fn generate_list_from_model_assignments(
 
         if get_crudcrate_bool(field, "list_model").unwrap_or(true) {
             // Field is included in ListModel - use actual data from Model
-            if let Some(conversion) = generate_target_model_conversion(field, field_name) {
+            if let Some(conversion) = generate_target_model_conversion(field, field_name.as_ref()) {
                 assignments.push(conversion);
                 continue;
             }

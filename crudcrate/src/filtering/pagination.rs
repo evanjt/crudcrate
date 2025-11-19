@@ -17,7 +17,13 @@ fn sanitize_resource_name(name: &str) -> String {
 /// # Returns
 ///
 /// A `HeaderMap` containing the Content-Range header.
-/// If the resource_name contains invalid header characters, it will be sanitized.
+/// If the `resource_name` contains invalid header characters, it will be sanitized.
+///
+/// # Panics
+///
+/// This function includes a fallback mechanism and should never panic in practice.
+/// The fallback uses a hardcoded valid header string `"items 0-0/0"` which is
+/// guaranteed to parse successfully.
 #[must_use]
 pub fn calculate_content_range(
     offset: u64,

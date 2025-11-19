@@ -37,7 +37,7 @@ fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_mac
 
 /// Generates `<Name>Create` struct with fields not excluded by `exclude(create)`.
 /// Fields with `on_create` become `Option<T>` to allow user override.
-/// Implements `From<NameCreate>` for ActiveModel with automatic value generation.
+/// Implements `From<NameCreate>` for `ActiveModel` with automatic value generation.
 #[proc_macro_derive(ToCreateModel, attributes(crudcrate, active_model))]
 pub fn to_create_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -165,7 +165,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 
 /// Generates complete CRUD API structures from Sea-ORM entities.
 ///
-/// Creates API struct, List/Response models, and CRUDResource implementation.
+/// Creates API struct, List/Response models, and `CRUDResource` implementation.
 /// Supports custom functions, joins, filtering, sorting, and fulltext search.
 ///
 /// Key attributes: `api_struct`, `generate_router`, `exclude()`, `join()`, `on_create/update`.

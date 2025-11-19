@@ -1,7 +1,7 @@
 //! Consolidated join loading code generation
 //!
 //! This module provides shared logic for generating join loading code for both
-//! get_one() and get_all() methods, eliminating the duplication between
+//! `get_one()` and `get_all()` methods, eliminating the duplication between
 //! handlers/get.rs and joins/recursion.rs
 
 use crate::codegen::joins::get_join_config;
@@ -12,7 +12,7 @@ use crate::codegen::type_resolution::{
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
-/// Generate join loading code for get_one() method
+/// Generate join loading code for `get_one()` method
 pub fn generate_get_one_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     // Check if there are any join fields
     if analysis.join_on_one_fields.is_empty() && analysis.join_on_all_fields.is_empty() {
@@ -24,7 +24,7 @@ pub fn generate_get_one_join_loading(analysis: &EntityFieldAnalysis) -> proc_mac
     let mut join_fields: Vec<&syn::Field> = Vec::new();
 
     for field in analysis.join_on_one_fields.iter().chain(analysis.join_on_all_fields.iter()) {
-        if field.ident.as_ref().map_or(true, |name| seen_fields.insert(name.to_string())) {
+        if field.ident.as_ref().is_none_or(|name| seen_fields.insert(name.to_string())) {
             join_fields.push(field);
         }
     }
@@ -32,12 +32,12 @@ pub fn generate_get_one_join_loading(analysis: &EntityFieldAnalysis) -> proc_mac
     generate_join_loading_impl(&join_fields, "get_one")
 }
 
-/// Generate join loading code for get_all() method
+/// Generate join loading code for `get_all()` method
 pub fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     if analysis.join_on_all_fields.is_empty() {
         return quote! {};
     }
-    let join_fields: Vec<&syn::Field> = analysis.join_on_all_fields.iter().copied().collect();
+    let join_fields: Vec<&syn::Field> = analysis.join_on_all_fields.clone();
     generate_join_loading_impl(&join_fields, "get_all")
 }
 

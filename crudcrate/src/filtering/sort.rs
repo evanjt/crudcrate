@@ -37,7 +37,7 @@ where
 }
 
 pub fn generic_sort<C>(
-    sort: Option<String>,
+    sort: Option<&str>,
     order_column_logic: &[(&str, C)],
     default_column: C,
 ) -> (C, Order)
@@ -46,7 +46,6 @@ where
 {
 
     let (sort_column, sort_order) = sort
-        .as_deref()
         .map_or((DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string()), parse_json_sort);
 
     let order_direction = parse_order(&sort_order);

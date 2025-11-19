@@ -10,7 +10,7 @@ use syn::DeriveInput;
 
 /// Generates both List and Response models from entity definition
 ///
-/// Returns a tuple of (list_model_tokens, response_model_tokens)
+/// Returns a tuple of (`list_model_tokens`, `response_model_tokens`)
 pub(crate) fn generate_list_and_response_models(
     input: &DeriveInput,
     api_struct_name: &syn::Ident,

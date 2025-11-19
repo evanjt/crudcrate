@@ -21,7 +21,7 @@ pub fn field_is_optional(field: &syn::Field) -> bool {
 
 /// Resolves the target models (Create/Update/List) for a field with `use_target_models` attribute.
 /// Returns (`CreateModel`, `UpdateModel`, `ListModel`) types for the target `CRUDResource`.
-/// If you only need Create/Update, call resolve_target_models() instead.
+/// If you only need Create/Update, call `resolve_target_models()` instead.
 pub fn resolve_target_models_with_list(
     field_type: &syn::Type,
 ) -> Option<(syn::Type, syn::Type, syn::Type)> {
