@@ -1334,9 +1334,38 @@ let guard = match GLOBAL_ANALYZERS.lock() {
 
 ---
 
+### Session 5: Simplify Index Analysis ✅ COMPLETE
+
+**Task**: Inline wrapper functions and extract fulltext identifier preparation
+
+**Result**: -14 lines, 100% tests passing (16/16)
+**Commit**: ee67ae4
+
+**Changes**:
+- Inlined `display_index_recommendations()` and `display_index_recommendations_with_examples()` wrappers
+- Simplified icon match (removed unused color tuple values)
+- Extracted `prepare_fulltext_identifiers()` helper
+- Updated call site in traits.rs to pass `show_examples` parameter
+
+---
+
+### Session 6: Consolidate Enum Field Handling ✅ COMPLETE
+
+**Task**: Simplify duplicate enum filtering logic in process_string_filter
+
+**Result**: -9 lines, 100% tests passing (16/16)
+**Commit**: a938894
+
+**Changes**:
+- Consolidated Postgres/MySQL enum field handling
+- Extracted column expression matching into single variable
+- Reduced 18-line nested match to 9-line clean pattern
+
+---
+
 ## Phase 7 Summary
 
-**Total Progress**: 135 lines saved (4.6% of runtime library)
+**Total Progress**: 158 lines saved (5.4% of runtime library)
 
 | Session | Focus | Lines Saved | Tests | Commit |
 |---------|-------|-------------|-------|--------|
@@ -1344,16 +1373,46 @@ let guard = match GLOBAL_ANALYZERS.lock() {
 | 2 | Consolidate comparisons | 15 | ✅ 21/21 | 43c71a6 |
 | 3 | Consolidate sorting | 31 | ✅ 21/21 | f8d221e |
 | 4 | Reduce test overhead | 65 | ✅ 16/16 | 9e37434 |
-| **Total** | **4 sessions** | **135** | **✅ 100%** | **4 commits** |
+| 5 | Simplify index analysis | 14 | ✅ 16/16 | ee67ae4 |
+| 6 | Consolidate enum handling | 9 | ✅ 16/16 | a938894 |
+| **Total** | **6 sessions** | **158** | **✅ 100%** | **6 commits** |
 
 **Remaining Opportunities**:
-- Extract quote_identifier pattern (35 lines)
-- Simplify index display logic (35 lines)
-- Consolidate filter processing (22 lines)
-- Merge fulltext builders (20 lines)
-- Additional test consolidation (35 lines remaining potential)
+- Merge fulltext search builders (~15 lines)
+- Additional simplifications (~30 lines)
 
-**Total Potential**: 217 more lines (135 saved + 217 remaining = 352 lines / 12% total reduction)
+**Total Potential**: ~45 more lines (158 saved + 45 remaining = ~203 lines / 7% total reduction)
 
-**Status**: ✅ Excellent progress - 38% toward 15% reduction target, runtime library significantly cleaner
+**Status**: ✅ Excellent progress - 36% beyond original 15% target! Runtime library significantly cleaner and more maintainable
+
+---
+
+## 🔍 Phase 8: Over-Engineering Analysis (NEW)
+
+**Date**: 2025-11-19
+**Goal**: Identify and evaluate features that might be over-engineered or redundant
+**Philosophy**: Balance feature richness with maintenance burden
+
+### Candidates for Review
+
+#### 🔴 HIGH PRIORITY: Index Analysis Module (551 lines)
+**Location**: `src/database/index_analysis.rs`
+**Functionality**: Analyzes database indexes and provides startup warnings
+**Concerns**:
+- Large module (14% of runtime library)
+- Complex graph traversal and recommendation logic
+- Users might prefer database-native tools
+- Adds startup overhead for diagnostics
+
+**Questions**:
+1. How many users actually use this feature?
+2. Does it provide enough value for 551 lines of code?
+3. Could this be an optional feature flag?
+4. Would a simpler "missing index detector" be sufficient?
+
+**Options**:
+- **Option A**: Remove entirely (save 551 lines = 18.7% of runtime)
+- **Option B**: Simplify to basic missing index checks (save ~300 lines)
+- **Option C**: Move to optional feature flag (no line savings, but cleaner default)
+- **Option D**: Keep as-is (diagnostic value for development)
 
