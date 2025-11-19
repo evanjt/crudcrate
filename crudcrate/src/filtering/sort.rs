@@ -84,3 +84,61 @@ where
 
     (order_column, order_direction)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_json_sort_valid() {
+        let (col, order) = parse_json_sort(r#"["name", "DESC"]"#);
+        assert_eq!(col, "name");
+        assert_eq!(order, "DESC");
+    }
+
+    #[test]
+    fn test_parse_json_sort_partial() {
+        // Only column, no order
+        let (col, order) = parse_json_sort(r#"["email"]"#);
+        assert_eq!(col, "email");
+        assert_eq!(order, DEFAULT_SORT_ORDER);
+    }
+
+    #[test]
+    fn test_parse_json_sort_invalid_json() {
+        // Invalid JSON should return defaults
+        let (col, order) = parse_json_sort("invalid json");
+        assert_eq!(col, DEFAULT_SORT_COLUMN);
+        assert_eq!(order, DEFAULT_SORT_ORDER);
+    }
+
+    #[test]
+    fn test_parse_json_sort_empty_array() {
+        let (col, order) = parse_json_sort("[]");
+        assert_eq!(col, DEFAULT_SORT_COLUMN);
+        assert_eq!(order, DEFAULT_SORT_ORDER);
+    }
+
+    #[test]
+    fn test_parse_order_asc() {
+        assert_eq!(parse_order("ASC"), Order::Asc);
+        assert_eq!(parse_order("asc"), Order::Asc);
+        assert_eq!(parse_order("Asc"), Order::Asc);
+    }
+
+    #[test]
+    fn test_parse_order_desc() {
+        assert_eq!(parse_order("DESC"), Order::Desc);
+        assert_eq!(parse_order("desc"), Order::Desc);
+        assert_eq!(parse_order("Desc"), Order::Desc);
+    }
+
+    #[test]
+    fn test_parse_order_invalid_defaults_to_desc() {
+        // Any non-ASC value defaults to DESC
+        assert_eq!(parse_order("invalid"), Order::Desc);
+        assert_eq!(parse_order(""), Order::Desc);
+        assert_eq!(parse_order("random"), Order::Desc);
+    }
+
+}
