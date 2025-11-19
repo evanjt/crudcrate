@@ -213,6 +213,7 @@
 // Core Feature Groups
 pub mod core;
 pub mod database;
+pub mod errors;
 pub mod filtering;
 pub mod operations;
 pub mod relationships;
@@ -243,6 +244,7 @@ pub use crudcrate_derive::*;
 
 // Export commonly used items from feature groups
 pub use core::{CRUDResource, MergeIntoActiveModel};
+pub use errors::ApiError;
 pub use filtering::{
     FilterOptions, apply_filters, calculate_content_range, parse_pagination, parse_range,
     parse_sorting,

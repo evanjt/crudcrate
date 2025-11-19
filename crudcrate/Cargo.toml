@@ -31,6 +31,7 @@ serde_json = { workspace = true }
 serde_with = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
+tracing = { workspace = true }
 
 # Spring-RS dependencies (only for examples, behind feature flag)
 spring = { version = "0.4.3", optional = true }
@@ -48,6 +49,7 @@ criterion = { workspace = true, features = ["html_reports"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono"] }
 sea-orm-migration = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+tracing-subscriber = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors", "trace"] }
 tower_governor = { workspace = true }
@@ -117,6 +119,11 @@ required-features = ["derive"]
 [[example]]
 name = "lifecycle_hooks"
 path = "../examples/lifecycle_hooks/main.rs"
+required-features = ["derive"]
+
+[[example]]
+name = "error_handling"
+path = "../examples/error_handling.rs"
 required-features = ["derive"]
 
 
