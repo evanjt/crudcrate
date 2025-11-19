@@ -88,8 +88,9 @@ impl CRUDOperations for BlogPostOperations {
 
     async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), DbErr> {
         println!("🔍 [HOOK] Fetching blog post {id}...");
-        Ok(())
+        Err(DbErr::Custom("Failed to fetch blog post".to_string()))
     }
+
     /// After fetching one: Enrich with view count and increment it
     async fn after_get_one(
         &self,

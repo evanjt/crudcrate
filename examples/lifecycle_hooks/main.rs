@@ -154,6 +154,13 @@ async fn seed_data(db: &DatabaseConnection) {
 
 #[tokio::main]
 async fn main() {
+    // Enable tracing for error logging (optional but recommended)
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .with_level(true)
+        .compact()
+        .init();
+
     println!("🚀 CrudCrate Lifecycle Hooks Example\n");
 
     let db = setup_database().await;
