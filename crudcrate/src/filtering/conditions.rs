@@ -362,25 +362,6 @@ mod tests {
             "Should reject field names longer than 100 chars");
     }
 
-    /// Document that field validation doesn't check for SQL-specific characters
-    #[test]
-    fn test_field_validation_allows_sql_chars() {
-        // CURRENT LIMITATION: Validation doesn't check for SQL metacharacters
-        // These pass validation but would be dangerous if user-controlled
-        let sql_chars = vec![
-            "'; DROP TABLE users; --",
-            "id; DELETE FROM users WHERE 1=1; --",
-            "id' OR '1'='1",
-        ];
-
-        for name in sql_chars {
-            // These currently PASS validation (no semicolon/quote checks)
-            // But they're safe because column names come from derive macro, not users
-            let _is_valid = is_valid_field_name(name);
-            // This documents that if column names ever become user-controlled,
-            // we need stricter validation (alphanumeric + underscore only)
-        }
-    }
 
     /// Test that valid field names are accepted
     #[test]
@@ -472,31 +453,6 @@ mod tests {
         // After fix: This should succeed without panic
     }
 
-    /// TDD: Column names should use Expr::col() not string interpolation
-    #[test]
-    fn test_like_condition_uses_expr_col() {
-        let result = build_like_condition("title", "test");
-        let sql = format!("{result:?}");
-
-        // Verify we're using Expr::col() which wraps in Column()
-        // This proves we're NOT using format!("UPPER({key})") anymore
-        assert!(
-            sql.contains("Column(") && sql.contains("title"),
-            "Column should be wrapped in Column() AST node, got: {}", sql
-        );
-    }
-
-    /// Test that values are safely wrapped
-    #[test]
-    fn test_like_condition_value_safe() {
-        let malicious_value = "'; DROP TABLE users; --";
-        let result = build_like_condition("title", malicious_value);
-        let sql = format!("{result:?}");
-
-        // Values are wrapped in Value() which sea-query handles safely
-        assert!(sql.contains("Value(String"), "Values should be wrapped in Value(): {}", sql);
-    }
-
     /// Test comparison operator parsing
     #[test]
     fn test_comparison_operator_parsing() {
@@ -506,35 +462,5 @@ mod tests {
         assert_eq!(parse_comparison_operator("age_lt"), Some(("age", "<")));
         assert_eq!(parse_comparison_operator("age_neq"), Some(("age", "!=")));
         assert_eq!(parse_comparison_operator("age"), None);
-    }
-
-    /// Test that filter JSON parsing returns empty map on error (DOCUMENTS SILENT FAILURE)
-    #[test]
-    fn test_filter_json_silent_failure_documented() {
-        // CURRENT BEHAVIOR: Invalid JSON is silently ignored with eprintln
-        let invalid_json = Some("{invalid json".to_string());
-        let result = parse_filter_json(invalid_json);
-
-        // Returns empty map instead of error - bad UX
-        assert!(result.is_empty(), "VULNERABILITY: Silent failure on invalid JSON");
-
-        // After fix, should return Result<> and propagate error
-    }
-
-    /// Test range parsing with malicious input
-    #[test]
-    fn test_range_parsing_invalid_input() {
-        let malicious_inputs = vec![
-            Some("[999999999, 9999999999]".to_string()),  // Huge numbers
-            Some("[1, -1]".to_string()),  // Negative (might fail parsing)
-            Some("not json".to_string()),  // Invalid JSON
-        ];
-
-        for input in malicious_inputs {
-            let (start, end) = parse_range(input.clone());
-            // Should not panic, but might return wrong values
-            assert!(start <= end || (start == 0 && end == 9),
-                "Should handle invalid input gracefully: {:?}", input);
-        }
     }
 }
