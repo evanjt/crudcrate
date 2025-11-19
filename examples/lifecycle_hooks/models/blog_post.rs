@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use crudcrate::{CRUDOperations, CRUDResource, EntityToModels};
+use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
 use sea_orm::{Condition, DatabaseConnection, Order, entity::prelude::*};
 use uuid::Uuid;
 
@@ -56,12 +56,12 @@ impl CRUDOperations for BlogPostOperations {
         &self,
         _db: &DatabaseConnection,
         data: &BlogPostCreate,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), ApiError> {
         println!("🔍 [HOOK] Validating blog post before creation...");
 
         // Validation: Content must be at least 100 characters
         if data.content.len() < 100 {
-            return Err(DbErr::Custom(format!(
+            return Err(ApiError::bad_request(format!(
                 "Blog post content too short: {} chars (minimum 100 required)",
                 data.content.len()
             )));
@@ -69,7 +69,7 @@ impl CRUDOperations for BlogPostOperations {
 
         // Validation: Title must not be empty
         if data.title.trim().is_empty() {
-            return Err(DbErr::Custom("Blog post title cannot be empty".to_string()));
+            return Err(ApiError::bad_request("Blog post title cannot be empty"));
         }
 
         println!("   ✓ Validation passed");
@@ -81,14 +81,14 @@ impl CRUDOperations for BlogPostOperations {
         &self,
         _db: &DatabaseConnection,
         entity: &mut BlogPost,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), ApiError> {
         println!("📢 [HOOK] Blog post created: \"{}\"", entity.title);
         Ok(())
     }
 
-    async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), DbErr> {
+    async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
         println!("🔍 [HOOK] Fetching blog post {id}...");
-        Err(DbErr::Custom("Failed to fetch blog post".to_string()))
+        Err(ApiError::internal("Failed to fetch blog post", None))
     }
 
     /// After fetching one: Enrich with view count and increment it
@@ -96,7 +96,7 @@ impl CRUDOperations for BlogPostOperations {
         &self,
         db: &DatabaseConnection,
         entity: &mut BlogPost,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), ApiError> {
         // Fetch view count from analytics (simulated)
         entity.view_count = get_view_count(db, entity.id).await?;
 
@@ -112,7 +112,7 @@ impl CRUDOperations for BlogPostOperations {
     }
 
     /// Before deleting: Check permissions and log
-    async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), DbErr> {
+    async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
         println!("🔐 [HOOK] Deleting blog post {id}...");
         Ok(())
     }
@@ -130,7 +130,7 @@ impl CRUDOperations for BlogPostOperations {
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, DbErr> {
+    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
         // Add published=true filter to the condition
@@ -143,7 +143,8 @@ impl CRUDOperations for BlogPostOperations {
             .offset(offset)
             .limit(limit)
             .all(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
 
         Ok(models
             .into_iter()
@@ -158,7 +159,7 @@ impl CRUDOperations for BlogPostOperations {
     // ===========================================
 
     /// Complete override: Custom delete with S3 cleanup
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
         println!("🗑️  [FULL OVERRIDE] Custom delete with S3 cleanup");
 
         // 1. Fetch the post first (using default fetch_one)
@@ -169,7 +170,7 @@ impl CRUDOperations for BlogPostOperations {
             println!("   🗑️  Deleting S3 image: {}", s3_key);
             delete_from_s3(s3_key)
                 .await
-                .map_err(|e| DbErr::Custom(format!("S3 cleanup failed: {}", e)))?;
+                .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {}", e), None))?;
         }
 
         // 3. Delete from database (using default perform_delete)
@@ -185,13 +186,13 @@ impl CRUDOperations for BlogPostOperations {
 //
 
 /// Simulated view count fetch from analytics service
-async fn get_view_count(_db: &DatabaseConnection, _id: Uuid) -> Result<i32, DbErr> {
+async fn get_view_count(_db: &DatabaseConnection, _id: Uuid) -> Result<i32, ApiError> {
     // In real code: query analytics database or cache
     Ok(42)
 }
 
 /// Simulated view count increment
-async fn increment_view_count(_db: &DatabaseConnection, _id: Uuid) -> Result<(), DbErr> {
+async fn increment_view_count(_db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
     // In real code: increment counter in analytics service
     Ok(())
 }

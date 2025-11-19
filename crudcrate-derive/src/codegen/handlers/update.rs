@@ -8,28 +8,28 @@ pub fn generate_update_impl(
     // If operations is specified, use it; otherwise fall back to fn_update or default
     if let Some(ops_path) = &crud_meta.operations {
         quote! {
-            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, sea_orm::DbErr> {
+            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::update(&ops, db, id, data).await
             }
         }
     } else if let Some(fn_path) = &crud_meta.fn_update {
         quote! {
-            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, sea_orm::DbErr> {
+            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
                 #fn_path(db, id, data).await
             }
         }
     } else {
         quote! {
             // Default update implementation
-            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, sea_orm::DbErr> {
+            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
                 use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
                 use crudcrate::traits::MergeIntoActiveModel;
 
                 let model = Self::EntityType::find_by_id(id)
                     .one(db)
                     .await?
-                    .ok_or(sea_orm::DbErr::RecordNotFound(format!(
+                    .ok_or(crudcrate::ApiError::RecordNotFound(format!(
                         "{} not found",
                         Self::RESOURCE_NAME_SINGULAR
                     )))?;

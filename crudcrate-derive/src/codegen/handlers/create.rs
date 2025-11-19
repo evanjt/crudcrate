@@ -9,21 +9,21 @@ pub fn generate_create_impl(
     // If operations is specified, use it; otherwise fall back to fn_create or default
     if let Some(ops_path) = &crud_meta.operations {
         quote! {
-            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
+            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::create(&ops, db, data).await
             }
         }
     } else if let Some(fn_path) = &crud_meta.fn_create {
         quote! {
-            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
+            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
                 #fn_path(db, data).await
             }
         }
     } else {
         quote! {
             // Default create implementation
-            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, sea_orm::DbErr> {
+            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
                 let active_model: Self::ActiveModelType = data.into();
                 let result = Self::EntityType::insert(active_model).exec(db).await?;
                 Self::get_one(db, result.last_insert_id.into()).await

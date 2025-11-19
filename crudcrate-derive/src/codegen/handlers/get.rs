@@ -17,7 +17,7 @@ pub fn generate_get_all_impl(
                 order_direction: sea_orm::Order,
                 offset: u64,
                 limit: u64,
-            ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+            ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
             }
@@ -31,7 +31,7 @@ pub fn generate_get_all_impl(
                 order_direction: sea_orm::Order,
                 offset: u64,
                 limit: u64,
-            ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+            ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
                 #fn_path(db, condition, order_column, order_direction, offset, limit).await
             }
         }
@@ -51,7 +51,7 @@ pub fn generate_get_all_impl(
                     order_direction: sea_orm::Order,
                     offset: u64,
                     limit: u64,
-                ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+                ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
                     use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
 
                     let models = Self::EntityType::find()
@@ -82,7 +82,7 @@ pub fn generate_get_all_impl(
                     order_direction: sea_orm::Order,
                     offset: u64,
                     limit: u64,
-                ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
+                ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
                     use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
 
                     let models = Self::EntityType::find()
@@ -107,14 +107,14 @@ pub fn generate_get_one_impl(
     // If operations is specified, use it; otherwise fall back to fn_get_one or default
     if let Some(ops_path) = &crud_meta.operations {
         quote! {
-            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
+            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::get_one(&ops, db, id).await
             }
         }
     } else if let Some(fn_path) = &crud_meta.fn_get_one {
         quote! {
-            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
+            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
                 #fn_path(db, id).await
             }
         }
@@ -128,7 +128,7 @@ pub fn generate_get_one_impl(
             let join_loading_code = generate_get_one_join_loading(analysis);
 
             quote! {
-                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
+                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
                     use sea_orm::{EntityTrait, ModelTrait, Related};
 
                     // Load the main entity first
@@ -140,19 +140,19 @@ pub fn generate_get_one_impl(
                         Some(model) => {
                             #join_loading_code
                         }
-                        None => Err(sea_orm::DbErr::RecordNotFound("Record not found".to_string())),
+                        None => Err(crudcrate::ApiError::RecordNotFound("Record not found".to_string())),
                     }
                 }
             }
         } else {
             quote! {
-                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
+                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
                     let model = Self::EntityType::find_by_id(id)
                         .one(db)
                         .await?;
                     match model {
                         Some(model) => Ok(model.into()),
-                        None => Err(sea_orm::DbErr::RecordNotFound("Record not found".to_string())),
+                        None => Err(crudcrate::ApiError::RecordNotFound("Record not found".to_string())),
                     }
                 }
             }

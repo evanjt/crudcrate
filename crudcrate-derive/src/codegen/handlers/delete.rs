@@ -7,26 +7,26 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     // If operations is specified, use it; otherwise fall back to fn_delete or default
     if let Some(ops_path) = &crud_meta.operations {
         quote! {
-            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, sea_orm::DbErr> {
+            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::delete(&ops, db, id).await
             }
         }
     } else if let Some(fn_path) = &crud_meta.fn_delete {
         quote! {
-            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, sea_orm::DbErr> {
+            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, crudcrate::ApiError> {
                 #fn_path(db, id).await
             }
         }
     } else {
         quote! {
             // Default delete implementation
-            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, sea_orm::DbErr> {
+            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, crudcrate::ApiError> {
                 use sea_orm::EntityTrait;
 
                 let res = Self::EntityType::delete_by_id(id).exec(db).await?;
                 match res.rows_affected {
-                    0 => Err(sea_orm::DbErr::RecordNotFound(format!(
+                    0 => Err(crudcrate::ApiError::RecordNotFound(format!(
                         "{} not found",
                         Self::RESOURCE_NAME_SINGULAR
                     ))),
@@ -51,20 +51,20 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// async fn my_custom_delete_many(
 ///     db: &sea_orm::DatabaseConnection,
 ///     ids: Vec<uuid::Uuid>
-/// ) -> Result<Vec<uuid::Uuid>, sea_orm::DbErr>
+/// ) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError>
 /// ```
 pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it; otherwise fall back to fn_delete_many or default
     if let Some(ops_path) = &crud_meta.operations {
         quote! {
-            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, sea_orm::DbErr> {
+            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::delete_many(&ops, db, ids).await
             }
         }
     } else if let Some(fn_path) = &crud_meta.fn_delete_many {
         quote! {
-            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, sea_orm::DbErr> {
+            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
                 #fn_path(db, ids).await
             }
         }
@@ -80,22 +80,22 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
             /// async fn my_custom_delete_many(
             ///     db: &sea_orm::DatabaseConnection,
             ///     ids: Vec<uuid::Uuid>
-            /// ) -> Result<Vec<uuid::Uuid>, sea_orm::DbErr> {
+            /// ) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
             ///     const MAX_SIZE: usize = 500; // Your custom limit
             ///     if ids.len() > MAX_SIZE {
-            ///         return Err(sea_orm::DbErr::Custom(format!("Too many items: {}", ids.len())));
+            ///         return Err(crudcrate::ApiError::Custom(format!("Too many items: {}", ids.len())));
             ///     }
             ///     // Your implementation...
             /// }
             /// ```
-            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, sea_orm::DbErr> {
+            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
                 use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                 // Security: Limit batch size to prevent DoS attacks
                 // To increase, provide custom fn_delete_many implementation (see docs above)
                 const MAX_BATCH_DELETE_SIZE: usize = 100;
                 if ids.len() > MAX_BATCH_DELETE_SIZE {
-                    return Err(sea_orm::DbErr::Custom(
+                    return Err(crudcrate::ApiError::Custom(
                         format!("Batch delete limited to {} items. Received {} items. Use fn_delete_many attribute for custom limits.", MAX_BATCH_DELETE_SIZE, ids.len())
                     ));
                 }

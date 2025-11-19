@@ -107,7 +107,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         }
 
         impl #update_name {
-            pub fn merge_fields(self, mut model: #active_model_type) -> Result<#active_model_type, sea_orm::DbErr> {
+            pub fn merge_fields(self, mut model: #active_model_type) -> Result<#active_model_type, crudcrate::ApiError> {
                 #(#included_merge)*
                 #(#excluded_merge)*
                 Ok(model)
@@ -115,7 +115,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         }
 
         impl crudcrate::traits::MergeIntoActiveModel<#active_model_type> for #update_name {
-            fn merge_into_activemodel(self, model: #active_model_type) -> Result<#active_model_type, sea_orm::DbErr> {
+            fn merge_into_activemodel(self, model: #active_model_type) -> Result<#active_model_type, crudcrate::ApiError> {
                 Self::merge_fields(self, model)
             }
         }
