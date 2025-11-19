@@ -465,4 +465,130 @@ mod tests {
         assert_eq!(parse_comparison_operator("age_neq"), Some(("age", "!=")));
         assert_eq!(parse_comparison_operator("age"), None);
     }
+
+    /// Test wildcard escaping for LIKE queries
+    #[test]
+    fn test_escape_like_wildcards() {
+        assert_eq!(escape_like_wildcards("normal text"), "normal text");
+        assert_eq!(escape_like_wildcards("test%"), "test\\%");
+        assert_eq!(escape_like_wildcards("test_value"), "test\\_value");
+        assert_eq!(escape_like_wildcards("%_"), "\\%\\_");
+        assert_eq!(escape_like_wildcards("\\"), "\\\\");
+        assert_eq!(escape_like_wildcards("\\%"), "\\\\\\%");
+        assert_eq!(escape_like_wildcards("100% complete"), "100\\% complete");
+    }
+
+    /// Test numeric comparison operators
+    #[test]
+    fn test_apply_numeric_comparison() {
+        use sea_orm::sea_query::{Expr, SimpleExpr};
+
+        // Test that we can apply various comparison operators
+        let gte_expr = apply_numeric_comparison("age", ">=", 18);
+        let sql = format!("{gte_expr:?}");
+        assert!(sql.contains("age") && sql.contains("18"));
+
+        let lte_expr = apply_numeric_comparison("price", "<=", 100.50);
+        let sql = format!("{lte_expr:?}");
+        assert!(sql.contains("price"));
+
+        let gt_expr = apply_numeric_comparison("count", ">", 0);
+        let sql = format!("{gt_expr:?}");
+        assert!(sql.contains("count") && sql.contains("0"));
+
+        let lt_expr = apply_numeric_comparison("score", "<", 50);
+        let sql = format!("{lt_expr:?}");
+        assert!(sql.contains("score") && sql.contains("50"));
+
+        let neq_expr = apply_numeric_comparison("status", "!=", 404);
+        let sql = format!("{neq_expr:?}");
+        assert!(sql.contains("status") && sql.contains("404"));
+
+        // Test fallback to equality for unknown operator
+        let eq_expr = apply_numeric_comparison("id", "unknown", 123);
+        let sql = format!("{eq_expr:?}");
+        assert!(sql.contains("id") && sql.contains("123"));
+    }
+
+    /// Test JSON filter parsing
+    #[test]
+    fn test_parse_filter_json_valid() {
+        let filter_str = Some(r#"{"name": "John", "age": 30}"#.to_string());
+        let parsed = parse_filter_json(filter_str);
+
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed.get("name").and_then(|v| v.as_str()), Some("John"));
+        assert_eq!(parsed.get("age").and_then(|v| v.as_i64()), Some(30));
+    }
+
+    #[test]
+    fn test_parse_filter_json_invalid() {
+        // Invalid JSON should return empty HashMap
+        let filter_str = Some("{invalid json}".to_string());
+        let parsed = parse_filter_json(filter_str);
+        assert_eq!(parsed.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_filter_json_none() {
+        // None should return empty HashMap
+        let parsed = parse_filter_json(None);
+        assert_eq!(parsed.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_filter_json_empty() {
+        // Empty string should return empty HashMap
+        let filter_str = Some("{}".to_string());
+        let parsed = parse_filter_json(filter_str);
+        assert_eq!(parsed.len(), 0);
+    }
+
+    /// Test comparison operators with edge cases
+    #[test]
+    fn test_comparison_operator_edge_cases() {
+        // Field name that ends with operator-like suffix but isn't one
+        assert_eq!(parse_comparison_operator("created_at"), None);
+        assert_eq!(parse_comparison_operator("_gte"), Some(("", ">=")));
+
+        // Multiple suffixes (should match the longest/last one)
+        assert_eq!(parse_comparison_operator("field_gte_lte"), Some(("field_gte", "<=")));
+    }
+
+    /// Test field name validation edge cases
+    #[test]
+    fn test_field_name_validation_edge_cases() {
+        // Boundary cases
+        assert!(is_valid_field_name("a"));  // Single char
+        assert!(is_valid_field_name("a".repeat(100).as_str()));  // Exactly 100
+        assert!(!is_valid_field_name("a".repeat(101).as_str()));  // 101
+
+        // Special chars that should be allowed
+        assert!(is_valid_field_name("field_123"));
+        assert!(is_valid_field_name("Field123"));
+
+        // Special chars that should be rejected
+        assert!(!is_valid_field_name("field..name"));
+        assert!(!is_valid_field_name(".."));
+        assert!(!is_valid_field_name("_private"));
+    }
+
+    /// Test numeric comparison with different numeric types
+    #[test]
+    fn test_apply_numeric_comparison_various_types() {
+        // i64
+        let expr_i64 = apply_numeric_comparison("count", ">=", 100_i64);
+        let sql = format!("{expr_i64:?}");
+        assert!(sql.contains("count"));
+
+        // f64
+        let expr_f64 = apply_numeric_comparison("price", "<=", 99.99_f64);
+        let sql = format!("{expr_f64:?}");
+        assert!(sql.contains("price"));
+
+        // i32
+        let expr_i32 = apply_numeric_comparison("age", ">", 18_i32);
+        let sql = format!("{expr_i32:?}");
+        assert!(sql.contains("age"));
+    }
 }

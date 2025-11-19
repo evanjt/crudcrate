@@ -77,3 +77,149 @@ pub fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+    use syn::parse_quote;
+
+    #[test]
+    fn test_field_is_optional_with_option_type() {
+        let field: syn::Field = parse_quote! { pub field: Option<String> };
+        assert!(field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_field_is_optional_with_std_option() {
+        let field: syn::Field = parse_quote! { pub field: std::option::Option<i32> };
+        assert!(field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_field_is_optional_with_non_option_type() {
+        let field: syn::Field = parse_quote! { pub field: String };
+        assert!(!field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_field_is_optional_with_vec() {
+        let field: syn::Field = parse_quote! { pub field: Vec<String> };
+        assert!(!field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_resolve_target_models_simple_type() {
+        let field_type: syn::Type = parse_quote! { Entity };
+        let result = resolve_target_models(&field_type);
+
+        assert!(result.is_some());
+        let (create, update) = result.unwrap();
+
+        // Verify the model names are correct
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+
+        assert!(create_str.contains("EntityCreate"));
+        assert!(update_str.contains("EntityUpdate"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_vec_type() {
+        let field_type: syn::Type = parse_quote! { Vec<Product> };
+        let result = resolve_target_models(&field_type);
+
+        assert!(result.is_some());
+        let (create, update) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+
+        assert!(create_str.contains("ProductCreate"));
+        assert!(update_str.contains("ProductUpdate"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_with_path() {
+        let field_type: syn::Type = parse_quote! { crate::entities::Customer };
+        let result = resolve_target_models(&field_type);
+
+        assert!(result.is_some());
+        let (create, update) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+
+        // Should preserve the path
+        assert!(create_str.contains("crate :: entities"));
+        assert!(create_str.contains("CustomerCreate"));
+        assert!(update_str.contains("CustomerUpdate"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_with_list_simple() {
+        let field_type: syn::Type = parse_quote! { Vehicle };
+        let result = resolve_target_models_with_list(&field_type);
+
+        assert!(result.is_some());
+        let (create, update, list) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+        let list_str = quote!(#list).to_string();
+
+        assert!(create_str.contains("VehicleCreate"));
+        assert!(update_str.contains("VehicleUpdate"));
+        assert!(list_str.contains("VehicleList"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_with_list_vec() {
+        let field_type: syn::Type = parse_quote! { Vec<Order> };
+        let result = resolve_target_models_with_list(&field_type);
+
+        assert!(result.is_some());
+        let (create, update, list) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+        let list_str = quote!(#list).to_string();
+
+        assert!(create_str.contains("OrderCreate"));
+        assert!(update_str.contains("OrderUpdate"));
+        assert!(list_str.contains("OrderList"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_with_list_full_path() {
+        let field_type: syn::Type = parse_quote! { Vec<crate::models::Invoice> };
+        let result = resolve_target_models_with_list(&field_type);
+
+        assert!(result.is_some());
+        let (create, update, list) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+        let list_str = quote!(#list).to_string();
+
+        assert!(create_str.contains("crate :: models"));
+        assert!(create_str.contains("InvoiceCreate"));
+        assert!(update_str.contains("InvoiceUpdate"));
+        assert!(list_str.contains("InvoiceList"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_invalid_type() {
+        // Non-path types should return None
+        let field_type: syn::Type = parse_quote! { &str };
+        let result = resolve_target_models(&field_type);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_target_models_with_list_invalid_type() {
+        let field_type: syn::Type = parse_quote! { &str };
+        let result = resolve_target_models_with_list(&field_type);
+        assert!(result.is_none());
+    }
+}
