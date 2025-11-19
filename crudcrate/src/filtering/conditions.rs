@@ -12,6 +12,14 @@ const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
 const MAX_PAGE_SIZE: u64 = 1000;
 const MAX_OFFSET: u64 = 1_000_000;
 
+/// Escape LIKE wildcards to prevent wildcard injection attacks
+/// Escapes: % (match any) and _ (match single char)
+fn escape_like_wildcards(input: &str) -> String {
+    input.replace('\\', "\\\\")  // Escape backslash first
+        .replace('%', "\\%")      // Escape %
+        .replace('_', "\\_")      // Escape _
+}
+
 /// Basic field name validation
 fn is_valid_field_name(field_name: &str) -> bool {
     !field_name.is_empty()
@@ -92,6 +100,9 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
         }
         
         // Fallback to original LIKE search on regular searchable columns
+        // Escape LIKE wildcards to prevent wildcard injection
+        let escaped_query = escape_like_wildcards(q_value_str);
+
         let mut or_conditions = Condition::any();
         for (col_name, col) in searchable_columns {
             if T::is_enum_field(col_name) {
@@ -102,7 +113,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                 Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
                             ))
-                            .like(format!("%{}%", q_value_str.to_uppercase())),
+                            .like(format!("%{}%", escaped_query.to_uppercase())),
                         );
                     }
                     _ => {
@@ -111,7 +122,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                 Expr::col(*col),
                             ))
-                            .like(format!("%{}%", q_value_str.to_uppercase())),
+                            .like(format!("%{}%", escaped_query.to_uppercase())),
                         );
                     }
                 }
@@ -121,7 +132,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                         Expr::col(*col),
                     ))
-                    .like(format!("%{}%", q_value_str.to_uppercase())),
+                    .like(format!("%{}%", escaped_query.to_uppercase())),
                 );
             }
         }

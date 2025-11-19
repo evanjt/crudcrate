@@ -3,6 +3,14 @@ use sea_orm::{DatabaseBackend, sea_query::SimpleExpr};
 // Basic safety limits
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
+/// Escape LIKE wildcards to prevent wildcard injection attacks
+/// Escapes: % (match any) and _ (match single char)
+fn escape_like_wildcards(input: &str) -> String {
+    input.replace('\\', "\\\\")  // Escape backslash first
+        .replace('%', "\\%")      // Escape %
+        .replace('_', "\\_")      // Escape _
+}
+
 /// Build fulltext search condition with database-specific optimizations
 #[must_use]
 pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
@@ -38,12 +46,15 @@ fn build_postgres_fulltext_condition(
 
     let concat_sql = concat_parts.join(" || ' ' || ");
     let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
-    let escaped_query = sanitized_query.replace('\'', "''");
+
+    // Escape both SQL quotes and LIKE wildcards
+    let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
 
     // Use a consistent approach: combine ILIKE for substring matching with trigram similarity for fuzzy matching
     // This ensures reliable partial matching across all query lengths
+    // Note: LIKE wildcards are now escaped, ESCAPE '\' tells PostgreSQL to respect our escaping
     let search_sql = format!(
-        "(UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') OR SIMILARITY({concat_sql}, '{escaped_query}') > 0.1)"
+        "(UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\' OR SIMILARITY({concat_sql}, '{escaped_query}') > 0.1)"
     );
 
     // Use custom SQL expression
@@ -69,9 +80,12 @@ fn build_fallback_fulltext_condition(
     let concat_sql = concat_parts.join(" || ' ' || ");
     // Additional security: validate and sanitize query
     let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+
+    // Escape both LIKE wildcards and SQL quotes
+    let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
+
     let like_sql = format!(
-        "UPPER({concat_sql}) LIKE UPPER('%{}%')",
-        sanitized_query.replace('\'', "''")
+        "UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\'",
     );
 
     // Use custom SQL expression
@@ -86,9 +100,12 @@ pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
     // Use Expr::col() to properly quote column names instead of string interpolation
     let column = Expr::col(Alias::new(key));
 
-    // Build UPPER(column) LIKE UPPER('%value%')
-    // Case-insensitive pattern matching
-    let pattern = format!("%{}%", trimmed_value.to_uppercase());
+    // Escape LIKE wildcards to prevent injection attacks
+    let escaped_value = escape_like_wildcards(trimmed_value);
+
+    // Build UPPER(column) LIKE UPPER('%value%') ESCAPE '\'
+    // Case-insensitive pattern matching with wildcard escaping
+    let pattern = format!("%{}%", escaped_value.to_uppercase());
 
     Func::upper(column).like(pattern)
 }
@@ -153,5 +170,39 @@ mod tests {
 
         assert!(sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
             "Query should be truncated to max length");
+    }
+
+    /// Security test: LIKE wildcards should be escaped
+    #[test]
+    fn test_wildcard_escaping() {
+        assert_eq!(escape_like_wildcards("test"), "test", "Normal text should pass through");
+        assert_eq!(escape_like_wildcards("test%"), "test\\%", "% should be escaped");
+        assert_eq!(escape_like_wildcards("test_value"), "test\\_value", "_ should be escaped");
+        assert_eq!(escape_like_wildcards("100%"), "100\\%", "% in middle should be escaped");
+        assert_eq!(escape_like_wildcards("%_"), "\\%\\_", "Both wildcards should be escaped");
+        assert_eq!(escape_like_wildcards("\\"), "\\\\", "Backslash should be escaped");
+        assert_eq!(escape_like_wildcards("\\%"), "\\\\\\%", "Backslash and % should both be escaped");
+    }
+
+    /// Security test: Wildcard injection should be prevented in LIKE conditions
+    #[test]
+    fn test_like_condition_prevents_wildcard_injection() {
+        // Test that wildcards are properly escaped
+        let result_percent = build_like_condition("title", "test%");
+        let sql_percent = format!("{result_percent:?}");
+        // Debug repr will show \\% (escaped backslash), actual SQL has \%
+        assert!(sql_percent.contains("\\\\%"),
+            "% should be escaped in SQL: {sql_percent}");
+
+        let result_underscore = build_like_condition("title", "test_value");
+        let sql_underscore = format!("{result_underscore:?}");
+        assert!(sql_underscore.contains("\\\\_"),
+            "_ should be escaped in SQL: {sql_underscore}");
+
+        // Test just wildcards
+        let result_just_percent = build_like_condition("title", "%");
+        let sql_just_percent = format!("{result_just_percent:?}");
+        assert!(sql_just_percent.contains("\\\\%"),
+            "Single % should be escaped: {sql_just_percent}");
     }
 }
