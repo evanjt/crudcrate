@@ -152,21 +152,12 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     
     if T::is_enum_field(key) {
         // Handle enum fields with case-insensitive matching
-        return Some(match backend {
-            DatabaseBackend::Postgres => {
-                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                    Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-                ))
-                .eq(trimmed_value.to_uppercase())
-            }
-            _ => {
-                // For SQLite/MySQL
-                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                    Expr::col(column),
-                ))
-                .eq(trimmed_value.to_uppercase())
-            }
-        });
+        let col_expr = match backend {
+            DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
+            _ => Expr::col(column).into(),
+        };
+        return Some(SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr))
+            .eq(trimmed_value.to_uppercase()));
     }
     
     // Try to parse as UUID first
