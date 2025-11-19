@@ -283,7 +283,7 @@ where
     async fn analyse_and_display_indexes(db: &DatabaseConnection) -> Result<(), DbErr> {
         let recommendations =
             crate::index_analysis::analyse_indexes_for_resource::<Self>(db).await?;
-        crate::index_analysis::display_index_recommendations(&recommendations);
+        crate::index_analysis::display_index_recommendations(&recommendations, false);
         Ok(())
     }
 }

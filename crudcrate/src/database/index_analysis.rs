@@ -159,21 +159,10 @@ pub async fn analyse_indexes_for_resource<T: crate::traits::CRUDResource>(
     Ok(recommendations)
 }
 
-/// Display index recommendations with compact formatting
-pub fn display_index_recommendations(recommendations: &[IndexRecommendation]) {
-    display_index_recommendations_internal(recommendations, false);
-}
-
-/// Display index recommendations with SQL examples
-pub fn display_index_recommendations_with_examples(recommendations: &[IndexRecommendation]) {
-    display_index_recommendations_internal(recommendations, true);
-}
-
-/// Internal function to display index recommendations with optional SQL examples
-fn display_index_recommendations_internal(
-    recommendations: &[IndexRecommendation],
-    show_examples: bool,
-) {
+/// Display index recommendations with optional SQL examples
+///
+/// Set `show_examples` to true to display copy-paste SQL commands
+pub fn display_index_recommendations(recommendations: &[IndexRecommendation], show_examples: bool) {
     if recommendations.is_empty() {
         return;
     }
@@ -211,11 +200,11 @@ fn display_index_recommendations_internal(
         Priority::Low,
     ] {
         if let Some(recs) = by_priority.get(&priority) {
-            let (icon, _color) = match priority {
-                Priority::Critical => ("CRITICAL", "\x1b[91m"), // Bright red
-                Priority::High => ("HIGH", "\x1b[93m"),         // Yellow
-                Priority::Medium => ("MEDIUM", "\x1b[94m"),     // Blue
-                Priority::Low => ("LOW", "\x1b[92m"),           // Green
+            let icon = match priority {
+                Priority::Critical => "CRITICAL",
+                Priority::High => "HIGH",
+                Priority::Medium => "MEDIUM",
+                Priority::Low => "LOW",
             };
 
             if !recs.is_empty() {
@@ -317,11 +306,7 @@ pub async fn analyse_all_registered_models(
         }
     }
 
-    if show_examples {
-        display_index_recommendations_with_examples(&all_recommendations);
-    } else {
-        display_index_recommendations(&all_recommendations);
-    }
+    display_index_recommendations(&all_recommendations, show_examples);
     Ok(())
 }
 
@@ -512,6 +497,22 @@ fn generate_btree_index_sql(
     }
 }
 
+/// Prepare quoted identifiers for fulltext index SQL (common to Postgres/MySQL)
+fn prepare_fulltext_identifiers(
+    backend: DatabaseBackend,
+    table_name: &str,
+    column_names: &[&str],
+) -> (Vec<String>, String, String) {
+    let quoted_columns: Vec<String> = column_names
+        .iter()
+        .map(|col| quote_identifier(col, backend))
+        .collect();
+    let index_name = format!("idx_{}_fulltext", table_name);
+    let quoted_index = quote_identifier(&index_name, backend);
+    let quoted_table = quote_identifier(table_name, backend);
+    (quoted_columns, quoted_index, quoted_table)
+}
+
 /// Generate fulltext index SQL for different databases
 fn generate_fulltext_index_sql(
     backend: DatabaseBackend,
@@ -523,37 +524,23 @@ fn generate_fulltext_index_sql(
 
     match backend {
         DatabaseBackend::Postgres => {
-            // Quote all identifiers to prevent injection
-            let quoted_columns: Vec<String> = column_names
-                .iter()
-                .map(|col| quote_identifier(col, backend))
-                .collect();
+            let (quoted_columns, quoted_index, quoted_table) =
+                prepare_fulltext_identifiers(backend, table_name, &column_names);
             let combined_columns = quoted_columns.join(" || ' ' || ");
-            let index_name = format!("idx_{}_fulltext", table_name);
-            let quoted_index = quote_identifier(&index_name, backend);
-            let quoted_table = quote_identifier(table_name, backend);
-            // Language is a string literal, but sanitize it to prevent injection
             let safe_language = language.replace('\'', "''");
             format!(
                 "CREATE INDEX {quoted_index} ON {quoted_table} USING GIN (to_tsvector('{safe_language}', {combined_columns}));"
             )
         }
         DatabaseBackend::MySql => {
-            // Quote all identifiers to prevent injection
-            let quoted_columns: Vec<String> = column_names
-                .iter()
-                .map(|col| quote_identifier(col, backend))
-                .collect();
+            let (quoted_columns, quoted_index, quoted_table) =
+                prepare_fulltext_identifiers(backend, table_name, &column_names);
             let column_list = quoted_columns.join(", ");
-            let index_name = format!("idx_{}_fulltext", table_name);
-            let quoted_index = quote_identifier(&index_name, backend);
-            let quoted_table = quote_identifier(table_name, backend);
             format!(
                 "CREATE FULLTEXT INDEX {quoted_index} ON {quoted_table} ({column_list});"
             )
         }
         DatabaseBackend::Sqlite => {
-            // SQLite doesn't have native fulltext search in our setup, suggest regular indexes
             column_names
                 .iter()
                 .map(|col| generate_btree_index_sql(backend, table_name, col))
