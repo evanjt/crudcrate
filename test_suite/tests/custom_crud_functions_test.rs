@@ -29,7 +29,7 @@ impl MockExternalService {
         Self::default()
     }
 
-    async fn delete_object(&self, key: &str) -> Result<(), String> {
+    fn delete_object(&self, key: &str) -> Result<(), String> {
         if *self.should_fail.lock().unwrap() {
             return Err(format!("External service failure for key: {key}"));
         }
@@ -108,7 +108,6 @@ async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<
     // 2. Delete from external service (fail fast)
     get_mock_service()
         .delete_object(&asset.external_key)
-        .await
         .map_err(|e| DbErr::Custom(format!("External service error: {e}")))?;
 
     // 3. Delete from database
@@ -127,13 +126,12 @@ async fn delete_many_assets_with_cleanup(
 
     for id in &ids {
         // Fetch asset
-        let asset = match Entity::find_by_id(*id).one(db).await? {
-            Some(a) => a,
-            None => continue,
+        let Some(asset) = Entity::find_by_id(*id).one(db).await? else {
+            continue;
         };
 
         // Try to delete from external service
-        if get_mock_service().delete_object(&asset.external_key).await.is_ok() {
+        if get_mock_service().delete_object(&asset.external_key).is_ok() {
             external_keys.push(asset.external_key.clone());
 
             // Delete from database

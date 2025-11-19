@@ -1,3 +1,5 @@
+#![allow(clippy::needless_for_each)]
+
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, Set, entity::prelude::*,

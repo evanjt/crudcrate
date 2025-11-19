@@ -135,6 +135,7 @@ async fn test_complex_filtering_conditions() {
 // ============================================================================
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn test_fulltext_search_comprehensive() {
     let db = setup_test_db().await.expect("Failed to setup test database");
     let app = setup_test_app(&db);

@@ -227,6 +227,7 @@ async fn test_detail_view_includes_all_fields() {
 }
 
 #[tokio::test]
+#[allow(clippy::cast_precision_loss)]
 async fn test_list_optimization_reduces_payload_size() {
     // Demonstrate payload size reduction from hiding expensive fields
     let db = setup_products_db()

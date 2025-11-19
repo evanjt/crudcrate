@@ -1,6 +1,6 @@
 // Debug example that demonstrates EntityToModels with debug output enabled
 use chrono::{DateTime, Utc};
-use crudcrate::EntityToModels;
+use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
