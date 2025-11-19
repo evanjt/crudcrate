@@ -149,13 +149,13 @@ async fn test_join_fields_appear_in_get_one_responses() {
 
     println!("vehicles field present in get_one(): {vehicles_present}");
 
-    // ASSERTION: vehicles field should be present (this will fail with current implementation)
+    // KNOWN ISSUE: This assertion will fail until join(all) fields are included in get_one() responses
+    // Currently, join(all) fields only appear in get_all() (list) responses
+    // The fix requires modifying the get_one handler to populate join(all) fields
     assert!(
         vehicles_present,
-        "vehicles field should be present in get_one() response due to join(all)"
+        "KNOWN BUG: vehicles field should be present in get_one() response due to join(all), but currently only appears in get_all()"
     );
-
-    // TODO: Once fixed, this test should pass
 }
 
 // ============================================================================

@@ -287,9 +287,6 @@ async fn test_custom_delete_single_external_failure() {
     assert_eq!(response.status(), axum::http::StatusCode::OK); // Still exists
 }
 
-// Note: delete_many HTTP endpoint tests omitted for now
-// The fn_delete_many function is defined and will be tested via direct API calls
-
 #[tokio::test]
 async fn test_custom_delete_not_found() {
     let db = setup_db().await.expect("Failed to setup database");
