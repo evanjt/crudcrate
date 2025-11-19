@@ -42,22 +42,8 @@ pub(crate) fn generate_crud_resource_impl(
     let has_join_fields =
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
-    let (registration_static, auto_register_call) = if has_join_fields {
-        // Skip registration for models with join fields to avoid circular dependency issues
-        (quote! {}, quote! {})
-    } else {
-        (
-            quote! {
-                // Lazy static that ensures registration happens on first trait usage
-                static __REGISTER_LAZY: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-                    crudcrate::register_analyser::<#api_struct_name>();
-                });
-            },
-            quote! {
-                std::sync::LazyLock::force(&__REGISTER_LAZY);
-            },
-        )
-    };
+    // Index analysis removed - no registration needed
+    let (registration_static, auto_register_call) = (quote! {}, quote! {});
 
     // Generate resource name plural constant
     let resource_name_plural_impl = {
