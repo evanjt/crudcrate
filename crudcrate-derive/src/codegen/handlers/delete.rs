@@ -26,10 +26,10 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 
                 let res = Self::EntityType::delete_by_id(id).exec(db).await?;
                 match res.rows_affected {
-                    0 => Err(crudcrate::ApiError::RecordNotFound(format!(
-                        "{} not found",
-                        Self::RESOURCE_NAME_SINGULAR
-                    ))),
+                    0 => Err(crudcrate::ApiError::not_found(
+                        Self::RESOURCE_NAME_SINGULAR,
+                        Some(id.to_string())
+                    )),
                     _ => Ok(id),
                 }
             }
@@ -83,7 +83,7 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
             /// ) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
             ///     const MAX_SIZE: usize = 500; // Your custom limit
             ///     if ids.len() > MAX_SIZE {
-            ///         return Err(crudcrate::ApiError::Custom(format!("Too many items: {}", ids.len())));
+            ///         return Err(crudcrate::ApiError::bad_request(format!("Too many items: {}", ids.len())));
             ///     }
             ///     // Your implementation...
             /// }
@@ -95,7 +95,7 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
                 // To increase, provide custom fn_delete_many implementation (see docs above)
                 const MAX_BATCH_DELETE_SIZE: usize = 100;
                 if ids.len() > MAX_BATCH_DELETE_SIZE {
-                    return Err(crudcrate::ApiError::Custom(
+                    return Err(crudcrate::ApiError::bad_request(
                         format!("Batch delete limited to {} items. Received {} items. Use fn_delete_many attribute for custom limits.", MAX_BATCH_DELETE_SIZE, ids.len())
                     ));
                 }

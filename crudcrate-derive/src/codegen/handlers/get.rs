@@ -140,7 +140,7 @@ pub fn generate_get_one_impl(
                         Some(model) => {
                             #join_loading_code
                         }
-                        None => Err(crudcrate::ApiError::RecordNotFound("Record not found".to_string())),
+                        None => Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
                     }
                 }
             }
@@ -152,7 +152,7 @@ pub fn generate_get_one_impl(
                         .await?;
                     match model {
                         Some(model) => Ok(model.into()),
-                        None => Err(crudcrate::ApiError::RecordNotFound("Record not found".to_string())),
+                        None => Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
                     }
                 }
             }

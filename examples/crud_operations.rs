@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use axum::Router;
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use uuid::Uuid;
-use crudcrate::{CRUDOperations, CRUDResource, EntityToModels};
+use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
 
 //
 // STEP 1: Define your entity with the operations attribute
@@ -66,20 +66,20 @@ impl CRUDOperations for AssetOperations {
     type Resource = Asset;
 
     // Override delete to add S3 cleanup
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
         use sea_orm::EntityTrait;
 
-        // First, fetch the asset to get the S3 key (uses default get_one)
-        let asset = self.get_one(db, id).await?;
+        // First, fetch the asset to get the S3 key (uses default fetch_one)
+        let asset = self.fetch_one(db, id).await?;
 
         // Delete from S3 (simulated here)
         delete_from_s3(&asset.s3_key).await
-            .map_err(|e| DbErr::Custom(format!("S3 cleanup failed: {}", e)))?;
+            .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {}", e), None))?;
 
         // Then delete from database using entity methods directly
         let res = <Asset as CRUDResource>::EntityType::delete_by_id(id).exec(db).await?;
         match res.rows_affected {
-            0 => Err(DbErr::RecordNotFound("Asset not found".to_string())),
+            0 => Err(ApiError::not_found("Asset", Some(id.to_string()))),
             _ => Ok(id),
         }
     }
@@ -131,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn demo_operations(db: &DatabaseConnection) -> Result<(), DbErr> {
+async fn demo_operations(db: &DatabaseConnection) -> Result<(), ApiError> {
     println!("\n📝 Creating test asset...");
     let create_data = AssetCreate {
         name: "test-file.pdf".to_string(),
@@ -147,7 +147,7 @@ async fn demo_operations(db: &DatabaseConnection) -> Result<(), DbErr> {
     Ok(())
 }
 
-async fn create_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
+async fn create_schema(db: &DatabaseConnection) -> Result<(), ApiError> {
     use sea_orm::{ConnectionTrait, Statement};
 
     db.execute(Statement::from_string(
@@ -159,7 +159,8 @@ async fn create_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
             s3_key TEXT NOT NULL
         )
         "#
-    )).await?;
+    ))
+    .await?;  // ← Automatic DbErr → ApiError conversion
 
     Ok(())
 }

@@ -29,10 +29,10 @@ pub fn generate_update_impl(
                 let model = Self::EntityType::find_by_id(id)
                     .one(db)
                     .await?
-                    .ok_or(crudcrate::ApiError::RecordNotFound(format!(
-                        "{} not found",
-                        Self::RESOURCE_NAME_SINGULAR
-                    )))?;
+                    .ok_or_else(|| crudcrate::ApiError::not_found(
+                        Self::RESOURCE_NAME_SINGULAR,
+                        Some(id.to_string())
+                    ))?;
                 let existing: Self::ActiveModelType = model.into_active_model();
                 let updated_model = data.merge_into_activemodel(existing)?;
                 let updated = updated_model.update(db).await?;

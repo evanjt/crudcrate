@@ -6,7 +6,7 @@ use axum::body::Body;
 use axum::http::Request;
 use axum::Router;
 use chrono::{DateTime, Utc};
-use crudcrate::{CRUDResource, EntityToModels};
+use crudcrate::{ApiError, CRUDResource, EntityToModels};
 use sea_orm::{entity::prelude::*, Database, DatabaseConnection, EntityTrait};
 use serde_json::json;
 use serial_test::serial;
@@ -106,20 +106,20 @@ impl ActiveModelBehavior for ActiveModel {}
 // Custom Delete Functions
 // ============================================================================
 
-async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
     // 1. Fetch asset to get external key
     let asset = Entity::find_by_id(id)
         .one(db)
-        .await?
-        .ok_or_else(|| DbErr::RecordNotFound("Asset not found".to_string()))?;
+        .await?  // ← Automatic DbErr → ApiError conversion
+        .ok_or_else(|| ApiError::not_found("Asset", Some(id.to_string())))?;
 
     // 2. Delete from external service (fail fast)
     get_mock_service()
         .delete_object(&asset.external_key)
-        .map_err(|e| DbErr::Custom(format!("External service error: {e}")))?;
+        .map_err(|e| ApiError::internal(format!("External service error: {e}"), None))?;
 
     // 3. Delete from database
-    Entity::delete_by_id(id).exec(db).await?;
+    Entity::delete_by_id(id).exec(db).await?;  // ← Automatic conversion
 
     // 4. Return the deleted ID
     Ok(id)
@@ -128,7 +128,7 @@ async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<
 async fn delete_many_assets_with_cleanup(
     db: &DatabaseConnection,
     ids: Vec<Uuid>,
-) -> Result<Vec<Uuid>, DbErr> {
+) -> Result<Vec<Uuid>, ApiError> {
     let mut deleted_ids = Vec::new();
     let mut external_keys = Vec::new();
 
