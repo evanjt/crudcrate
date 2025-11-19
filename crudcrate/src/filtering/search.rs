@@ -205,4 +205,30 @@ mod tests {
         assert!(sql_just_percent.contains("\\\\%"),
             "Single % should be escaped: {sql_just_percent}");
     }
+
+    /// Test build_like_condition with empty value
+    #[test]
+    fn test_build_like_condition_empty_value() {
+        let result = build_like_condition("field", "");
+        let sql = format!("{result:?}");
+        assert!(sql.contains("field"), "Should include field name");
+    }
+
+    /// Test build_like_condition case insensitivity
+    #[test]
+    fn test_build_like_condition_case_insensitive() {
+        let result = build_like_condition("title", "TeSt");
+        let sql = format!("{result:?}");
+        // Should use UPPER() for case-insensitive matching
+        assert!(sql.contains("Upper") || sql.contains("UPPER"),
+            "Should use UPPER for case insensitivity: {sql}");
+    }
+
+    /// Test build_like_condition with special characters
+    #[test]
+    fn test_build_like_condition_special_chars() {
+        let result = build_like_condition("title", "test@email.com");
+        let sql = format!("{result:?}");
+        assert!(sql.contains("title"), "Should handle special characters");
+    }
 }
