@@ -15,7 +15,7 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use crudcrate::{CRUDOperations, CRUDResource};
+//! use crudcrate::{CRUDOperations, CRUDResource, ApiError};
 //! use async_trait::async_trait;
 //!
 //! // Define your operations with custom behavior
@@ -25,14 +25,22 @@
 //! impl CRUDOperations for AssetOperations {
 //!     type Resource = Asset;
 //!
-//!     // Only override delete to add S3 cleanup
-//!     async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+//!     // Override before_delete hook for authorization
+//!     async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+//!         if !user_has_permission(id) {
+//!             return Err(ApiError::forbidden("You don't have permission to delete this asset"));
+//!         }
+//!         Ok(())
+//!     }
+//!
+//!     // Override delete to add S3 cleanup
+//!     async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
 //!         // Fetch the asset first
 //!         let asset = Asset::get_one(db, id).await?;
 //!
 //!         // Delete from S3
 //!         delete_from_s3(&asset.s3_key).await
-//!             .map_err(|e| DbErr::Custom(format!("S3 cleanup failed: {}", e)))?;
+//!             .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {}", e), None))?;
 //!
 //!         // Then delete from database
 //!         Asset::delete(db, id).await
@@ -51,10 +59,11 @@
 //! ```
 
 use async_trait::async_trait;
-use sea_orm::{Condition, DatabaseConnection, DbErr, Order};
+use sea_orm::{Condition, DatabaseConnection, Order};
 use uuid::Uuid;
 
 use crate::core::CRUDResource;
+use crate::ApiError;
 
 /// Trait for defining CRUD operations with customizable behavior
 ///
@@ -114,8 +123,18 @@ pub trait CRUDOperations: Send + Sync {
     /// Use for: authorization checks, rate limiting, logging
     ///
     /// # Errors
-    /// Return `DbErr` to abort the operation
-    async fn before_get_one(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), DbErr> {
+    /// Return `ApiError` to abort the operation with specific HTTP status code
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    ///     if !has_permission(id) {
+    ///         return Err(ApiError::forbidden("Access denied"));
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn before_get_one(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
         Ok(())  // Default: no-op
     }
 
@@ -124,8 +143,8 @@ pub trait CRUDOperations: Send + Sync {
     /// Use for: enrichment, computed fields, audit logging
     ///
     /// # Errors
-    /// Return `DbErr` to abort the operation
-    async fn after_get_one(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), DbErr> {
+    /// Return `ApiError` to abort the operation
+    async fn after_get_one(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), ApiError> {
         Ok(())  // Default: no-op
     }
 
@@ -134,17 +153,18 @@ pub trait CRUDOperations: Send + Sync {
     /// Override this to customize the query (e.g., add joins, select specific columns)
     ///
     /// # Errors
-    /// Returns `DbErr::RecordNotFound` if entity doesn't exist
-    async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, DbErr> {
+    /// Returns `ApiError::NotFound` if entity doesn't exist
+    async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError> {
         use sea_orm::EntityTrait;
 
         let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
-            .await?
-            .ok_or(DbErr::RecordNotFound(format!(
-                "{} not found",
-                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR
-            )))?;
+            .await
+            .map_err(ApiError::database)?
+            .ok_or_else(|| ApiError::not_found(
+                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
+                Some(id.to_string()),
+            ))?;
         Ok(Self::Resource::from(model))
     }
 
@@ -161,7 +181,7 @@ pub trait CRUDOperations: Send + Sync {
         _order_direction: &Order,
         _offset: u64,
         _limit: u64,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
@@ -172,7 +192,7 @@ pub trait CRUDOperations: Send + Sync {
         &self,
         _db: &DatabaseConnection,
         _entities: &mut Vec<<Self::Resource as CRUDResource>::ListModel>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
@@ -185,7 +205,7 @@ pub trait CRUDOperations: Send + Sync {
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, DbErr> {
+    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
         use sea_orm::{EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
         let models = <Self::Resource as CRUDResource>::EntityType::find()
@@ -194,7 +214,8 @@ pub trait CRUDOperations: Send + Sync {
             .offset(offset)
             .limit(limit)
             .all(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
         Ok(models.into_iter().map(|model| <Self::Resource as CRUDResource>::ListModel::from(Self::Resource::from(model))).collect())
     }
 
@@ -205,23 +226,33 @@ pub trait CRUDOperations: Send + Sync {
     /// Hook called before creating an entity
     ///
     /// Use for: validation, authorization, setting default values
-    async fn before_create(&self, _db: &DatabaseConnection, _data: &<Self::Resource as CRUDResource>::CreateModel) -> Result<(), DbErr> {
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// async fn before_create(&self, db: &DatabaseConnection, data: &CreateModel) -> Result<(), ApiError> {
+    ///     if data.price <= 0 {
+    ///         return Err(ApiError::bad_request("Price must be greater than 0"));
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn before_create(&self, _db: &DatabaseConnection, _data: &<Self::Resource as CRUDResource>::CreateModel) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after creating an entity
     ///
     /// Use for: sending notifications, logging, cache invalidation
-    async fn after_create(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), DbErr> {
+    async fn after_create(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database insert logic
-    async fn perform_create(&self, db: &DatabaseConnection, data: <Self::Resource as CRUDResource>::CreateModel) -> Result<Self::Resource, DbErr> {
+    async fn perform_create(&self, db: &DatabaseConnection, data: <Self::Resource as CRUDResource>::CreateModel) -> Result<Self::Resource, ApiError> {
         use sea_orm::ActiveModelTrait;
 
         let active_model: <Self::Resource as CRUDResource>::ActiveModelType = data.into();
-        let model = active_model.insert(db).await?;
+        let model = active_model.insert(db).await.map_err(ApiError::database)?;
         Ok(Self::Resource::from(model))
     }
 
@@ -230,30 +261,31 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before updating an entity
-    async fn before_update(&self, _db: &DatabaseConnection, _id: Uuid, _data: &<Self::Resource as CRUDResource>::UpdateModel) -> Result<(), DbErr> {
+    async fn before_update(&self, _db: &DatabaseConnection, _id: Uuid, _data: &<Self::Resource as CRUDResource>::UpdateModel) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after updating an entity
-    async fn after_update(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), DbErr> {
+    async fn after_update(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database update logic
-    async fn perform_update(&self, db: &DatabaseConnection, id: Uuid, data: <Self::Resource as CRUDResource>::UpdateModel) -> Result<Self::Resource, DbErr> {
+    async fn perform_update(&self, db: &DatabaseConnection, id: Uuid, data: <Self::Resource as CRUDResource>::UpdateModel) -> Result<Self::Resource, ApiError> {
         use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
         use crate::core::MergeIntoActiveModel;
 
         let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
-            .await?
-            .ok_or(DbErr::RecordNotFound(format!(
-                "{} not found",
-                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR
-            )))?;
+            .await
+            .map_err(ApiError::database)?
+            .ok_or_else(|| ApiError::not_found(
+                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
+                Some(id.to_string()),
+            ))?;
         let existing: <Self::Resource as CRUDResource>::ActiveModelType = model.into_active_model();
         let updated_model = data.merge_into_activemodel(existing)?;
-        let updated = updated_model.update(db).await?;
+        let updated = updated_model.update(db).await.map_err(ApiError::database)?;
         Ok(Self::Resource::from(updated))
     }
 
@@ -264,27 +296,40 @@ pub trait CRUDOperations: Send + Sync {
     /// Hook called before deleting an entity
     ///
     /// Use for: authorization, cleanup of related resources
-    async fn before_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), DbErr> {
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    ///     if !user_can_delete(id) {
+    ///         return Err(ApiError::forbidden("You don't have permission to delete this resource"));
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn before_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after deleting an entity
     ///
     /// Use for: cache invalidation, notifications, audit logging
-    async fn after_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), DbErr> {
+    async fn after_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database delete logic
-    async fn perform_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+    async fn perform_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
         use sea_orm::EntityTrait;
 
-        let res = <Self::Resource as CRUDResource>::EntityType::delete_by_id(id).exec(db).await?;
+        let res = <Self::Resource as CRUDResource>::EntityType::delete_by_id(id)
+            .exec(db)
+            .await
+            .map_err(ApiError::database)?;
         match res.rows_affected {
-            0 => Err(DbErr::RecordNotFound(format!(
-                "{} not found",
-                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR
-            ))),
+            0 => Err(ApiError::not_found(
+                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
+                Some(id.to_string()),
+            )),
             _ => Ok(id),
         }
     }
@@ -294,31 +339,34 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before batch deleting entities
-    async fn before_delete_many(&self, _db: &DatabaseConnection, _ids: &[Uuid]) -> Result<(), DbErr> {
+    async fn before_delete_many(&self, _db: &DatabaseConnection, _ids: &[Uuid]) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after batch deleting entities
-    async fn after_delete_many(&self, _db: &DatabaseConnection, _ids: &[Uuid]) -> Result<(), DbErr> {
+    async fn after_delete_many(&self, _db: &DatabaseConnection, _ids: &[Uuid]) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database batch delete logic
-    async fn perform_delete_many(&self, db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, DbErr> {
+    async fn perform_delete_many(&self, db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
         use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
         // Security: Limit batch size to prevent DoS attacks
         const MAX_BATCH_DELETE_SIZE: usize = 100;
         if ids.len() > MAX_BATCH_DELETE_SIZE {
-            return Err(DbErr::Custom(
-                format!("Batch delete limited to {} items. Received {} items.", MAX_BATCH_DELETE_SIZE, ids.len())
-            ));
+            return Err(ApiError::bad_request(format!(
+                "Batch delete limited to {} items. Received {} items.",
+                MAX_BATCH_DELETE_SIZE,
+                ids.len()
+            )));
         }
 
         <Self::Resource as CRUDResource>::EntityType::delete_many()
             .filter(<Self::Resource as CRUDResource>::ID_COLUMN.is_in(ids.clone()))
             .exec(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
         Ok(ids)
     }
 
@@ -335,9 +383,9 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns `DbErr::RecordNotFound` if the entity doesn't exist
-    /// Returns `DbErr` if any hook or core logic fails
-    async fn get_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, DbErr> {
+    /// Returns `ApiError::NotFound` if the entity doesn't exist
+    /// Returns `ApiError` if any hook or core logic fails
+    async fn get_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError> {
         // 1. Before hook
         self.before_get_one(db, id).await?;
 
@@ -368,7 +416,7 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns `DbErr` if any hook or database query fails
+    /// Returns `ApiError` if any hook or database query fails
     async fn get_all(
         &self,
         db: &DatabaseConnection,
@@ -377,7 +425,7 @@ pub trait CRUDOperations: Send + Sync {
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, DbErr> {
+    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
         // 1. Before hook
         self.before_get_all(db, condition, order_column, &order_direction, offset, limit).await?;
 
@@ -399,12 +447,12 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns `DbErr` if any hook or database insertion fails
+    /// Returns `ApiError` if any hook or database insertion fails
     async fn create(
         &self,
         db: &DatabaseConnection,
         data: <Self::Resource as CRUDResource>::CreateModel,
-    ) -> Result<Self::Resource, DbErr> {
+    ) -> Result<Self::Resource, ApiError> {
         // 1. Before hook
         self.before_create(db, &data).await?;
 
@@ -426,14 +474,14 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns `DbErr::RecordNotFound` if the entity doesn't exist
-    /// Returns `DbErr` if any hook or database update fails
+    /// Returns `ApiError::NotFound` if the entity doesn't exist
+    /// Returns `ApiError` if any hook or database update fails
     async fn update(
         &self,
         db: &DatabaseConnection,
         id: Uuid,
         data: <Self::Resource as CRUDResource>::UpdateModel,
-    ) -> Result<Self::Resource, DbErr> {
+    ) -> Result<Self::Resource, ApiError> {
         // 1. Before hook
         self.before_update(db, id, &data).await?;
 
@@ -455,9 +503,9 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns `DbErr::RecordNotFound` if the entity doesn't exist
-    /// Returns `DbErr` if any hook or database deletion fails
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+    /// Returns `ApiError::NotFound` if the entity doesn't exist
+    /// Returns `ApiError` if any hook or database deletion fails
+    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
         // 1. Before hook
         self.before_delete(db, id).await?;
 
@@ -481,13 +529,13 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns `DbErr` if the batch size exceeds the security limit (default: 100)
-    /// Returns `DbErr` if any hook or database deletion fails
+    /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
+    /// Returns `ApiError` if any hook or database deletion fails
     async fn delete_many(
         &self,
         db: &DatabaseConnection,
         ids: Vec<Uuid>,
-    ) -> Result<Vec<Uuid>, DbErr> {
+    ) -> Result<Vec<Uuid>, ApiError> {
         // 1. Before hook
         self.before_delete_many(db, &ids).await?;
 

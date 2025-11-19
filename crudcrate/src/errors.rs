@@ -388,10 +388,38 @@ impl std::error::Error for ApiError {}
 
 /// Convert SeaORM DbErr to ApiError
 ///
-/// Automatically maps common database errors to appropriate HTTP status codes:
-/// - RecordNotFound → 404
-/// - RecordNotInserted/RecordNotUpdated → 500 (logged)
-/// - Other database errors → 500 (logged)
+/// **Conversion Rules:**
+/// - `DbErr::RecordNotFound` → 404 Not Found
+/// - All other `DbErr` variants → 500 Internal Server Error (logged internally, sanitized for users)
+///
+/// **Note:** Lifecycle hooks that return `Result<(), DbErr>` can only produce 404 or 500 errors.
+/// If you need custom status codes (400, 401, 403, 409), handle errors at the handler level
+/// or create custom handlers that don't use the trait system.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// // In lifecycle hooks - limited to 500 or 404
+/// async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), DbErr> {
+///     if !user_has_permission(id) {
+///         // This will become a 500 Internal Server Error
+///         return Err(DbErr::Custom("Permission check failed".into()));
+///     }
+///     Ok(())
+/// }
+///
+/// // For custom status codes, use ApiError directly in your custom handlers:
+/// async fn delete_with_permission(
+///     State(db): State<DatabaseConnection>,
+///     Path(id): Path<Uuid>,
+/// ) -> Result<StatusCode, ApiError> {
+///     if !check_permission(id) {
+///         return Err(ApiError::forbidden("You don't have permission to delete this resource"));
+///     }
+///     // ... rest of delete logic
+///     Ok(StatusCode::NO_CONTENT)
+/// }
+/// ```
 impl From<DbErr> for ApiError {
     fn from(err: DbErr) -> Self {
         match &err {
@@ -403,26 +431,7 @@ impl From<DbErr> for ApiError {
                     id: None,
                 }
             }
-            DbErr::Custom(msg) => {
-                // Custom errors from user code - these might be user-facing
-                // Check if it looks like a validation error
-                if msg.to_lowercase().contains("validation")
-                    || msg.to_lowercase().contains("invalid")
-                    || msg.to_lowercase().contains("required")
-                    || msg.to_lowercase().contains("too short")
-                    || msg.to_lowercase().contains("too long")
-                {
-                    Self::BadRequest {
-                        message: msg.clone(),
-                    }
-                } else {
-                    // Other custom errors are treated as internal
-                    Self::Database {
-                        message: "An error occurred".to_string(),
-                        internal: err,
-                    }
-                }
-            }
+            // All other database errors become 500 Internal Server Error
             _ => Self::Database {
                 message: "A database error occurred".to_string(),
                 internal: err,
@@ -434,6 +443,10 @@ impl From<DbErr> for ApiError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ============================================================================
+    // Constructor Tests
+    // ============================================================================
 
     #[test]
     fn test_not_found_with_id() {
@@ -457,7 +470,35 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_failed() {
+    fn test_unauthorized() {
+        let err = ApiError::unauthorized("Invalid credentials");
+        assert_eq!(err.status_code(), StatusCode::UNAUTHORIZED);
+        assert_eq!(err.user_message(), "Invalid credentials");
+    }
+
+    #[test]
+    fn test_forbidden() {
+        let err = ApiError::forbidden("Insufficient permissions");
+        assert_eq!(err.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(err.user_message(), "Insufficient permissions");
+    }
+
+    #[test]
+    fn test_conflict() {
+        let err = ApiError::conflict("Email already exists");
+        assert_eq!(err.status_code(), StatusCode::CONFLICT);
+        assert_eq!(err.user_message(), "Email already exists");
+    }
+
+    #[test]
+    fn test_validation_failed_single_error() {
+        let err = ApiError::validation_failed(vec!["Email is required".to_string()]);
+        assert_eq!(err.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(err.user_message(), "Email is required");
+    }
+
+    #[test]
+    fn test_validation_failed_multiple_errors() {
         let err = ApiError::validation_failed(vec![
             "Email is required".to_string(),
             "Password too short".to_string(),
@@ -470,16 +511,161 @@ mod tests {
     }
 
     #[test]
-    fn test_database_error_conversion() {
-        let db_err = DbErr::RecordNotFound("User not found".to_string());
-        let api_err: ApiError = db_err.into();
-        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+    fn test_database_error() {
+        let db_err = DbErr::Type("Type mismatch error".to_string());
+        let err = ApiError::database(db_err);
+        assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.user_message(), "A database error occurred");
     }
 
     #[test]
-    fn test_custom_validation_error_conversion() {
-        let db_err = DbErr::Custom("Validation failed: content too short".to_string());
+    fn test_internal_error_with_details() {
+        let err = ApiError::internal(
+            "Processing failed",
+            Some("Null pointer exception".to_string()),
+        );
+        assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.user_message(), "Processing failed");
+    }
+
+    #[test]
+    fn test_internal_error_without_details() {
+        let err = ApiError::internal("Processing failed", None);
+        assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.user_message(), "Processing failed");
+    }
+
+    #[test]
+    fn test_custom_error() {
+        let err = ApiError::custom(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Rate limit exceeded",
+            Some("User hit 100 req/min".to_string()),
+        );
+        assert_eq!(err.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(err.user_message(), "Rate limit exceeded");
+    }
+
+    // ============================================================================
+    // DbErr Conversion Tests (Hook Error Patterns)
+    // ============================================================================
+
+    #[test]
+    fn test_dberr_record_not_found_conversion() {
+        let db_err = DbErr::RecordNotFound("User not found".to_string());
         let api_err: ApiError = db_err.into();
-        assert_eq!(api_err.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+        assert!(api_err.user_message().contains("not found"));
+    }
+
+    #[test]
+    fn test_dberr_custom_becomes_internal() {
+        // All DbErr::Custom variants become 500 Internal Server Error
+        let db_err = DbErr::Custom("Something went wrong".to_string());
+        let api_err: ApiError = db_err.into();
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(api_err.user_message(), "A database error occurred");
+    }
+
+    #[test]
+    fn test_dberr_type_error() {
+        let db_err = DbErr::Type("Type conversion failed".to_string());
+        let api_err: ApiError = db_err.into();
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(api_err.user_message(), "A database error occurred");
+    }
+
+    #[test]
+    fn test_dberr_json_error() {
+        let db_err = DbErr::Json("JSON parsing failed".to_string());
+        let api_err: ApiError = db_err.into();
+        assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(api_err.user_message(), "A database error occurred");
+    }
+
+    // ============================================================================
+    // DbErr Conversion Tests - Simple Behavior
+    // ============================================================================
+
+    #[test]
+    fn test_dberr_record_not_found_becomes_404() {
+        // DbErr::RecordNotFound becomes 404
+        let db_err = DbErr::RecordNotFound("Blog post not found".to_string());
+        let api_err: ApiError = db_err.into();
+        assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
+        assert!(api_err.user_message().contains("not found"));
+    }
+
+    #[test]
+    fn test_all_other_dberr_become_500() {
+        // All other DbErr types become 500 Internal Server Error
+        let test_cases = vec![
+            DbErr::Custom("Any custom error".to_string()),
+            DbErr::Type("Type error".to_string()),
+            DbErr::Json("JSON error".to_string()),
+        ];
+
+        for db_err in test_cases {
+            let api_err: ApiError = db_err.into();
+            assert_eq!(api_err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+            assert_eq!(api_err.user_message(), "A database error occurred");
+        }
+    }
+
+    // ============================================================================
+    // Display and Error Trait Tests
+    // ============================================================================
+
+    #[test]
+    fn test_display_trait() {
+        let err = ApiError::bad_request("Test error");
+        assert_eq!(format!("{}", err), "Test error");
+    }
+
+    #[test]
+    fn test_error_trait() {
+        let err = ApiError::bad_request("Test error");
+        let _: &dyn std::error::Error = &err; // Verify it implements Error trait
+    }
+
+    // ============================================================================
+    // Status Code Coverage Tests
+    // ============================================================================
+
+    #[test]
+    fn test_all_status_codes() {
+        let test_cases = vec![
+            (ApiError::not_found("Test", None), StatusCode::NOT_FOUND),
+            (
+                ApiError::bad_request("Test"),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                ApiError::unauthorized("Test"),
+                StatusCode::UNAUTHORIZED,
+            ),
+            (ApiError::forbidden("Test"), StatusCode::FORBIDDEN),
+            (ApiError::conflict("Test"), StatusCode::CONFLICT),
+            (
+                ApiError::validation_failed(vec!["Test".to_string()]),
+                StatusCode::UNPROCESSABLE_ENTITY,
+            ),
+            (
+                ApiError::database(DbErr::Conn(sea_orm::RuntimeErr::Internal("Test".to_string()))),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                ApiError::internal("Test", None),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                ApiError::custom(StatusCode::IM_A_TEAPOT, "Test", None),
+                StatusCode::IM_A_TEAPOT,
+            ),
+        ];
+
+        for (err, expected_status) in test_cases {
+            assert_eq!(err.status_code(), expected_status);
+        }
     }
 }

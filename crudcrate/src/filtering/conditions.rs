@@ -486,8 +486,6 @@ mod tests {
     /// Test numeric comparison operators
     #[test]
     fn test_apply_numeric_comparison() {
-        use sea_orm::sea_query::{Expr, SimpleExpr};
-
         // Test that we can apply various comparison operators
         let gte_expr = apply_numeric_comparison("age", ">=", 18);
         let sql = format!("{gte_expr:?}");
