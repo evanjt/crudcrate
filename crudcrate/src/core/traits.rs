@@ -5,13 +5,15 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+use crate::ApiError;
+
 pub trait MergeIntoActiveModel<ActiveModelType> {
     /// Merge this update model into an existing active model
-    /// 
+    ///
     /// # Errors
-    /// 
-    /// Returns a `DbErr` if the merge operation fails due to data conversion issues.
-    fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, DbErr>;
+    ///
+    /// Returns an `ApiError` if the merge operation fails due to data conversion issues.
+    fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, ApiError>;
 }
 
 #[async_trait]
@@ -46,40 +48,42 @@ where
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self::ListModel>, DbErr> {
+    ) -> Result<Vec<Self::ListModel>, ApiError> {
         let models = Self::EntityType::find()
             .filter(condition.clone())
             .order_by(order_column, order_direction)
             .offset(offset)
             .limit(limit)
             .all(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
         Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
     }
 
 
-    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, DbErr> {
+    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {
         let model =
             Self::EntityType::find_by_id(id)
                 .one(db)
-                .await?
-                .ok_or(DbErr::RecordNotFound(format!(
-                    "{} not found",
-                    Self::RESOURCE_NAME_SINGULAR
-                )))?;
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| ApiError::not_found(
+                    Self::RESOURCE_NAME_SINGULAR,
+                    Some(id.to_string()),
+                ))?;
         Ok(Self::from(model))
     }
 
     async fn create(
         db: &DatabaseConnection,
         create_model: Self::CreateModel,
-    ) -> Result<Self, DbErr> {
+    ) -> Result<Self, ApiError> {
         use sea_orm::ActiveModelTrait;
         let active_model: Self::ActiveModelType = create_model.into();
 
         // Use insert and return the model directly
         // This works across all databases unlike last_insert_id for UUIDs
-        let model = active_model.insert(db).await?;
+        let model = active_model.insert(db).await.map_err(ApiError::database)?;
 
         // Convert the model to Self which implements CRUDResource
         // This gives us access to the id field directly
@@ -90,37 +94,39 @@ where
         db: &DatabaseConnection,
         id: Uuid,
         update_model: Self::UpdateModel,
-    ) -> Result<Self, DbErr> {
+    ) -> Result<Self, ApiError> {
         let model =
             Self::EntityType::find_by_id(id)
                 .one(db)
-                .await?
-                .ok_or(DbErr::RecordNotFound(format!(
-                    "{} not found",
-                    Self::RESOURCE_NAME_PLURAL
-                )))?;
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| ApiError::not_found(
+                    Self::RESOURCE_NAME_PLURAL,
+                    Some(id.to_string()),
+                ))?;
         let existing: Self::ActiveModelType = model.into_active_model();
         let updated_model = update_model.merge_into_activemodel(existing)?;
-        let updated = updated_model.update(db).await?;
+        let updated = updated_model.update(db).await.map_err(ApiError::database)?;
         Ok(Self::from(updated))
     }
 
-    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
-        let res = Self::EntityType::delete_by_id(id).exec(db).await?;
+    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+        let res = Self::EntityType::delete_by_id(id).exec(db).await.map_err(ApiError::database)?;
         match res.rows_affected {
-            0 => Err(DbErr::RecordNotFound(format!(
-                "{} not found",
-                Self::RESOURCE_NAME_SINGULAR
-            ))),
+            0 => Err(ApiError::not_found(
+                Self::RESOURCE_NAME_SINGULAR,
+                Some(id.to_string()),
+            )),
             _ => Ok(id),
         }
     }
 
-    async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, DbErr> {
+    async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
         Self::EntityType::delete_many()
             .filter(Self::ID_COLUMN.is_in(ids.clone()))
             .exec(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
         Ok(ids)
     }
 
