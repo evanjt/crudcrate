@@ -286,6 +286,62 @@ MEDIUM Priority:
 - Type-safe compile-time checks
 - Comprehensive test suite across all supported databases
 
+## Security
+
+crudcrate includes several built-in security limits to protect your application from common attack vectors.
+
+### Batch Operation Limits
+
+**Default: 100 items per batch delete**
+
+The default `delete_many` implementation limits batch deletions to 100 items to prevent DoS attacks via resource exhaustion.
+
+**To increase this limit**, provide a custom implementation:
+
+```rust
+#[crudcrate(fn_delete_many = custom_delete_many)]
+async fn custom_delete_many(
+    db: &DatabaseConnection,
+    ids: Vec<Uuid>
+) -> Result<Vec<Uuid>, DbErr> {
+    const MAX_SIZE: usize = 500; // Your custom limit
+    if ids.len() > MAX_SIZE {
+        return Err(DbErr::Custom(format!("Too many items")));
+    }
+    // Your implementation...
+}
+```
+
+### Join Depth Limits
+
+**Default: Maximum depth of 5**
+
+Recursive joins are automatically capped at depth 5 to prevent:
+- Infinite recursion with circular references
+- Exponential database query growth (N+1 problem)
+- Database connection pool exhaustion
+
+```rust
+// Shallow joins - load one level only
+#[crudcrate(join(all, depth = 1))]
+pub users: Vec<User>
+
+// Medium depth - 3 levels
+#[crudcrate(join(all, depth = 3))]
+pub organization: Option<Organization>
+
+// Maximum depth - defaults to 5 if unspecified
+#[crudcrate(join(all))]  // depth = 5
+pub vehicles: Vec<Vehicle>
+
+// Values > 5 are automatically capped to 5
+#[crudcrate(join(all, depth = 10))]  // Will be capped to 5
+```
+
+**Compile-time warnings**: If you specify `depth > 5`, you'll get a compile-time error informing you of the cap.
+
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for complete security details.
+
 ## Quick Start
 
 ```bash

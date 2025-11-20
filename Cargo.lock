@@ -734,6 +734,8 @@ dependencies = [
  "tower",
  "tower-http",
  "tower_governor",
+ "tracing",
+ "tracing-subscriber",
  "url",
  "url-escape",
  "utoipa",
