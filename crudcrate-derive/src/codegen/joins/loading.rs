@@ -92,8 +92,17 @@ fn generate_join_loading_impl(
 
         // Get entity path (custom or derived from type)
         let entity_path = if let Some(custom_path) = &join_config.path {
-            let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
-            quote! { #path_tokens::Entity }
+            match custom_path.parse::<proc_macro2::TokenStream>() {
+                Ok(path_tokens) => quote! { #path_tokens::Entity },
+                Err(_) => {
+                    // Generate a compile error if the path is invalid
+                    let error_msg = format!(
+                        "Invalid join path '{}' for field '{}'. Expected a valid Rust module path.",
+                        custom_path, field_name
+                    );
+                    return quote! { compile_error!(#error_msg); };
+                }
+            }
         } else {
             get_path_from_field_type(&field.ty, "Entity")
         };
