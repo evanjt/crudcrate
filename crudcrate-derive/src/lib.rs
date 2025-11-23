@@ -16,22 +16,26 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, parse_macro_input};
 use traits::crudresource::structs::CRUDResourceMeta;
 
-fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_macro2::TokenStream {
-    let mut active_model_override = None;
+fn extract_active_model_type(
+    input: &DeriveInput,
+    name: &syn::Ident,
+) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
     for attr in &input.attrs {
         if attr.path().is_ident("active_model")
             && let Some(s) = attribute_parser::get_string_from_attr(attr)
         {
-            active_model_override =
-                Some(syn::parse_str::<syn::Type>(&s).expect("Invalid active_model type"));
+            return match syn::parse_str::<syn::Type>(&s) {
+                Ok(ty) => Ok(quote! { #ty }),
+                Err(_) => Err(syn::Error::new_spanned(
+                    attr,
+                    format!("Invalid active_model type: '{s}'. Expected a valid Rust type path."),
+                )
+                .to_compile_error()),
+            };
         }
     }
-    if let Some(ty) = active_model_override {
-        quote! { #ty }
-    } else {
-        let ident = format_ident!("{}ActiveModel", name);
-        quote! { #ident }
-    }
+    let ident = format_ident!("{}ActiveModel", name);
+    Ok(quote! { #ident })
 }
 
 
@@ -44,7 +48,10 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let create_name = format_ident!("{}Create", name);
 
-    let active_model_type = extract_active_model_type(&input, name);
+    let active_model_type = match extract_active_model_type(&input, name) {
+        Ok(ty) => ty,
+        Err(e) => return e.into(),
+    };
     let fields = match fields::extract_named_fields(&input) {
         Ok(f) => f,
         Err(e) => return e,
@@ -84,7 +91,10 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let update_name = format_ident!("{}Update", name);
 
-    let active_model_type = extract_active_model_type(&input, name);
+    let active_model_type = match extract_active_model_type(&input, name) {
+        Ok(ty) => ty,
+        Err(e) => return e.into(),
+    };
     let fields = match fields::extract_named_fields(&input) {
         Ok(f) => f,
         Err(e) => return e,
