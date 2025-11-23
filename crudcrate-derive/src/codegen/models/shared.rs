@@ -134,3 +134,92 @@ pub(crate) fn generate_active_value_assignment(
     let value = generate_set_value(expr, is_optional);
     quote! { model.#ident = #value; }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn test_is_vec_type_true() {
+        let ty: syn::Type = parse_quote!(Vec<String>);
+        assert!(is_vec_type(&ty));
+    }
+
+    #[test]
+    fn test_is_vec_type_false_option() {
+        let ty: syn::Type = parse_quote!(Option<String>);
+        assert!(!is_vec_type(&ty));
+    }
+
+    #[test]
+    fn test_is_vec_type_false_simple() {
+        let ty: syn::Type = parse_quote!(String);
+        assert!(!is_vec_type(&ty));
+    }
+
+    #[test]
+    fn test_generate_set_value_non_optional() {
+        let expr: syn::Expr = parse_quote!(value);
+        let result = generate_set_value(&expr, false);
+        let result_str = result.to_string();
+        assert!(result_str.contains("ActiveValue :: Set"));
+        assert!(!result_str.contains("Some"));
+    }
+
+    #[test]
+    fn test_generate_set_value_optional() {
+        let expr: syn::Expr = parse_quote!(value);
+        let result = generate_set_value(&expr, true);
+        let result_str = result.to_string();
+        assert!(result_str.contains("ActiveValue :: Set"));
+        assert!(result_str.contains("Some"));
+    }
+
+    #[test]
+    fn test_generate_active_value_set() {
+        let ident: syn::Ident = parse_quote!(name);
+        let expr: syn::Expr = parse_quote!(value);
+        let result = generate_active_value_set(&ident, &expr, false);
+        let result_str = result.to_string();
+        assert!(result_str.contains("name"));
+        assert!(result_str.contains("ActiveValue :: Set"));
+    }
+
+    #[test]
+    fn test_generate_active_value_assignment() {
+        let ident: syn::Ident = parse_quote!(name);
+        let expr: syn::Expr = parse_quote!(value);
+        let result = generate_active_value_assignment(&ident, &expr, false);
+        let result_str = result.to_string();
+        assert!(result_str.contains("model . name"));
+        assert!(result_str.contains("ActiveValue :: Set"));
+    }
+
+    #[test]
+    fn test_generate_field_with_optional_default_no_default() {
+        let ident: syn::Ident = parse_quote!(field_name);
+        let ty = quote!(String);
+        let field: syn::Field = parse_quote!(pub field_name: String);
+        let result = generate_field_with_optional_default(Some(&ident), &ty, &field);
+        let result_str = result.to_string();
+        assert!(result_str.contains("pub field_name"));
+        assert!(!result_str.contains("serde"));
+    }
+
+    #[test]
+    fn test_resolve_field_type_without_target_models() {
+        let ty: syn::Type = parse_quote!(String);
+        let field: syn::Field = parse_quote!(pub name: String);
+        let result = resolve_field_type_with_target_models(&ty, &field, |_, _, _| quote!(unused));
+        assert_eq!(result.to_string(), "String");
+    }
+
+    #[test]
+    fn test_generate_target_model_conversion_no_flag() {
+        let field: syn::Field = parse_quote!(pub name: String);
+        let ident: syn::Ident = parse_quote!(name);
+        let result = generate_target_model_conversion(&field, Some(&ident));
+        assert!(result.is_none());
+    }
+}

@@ -88,3 +88,66 @@ fn extract_target_type(field_type: &syn::Type) -> Result<String, ()> {
         Err(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn test_extract_target_type_simple() {
+        let ty: syn::Type = parse_quote!(User);
+        assert_eq!(extract_target_type(&ty), Ok("User".to_string()));
+    }
+
+    #[test]
+    fn test_extract_target_type_vec() {
+        let ty: syn::Type = parse_quote!(Vec<Vehicle>);
+        assert_eq!(extract_target_type(&ty), Ok("Vehicle".to_string()));
+    }
+
+    #[test]
+    fn test_extract_target_type_option() {
+        let ty: syn::Type = parse_quote!(Option<Customer>);
+        assert_eq!(extract_target_type(&ty), Ok("Customer".to_string()));
+    }
+
+    #[test]
+    fn test_extract_target_type_vec_option() {
+        let ty: syn::Type = parse_quote!(Vec<Option<Item>>);
+        assert_eq!(extract_target_type(&ty), Ok("Item".to_string()));
+    }
+
+    #[test]
+    fn test_extract_target_type_path() {
+        let ty: syn::Type = parse_quote!(super::vehicle::Vehicle);
+        assert_eq!(extract_target_type(&ty), Ok("super::vehicle::Vehicle".to_string()));
+    }
+
+    #[test]
+    fn test_extract_target_type_reference_fails() {
+        let ty: syn::Type = parse_quote!(&str);
+        assert_eq!(extract_target_type(&ty), Err(()));
+    }
+
+    #[test]
+    fn test_generate_cyclic_dependency_check_no_joins() {
+        let analysis = EntityFieldAnalysis {
+            db_fields: vec![],
+            non_db_fields: vec![],
+            primary_key_field: None,
+            sortable_fields: vec![],
+            filterable_fields: vec![],
+            fulltext_fields: vec![],
+            join_on_one_fields: vec![],
+            join_on_all_fields: vec![],
+        };
+        let result = generate_cyclic_dependency_check(&analysis, "TestEntity");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_max_allowed_depth_constant() {
+        assert_eq!(MAX_ALLOWED_DEPTH, 5);
+    }
+}

@@ -1,6 +1,6 @@
-//! Tests for the Phase 10 hook system
+//! Tests for the hook system
 //!
-//! This module tests the new hook syntax: `{operation}::{cardinality}::{phase}`
+//! Tests the hook syntax: `{operation}::{cardinality}::{phase}`
 //!
 //! Hook syntax:
 //! - Operations: create, read, update, delete

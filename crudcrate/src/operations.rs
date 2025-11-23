@@ -637,3 +637,4 @@ impl<T: CRUDResource> CRUDOperations for DefaultCRUDOperations<T> {
     // All methods use default implementations from the trait
     // No overrides needed - delegates to T::method() automatically
 }
+
