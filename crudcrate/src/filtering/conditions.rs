@@ -84,9 +84,9 @@ fn parse_filter_json(filter_str: Option<String>) -> HashMap<String, serde_json::
     filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
         Ok(parsed) => parsed,
         Err(_e) => {
-            // Don't log user input in production to avoid exposing sensitive data
-            #[cfg(debug_assertions)]
-            eprintln!("Warning: Invalid JSON in filter parameter");
+            // Log at debug level - invalid user input doesn't warrant warnings
+            // Don't include user input to avoid exposing potentially sensitive data
+            tracing::debug!("Invalid JSON in filter parameter - ignoring filter");
             HashMap::new()
         }
     })

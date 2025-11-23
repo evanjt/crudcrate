@@ -135,7 +135,13 @@ where
         match PaginatorTrait::count(query, db).await {
             Ok(count) => count,
             Err(e) => {
-                eprintln!("Database error in total_count: {e}");
+                // Log database error internally; return 0 to degrade gracefully
+                // Users see pagination with count=0, internal error is logged for debugging
+                tracing::warn!(
+                    error = %e,
+                    table = Self::TABLE_NAME,
+                    "Database error in total_count - returning 0"
+                );
                 0
             }
         }
