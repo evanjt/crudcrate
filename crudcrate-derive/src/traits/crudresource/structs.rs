@@ -1,17 +1,45 @@
 use convert_case::{Case, Casing};
 
+/// Hook configuration for a single operation phase (pre, body, post)
+#[derive(Default, Clone)]
+pub(crate) struct OperationHooks {
+    pub(crate) pre: Option<syn::Path>,
+    pub(crate) body: Option<syn::Path>,
+    pub(crate) post: Option<syn::Path>,
+}
+
+/// Hooks for an operation with one/many variants
+#[derive(Default, Clone)]
+pub(crate) struct CrudOperationHooks {
+    pub(crate) one: OperationHooks,
+    pub(crate) many: OperationHooks,
+}
+
+/// All CRUD operation hooks
+#[derive(Default, Clone)]
+pub(crate) struct CrudHooks {
+    pub(crate) create: CrudOperationHooks,
+    pub(crate) read: CrudOperationHooks,
+    pub(crate) update: CrudOperationHooks,
+    pub(crate) delete: CrudOperationHooks,
+}
+
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
 #[derive(Default)]
 pub(crate) struct CRUDResourceMeta {
     pub(crate) name_singular: Option<String>,
     pub(crate) name_plural: Option<String>,
     pub(crate) description: Option<String>,
+    // Legacy fn_* attributes (backward compatibility)
     pub(crate) fn_get_one: Option<syn::Path>,
     pub(crate) fn_get_all: Option<syn::Path>,
     pub(crate) fn_create: Option<syn::Path>,
     pub(crate) fn_update: Option<syn::Path>,
     pub(crate) fn_delete: Option<syn::Path>,
     pub(crate) fn_delete_many: Option<syn::Path>,
+    // New hook system
+    pub(crate) hooks: CrudHooks,
+    // Other options
     pub(crate) operations: Option<syn::Path>,
     pub(crate) generate_router: bool,
     pub(crate) fulltext_language: Option<String>,

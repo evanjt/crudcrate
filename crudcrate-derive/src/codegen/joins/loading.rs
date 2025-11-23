@@ -41,10 +41,13 @@ use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
 /// Generate join loading code for `get_one()` method
+///
+/// Returns code that evaluates to `Self` (not wrapped in Result).
+/// The caller is responsible for wrapping in `Ok()`.
 pub fn generate_get_one_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
     // Check if there are any join fields
     if analysis.join_on_one_fields.is_empty() && analysis.join_on_all_fields.is_empty() {
-        return quote! { Ok(model.into()) };
+        return quote! { Self::from(model) };
     }
 
     // Deduplicate fields (some may have both join(one) and join(all))
@@ -72,7 +75,7 @@ pub fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_mac
 /// Shared implementation for generating join loading code
 fn generate_join_loading_impl(
     join_fields: &[&syn::Field],
-    context: &str,
+    _context: &str,
 ) -> proc_macro2::TokenStream {
     let mut loading_statements = Vec::new();
     let mut field_assignments = Vec::new();
@@ -173,21 +176,12 @@ fn generate_join_loading_impl(
         }
     }
 
-    // For get_all, we're in a loop context and need to return the result directly
-    // For get_one, we return Ok(result) as the method return value
-    if context == "get_all" {
-        quote! {
-            #( #loading_statements )*
-            let mut result: Self = model.into();
-            #( #field_assignments )*
-            result
-        }
-    } else {
-        quote! {
-            #( #loading_statements )*
-            let mut result: Self = model.into();
-            #( #field_assignments )*
-            Ok(result)
-        }
+    // Both contexts return Self directly (not wrapped in Result)
+    // The caller is responsible for wrapping in Ok() when needed
+    quote! {
+        #( #loading_statements )*
+        let mut result: Self = model.into();
+        #( #field_assignments )*
+        result
     }
 }

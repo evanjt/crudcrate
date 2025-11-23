@@ -4,6 +4,10 @@ use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 
 /// Parses CRUD resource metadata from struct-level attributes.
 /// Looks for `#[crudcrate(...)]` attributes and extracts configuration.
+///
+/// Supports both legacy syntax and new hook syntax:
+/// - Legacy: `fn_delete = my_fn`
+/// - New: `create::one::pre = validate_fn`
 pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResourceMeta {
     let mut meta = CRUDResourceMeta::default();
 
@@ -44,17 +48,24 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             }
                         } else if let syn::Expr::Path(expr_path) = &nv.value {
                             // Handle function path values
-                            let path = &expr_path.path;
-                            let ident = nv.path.get_ident().map(std::string::ToString::to_string);
-                            match ident.as_deref() {
-                                Some("fn_get_one") => meta.fn_get_one = Some(path.clone()),
-                                Some("fn_get_all") => meta.fn_get_all = Some(path.clone()),
-                                Some("fn_create") => meta.fn_create = Some(path.clone()),
-                                Some("fn_update") => meta.fn_update = Some(path.clone()),
-                                Some("fn_delete") => meta.fn_delete = Some(path.clone()),
-                                Some("fn_delete_many") => meta.fn_delete_many = Some(path.clone()),
-                                Some("operations") => meta.operations = Some(path.clone()),
-                                _ => {}
+                            let fn_path = &expr_path.path;
+
+                            // Try to parse as new hook syntax (create::one::pre = fn)
+                            if let Some((op, cardinality, phase)) = parse_hook_path(&nv.path) {
+                                set_hook(&mut meta.hooks, &op, &cardinality, &phase, fn_path.clone());
+                            } else {
+                                // Fall back to legacy fn_* syntax
+                                let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                                match ident.as_deref() {
+                                    Some("fn_get_one") => meta.fn_get_one = Some(fn_path.clone()),
+                                    Some("fn_get_all") => meta.fn_get_all = Some(fn_path.clone()),
+                                    Some("fn_create") => meta.fn_create = Some(fn_path.clone()),
+                                    Some("fn_update") => meta.fn_update = Some(fn_path.clone()),
+                                    Some("fn_delete") => meta.fn_delete = Some(fn_path.clone()),
+                                    Some("fn_delete_many") => meta.fn_delete_many = Some(fn_path.clone()),
+                                    Some("operations") => meta.operations = Some(fn_path.clone()),
+                                    _ => {}
+                                }
                             }
                         }
                     }
@@ -75,7 +86,116 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
             }
         }
     }
+
+    // Apply backward compatibility: map legacy fn_* to new hooks
+    apply_legacy_fn_mappings(&mut meta);
+
     meta
+}
+
+/// Parse a path like `create::one::pre` into (operation, cardinality, phase)
+fn parse_hook_path(path: &syn::Path) -> Option<(String, String, String)> {
+    let segments: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+
+    if segments.len() != 3 {
+        return None;
+    }
+
+    let operation = &segments[0];
+    let cardinality = &segments[1];
+    let phase = &segments[2];
+
+    // Validate operation
+    if !matches!(operation.as_str(), "create" | "read" | "update" | "delete") {
+        return None;
+    }
+
+    // Validate cardinality
+    if !matches!(cardinality.as_str(), "one" | "many") {
+        return None;
+    }
+
+    // Validate phase
+    if !matches!(phase.as_str(), "pre" | "body" | "post") {
+        return None;
+    }
+
+    Some((operation.clone(), cardinality.clone(), phase.clone()))
+}
+
+/// Set a hook in the CrudHooks structure
+fn set_hook(
+    hooks: &mut crate::traits::crudresource::structs::CrudHooks,
+    operation: &str,
+    cardinality: &str,
+    phase: &str,
+    fn_path: syn::Path,
+) {
+    let op_hooks = match operation {
+        "create" => &mut hooks.create,
+        "read" => &mut hooks.read,
+        "update" => &mut hooks.update,
+        "delete" => &mut hooks.delete,
+        _ => return,
+    };
+
+    let card_hooks = match cardinality {
+        "one" => &mut op_hooks.one,
+        "many" => &mut op_hooks.many,
+        _ => return,
+    };
+
+    match phase {
+        "pre" => card_hooks.pre = Some(fn_path),
+        "body" => card_hooks.body = Some(fn_path),
+        "post" => card_hooks.post = Some(fn_path),
+        _ => {}
+    }
+}
+
+/// Map legacy fn_* attributes to new hook system for backward compatibility
+fn apply_legacy_fn_mappings(meta: &mut CRUDResourceMeta) {
+    // fn_create -> create::one::body
+    if let Some(ref path) = meta.fn_create {
+        if meta.hooks.create.one.body.is_none() {
+            meta.hooks.create.one.body = Some(path.clone());
+        }
+    }
+
+    // fn_get_one -> read::one::body
+    if let Some(ref path) = meta.fn_get_one {
+        if meta.hooks.read.one.body.is_none() {
+            meta.hooks.read.one.body = Some(path.clone());
+        }
+    }
+
+    // fn_get_all -> read::many::body
+    if let Some(ref path) = meta.fn_get_all {
+        if meta.hooks.read.many.body.is_none() {
+            meta.hooks.read.many.body = Some(path.clone());
+        }
+    }
+
+    // fn_update -> update::one::body
+    if let Some(ref path) = meta.fn_update {
+        if meta.hooks.update.one.body.is_none() {
+            meta.hooks.update.one.body = Some(path.clone());
+        }
+    }
+
+    // fn_delete -> delete::one::body
+    if let Some(ref path) = meta.fn_delete {
+        if meta.hooks.delete.one.body.is_none() {
+            meta.hooks.delete.one.body = Some(path.clone());
+        }
+    }
+
+    // fn_delete_many -> delete::many::body
+    if let Some(ref path) = meta.fn_delete_many {
+        if meta.hooks.delete.many.body.is_none() {
+            meta.hooks.delete.many.body = Some(path.clone());
+        }
+    }
 }
 
 /// Extracts the table name from Sea-ORM attributes.
