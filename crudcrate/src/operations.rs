@@ -547,6 +547,48 @@ pub trait CRUDOperations: Send + Sync {
 
         Ok(deleted_ids)
     }
+
+    /// Create multiple entities in a batch
+    ///
+    /// Orchestrates the full batch create lifecycle:
+    /// 1. Validation via before hooks (per item)
+    /// 2. Database batch insertion
+    /// 3. After hooks (per item)
+    ///
+    /// **Security**: Limited to 100 items by default to prevent DoS.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
+    /// Returns `ApiError` if any validation or database insertion fails
+    async fn create_many(
+        &self,
+        db: &DatabaseConnection,
+        data: Vec<<Self::Resource as CRUDResource>::CreateModel>,
+    ) -> Result<Vec<Self::Resource>, ApiError> {
+        Self::Resource::create_many(db, data).await
+    }
+
+    /// Update multiple entities in a batch
+    ///
+    /// Orchestrates the full batch update lifecycle:
+    /// 1. Validation via before hooks (per item)
+    /// 2. Database batch updates
+    /// 3. After hooks (per item)
+    ///
+    /// **Security**: Limited to 100 items by default to prevent DoS.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
+    /// Returns `ApiError` if any validation or database update fails
+    async fn update_many(
+        &self,
+        db: &DatabaseConnection,
+        updates: Vec<(Uuid, <Self::Resource as CRUDResource>::UpdateModel)>,
+    ) -> Result<Vec<Self::Resource>, ApiError> {
+        Self::Resource::update_many(db, updates).await
+    }
 }
 
 /// Default CRUD operations implementation

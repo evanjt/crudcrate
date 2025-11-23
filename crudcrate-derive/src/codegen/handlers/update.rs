@@ -62,3 +62,79 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         }
     }
 }
+
+/// Generate `update_many` method implementation with hook support.
+///
+/// Hook execution order: pre → body → post
+/// - `update::many::pre`: Validation/preparation before batch update (receives &[(Uuid, UpdateModel)])
+/// - `update::many::body`: Replaces default update logic (receives Vec<(Uuid, UpdateModel)>, returns Vec<Self>)
+/// - `update::many::post`: Side effects after batch update (receives &[Self])
+///
+/// **Security Note**: The default implementation limits batch updates to 100 items to prevent
+/// DoS attacks via resource exhaustion.
+pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+    // If operations is specified, use it (takes full control)
+    if let Some(ops_path) = &crud_meta.operations {
+        return quote! {
+            async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(uuid::Uuid, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::update_many(&ops, db, updates).await
+            }
+        };
+    }
+
+    // Get hooks for update::many
+    let hooks = &crud_meta.hooks.update.many;
+
+    // Generate pre hook call
+    let pre_hook = hooks.pre.as_ref().map(|fn_path| {
+        quote! { #fn_path(db, &updates).await?; }
+    });
+
+    // Generate body - either custom or default
+    let body = if let Some(fn_path) = &hooks.body {
+        quote! { let result = #fn_path(db, updates).await?; }
+    } else {
+        quote! {
+            use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
+            use crudcrate::traits::MergeIntoActiveModel;
+
+            // Security: Limit batch size to prevent DoS attacks
+            const MAX_BATCH_UPDATE_SIZE: usize = 100;
+            if updates.len() > MAX_BATCH_UPDATE_SIZE {
+                return Err(crudcrate::ApiError::bad_request(
+                    format!("Batch update limited to {} items. Received {} items.", MAX_BATCH_UPDATE_SIZE, updates.len())
+                ));
+            }
+
+            let mut result = Vec::with_capacity(updates.len());
+            for (id, update_model) in updates {
+                let model = Self::EntityType::find_by_id(id)
+                    .one(db)
+                    .await?
+                    .ok_or_else(|| crudcrate::ApiError::not_found(
+                        Self::RESOURCE_NAME_SINGULAR,
+                        Some(id.to_string())
+                    ))?;
+                let existing: Self::ActiveModelType = model.into_active_model();
+                let updated_model = update_model.merge_into_activemodel(existing)?;
+                let updated = updated_model.update(db).await?;
+                result.push(Self::from(updated));
+            }
+        }
+    };
+
+    // Generate post hook call
+    let post_hook = hooks.post.as_ref().map(|fn_path| {
+        quote! { #fn_path(db, &result).await?; }
+    });
+
+    quote! {
+        async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(uuid::Uuid, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+            #pre_hook
+            #body
+            #post_hook
+            Ok(result)
+        }
+    }
+}

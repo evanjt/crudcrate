@@ -54,15 +54,27 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             if let Some((op, cardinality, phase)) = parse_hook_path(&nv.path) {
                                 set_hook(&mut meta.hooks, &op, &cardinality, &phase, fn_path.clone());
                             } else {
-                                // Fall back to legacy fn_* syntax
+                                // Check for legacy fn_* syntax and emit deprecation errors
                                 let ident = nv.path.get_ident().map(std::string::ToString::to_string);
                                 match ident.as_deref() {
-                                    Some("fn_get_one") => meta.fn_get_one = Some(fn_path.clone()),
-                                    Some("fn_get_all") => meta.fn_get_all = Some(fn_path.clone()),
-                                    Some("fn_create") => meta.fn_create = Some(fn_path.clone()),
-                                    Some("fn_update") => meta.fn_update = Some(fn_path.clone()),
-                                    Some("fn_delete") => meta.fn_delete = Some(fn_path.clone()),
-                                    Some("fn_delete_many") => meta.fn_delete_many = Some(fn_path.clone()),
+                                    Some("fn_get_one") => {
+                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_get_one", "read::one::body", &nv.path));
+                                    }
+                                    Some("fn_get_all") => {
+                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_get_all", "read::many::body", &nv.path));
+                                    }
+                                    Some("fn_create") => {
+                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_create", "create::one::body", &nv.path));
+                                    }
+                                    Some("fn_update") => {
+                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_update", "update::one::body", &nv.path));
+                                    }
+                                    Some("fn_delete") => {
+                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_delete", "delete::one::body", &nv.path));
+                                    }
+                                    Some("fn_delete_many") => {
+                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_delete_many", "delete::many::body", &nv.path));
+                                    }
                                     Some("operations") => meta.operations = Some(fn_path.clone()),
                                     _ => {}
                                 }
@@ -86,9 +98,6 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
             }
         }
     }
-
-    // Apply backward compatibility: map legacy fn_* to new hooks
-    apply_legacy_fn_mappings(&mut meta);
 
     meta
 }
@@ -153,49 +162,28 @@ fn set_hook(
     }
 }
 
-/// Map legacy fn_* attributes to new hook system for backward compatibility
-fn apply_legacy_fn_mappings(meta: &mut CRUDResourceMeta) {
-    // fn_create -> create::one::body
-    if let Some(ref path) = meta.fn_create {
-        if meta.hooks.create.one.body.is_none() {
-            meta.hooks.create.one.body = Some(path.clone());
-        }
-    }
-
-    // fn_get_one -> read::one::body
-    if let Some(ref path) = meta.fn_get_one {
-        if meta.hooks.read.one.body.is_none() {
-            meta.hooks.read.one.body = Some(path.clone());
-        }
-    }
-
-    // fn_get_all -> read::many::body
-    if let Some(ref path) = meta.fn_get_all {
-        if meta.hooks.read.many.body.is_none() {
-            meta.hooks.read.many.body = Some(path.clone());
-        }
-    }
-
-    // fn_update -> update::one::body
-    if let Some(ref path) = meta.fn_update {
-        if meta.hooks.update.one.body.is_none() {
-            meta.hooks.update.one.body = Some(path.clone());
-        }
-    }
-
-    // fn_delete -> delete::one::body
-    if let Some(ref path) = meta.fn_delete {
-        if meta.hooks.delete.one.body.is_none() {
-            meta.hooks.delete.one.body = Some(path.clone());
-        }
-    }
-
-    // fn_delete_many -> delete::many::body
-    if let Some(ref path) = meta.fn_delete_many {
-        if meta.hooks.delete.many.body.is_none() {
-            meta.hooks.delete.many.body = Some(path.clone());
-        }
-    }
+/// Create a deprecation error for legacy fn_* syntax
+fn create_fn_deprecation_error(old_attr: &str, new_syntax: &str, path: &syn::Path) -> syn::Error {
+    syn::Error::new_spanned(
+        path,
+        format!(
+            "The `{old_attr}` attribute is deprecated and no longer supported.\n\
+             Use the new hook syntax instead: `{new_syntax} = your_function`\n\
+             \n\
+             Migration guide:\n\
+             - fn_create      -> create::one::body\n\
+             - fn_get_one     -> read::one::body\n\
+             - fn_get_all     -> read::many::body\n\
+             - fn_update      -> update::one::body\n\
+             - fn_delete      -> delete::one::body\n\
+             - fn_delete_many -> delete::many::body\n\
+             \n\
+             New hook phases available:\n\
+             - ::pre  - runs before the operation (validation, auth)\n\
+             - ::body - replaces the default implementation\n\
+             - ::post - runs after the operation (notifications, side effects)"
+        ),
+    )
 }
 
 /// Extracts the table name from Sea-ORM attributes.

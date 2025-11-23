@@ -77,8 +77,8 @@ fn get_mock_service() -> &'static MockExternalService {
     name_plural = "assets",
     description = "Assets with external cleanup on delete",
     generate_router,
-    fn_delete = delete_asset_with_cleanup,
-    fn_delete_many = delete_many_assets_with_cleanup,
+    delete::one::body = delete_asset_with_cleanup,
+    delete::many::body = delete_many_assets_with_cleanup,
 )]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]

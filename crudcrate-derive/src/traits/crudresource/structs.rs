@@ -30,14 +30,7 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) name_singular: Option<String>,
     pub(crate) name_plural: Option<String>,
     pub(crate) description: Option<String>,
-    // Legacy fn_* attributes (backward compatibility)
-    pub(crate) fn_get_one: Option<syn::Path>,
-    pub(crate) fn_get_all: Option<syn::Path>,
-    pub(crate) fn_create: Option<syn::Path>,
-    pub(crate) fn_update: Option<syn::Path>,
-    pub(crate) fn_delete: Option<syn::Path>,
-    pub(crate) fn_delete_many: Option<syn::Path>,
-    // New hook system
+    // Hook system for CRUD customization
     pub(crate) hooks: CrudHooks,
     // Other options
     pub(crate) operations: Option<syn::Path>,
@@ -45,6 +38,8 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) fulltext_language: Option<String>,
     pub(crate) derive_partial_eq: bool,
     pub(crate) derive_eq: bool,
+    // Deprecation errors to emit as compile errors
+    pub(crate) deprecation_errors: Vec<syn::Error>,
 }
 
 impl CRUDResourceMeta {

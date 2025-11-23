@@ -34,7 +34,7 @@ pub(crate) fn generate_crud_resource_impl(
     let description = crud_meta.description.as_deref().unwrap_or("");
     let fulltext_language = crud_meta.fulltext_language.as_deref().unwrap_or("english");
 
-    let (get_one_impl, get_all_impl, create_impl, update_impl, delete_impl, delete_many_impl) =
+    let (get_one_impl, get_all_impl, create_impl, create_many_impl, update_impl, update_many_impl, delete_impl, delete_many_impl) =
         generate_method_impls(crud_meta, analysis);
 
     // Generate registration lazy static and auto-registration call only for models without join fields
@@ -90,7 +90,9 @@ pub(crate) fn generate_crud_resource_impl(
             #get_one_impl
             #get_all_impl
             #create_impl
+            #create_many_impl
             #update_impl
+            #update_many_impl
             #delete_impl
             #delete_many_impl
         }
@@ -108,11 +110,15 @@ fn generate_method_impls(
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
+    proc_macro2::TokenStream,
+    proc_macro2::TokenStream,
 ) {
     let get_one_impl = get::generate_get_one_impl(crud_meta, analysis);
     let get_all_impl = get::generate_get_all_impl(crud_meta, analysis);
     let create_impl = create::generate_create_impl(crud_meta);
+    let create_many_impl = create::generate_create_many_impl(crud_meta);
     let update_impl = update::generate_update_impl(crud_meta);
+    let update_many_impl = update::generate_update_many_impl(crud_meta);
     let delete_impl = delete::generate_delete_impl(crud_meta);
     let delete_many_impl = delete::generate_delete_many_impl(crud_meta);
 
@@ -120,7 +126,9 @@ fn generate_method_impls(
         get_one_impl,
         get_all_impl,
         create_impl,
+        create_many_impl,
         update_impl,
+        update_many_impl,
         delete_impl,
         delete_many_impl,
     )

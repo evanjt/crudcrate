@@ -130,6 +130,81 @@ where
         Ok(ids)
     }
 
+    /// Create multiple entities in a batch.
+    ///
+    /// # Arguments
+    /// * `db` - The database connection
+    /// * `create_models` - A vector of create models to insert
+    ///
+    /// # Returns
+    /// A vector of the created entities
+    ///
+    /// # Errors
+    /// Returns an `ApiError` if the batch insert fails
+    async fn create_many(
+        db: &DatabaseConnection,
+        create_models: Vec<Self::CreateModel>,
+    ) -> Result<Vec<Self>, ApiError> {
+        use sea_orm::ActiveModelTrait;
+
+        // Security: Limit batch size to prevent DoS attacks
+        const MAX_BATCH_CREATE_SIZE: usize = 100;
+        if create_models.len() > MAX_BATCH_CREATE_SIZE {
+            return Err(ApiError::bad_request(
+                format!("Batch create limited to {} items. Received {} items.", MAX_BATCH_CREATE_SIZE, create_models.len())
+            ));
+        }
+
+        let mut results = Vec::with_capacity(create_models.len());
+        for create_model in create_models {
+            let active_model: Self::ActiveModelType = create_model.into();
+            let model = active_model.insert(db).await.map_err(ApiError::database)?;
+            results.push(Self::from(model));
+        }
+        Ok(results)
+    }
+
+    /// Update multiple entities in a batch.
+    ///
+    /// # Arguments
+    /// * `db` - The database connection
+    /// * `updates` - A vector of (id, update_model) pairs
+    ///
+    /// # Returns
+    /// A vector of the updated entities
+    ///
+    /// # Errors
+    /// Returns an `ApiError` if any update fails
+    async fn update_many(
+        db: &DatabaseConnection,
+        updates: Vec<(Uuid, Self::UpdateModel)>,
+    ) -> Result<Vec<Self>, ApiError> {
+        // Security: Limit batch size to prevent DoS attacks
+        const MAX_BATCH_UPDATE_SIZE: usize = 100;
+        if updates.len() > MAX_BATCH_UPDATE_SIZE {
+            return Err(ApiError::bad_request(
+                format!("Batch update limited to {} items. Received {} items.", MAX_BATCH_UPDATE_SIZE, updates.len())
+            ));
+        }
+
+        let mut results = Vec::with_capacity(updates.len());
+        for (id, update_model) in updates {
+            let model = Self::EntityType::find_by_id(id)
+                .one(db)
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| ApiError::not_found(
+                    Self::RESOURCE_NAME_SINGULAR,
+                    Some(id.to_string()),
+                ))?;
+            let existing: Self::ActiveModelType = model.into_active_model();
+            let updated_model = update_model.merge_into_activemodel(existing)?;
+            let updated = updated_model.update(db).await.map_err(ApiError::database)?;
+            results.push(Self::from(updated));
+        }
+        Ok(results)
+    }
+
     async fn total_count(db: &DatabaseConnection, condition: &Condition) -> u64 {
         let query = Self::EntityType::find().filter(condition.clone());
         match PaginatorTrait::count(query, db).await {

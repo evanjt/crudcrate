@@ -196,6 +196,17 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let table_name = attribute_parser::extract_table_name(&input.attrs)
         .unwrap_or_else(|| struct_name.to_string());
     let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
+
+    // Check for deprecation errors (legacy fn_* syntax)
+    if !meta.deprecation_errors.is_empty() {
+        let errors: proc_macro2::TokenStream = meta
+            .deprecation_errors
+            .iter()
+            .map(syn::Error::to_compile_error)
+            .collect();
+        return errors.into();
+    }
+
     let crud_meta = meta.with_defaults(&table_name);
 
     // Validate active model path
