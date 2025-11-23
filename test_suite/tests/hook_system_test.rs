@@ -607,4 +607,379 @@ mod integration {
             err_msg
         );
     }
+
+    // ========================================================================
+    // BATCH OPERATION EDGE CASE TESTS
+    // ========================================================================
+
+    #[tokio::test]
+    #[serial]
+    async fn test_create_many_empty_batch() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Empty batch should succeed with empty result
+        let items: Vec<HookTestItemCreate> = vec![];
+        let result = HookTestItem::create_many(&db, items).await;
+        assert!(result.is_ok(), "create_many with empty batch should succeed");
+        assert_eq!(result.unwrap().len(), 0, "Empty batch should return empty result");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_update_many_empty_batch() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Empty batch should succeed with empty result
+        let updates: Vec<(Uuid, HookTestItemUpdate)> = vec![];
+        let result = HookTestItem::update_many(&db, updates).await;
+        assert!(result.is_ok(), "update_many with empty batch should succeed");
+        assert_eq!(result.unwrap().len(), 0, "Empty batch should return empty result");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_update_many_batch_size_limit() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Try to update more than 100 items (should fail due to security limit)
+        let updates: Vec<(Uuid, HookTestItemUpdate)> = (0..101)
+            .map(|_| (Uuid::new_v4(), HookTestItemUpdate { name: Some(Some("test".to_string())) }))
+            .collect();
+
+        let result = HookTestItem::update_many(&db, updates).await;
+        assert!(result.is_err(), "update_many with 101 items should fail");
+
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("limited") || err_msg.contains("100"),
+            "Error message should mention batch limit: {}",
+            err_msg
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_update_many_nonexistent_id() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Try to update a non-existent item
+        let updates = vec![(
+            Uuid::new_v4(), // Random ID that doesn't exist
+            HookTestItemUpdate { name: Some(Some("updated".to_string())) },
+        )];
+
+        let result = HookTestItem::update_many(&db, updates).await;
+        assert!(result.is_err(), "update_many with non-existent ID should fail");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_create_many_at_limit() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Create exactly 100 items (should succeed - at the limit)
+        let items: Vec<HookTestItemCreate> = (0..100)
+            .map(|i| HookTestItemCreate {
+                name: format!("item{}", i),
+            })
+            .collect();
+
+        let result = HookTestItem::create_many(&db, items).await;
+        assert!(result.is_ok(), "create_many with exactly 100 items should succeed");
+        assert_eq!(result.unwrap().len(), 100, "Should create exactly 100 items");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_delete_many_batch_operation() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Create items first
+        let items = vec![
+            HookTestItemCreate { name: "delete1".to_string() },
+            HookTestItemCreate { name: "delete2".to_string() },
+            HookTestItemCreate { name: "delete3".to_string() },
+        ];
+        let created = HookTestItem::create_many(&db, items)
+            .await
+            .expect("create_many should succeed");
+
+        let ids: Vec<Uuid> = created.iter().map(|item| item.id).collect();
+
+        // Delete all items in batch
+        let result = HookTestItem::delete_many(&db, ids.clone()).await;
+        assert!(result.is_ok(), "delete_many should succeed");
+
+        let deleted_ids = result.unwrap();
+        assert_eq!(deleted_ids.len(), 3, "Should delete 3 items");
+
+        // Verify items are actually deleted
+        for id in ids {
+            let fetch_result = HookTestItem::get_one(&db, id).await;
+            assert!(fetch_result.is_err(), "Deleted item should not be found");
+        }
+    }
+
+    // ========================================================================
+    // HOOK FAILURE SCENARIO TESTS
+    // ========================================================================
+
+    #[tokio::test]
+    #[serial]
+    async fn test_pre_hook_failure_prevents_operation() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Create with empty name - pre hook validation should fail
+        let create_data = HookTestItemCreate { name: "".to_string() };
+        let result = HookTestItem::create(&db, create_data).await;
+
+        assert!(result.is_err(), "Create should fail due to pre-hook validation");
+        assert!(CREATE_PRE_CALLED.load(Ordering::SeqCst), "Pre-hook should be called");
+        assert!(!CREATE_POST_CALLED.load(Ordering::SeqCst), "Post-hook should NOT be called after pre-hook failure");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_update_pre_hook_failure_prevents_operation() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // First create a valid item
+        let create_data = HookTestItemCreate { name: "valid".to_string() };
+        let created = HookTestItem::create(&db, create_data)
+            .await
+            .expect("Create should succeed");
+
+        reset_hook_flags();
+
+        // Update with empty name - pre hook validation should fail
+        let update_data = HookTestItemUpdate { name: Some(Some("".to_string())) };
+        let result = HookTestItem::update(&db, created.id, update_data).await;
+
+        assert!(result.is_err(), "Update should fail due to pre-hook validation");
+        assert!(UPDATE_PRE_CALLED.load(Ordering::SeqCst), "Pre-hook should be called");
+        assert!(!UPDATE_POST_CALLED.load(Ordering::SeqCst), "Post-hook should NOT be called after pre-hook failure");
+
+        // Verify item was not modified
+        let fetched = HookTestItem::get_one(&db, created.id).await.expect("Should fetch item");
+        assert_eq!(fetched.name, "valid", "Item should not be modified after failed update");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_read_nonexistent_returns_not_found() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        let result = HookTestItem::get_one(&db, Uuid::new_v4()).await;
+        assert!(result.is_err(), "Reading non-existent item should fail");
+
+        // Pre-hook should still be called
+        assert!(READ_PRE_CALLED.load(Ordering::SeqCst), "read pre-hook should be called even for not found");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_delete_nonexistent_returns_not_found() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        let result = HookTestItem::delete(&db, Uuid::new_v4()).await;
+        assert!(result.is_err(), "Deleting non-existent item should fail");
+
+        // Pre-hook should still be called
+        assert!(DELETE_PRE_CALLED.load(Ordering::SeqCst), "delete pre-hook should be called even for not found");
+    }
+
+    // ========================================================================
+    // CRUDRESOURCE TRAIT METHOD TESTS
+    // ========================================================================
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_all_returns_list() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Create multiple items
+        let items = vec![
+            HookTestItemCreate { name: "alpha".to_string() },
+            HookTestItemCreate { name: "beta".to_string() },
+            HookTestItemCreate { name: "gamma".to_string() },
+        ];
+        let _ = HookTestItem::create_many(&db, items)
+            .await
+            .expect("create_many should succeed");
+
+        // Get all with no filter
+        let condition = sea_orm::Condition::all();
+        let result = HookTestItem::get_all(
+            &db,
+            &condition,
+            <HookTestItem as CRUDResource>::ID_COLUMN,
+            sea_orm::Order::Asc,
+            0,
+            100,
+        )
+        .await;
+
+        assert!(result.is_ok(), "get_all should succeed");
+        let items = result.unwrap();
+        assert_eq!(items.len(), 3, "Should return 3 items");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_all_with_pagination() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Create 5 items
+        let items: Vec<HookTestItemCreate> = (0..5)
+            .map(|i| HookTestItemCreate { name: format!("item{}", i) })
+            .collect();
+        let _ = HookTestItem::create_many(&db, items)
+            .await
+            .expect("create_many should succeed");
+
+        // Get first page (3 items)
+        let condition = sea_orm::Condition::all();
+        let result = HookTestItem::get_all(
+            &db,
+            &condition,
+            <HookTestItem as CRUDResource>::ID_COLUMN,
+            sea_orm::Order::Asc,
+            0,
+            3,
+        )
+        .await;
+
+        assert!(result.is_ok(), "get_all should succeed");
+        assert_eq!(result.unwrap().len(), 3, "Should return 3 items on first page");
+
+        // Get second page (2 items)
+        let result = HookTestItem::get_all(
+            &db,
+            &condition,
+            <HookTestItem as CRUDResource>::ID_COLUMN,
+            sea_orm::Order::Asc,
+            3,
+            3,
+        )
+        .await;
+
+        assert!(result.is_ok(), "get_all should succeed");
+        assert_eq!(result.unwrap().len(), 2, "Should return 2 items on second page");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_total_count() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Create 4 items
+        let items: Vec<HookTestItemCreate> = (0..4)
+            .map(|i| HookTestItemCreate { name: format!("count_item{}", i) })
+            .collect();
+        let _ = HookTestItem::create_many(&db, items)
+            .await
+            .expect("create_many should succeed");
+
+        // Get total count
+        let condition = sea_orm::Condition::all();
+        let count = HookTestItem::total_count(&db, &condition).await;
+
+        assert_eq!(count, 4, "Total count should be 4");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_total_count_empty() {
+        reset_hook_flags();
+        let db = setup_db().await.expect("Failed to setup database");
+
+        // Empty table
+        let condition = sea_orm::Condition::all();
+        let count = HookTestItem::total_count(&db, &condition).await;
+
+        assert_eq!(count, 0, "Total count should be 0 for empty table");
+    }
+
+    #[test]
+    fn test_sortable_columns() {
+        let columns = HookTestItem::sortable_columns();
+        assert!(!columns.is_empty(), "Should have sortable columns");
+
+        // Check that expected columns are present (name is marked sortable in entity)
+        let column_names: Vec<&str> = columns.iter().map(|(name, _)| *name).collect();
+        assert!(column_names.contains(&"name"), "name should be sortable");
+    }
+
+    #[test]
+    fn test_filterable_columns() {
+        let columns = HookTestItem::filterable_columns();
+        assert!(!columns.is_empty(), "Should have filterable columns");
+
+        // Check that expected columns are present (name is marked filterable in entity)
+        let column_names: Vec<&str> = columns.iter().map(|(name, _)| *name).collect();
+        assert!(column_names.contains(&"name"), "name should be filterable");
+    }
+
+    #[test]
+    fn test_default_index_column() {
+        // Should return ID column by default
+        let column = HookTestItem::default_index_column();
+        // Just verify it doesn't panic - column comparison would need more setup
+        let _ = format!("{:?}", column);
+    }
+
+    #[test]
+    fn test_like_filterable_columns() {
+        // Default implementation returns empty vec
+        let columns = HookTestItem::like_filterable_columns();
+        // May be empty or have values depending on entity configuration
+        let _ = columns; // Just verify it doesn't panic
+    }
+
+    #[test]
+    fn test_fulltext_searchable_columns() {
+        // Default implementation returns empty vec
+        let columns = HookTestItem::fulltext_searchable_columns();
+        // May be empty or have values depending on entity configuration
+        let _ = columns; // Just verify it doesn't panic
+    }
+
+    #[test]
+    fn test_is_enum_field() {
+        // Default implementation returns false
+        assert!(!HookTestItem::is_enum_field("name"), "name should not be an enum field");
+        assert!(!HookTestItem::is_enum_field("nonexistent"), "nonexistent should not be an enum field");
+    }
+
+    #[test]
+    fn test_normalize_enum_value() {
+        // Default implementation returns None
+        assert!(HookTestItem::normalize_enum_value("name", "test").is_none());
+        assert!(HookTestItem::normalize_enum_value("nonexistent", "value").is_none());
+    }
+
+    #[test]
+    fn test_resource_constants() {
+        // Verify all trait constants are set correctly
+        assert_eq!(HookTestItem::RESOURCE_NAME_SINGULAR, "hook_test_item");
+        assert_eq!(HookTestItem::RESOURCE_NAME_PLURAL, "hook_test_items");
+        assert_eq!(HookTestItem::TABLE_NAME, "hook_test_items");
+        // Description is auto-generated when not specified
+        assert!(!HookTestItem::RESOURCE_DESCRIPTION.is_empty(), "Description should be set");
+        // Fulltext language defaults to "english"
+        assert_eq!(HookTestItem::FULLTEXT_LANGUAGE, "english");
+    }
 }

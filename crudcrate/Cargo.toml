@@ -46,7 +46,7 @@ proc-macro = false
 axum-helmet = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 criterion = { workspace = true, features = ["html_reports"] }
-sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono", "with-rust_decimal"] }
 sea-orm-migration = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing-subscriber = { workspace = true }
