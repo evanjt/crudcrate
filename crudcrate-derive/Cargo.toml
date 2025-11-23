@@ -32,5 +32,10 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 rust_decimal = { workspace = true }
 async-trait = { workspace = true }
 
+# Proc macro testing
+trybuild = "1.0"
+macrotest = "1.0"
+crudcrate = { path = "../crudcrate", features = ["derive"] }
+
 [lints.clippy]
 pedantic = "warn"
