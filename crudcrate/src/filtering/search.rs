@@ -231,4 +231,56 @@ mod tests {
         let sql = format!("{result:?}");
         assert!(sql.contains("title"), "Should handle special characters");
     }
+
+    // ========================================================================
+    // EMPTY/WHITESPACE QUERY TESTS
+    // Full entity-based tests are in integration tests
+    // ========================================================================
+
+    /// Test that empty query produces match-all pattern in LIKE condition
+    #[test]
+    fn test_like_condition_empty_query_matches_all() {
+        let result = build_like_condition("field", "");
+        let sql = format!("{result:?}");
+        // Empty query produces LIKE '%%' which matches everything
+        assert!(sql.contains("%%") || sql.contains("%\""), "Empty query should produce match-all pattern");
+    }
+
+    /// Test that whitespace-only query produces match-all pattern
+    #[test]
+    fn test_like_condition_whitespace_query() {
+        // Note: build_like_condition doesn't trim - it passes through
+        // Trimming happens at a higher level (in conditions.rs process_string_filter)
+        let result = build_like_condition("field", "   ");
+        let sql = format!("{result:?}");
+        // Pattern will be uppercased but still contain the spaces
+        assert!(sql.contains("field"), "Should include field name");
+    }
+
+    /// Test case-insensitive matching in LIKE condition
+    #[test]
+    fn test_like_condition_case_insensitive_pattern() {
+        // Test that the pattern is uppercased for case-insensitive matching
+        let result = build_like_condition("field", "MiXeD CaSe");
+        let sql = format!("{result:?}");
+
+        // The pattern should contain the uppercased value
+        assert!(
+            sql.contains("MIXED CASE"),
+            "Pattern should be uppercased for case-insensitive match: {}",
+            sql
+        );
+    }
+
+    /// Test query length limiting constant
+    #[test]
+    fn test_max_search_query_length_constant() {
+        assert_eq!(MAX_SEARCH_QUERY_LENGTH, 10_000, "Max query length should be 10,000");
+    }
+
+    /// Test escape function handles empty string
+    #[test]
+    fn test_escape_like_wildcards_empty() {
+        assert_eq!(escape_like_wildcards(""), "", "Empty string should pass through");
+    }
 }

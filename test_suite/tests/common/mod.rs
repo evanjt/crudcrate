@@ -6,7 +6,7 @@ use sea_orm_migration::prelude::*;
 pub mod models;
 
 // Re-export local test models for easy access
-pub use self::models::{customer, maintenance_record, vehicle, vehicle_part};
+pub use self::models::{category, customer, maintenance_record, vehicle, vehicle_part};
 
 // Helper function to get database URL from environment or default to SQLite
 fn get_test_database_url() -> String {
@@ -31,6 +31,7 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
         let _ = db.execute_unprepared("DELETE FROM vehicle_parts").await;
         let _ = db.execute_unprepared("DELETE FROM vehicles").await;
         let _ = db.execute_unprepared("DELETE FROM customers").await;
+        let _ = db.execute_unprepared("DELETE FROM categories").await;
     }
 
     Ok(db)
@@ -40,6 +41,7 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
 pub fn setup_test_app(db: &DatabaseConnection) -> Router {
     // Create a simple router that uses the generated CRUD endpoints from local models
     Router::new()
+        .nest("/categories", category::Category::router(db).into())
         .nest("/customers", customer::Customer::router(db).into())
         .nest("/vehicles", vehicle::Vehicle::router(db).into())
         .nest(
@@ -59,11 +61,66 @@ pub struct CustomerVehicleMigrator;
 impl MigratorTrait for CustomerVehicleMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
+            Box::new(CreateCategoryTable),
             Box::new(CreateCustomerTable),
             Box::new(CreateVehicleTable),
             Box::new(CreateVehiclePartTable),
             Box::new(CreateMaintenanceRecordTable),
         ]
+    }
+}
+
+pub struct CreateCategoryTable;
+
+#[async_trait::async_trait]
+impl MigrationName for CreateCategoryTable {
+    fn name(&self) -> &'static str {
+        "m20240101_000002_create_category_table"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for CreateCategoryTable {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = Table::create()
+            .table(category::Entity)
+            .if_not_exists()
+            .col(
+                ColumnDef::new(category::Column::Id)
+                    .uuid()
+                    .not_null()
+                    .primary_key(),
+            )
+            .col(ColumnDef::new(category::Column::Name).text().not_null())
+            .col(ColumnDef::new(category::Column::ParentId).uuid().null())
+            .col(
+                ColumnDef::new(category::Column::CreatedAt)
+                    .timestamp_with_time_zone()
+                    .not_null(),
+            )
+            .col(
+                ColumnDef::new(category::Column::UpdatedAt)
+                    .timestamp_with_time_zone()
+                    .not_null(),
+            )
+            .foreign_key(
+                ForeignKey::create()
+                    .name("fk_category_parent")
+                    .from(category::Entity, category::Column::ParentId)
+                    .to(category::Entity, category::Column::Id)
+                    .on_delete(ForeignKeyAction::Cascade),
+            )
+            .to_owned();
+
+        manager.create_table(table).await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(category::Entity).to_owned())
+            .await?;
+        Ok(())
     }
 }
 
@@ -339,4 +396,38 @@ impl MigrationTrait for CreateMaintenanceRecordTable {
             .await?;
         Ok(())
     }
+}
+
+// Helper function to create a test customer and return the customer ID
+// This is needed for vehicle tests because vehicles have a foreign key to customers
+#[allow(dead_code)]
+pub async fn create_test_customer(app: &Router) -> String {
+    use axum::body::Body;
+    use axum::http::Request;
+    use serde_json::json;
+    use tower::ServiceExt;
+
+    let customer_data = json!({
+        "name": "Test Customer for Vehicles",
+        "email": "vehicle-test@example.com"
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/customers")
+                .header("content-type", "application/json")
+                .body(Body::from(customer_data.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created_customer: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    created_customer["id"].as_str().unwrap().to_string()
 }

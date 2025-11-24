@@ -1,0 +1,227 @@
+/* CRUDCrate Documentation - Custom Theme */
+
+/* Import Rust-style fonts */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=Fira+Mono:wght@400;500&display=swap');
+
+:root {
+    --crate-primary: #f47f24;
+    --crate-secondary: #e05d44;
+    --crate-bg: #fff;
+    --crate-fg: #333;
+    --crate-code-bg: #f6f8fa;
+    --crate-success: #22863a;
+    --crate-warning: #b08800;
+    --crate-error: #cb2431;
+}
+
+/* Typography */
+body {
+    font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+code, pre, .hljs {
+    font-family: 'Fira Mono', 'Consolas', 'Monaco', monospace;
+}
+
+/* Headers */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    border-bottom: none;
+}
+
+h1 {
+    color: var(--crate-primary);
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+h2 {
+    font-size: 1.5rem;
+    margin-top: 2rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid var(--crate-primary);
+}
+
+h3 {
+    font-size: 1.25rem;
+    color: #555;
+}
+
+/* Code blocks */
+pre {
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+code {
+    background-color: var(--crate-code-bg);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+pre code {
+    padding: 0;
+    background: transparent;
+}
+
+/* Links */
+a {
+    color: var(--crate-primary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: var(--crate-secondary);
+    text-decoration: underline;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+table th {
+    background-color: var(--crate-code-bg);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 2px solid #ddd;
+}
+
+table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #eee;
+}
+
+table tr:hover {
+    background-color: #f9f9f9;
+}
+
+/* Info/Warning boxes */
+.warning, .info, .success, .error {
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+}
+
+.warning {
+    background-color: #fff8e6;
+    border-left: 4px solid var(--crate-warning);
+}
+
+.info {
+    background-color: #e8f4fd;
+    border-left: 4px solid #0366d6;
+}
+
+.success {
+    background-color: #e6ffed;
+    border-left: 4px solid var(--crate-success);
+}
+
+.error {
+    background-color: #ffeef0;
+    border-left: 4px solid var(--crate-error);
+}
+
+/* Navigation sidebar */
+.sidebar .sidebar-scrollbox {
+    padding-top: 1rem;
+}
+
+.sidebar .chapter li a {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.sidebar .chapter li a:hover {
+    background-color: rgba(244, 127, 36, 0.1);
+}
+
+.sidebar .chapter li.active > a {
+    background-color: rgba(244, 127, 36, 0.15);
+    font-weight: 600;
+}
+
+/* Search */
+#searchbar {
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+}
+
+/* Mobile improvements */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 1.75rem;
+    }
+
+    h2 {
+        font-size: 1.35rem;
+    }
+
+    table {
+        font-size: 0.9rem;
+    }
+
+    pre {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    .sidebar, .nav-chapters, #menu-bar {
+        display: none !important;
+    }
+
+    .content {
+        margin: 0 !important;
+        max-width: 100% !important;
+    }
+
+    pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+}
+
+/* Dark mode adjustments */
+.rust {
+    --crate-bg: #282c34;
+    --crate-fg: #abb2bf;
+    --crate-code-bg: #1e222a;
+}
+
+.ayu {
+    --crate-primary: #ffb454;
+    --crate-bg: #0f1419;
+    --crate-fg: #e6e1cf;
+    --crate-code-bg: #0a0e14;
+}
+
+/* Chapter navigation */
+.nav-chapters {
+    font-size: 0.9rem;
+}
+
+.nav-chapters:hover {
+    color: var(--crate-primary);
+}
+
+/* Copy button for code blocks */
+.clip-button {
+    background-color: var(--crate-code-bg);
+    border-radius: 4px;
+}
+
+.clip-button:hover {
+    background-color: var(--crate-primary);
+    color: white;
+}

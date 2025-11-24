@@ -1,6 +1,5 @@
 /target
 .history/
-*.md
 *.log
-*.html
-linked_library_examples/
+
+

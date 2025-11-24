@@ -1,0 +1,16 @@
+# mdBook output
+/book/
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/

@@ -1,3 +1,4 @@
+pub mod category;
 pub mod customer;
 pub mod maintenance_record;
 pub mod vehicle;

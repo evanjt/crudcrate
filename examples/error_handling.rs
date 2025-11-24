@@ -205,7 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================================================
     //
     // If you DON'T set up tracing, errors are still handled properly but
-    // internal details are NOT logged. This is perfect for production if you
+    // internal details are NOT logged. This works well when you
     // use external logging/monitoring.
 
     tracing_subscriber::fmt()
@@ -277,7 +277,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Database errors NEVER leak to users");
     println!("  • Internal errors are logged via tracing (if enabled)");
     println!("  • You can disable logging by not calling tracing_subscriber::init()");
-    println!("  • Perfect for production: safe public API, detailed server logs\n");
+    println!("  • Design: sanitized public API responses, detailed server-side logs\n");
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
