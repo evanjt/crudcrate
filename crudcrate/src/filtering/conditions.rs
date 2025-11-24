@@ -274,10 +274,14 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             continue;
         }
 
-        // Find the column in searchable columns
+        // Parse comparison operator to get base field name
+        // For "year_neq", this extracts "year" and stores the operator
+        let (base_field, _operator) = parse_comparison_operator(key).unwrap_or((key, "="));
+
+        // Find the column in searchable columns using the BASE field name
         let column_opt = searchable_columns
             .iter()
-            .find(|(col_name, _)| *col_name == key)
+            .find(|(col_name, _)| *col_name == base_field)
             .map(|(_, col)| col);
 
         if let Some(column) = column_opt {
@@ -593,5 +597,117 @@ mod tests {
         let expr_i32 = apply_numeric_comparison("age", ">", 18_i32);
         let sql = format!("{expr_i32:?}");
         assert!(sql.contains("age"));
+    }
+
+    // ========================================================================
+    // PAGINATION TESTS - Range parsing and default pagination
+    // ========================================================================
+
+    /// Test parse_range with valid JSON array
+    #[test]
+    fn test_parse_range_valid() {
+        let (start, end) = parse_range(Some("[0,9]".to_string()));
+        assert_eq!(start, 0);
+        assert_eq!(end, 9);
+
+        let (start, end) = parse_range(Some("[10,19]".to_string()));
+        assert_eq!(start, 10);
+        assert_eq!(end, 19);
+
+        let (start, end) = parse_range(Some("[50,74]".to_string()));
+        assert_eq!(start, 50);
+        assert_eq!(end, 74);
+    }
+
+    /// Test parse_range with invalid JSON returns default
+    #[test]
+    fn test_parse_range_invalid_json() {
+        let (start, end) = parse_range(Some("invalid".to_string()));
+        assert_eq!(start, 0);
+        assert_eq!(end, 9);
+
+        let (start, end) = parse_range(Some("[0]".to_string())); // Not enough elements
+        assert_eq!(start, 0);
+        assert_eq!(end, 9);
+
+        let (start, end) = parse_range(Some("[]".to_string())); // Empty array
+        assert_eq!(start, 0);
+        assert_eq!(end, 9);
+    }
+
+    /// Test parse_range with None returns default
+    #[test]
+    fn test_parse_range_none() {
+        let (start, end) = parse_range(None);
+        assert_eq!(start, 0);
+        assert_eq!(end, 9);
+    }
+
+    /// Test default pagination when no params provided
+    #[test]
+    fn test_pagination_default_values() {
+        let params = crate::models::FilterOptions::default();
+        let (offset, limit) = parse_pagination(&params);
+
+        assert_eq!(offset, 0, "Default offset should be 0");
+        assert_eq!(limit, 10, "Default limit should be 10");
+    }
+
+    /// Test pagination with range format calculates limit correctly
+    #[test]
+    fn test_pagination_range_calculates_limit() {
+        let params = crate::models::FilterOptions {
+            range: Some("[0,4]".to_string()),
+            ..Default::default()
+        };
+        let (offset, limit) = parse_pagination(&params);
+
+        assert_eq!(offset, 0, "Offset should be 0");
+        assert_eq!(limit, 5, "Limit should be 5 for range [0,4]");
+
+        // Test second page
+        let params = crate::models::FilterOptions {
+            range: Some("[5,9]".to_string()),
+            ..Default::default()
+        };
+        let (offset, limit) = parse_pagination(&params);
+
+        assert_eq!(offset, 5, "Offset should be 5");
+        assert_eq!(limit, 5, "Limit should be 5 for range [5,9]");
+    }
+
+    /// Test page/per_page takes priority over range
+    #[test]
+    fn test_pagination_page_priority_over_range() {
+        let params = crate::models::FilterOptions {
+            page: Some(2),
+            per_page: Some(15),
+            range: Some("[0,4]".to_string()), // Should be ignored
+            ..Default::default()
+        };
+        let (offset, limit) = parse_pagination(&params);
+
+        assert_eq!(offset, 15, "Offset should be 15 (page 2 * 15 per_page)");
+        assert_eq!(limit, 15, "Limit should be 15");
+    }
+
+    /// Test range pagination enforces max limits
+    #[test]
+    fn test_pagination_range_enforces_max_limits() {
+        // Test max page size enforcement
+        let params = crate::models::FilterOptions {
+            range: Some("[0,9999]".to_string()), // Requesting 10000 items
+            ..Default::default()
+        };
+        let (_offset, limit) = parse_pagination(&params);
+        assert!(limit <= MAX_PAGE_SIZE, "Range limit should be capped at {}", MAX_PAGE_SIZE);
+
+        // Test max offset enforcement
+        let params = crate::models::FilterOptions {
+            range: Some("[9999999,10000000]".to_string()), // Very large offset
+            ..Default::default()
+        };
+        let (offset, _limit) = parse_pagination(&params);
+        assert!(offset <= MAX_OFFSET, "Range offset should be capped at {}", MAX_OFFSET);
     }
 }

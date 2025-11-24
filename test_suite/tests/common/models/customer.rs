@@ -12,7 +12,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
-    #[crudcrate(filterable, sortable)]
+    #[crudcrate(filterable, sortable, like_filterable)]
     pub name: String,
     #[crudcrate(filterable)]
     pub email: String,
