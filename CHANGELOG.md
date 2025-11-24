@@ -21,7 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Phases: `pre`, `body`, `post`
   - Example: `#[crudcrate(create::one::pre = validate_fn)]`
 - Batch operations: `create_many` and `update_many` with hook support
-- `ApiError` error type for consistent error handling
+- **`ApiError` error type**: Consistent error handling with separate internal/client messages (fixes #3)
+  - `impl From<DbErr>` for seamless Sea-ORM integration with automatic internal logging
+  - Internal errors logged via `tracing`, generic message sent to client
+  - Custom errors: `ApiError::custom(StatusCode::IM_A_TEAPOT, "client msg", Some("internal log"))`
+  - Variants: `NotFound`, `BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `ValidationFailed`, `Database`, `Internal`, `Custom`
 - Lifecycle hooks in `CRUDOperations` trait
 - Improved test coverage across modules
 
@@ -41,6 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved error handling in join path parsing
 - Fixed flaky tests with serial execution
 - All clippy::pedantic warnings resolved
+
+### Removed
+
+- **`index_analysis` module**: Database index recommendations moved to external tooling (pgAdmin, MySQL Workbench, etc.)
+- **`register_crud_analyser!` macro**: No longer needed without index analysis
+- **`attributes.rs`**: Dead code (IDE autocomplete hints only, never used at runtime)
+- **`join_strategies/` module**: Consolidated into `codegen/joins/`
+- **`field_analyzer.rs`**: Reorganized into `fields/` module
+- **Redundant examples**: `minimal_debug.rs`, `minimal_spring.rs`, `test_router_only.rs`
+- **Verbose documentation**: ~400 lines of excessive doc comments trimmed
 
 ### Dependencies
 

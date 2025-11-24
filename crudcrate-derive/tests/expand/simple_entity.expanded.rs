@@ -732,19 +732,22 @@ impl sea_orm::ActiveModelTrait for ActiveModel {
 impl std::convert::TryFrom<ActiveModel> for Model {
     type Error = sea_orm::DbErr;
     fn try_from(a: ActiveModel) -> Result<Self, sea_orm::DbErr> {
-        if match a.id {
+        if #[allow(non_exhaustive_omitted_patterns)]
+        match a.id {
             sea_orm::ActiveValue::NotSet => true,
             _ => false,
         } {
             return Err(sea_orm::DbErr::AttrNotSet("id".to_owned()));
         }
-        if match a.name {
+        if #[allow(non_exhaustive_omitted_patterns)]
+        match a.name {
             sea_orm::ActiveValue::NotSet => true,
             _ => false,
         } {
             return Err(sea_orm::DbErr::AttrNotSet("name".to_owned()));
         }
-        if match a.active {
+        if #[allow(non_exhaustive_omitted_patterns)]
+        match a.active {
             sea_orm::ActiveValue::NotSet => true,
             _ => false,
         } {

@@ -39,6 +39,11 @@ jobs:
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
 
+    - name: Install cargo-expand
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-expand
+
     - name: Build tests
       run: cargo test --workspace --no-run
 
@@ -86,6 +91,11 @@ jobs:
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Install cargo-expand
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-expand
 
     - name: Verify build cache
       run: |
@@ -167,6 +177,11 @@ jobs:
         # Create benchmark database for benchmarks
         PGPASSWORD=password createdb -h localhost -p 5432 -U postgres benchmark_db || true
 
+    - name: Install cargo-expand
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-expand
+
     - name: Verify build cache
       run: |
         ls -la target/build-marker.txt || echo "Build cache miss"
@@ -236,6 +251,11 @@ jobs:
         mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "SELECT 1;" test_db
         # Create benchmark database for benchmarks
         mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "CREATE DATABASE IF NOT EXISTS benchmark_db;"
+
+    - name: Install cargo-expand
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-expand
 
     - name: Verify build cache
       run: |
