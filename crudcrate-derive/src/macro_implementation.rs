@@ -5,7 +5,7 @@ use crate::codegen::{
         generate_id_column, generate_like_filterable_entries,
     },
 };
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig};
 use quote::quote;
 
 pub(crate) fn generate_crud_resource_impl(
@@ -33,6 +33,10 @@ pub(crate) fn generate_crud_resource_impl(
     let name_singular = crud_meta.name_singular.as_deref().unwrap_or("resource");
     let description = crud_meta.description.as_deref().unwrap_or("");
     let fulltext_language = crud_meta.fulltext_language.as_deref().unwrap_or("english");
+
+    // Generate joined filterable/sortable column definitions
+    let joined_filterable_entries = generate_joined_column_entries(&analysis.join_filter_sort_configs, true);
+    let joined_sortable_entries = generate_joined_column_entries(&analysis.join_filter_sort_configs, false);
 
     let (get_one_impl, get_all_impl, create_impl, create_many_impl, update_impl, update_many_impl, delete_impl, delete_many_impl) =
         generate_method_impls(crud_meta, analysis, api_struct_name);
@@ -87,6 +91,14 @@ pub(crate) fn generate_crud_resource_impl(
                 vec![#(#fulltext_entries),*]
             }
 
+            fn joined_filterable_columns() -> Vec<crudcrate::JoinedColumnDef> {
+                vec![#(#joined_filterable_entries),*]
+            }
+
+            fn joined_sortable_columns() -> Vec<crudcrate::JoinedColumnDef> {
+                vec![#(#joined_sortable_entries),*]
+            }
+
             #get_one_impl
             #get_all_impl
             #create_impl
@@ -98,6 +110,40 @@ pub(crate) fn generate_crud_resource_impl(
         }
 
     }
+}
+
+/// Generate JoinedColumnDef entries for filterable or sortable columns on joined entities.
+///
+/// # Arguments
+/// * `configs` - The join filter/sort configurations from field analysis
+/// * `filterable` - If true, generate filterable entries; if false, generate sortable entries
+fn generate_joined_column_entries(
+    configs: &[JoinFilterSortConfig],
+    filterable: bool,
+) -> Vec<proc_macro2::TokenStream> {
+    let mut entries = Vec::new();
+
+    for config in configs {
+        let join_field = &config.field_name;
+        let columns = if filterable {
+            &config.filterable_columns
+        } else {
+            &config.sortable_columns
+        };
+
+        for column in columns {
+            let full_path = format!("{}.{}", join_field, column);
+            entries.push(quote! {
+                crudcrate::JoinedColumnDef {
+                    join_field: #join_field,
+                    column_name: #column,
+                    full_path: #full_path,
+                }
+            });
+        }
+    }
+
+    entries
 }
 
 fn generate_method_impls(

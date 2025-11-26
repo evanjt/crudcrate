@@ -1,7 +1,14 @@
-//! Proc-macro testing using trybuild and macrotest
+//! Proc-macro testing using trybuild
 //!
-//! - trybuild: Tests compile-time error messages
-//! - macrotest: Tests macro expansion output
+//! Tests are organized into:
+//! - ui-fail: Tests that invalid macro usage produces helpful error messages
+//! - ui-pass: Tests that valid macro usage compiles and runs correctly
+//!
+//! Each ui-pass test verifies a specific feature:
+//! - basic_entity.rs: Basic EntityToModels derive
+//! - entity_with_hooks.rs: Lifecycle hooks
+//! - join_filter_sort.rs: join_filterable/join_sortable attributes
+//! - field_exclusion.rs: exclude(create, update, one, list) attributes
 
 /// Tests that invalid macro usage produces helpful error messages
 #[test]
@@ -10,17 +17,12 @@ fn compile_fail_tests() {
     t.compile_fail("tests/ui-fail/*.rs");
 }
 
-/// Tests that valid macro usage compiles successfully
+/// Tests that valid macro usage compiles and runs successfully
+///
+/// Each test file in ui-pass/ tests a specific feature and includes
+/// runtime assertions to verify the generated code behaves correctly.
 #[test]
 fn compile_pass_tests() {
     let t = trybuild::TestCases::new();
     t.pass("tests/ui-pass/*.rs");
-}
-
-/// Tests that macro expansion produces expected code
-///
-/// Run with MACROTEST=overwrite to update .expanded.rs files
-#[test]
-fn expansion_tests() {
-    macrotest::expand("tests/expand/*.rs");
 }

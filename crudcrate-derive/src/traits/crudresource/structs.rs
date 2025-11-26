@@ -43,6 +43,12 @@ pub(crate) struct CRUDResourceMeta {
 }
 
 impl CRUDResourceMeta {
+    /// Create new CRUDResourceMeta with sensible defaults
+    /// Neither PartialEq nor Eq are derived by default (use derive_partial_eq/derive_eq to opt in)
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
     /// Apply smart defaults based on table name and api struct name
     pub(crate) fn with_defaults(mut self, table_name: &str) -> Self {
         if self.name_singular.is_none() {
@@ -69,6 +75,21 @@ impl CRUDResourceMeta {
     }
 }
 
+/// Configuration for a join field that supports filtering/sorting on related columns
+#[derive(Debug, Clone)]
+pub(crate) struct JoinFilterSortConfig {
+    /// Name of the join field (e.g., "vehicles")
+    pub(crate) field_name: String,
+    /// Path to the related entity module (from join config or derived from type)
+    /// Reserved for future use (e.g., generating join queries)
+    #[allow(dead_code)]
+    pub(crate) entity_path: Option<String>,
+    /// Column names on the related entity that can be filtered (e.g., ["make", "year"])
+    pub(crate) filterable_columns: Vec<String>,
+    /// Column names on the related entity that can be sorted (e.g., ["year"])
+    pub(crate) sortable_columns: Vec<String>,
+}
+
 pub(crate) struct EntityFieldAnalysis<'a> {
     pub(crate) db_fields: Vec<&'a syn::Field>,
     pub(crate) non_db_fields: Vec<&'a syn::Field>,
@@ -78,4 +99,6 @@ pub(crate) struct EntityFieldAnalysis<'a> {
     pub(crate) fulltext_fields: Vec<&'a syn::Field>,
     pub(crate) join_on_one_fields: Vec<&'a syn::Field>,
     pub(crate) join_on_all_fields: Vec<&'a syn::Field>,
+    /// Join fields that have filter/sort configuration for related entity columns
+    pub(crate) join_filter_sort_configs: Vec<JoinFilterSortConfig>,
 }

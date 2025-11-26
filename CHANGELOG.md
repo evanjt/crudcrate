@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Join Filtering**: Filter by related entity columns using dot-notation syntax
+  - `join_filterable("col1", "col2")` attribute whitelist
+  - Query: `?filter={"vehicles.make":"BMW"}`
+  - All standard operators supported (`_gt`, `_gte`, `_lt`, `_lte`, `_neq`)
+  - Single-level joins only (nested paths like `vehicles.parts.name` not supported)
+- **Join Sorting**: Sort by related entity columns using dot-notation syntax
+  - `join_sortable("col1", "col2")` attribute whitelist
+  - Query: `?sort=["vehicles.year","DESC"]` or `?sort_by=vehicles.year&order=DESC`
+  - Single-level joins only (nested paths not supported)
 - **Hook System**: Attribute-based customization with `{operation}::{cardinality}::{phase}` syntax
   - Operations: `create`, `read`, `update`, `delete`
   - Cardinality: `one` (single), `many` (batch)

@@ -246,8 +246,10 @@ pub use crudcrate_derive::*;
 pub use core::{CRUDResource, MergeIntoActiveModel};
 pub use errors::ApiError;
 pub use filtering::{
-    FilterOptions, apply_filters, calculate_content_range, parse_pagination, parse_range,
-    parse_sorting,
+    FilterOptions, apply_filters, apply_filters_with_joins, calculate_content_range,
+    parse_pagination, parse_range, parse_sorting, parse_sorting_with_joins,
+    // Join filtering/sorting support
+    JoinedColumnDef, JoinedFilter, FilterOperator, ParsedFilters, SortConfig, parse_dot_notation,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
 

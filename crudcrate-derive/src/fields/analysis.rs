@@ -6,7 +6,7 @@
 use crate::attribute_parser;
 use crate::codegen::joins::get_join_config;
 use crate::fields::extraction::has_sea_orm_ignore;
-use crate::traits::crudresource::structs::EntityFieldAnalysis;
+use crate::traits::crudresource::structs::{EntityFieldAnalysis, JoinFilterSortConfig};
 use proc_macro::TokenStream;
 
 /// Analyze entity fields and categorize them by attributes
@@ -22,6 +22,7 @@ pub fn analyze_entity_fields(
         fulltext_fields: Vec::new(),
         join_on_one_fields: Vec::new(),
         join_on_all_fields: Vec::new(),
+        join_filter_sort_configs: Vec::new(),
     };
 
     for field in fields {
@@ -34,6 +35,21 @@ pub fn analyze_entity_fields(
             }
             if join_config.on_all {
                 analysis.join_on_all_fields.push(field);
+            }
+
+            // Extract join filter/sort configuration if present
+            if !join_config.filterable_columns.is_empty() || !join_config.sortable_columns.is_empty() {
+                let field_name = field
+                    .ident
+                    .as_ref()
+                    .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
+
+                analysis.join_filter_sort_configs.push(JoinFilterSortConfig {
+                    field_name,
+                    entity_path: join_config.path.clone(),
+                    filterable_columns: join_config.filterable_columns.clone(),
+                    sortable_columns: join_config.sortable_columns.clone(),
+                });
             }
         }
 

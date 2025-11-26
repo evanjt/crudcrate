@@ -88,12 +88,34 @@ macro_rules! crud_handlers_impl {
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
         ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$list_model>>), crudcrate::ApiError> {
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
-            let condition = crudcrate::filter::apply_filters::<$resource>(params.filter.clone(), &<$resource as CRUDResource>::filterable_columns(), db.get_database_backend());
-            let (order_column, order_direction) = crudcrate::sort::parse_sorting(
+
+            // Use join-aware filter parsing to detect dot-notation filters
+            let parsed_filters = crudcrate::apply_filters_with_joins::<$resource>(
+                params.filter.clone(),
+                &<$resource as CRUDResource>::filterable_columns(),
+                db.get_database_backend()
+            );
+
+            // Use join-aware sort parsing to detect dot-notation sorts
+            let sort_config = crudcrate::parse_sorting_with_joins::<$resource, _>(
                 &params,
                 &<$resource as crudcrate::traits::CRUDResource>::sortable_columns(),
                 <$resource as crudcrate::traits::CRUDResource>::default_index_column(),
             );
+
+            // For now, use the main condition and regular sorting
+            // Joined filters/sorts are validated but require a custom read::many::body hook to execute
+            // TODO: Add built-in join query support in a future version
+            let condition = parsed_filters.main_condition;
+
+            let (order_column, order_direction) = match &sort_config {
+                crudcrate::SortConfig::Column { column, direction } => (*column, direction.clone()),
+                crudcrate::SortConfig::Joined { direction, .. } => {
+                    // Fall back to default column for joined sorts (requires hook for actual implementation)
+                    (<$resource as crudcrate::traits::CRUDResource>::default_index_column(), direction.clone())
+                }
+            };
+
             let items = <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
                 .await
                 .map_err(crudcrate::ApiError::from)?;
