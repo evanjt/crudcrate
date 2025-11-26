@@ -24,11 +24,12 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
 
     match backend {
         DatabaseBackend::Postgres => build_postgres_fulltext_condition(query, &fulltext_columns),
+        DatabaseBackend::MySql => build_mysql_fulltext_condition(query, &fulltext_columns),
         _ => build_fallback_fulltext_condition(query, &fulltext_columns),
     }
 }
 
-/// Build PostgreSQL-specific fulltext search using trigrams with relevance scoring
+/// Build PostgreSQL-specific fulltext search using ILIKE for case-insensitive matching
 fn build_postgres_fulltext_condition(
     query: &str,
     columns: &[(&'static str, impl sea_orm::ColumnTrait)],
@@ -50,27 +51,64 @@ fn build_postgres_fulltext_condition(
     // Escape both SQL quotes and LIKE wildcards
     let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
 
-    // Use a consistent approach: combine ILIKE for substring matching with trigram similarity for fuzzy matching
-    // This ensures reliable partial matching across all query lengths
-    // Note: LIKE wildcards are now escaped, ESCAPE '\' tells PostgreSQL to respect our escaping
+    // Use ILIKE for case-insensitive substring matching (no pg_trgm extension required)
+    // Note: LIKE wildcards are escaped, ESCAPE '\' tells PostgreSQL to respect our escaping
     let search_sql = format!(
-        "(UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\' OR SIMILARITY({concat_sql}, '{escaped_query}') > 0.1)"
+        "({concat_sql}) ILIKE '%{escaped_query}%' ESCAPE '\\'"
     );
 
     // Use custom SQL expression
     Some(SimpleExpr::Custom(search_sql))
 }
 
-/// Build fallback fulltext search using LIKE concatenation for other databases
+/// Build MySQL-specific fulltext search using CONCAT and LIKE
+fn build_mysql_fulltext_condition(
+    query: &str,
+    columns: &[(&'static str, impl sea_orm::ColumnTrait)],
+) -> Option<SimpleExpr> {
+    if columns.is_empty() || query.is_empty() {
+        return None;
+    }
+
+    let mut concat_parts = Vec::new();
+
+    for (name, _column) in columns {
+        // COALESCE(CAST(column_name AS CHAR), '')
+        concat_parts.push(format!("COALESCE(CAST({name} AS CHAR), '')"));
+    }
+
+    // MySQL uses CONCAT() for string concatenation, not ||
+    let concat_sql = if concat_parts.len() == 1 {
+        concat_parts[0].clone()
+    } else {
+        format!("CONCAT({})", concat_parts.join(", ' ', "))
+    };
+
+    let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+
+    // Escape both SQL quotes and LIKE wildcards
+    let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
+
+    // MySQL LIKE is case-insensitive by default for non-binary columns
+    // Use ESCAPE '\\' for wildcard escaping (MySQL uses double backslash in string literals)
+    let search_sql = format!(
+        "UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\\\'"
+    );
+
+    Some(SimpleExpr::Custom(search_sql))
+}
+
+/// Build fallback fulltext search for SQLite and other standard SQL databases
+/// Uses || for concatenation and CAST AS TEXT (standard SQL syntax)
 fn build_fallback_fulltext_condition(
     query: &str,
     columns: &[(&'static str, impl sea_orm::ColumnTrait)],
 ) -> Option<SimpleExpr> {
-    if columns.is_empty() {
+    if columns.is_empty() || query.is_empty() {
         return None;
     }
 
-    // For SQLite and MySQL, use concatenation with LIKE
+    // For SQLite and other databases, use || for concatenation with LIKE
     let mut concat_parts = Vec::new();
 
     for (name, _column) in columns {

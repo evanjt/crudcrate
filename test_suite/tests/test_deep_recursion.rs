@@ -376,8 +376,8 @@ async fn test_exclude_update_auto_updates_timestamps() {
     let customer_id = customer["id"].as_str().unwrap();
     let original_updated_at = customer["updated_at"].as_str().unwrap().to_string();
 
-    // Small delay to ensure timestamp difference
-    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    // Delay to ensure timestamp difference (timestamps are second-precision)
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Update the customer
     let (status, updated) = put_json(&app, &format!("/customers/{}", customer_id), json!({
