@@ -35,7 +35,7 @@ pub(crate) fn generate_crud_resource_impl(
     let fulltext_language = crud_meta.fulltext_language.as_deref().unwrap_or("english");
 
     let (get_one_impl, get_all_impl, create_impl, create_many_impl, update_impl, update_many_impl, delete_impl, delete_many_impl) =
-        generate_method_impls(crud_meta, analysis);
+        generate_method_impls(crud_meta, analysis, api_struct_name);
 
     // Generate registration lazy static and auto-registration call only for models without join fields
     // Models with join fields may have circular dependencies that prevent CRUDResource compilation
@@ -103,6 +103,7 @@ pub(crate) fn generate_crud_resource_impl(
 fn generate_method_impls(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
 ) -> (
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
@@ -113,8 +114,8 @@ fn generate_method_impls(
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
 ) {
-    let get_one_impl = get::generate_get_one_impl(crud_meta, analysis);
-    let get_all_impl = get::generate_get_all_impl(crud_meta, analysis);
+    let get_one_impl = get::generate_get_one_impl(crud_meta, analysis, api_struct_name);
+    let get_all_impl = get::generate_get_all_impl(crud_meta, analysis, api_struct_name);
     let create_impl = create::generate_create_impl(crud_meta);
     let create_many_impl = create::generate_create_many_impl(crud_meta);
     let update_impl = update::generate_update_impl(crud_meta);

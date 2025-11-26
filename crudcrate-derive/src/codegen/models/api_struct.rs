@@ -17,6 +17,7 @@ use quote::{quote, ToTokens};
 /// Returns (`field_definitions`, `from_model_assignments`)
 pub(crate) fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
 ) -> (
     Vec<proc_macro2::TokenStream>,
     Vec<proc_macro2::TokenStream>,
@@ -80,9 +81,16 @@ pub(crate) fn generate_api_struct_content(
             .filter(|attr| attr.path().is_ident("crudcrate"))
             .collect();
 
-        // Add schema(no_recursion) for join fields (prevents utoipa circular dependencies)
-        let schema_attrs = if get_join_config(field).is_some() {
-            quote! { #[schema(no_recursion)] }
+        // Add schema(no_recursion) for join and self-referencing fields to prevent
+        // infinite recursion in OpenAPI schema generation
+        let field_type_string = field_type.to_token_stream().to_string();
+        let is_self_referencing = field_type_string.contains(&api_struct_name.to_string());
+        let is_join_field = get_join_config(field).is_some();
+
+        let schema_attrs = if is_join_field || is_self_referencing {
+            quote! {
+                #[schema(no_recursion)]
+            }
         } else {
             quote! {}
         };

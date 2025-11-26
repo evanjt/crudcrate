@@ -20,7 +20,7 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
 
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr, join(one, all, depth = 2))]
+    #[crudcrate(non_db_attr, join(one, all, depth = 5))]
     pub vehicles: Vec<super::vehicle::Vehicle>,
 }
 

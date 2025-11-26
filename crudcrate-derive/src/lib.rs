@@ -240,7 +240,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
 
     // Generate core API model components
     let (api_struct_fields, from_model_assignments) =
-        codegen::models::api_struct::generate_api_struct_content(&field_analysis);
+        codegen::models::api_struct::generate_api_struct_content(&field_analysis, &api_struct_name);
     let api_struct = codegen::models::api_struct::generate_api_struct(
         &api_struct_name,
         &api_struct_fields,

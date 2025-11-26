@@ -62,7 +62,7 @@ pub(crate) fn generate_list_and_response_models(
     // Generate Response model
     let response_name = format_ident!("{}Response", api_struct_name);
     let response_struct_fields =
-        crate::codegen::models::response::generate_response_struct_fields(&raw_fields);
+        crate::codegen::models::response::generate_response_struct_fields(&raw_fields, api_struct_name);
     let response_from_assignments =
         crate::codegen::models::response::generate_response_from_assignments(&raw_fields);
 
