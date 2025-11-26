@@ -1,6 +1,10 @@
-use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
-use crate::codegen::join_strategies::get_join_config;
-use crate::field_analyzer::{field_is_optional, resolve_target_models};
+use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
+use crate::codegen::models::shared::{
+    generate_active_value_set, generate_field_with_optional_default,
+    resolve_field_type_with_target_models,
+};
+use crate::codegen::models::should_include_in_model;
+use crate::fields::field_is_optional;
 use quote::quote;
 
 /// Generates the conversion lines for a create model to active model conversion
@@ -44,15 +48,7 @@ pub(crate) fn generate_create_conversion_lines(
                 });
             }
         } else if let Some(expr) = get_crudcrate_expr(field, "on_create") {
-            if is_optional {
-                conv_lines.push(quote! {
-                    #ident: sea_orm::ActiveValue::Set(Some((#expr).into()))
-                });
-            } else {
-                conv_lines.push(quote! {
-                    #ident: sea_orm::ActiveValue::Set((#expr).into())
-                });
-            }
+            conv_lines.push(generate_active_value_set(ident, &expr, is_optional));
         } else {
             // Field is excluded from Create model and has no on_create - set to NotSet
             // This allows the field to be set manually later in custom create functions
@@ -69,55 +65,14 @@ pub(crate) fn generate_create_struct_fields(
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
-        .filter(|field| {
-            // Exclude fields from create model if create_model = false
-            let include_in_create = get_crudcrate_bool(field, "create_model").unwrap_or(true);
-
-            // Exclude join fields entirely from Create models - they're populated by recursive loading
-            let is_join_field = get_join_config(field).is_some();
-
-            include_in_create && !is_join_field
-        })
+        .filter(|field| should_include_in_model(field, "create_model"))
         .map(|field| {
             let ident = &field.ident;
             let ty = &field.ty;
             if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
-                // Check if this field uses target models
-                let has_use_target_models = field_has_crudcrate_flag(field, "use_target_models");
-                let final_ty = if has_use_target_models {
-                    if let Some((create_model, _)) = resolve_target_models(ty) {
-                        // Replace the type with the target's Create model
-                        if let syn::Type::Path(type_path) = ty {
-                            if let Some(last_seg) = type_path.path.segments.last() {
-                                if last_seg.ident == "Vec" {
-                                    // Vec<Treatment> -> Vec<TreatmentCreate>
-                                    quote! { Vec<#create_model> }
-                                } else {
-                                    // Treatment -> TreatmentCreate
-                                    quote! { #create_model }
-                                }
-                            } else {
-                                quote! { #ty }
-                            }
-                        } else {
-                            quote! { #ty }
-                        }
-                    } else {
-                        quote! { #ty }
-                    }
-                } else {
-                    quote! { #ty }
-                };
-                if get_crudcrate_expr(field, "default").is_some() {
-                    quote! {
-                        #[serde(default)]
-                        pub #ident: #final_ty
-                    }
-                } else {
-                    quote! {
-                        pub #ident: #final_ty
-                    }
-                }
+                // Resolve type with target models (create model)
+                let final_ty = resolve_field_type_with_target_models(ty, field, |create, _, _| create.clone());
+                generate_field_with_optional_default(ident.as_ref(), &final_ty, field)
             } else if get_crudcrate_expr(field, "on_create").is_some() {
                 quote! {
                     #[serde(default)]

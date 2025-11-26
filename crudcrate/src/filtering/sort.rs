@@ -1,52 +1,55 @@
 use sea_orm::{ColumnTrait, sea_query::Order};
 
+// Shared default values
+const DEFAULT_SORT_COLUMN: &str = "id";
+const DEFAULT_SORT_ORDER: &str = "ASC";
+
+/// Parse sort column and order from JSON array format
+fn parse_json_sort(json: &str) -> (String, String) {
+    let sort_vec: Vec<String> = serde_json::from_str(json).unwrap_or(vec![
+        DEFAULT_SORT_COLUMN.to_string(),
+        DEFAULT_SORT_ORDER.to_string(),
+    ]);
+    (
+        sort_vec.first().cloned().unwrap_or(DEFAULT_SORT_COLUMN.to_string()),
+        sort_vec.get(1).cloned().unwrap_or(DEFAULT_SORT_ORDER.to_string()),
+    )
+}
+
+/// Convert sort order string to Order enum
+fn parse_order(sort_order: &str) -> Order {
+    if sort_order.to_uppercase() == "ASC" {
+        Order::Asc
+    } else {
+        Order::Desc
+    }
+}
+
+/// Find column by name or return default
+fn find_column<C>(column_name: &str, columns: &[(&str, C)], default: C) -> C
+where
+    C: ColumnTrait + Copy,
+{
+    columns
+        .iter()
+        .find(|&&(col_name, _)| col_name == column_name)
+        .map_or(default, |&(_, col)| col)
+}
+
 pub fn generic_sort<C>(
-    sort: Option<String>,
+    sort: Option<&str>,
     order_column_logic: &[(&str, C)],
     default_column: C,
 ) -> (C, Order)
 where
-    C: ColumnTrait,
+    C: ColumnTrait + Copy,
 {
-    // Default sorting values
-    let default_sort_column = "id";
-    let default_sort_order = "ASC";
 
-    // Parse the sort column and order
-    let (sort_column, sort_order) = if let Some(sort) = sort {
-        let sort_vec: Vec<String> = serde_json::from_str(&sort).unwrap_or(vec![
-            default_sort_column.to_string(),
-            default_sort_order.to_string(),
-        ]);
-        (
-            sort_vec
-                .first()
-                .cloned()
-                .unwrap_or(default_sort_column.to_string()),
-            sort_vec
-                .get(1)
-                .cloned()
-                .unwrap_or(default_sort_order.to_string()),
-        )
-    } else {
-        (
-            default_sort_column.to_string(),
-            default_sort_order.to_string(),
-        )
-    };
+    let (sort_column, sort_order) = sort
+        .map_or((DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string()), parse_json_sort);
 
-    // Determine order direction (case-insensitive)
-    let order_direction = if sort_order.to_uppercase() == "ASC" {
-        Order::Asc
-    } else {
-        Order::Desc
-    };
-
-    // Find the corresponding column in the logic or use the default column
-    let order_column = order_column_logic
-        .iter()
-        .find(|&&(col_name, _)| col_name == sort_column)
-        .map_or(default_column, |&(_, col)| col);
+    let order_direction = parse_order(&sort_order);
+    let order_column = find_column(&sort_column, order_column_logic, default_column);
 
     (order_column, order_direction)
 }
@@ -60,58 +63,82 @@ pub fn parse_sorting<C>(
 where
     C: ColumnTrait + Copy,
 {
-    // Default sorting values
-    let default_sort_column = "id";
-    let default_sort_order = "ASC";
-
-    // Parse the sort column and order
     let (sort_column, sort_order) = if let Some(sort_by) = &params.sort_by {
         // Standard REST format: sort_by=column&order=ASC/DESC
-        let order = params.order.as_deref().unwrap_or(default_sort_order);
-        (sort_by.clone(), order.to_string())
+        (sort_by.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
     } else if let Some(sort) = &params.sort {
         // Check if sort is a simple column name (REST) or JSON array (React Admin)
         if sort.starts_with('[') {
             // React Admin format: sort=["column", "ASC"]
-            let sort_vec: Vec<String> = serde_json::from_str(sort).unwrap_or(vec![
-                default_sort_column.to_string(),
-                default_sort_order.to_string(),
-            ]);
-            (
-                sort_vec
-                    .first()
-                    .cloned()
-                    .unwrap_or(default_sort_column.to_string()),
-                sort_vec
-                    .get(1)
-                    .cloned()
-                    .unwrap_or(default_sort_order.to_string()),
-            )
+            parse_json_sort(sort)
         } else {
             // REST format: sort=column&order=ASC/DESC
-            let order = params.order.as_deref().unwrap_or(default_sort_order);
-            (sort.clone(), order.to_string())
+            (sort.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
         }
     } else {
-        // No sorting specified, use defaults
-        (
-            default_sort_column.to_string(),
-            default_sort_order.to_string(),
-        )
+        (DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string())
     };
 
-    // Determine order direction
-    let order_direction = if sort_order.to_uppercase() == "ASC" {
-        Order::Asc
-    } else {
-        Order::Desc
-    };
-
-    // Find the corresponding column in the logic or use the default column
-    let order_column = order_column_logic
-        .iter()
-        .find(|&&(col_name, _)| col_name == sort_column)
-        .map_or(default_column, |&(_, col)| col);
+    let order_direction = parse_order(&sort_order);
+    let order_column = find_column(&sort_column, order_column_logic, default_column);
 
     (order_column, order_direction)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_json_sort_valid() {
+        let (col, order) = parse_json_sort(r#"["name", "DESC"]"#);
+        assert_eq!(col, "name");
+        assert_eq!(order, "DESC");
+    }
+
+    #[test]
+    fn test_parse_json_sort_partial() {
+        // Only column, no order
+        let (col, order) = parse_json_sort(r#"["email"]"#);
+        assert_eq!(col, "email");
+        assert_eq!(order, DEFAULT_SORT_ORDER);
+    }
+
+    #[test]
+    fn test_parse_json_sort_invalid_json() {
+        // Invalid JSON should return defaults
+        let (col, order) = parse_json_sort("invalid json");
+        assert_eq!(col, DEFAULT_SORT_COLUMN);
+        assert_eq!(order, DEFAULT_SORT_ORDER);
+    }
+
+    #[test]
+    fn test_parse_json_sort_empty_array() {
+        let (col, order) = parse_json_sort("[]");
+        assert_eq!(col, DEFAULT_SORT_COLUMN);
+        assert_eq!(order, DEFAULT_SORT_ORDER);
+    }
+
+    #[test]
+    fn test_parse_order_asc() {
+        assert_eq!(parse_order("ASC"), Order::Asc);
+        assert_eq!(parse_order("asc"), Order::Asc);
+        assert_eq!(parse_order("Asc"), Order::Asc);
+    }
+
+    #[test]
+    fn test_parse_order_desc() {
+        assert_eq!(parse_order("DESC"), Order::Desc);
+        assert_eq!(parse_order("desc"), Order::Desc);
+        assert_eq!(parse_order("Desc"), Order::Desc);
+    }
+
+    #[test]
+    fn test_parse_order_invalid_defaults_to_desc() {
+        // Any non-ASC value defaults to DESC
+        assert_eq!(parse_order("invalid"), Order::Desc);
+        assert_eq!(parse_order(""), Order::Desc);
+        assert_eq!(parse_order("random"), Order::Desc);
+    }
+
 }

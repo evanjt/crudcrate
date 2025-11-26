@@ -5,13 +5,15 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+use crate::ApiError;
+
 pub trait MergeIntoActiveModel<ActiveModelType> {
     /// Merge this update model into an existing active model
-    /// 
+    ///
     /// # Errors
-    /// 
-    /// Returns a `DbErr` if the merge operation fails due to data conversion issues.
-    fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, DbErr>;
+    ///
+    /// Returns an `ApiError` if the merge operation fails due to data conversion issues.
+    fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, ApiError>;
 }
 
 #[async_trait]
@@ -46,40 +48,42 @@ where
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self::ListModel>, DbErr> {
+    ) -> Result<Vec<Self::ListModel>, ApiError> {
         let models = Self::EntityType::find()
             .filter(condition.clone())
             .order_by(order_column, order_direction)
             .offset(offset)
             .limit(limit)
             .all(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
         Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
     }
 
 
-    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, DbErr> {
+    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {
         let model =
             Self::EntityType::find_by_id(id)
                 .one(db)
-                .await?
-                .ok_or(DbErr::RecordNotFound(format!(
-                    "{} not found",
-                    Self::RESOURCE_NAME_SINGULAR
-                )))?;
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| ApiError::not_found(
+                    Self::RESOURCE_NAME_SINGULAR,
+                    Some(id.to_string()),
+                ))?;
         Ok(Self::from(model))
     }
 
     async fn create(
         db: &DatabaseConnection,
         create_model: Self::CreateModel,
-    ) -> Result<Self, DbErr> {
+    ) -> Result<Self, ApiError> {
         use sea_orm::ActiveModelTrait;
         let active_model: Self::ActiveModelType = create_model.into();
 
         // Use insert and return the model directly
         // This works across all databases unlike last_insert_id for UUIDs
-        let model = active_model.insert(db).await?;
+        let model = active_model.insert(db).await.map_err(ApiError::database)?;
 
         // Convert the model to Self which implements CRUDResource
         // This gives us access to the id field directly
@@ -90,43 +94,132 @@ where
         db: &DatabaseConnection,
         id: Uuid,
         update_model: Self::UpdateModel,
-    ) -> Result<Self, DbErr> {
+    ) -> Result<Self, ApiError> {
         let model =
             Self::EntityType::find_by_id(id)
                 .one(db)
-                .await?
-                .ok_or(DbErr::RecordNotFound(format!(
-                    "{} not found",
-                    Self::RESOURCE_NAME_PLURAL
-                )))?;
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| ApiError::not_found(
+                    Self::RESOURCE_NAME_PLURAL,
+                    Some(id.to_string()),
+                ))?;
         let existing: Self::ActiveModelType = model.into_active_model();
         let updated_model = update_model.merge_into_activemodel(existing)?;
-        let updated = updated_model.update(db).await?;
+        let updated = updated_model.update(db).await.map_err(ApiError::database)?;
         Ok(Self::from(updated))
     }
 
-    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
-        let res = Self::EntityType::delete_by_id(id).exec(db).await?;
+    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+        let res = Self::EntityType::delete_by_id(id).exec(db).await.map_err(ApiError::database)?;
         match res.rows_affected {
-            0 => Err(DbErr::RecordNotFound(format!(
-                "{} not found",
-                Self::RESOURCE_NAME_SINGULAR
-            ))),
+            0 => Err(ApiError::not_found(
+                Self::RESOURCE_NAME_SINGULAR,
+                Some(id.to_string()),
+            )),
             _ => Ok(id),
         }
     }
 
-    async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, DbErr> {
+    async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
         Self::EntityType::delete_many()
             .filter(Self::ID_COLUMN.is_in(ids.clone()))
             .exec(db)
-            .await?;
+            .await
+            .map_err(ApiError::database)?;
         Ok(ids)
+    }
+
+    /// Create multiple entities in a batch.
+    ///
+    /// # Arguments
+    /// * `db` - The database connection
+    /// * `create_models` - A vector of create models to insert
+    ///
+    /// # Returns
+    /// A vector of the created entities
+    ///
+    /// # Errors
+    /// Returns an `ApiError` if the batch insert fails
+    async fn create_many(
+        db: &DatabaseConnection,
+        create_models: Vec<Self::CreateModel>,
+    ) -> Result<Vec<Self>, ApiError> {
+        use sea_orm::ActiveModelTrait;
+
+        // Security: Limit batch size to prevent DoS attacks
+        const MAX_BATCH_CREATE_SIZE: usize = 100;
+        if create_models.len() > MAX_BATCH_CREATE_SIZE {
+            return Err(ApiError::bad_request(
+                format!("Batch create limited to {} items. Received {} items.", MAX_BATCH_CREATE_SIZE, create_models.len())
+            ));
+        }
+
+        let mut results = Vec::with_capacity(create_models.len());
+        for create_model in create_models {
+            let active_model: Self::ActiveModelType = create_model.into();
+            let model = active_model.insert(db).await.map_err(ApiError::database)?;
+            results.push(Self::from(model));
+        }
+        Ok(results)
+    }
+
+    /// Update multiple entities in a batch.
+    ///
+    /// # Arguments
+    /// * `db` - The database connection
+    /// * `updates` - A vector of (id, update_model) pairs
+    ///
+    /// # Returns
+    /// A vector of the updated entities
+    ///
+    /// # Errors
+    /// Returns an `ApiError` if any update fails
+    async fn update_many(
+        db: &DatabaseConnection,
+        updates: Vec<(Uuid, Self::UpdateModel)>,
+    ) -> Result<Vec<Self>, ApiError> {
+        // Security: Limit batch size to prevent DoS attacks
+        const MAX_BATCH_UPDATE_SIZE: usize = 100;
+        if updates.len() > MAX_BATCH_UPDATE_SIZE {
+            return Err(ApiError::bad_request(
+                format!("Batch update limited to {} items. Received {} items.", MAX_BATCH_UPDATE_SIZE, updates.len())
+            ));
+        }
+
+        let mut results = Vec::with_capacity(updates.len());
+        for (id, update_model) in updates {
+            let model = Self::EntityType::find_by_id(id)
+                .one(db)
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| ApiError::not_found(
+                    Self::RESOURCE_NAME_SINGULAR,
+                    Some(id.to_string()),
+                ))?;
+            let existing: Self::ActiveModelType = model.into_active_model();
+            let updated_model = update_model.merge_into_activemodel(existing)?;
+            let updated = updated_model.update(db).await.map_err(ApiError::database)?;
+            results.push(Self::from(updated));
+        }
+        Ok(results)
     }
 
     async fn total_count(db: &DatabaseConnection, condition: &Condition) -> u64 {
         let query = Self::EntityType::find().filter(condition.clone());
-        PaginatorTrait::count(query, db).await.unwrap()
+        match PaginatorTrait::count(query, db).await {
+            Ok(count) => count,
+            Err(e) => {
+                // Log database error internally; return 0 to degrade gracefully
+                // Users see pagination with count=0, internal error is logged for debugging
+                tracing::warn!(
+                    error = %e,
+                    table = Self::TABLE_NAME,
+                    "Database error in total_count - returning 0"
+                );
+                0
+            }
+        }
     }
 
     #[must_use]
@@ -177,107 +270,5 @@ where
     #[must_use]
     fn fulltext_searchable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![]
-    }
-
-    /// Analyze database indexes and display recommendations for optimal performance.
-    /// This should be called once during application startup to help identify missing indexes.
-    ///
-    /// # Usage
-    ///
-    /// Call this method during application startup for any CRUD resource:
-    ///
-    /// ```rust
-    /// use crudcrate::{traits::CRUDResource, EntityToModels};
-    /// use sea_orm::{entity::prelude::*, Database};
-    /// use sea_orm_migration::{prelude::*, sea_query::ColumnDef};
-    /// use uuid::Uuid;
-    ///
-    /// // Define a simple test entity with filterable and sortable fields
-    /// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-    /// #[sea_orm(table_name = "test_items")]
-    /// #[crudcrate(api_struct = "TestItem", active_model = "ActiveModel")]
-    /// pub struct Model {
-    ///     #[sea_orm(primary_key, auto_increment = false)]
-    ///     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-    ///     pub id: Uuid,
-    ///     #[crudcrate(filterable, sortable)]  // This should trigger index recommendation
-    ///     pub name: String,
-    ///     #[crudcrate(filterable)]  // This should trigger index recommendation
-    ///     pub active: bool,
-    /// }
-    ///
-    /// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-    /// pub enum Relation {}
-    /// impl ActiveModelBehavior for ActiveModel {}
-    ///
-    /// // Simple migration to create the table WITHOUT indexes
-    /// pub struct TestMigrator;
-    /// #[async_trait::async_trait]
-    /// impl MigratorTrait for TestMigrator {
-    ///     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-    ///         vec![Box::new(CreateTestTable)]
-    ///     }
-    /// }
-    /// pub struct CreateTestTable;
-    /// #[async_trait::async_trait]
-    /// impl MigrationName for CreateTestTable {
-    ///     fn name(&self) -> &'static str { "create_test_table" }
-    /// }
-    /// #[async_trait::async_trait]
-    /// impl MigrationTrait for CreateTestTable {
-    ///     async fn up(&self, manager: &SchemaManager) -> Result<(), sea_orm::DbErr> {
-    ///         manager.create_table(
-    ///             Table::create().table(TestEntity).if_not_exists()
-    ///                 .col(ColumnDef::new(TestColumn::Id).uuid().not_null().primary_key())
-    ///                 .col(ColumnDef::new(TestColumn::Name).string().not_null())
-    ///                 .col(ColumnDef::new(TestColumn::Active).boolean().not_null())
-    ///                 .to_owned()
-    ///         ).await
-    ///     }
-    ///     async fn down(&self, manager: &SchemaManager) -> Result<(), sea_orm::DbErr> {
-    ///         manager.drop_table(Table::drop().table(TestEntity).to_owned()).await
-    ///     }
-    /// }
-    /// #[derive(Debug)] pub enum TestColumn { Id, Name, Active }
-    /// impl Iden for TestColumn {
-    ///     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-    ///         write!(s, "{}", match self {
-    ///             Self::Id => "id", Self::Name => "name", Self::Active => "active"
-    ///         }).unwrap();
-    ///     }
-    /// }
-    /// #[derive(Debug)] pub struct TestEntity;
-    /// impl Iden for TestEntity {
-    ///     fn unquoted(&self, s: &mut dyn std::fmt::Write) { write!(s, "test_items").unwrap(); }
-    /// }
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<(), sea_orm::DbErr> {
-    ///     let db = Database::connect("sqlite::memory:").await?;
-    ///     TestMigrator::up(&db, None).await?;
-    ///     
-    ///     // This will analyse the database and recommend indexes for 'name' and 'active' fields
-    ///     TestItem::analyse_and_display_indexes(&db).await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// This will display colorised recommendations like:
-    /// ```text
-    /// 🔍 crudcrate Index Analysis
-    /// ═══════════════════════════
-    ///
-    /// ⚠️  High Priority
-    /// ┌─ Table: todos
-    /// │  Reason: Fulltext search on 2 columns without proper index
-    /// │  Suggested SQL:
-    /// │    CREATE INDEX idx_todos_fulltext ON todos USING GIN (...);
-    /// └─
-    /// ```
-    async fn analyse_and_display_indexes(db: &DatabaseConnection) -> Result<(), DbErr> {
-        let recommendations =
-            crate::index_analysis::analyse_indexes_for_resource::<Self>(db).await?;
-        crate::index_analysis::display_index_recommendations(&recommendations);
-        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate-derive"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 description = "Procedural macros to help with CRUD API design using Axum and Sea-ORM in Rust"
 license = "MIT"
@@ -31,6 +31,11 @@ utoipa = { workspace = true, features = ["chrono", "uuid", "decimal"] }
 uuid = { workspace = true, features = ["serde", "v4"] }
 rust_decimal = { workspace = true }
 async-trait = { workspace = true }
+
+# Proc macro testing
+trybuild = "1.0"
+macrotest = "1.0"
+crudcrate = { path = "../crudcrate", features = ["derive"] }
 
 [lints.clippy]
 pedantic = "warn"

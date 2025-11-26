@@ -1,6 +1,8 @@
-use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
-use crate::codegen::join_strategies::get_join_config;
-use crate::field_analyzer::{extract_inner_type_for_update, resolve_target_models};
+use crate::attribute_parser::get_crudcrate_bool;
+use crate::codegen::models::shared::{
+    generate_field_with_optional_default, resolve_field_type_with_target_models,
+};
+use crate::codegen::models::should_include_in_model;
 use quote::quote;
 
 /// Generates the field declarations for an update struct
@@ -14,44 +16,21 @@ pub(crate) fn generate_update_struct_fields(
             let ty = &field.ty;
 
             if get_crudcrate_bool(field, "non_db_attr").unwrap_or(false) {
-                // Check if this field uses target models
-                let final_ty = if field_has_crudcrate_flag(field, "use_target_models") {
-                    if let Some((_, update_model)) = resolve_target_models(ty) {
-                        // Replace the type with the target's Update model
-                        if let syn::Type::Path(type_path) = ty {
-                            if let Some(last_seg) = type_path.path.segments.last() {
-                                if last_seg.ident == "Vec" {
-                                    // Vec<Treatment> -> Vec<TreatmentUpdate>
-                                    quote! { Vec<#update_model> }
-                                } else {
-                                    // Treatment -> TreatmentUpdate
-                                    quote! { #update_model }
-                                }
-                            } else {
-                                quote! { #ty }
-                            }
-                        } else {
-                            quote! { #ty }
-                        }
-                    } else {
-                        quote! { #ty }
-                    }
-                } else {
-                    quote! { #ty }
-                };
-
-                if get_crudcrate_expr(field, "default").is_some() {
-                    quote! {
-                        #[serde(default)]
-                        pub #ident: #final_ty
-                    }
-                } else {
-                    quote! {
-                        pub #ident: #final_ty
-                    }
-                }
+                // Resolve type with target models (update model)
+                let final_ty = resolve_field_type_with_target_models(ty, field, |_, update, _| update.clone());
+                generate_field_with_optional_default(ident.as_ref(), &final_ty, field)
             } else {
-                let inner_ty = extract_inner_type_for_update(ty);
+                // Extract inner type from Option<T> - inline replacement for extract_inner_type_for_update
+                let inner_ty = if let syn::Type::Path(type_path) = ty
+                    && let Some(last_seg) = type_path.path.segments.last()
+                    && last_seg.ident == "Option"
+                    && let syn::PathArguments::AngleBracketed(args) = &last_seg.arguments
+                    && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                {
+                    inner.clone()
+                } else {
+                    ty.clone()
+                };
                 quote! {
                     #[serde(
                         default,
@@ -71,14 +50,6 @@ pub(crate) fn filter_update_fields(
 ) -> Vec<&syn::Field> {
     fields
         .iter()
-        .filter(|field| {
-            // Exclude fields from update model if update_model = false
-            let include_in_update = get_crudcrate_bool(field, "update_model").unwrap_or(true);
-
-            // Exclude join fields entirely from Update models - they're populated by recursive loading
-            let is_join_field = get_join_config(field).is_some();
-
-            include_in_update && !is_join_field
-        })
+        .filter(|field| should_include_in_model(field, "update_model"))
         .collect()
 }

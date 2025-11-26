@@ -1,5 +1,4 @@
 use crate::attribute_parser::get_crudcrate_bool;
-use crate::codegen::join_strategies::get_join_config;
 use quote::quote;
 
 pub(crate) fn generate_response_from_assignments(
@@ -26,12 +25,7 @@ pub(crate) fn generate_response_struct_fields(
             let ident = &field.ident;
             let ty = &field.ty;
 
-            // Similar logic to List model for join fields
-            let final_ty = if get_join_config(field).is_some() {
-                crate::resolve_join_field_type_preserving_container(ty)
-            } else {
-                quote! { #ty }
-            };
+            let final_ty = quote! { #ty };
 
             quote! {
                 pub #ident: #final_ty

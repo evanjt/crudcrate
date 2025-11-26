@@ -5,17 +5,30 @@ use sea_orm::{
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use super::search::build_fulltext_condition;
+use super::search::{build_fulltext_condition, build_like_condition};
 
 // Basic safety limits
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
+const MAX_PAGE_SIZE: u64 = 1000;
+const MAX_OFFSET: u64 = 1_000_000;
+
+/// Escape LIKE wildcards to prevent wildcard injection attacks
+/// Escapes: % (match any) and _ (match single char)
+fn escape_like_wildcards(input: &str) -> String {
+    input.replace('\\', "\\\\")  // Escape backslash first
+        .replace('%', "\\%")      // Escape %
+        .replace('_', "\\_")      // Escape _
+}
 
 /// Basic field name validation
 fn is_valid_field_name(field_name: &str) -> bool {
+    // Strengthen validation to prevent injection attempts (defense-in-depth)
+    // Note: Actual field names are validated against a whitelist, but this adds an extra layer
     !field_name.is_empty()
         && field_name.len() <= 100
+        && field_name.chars().all(|c| c.is_alphanumeric() || c == '_')
         && !field_name.starts_with('_')
-        && !field_name.contains("..")
+        && !field_name.starts_with(|c: char| c.is_ascii_digit())
 }
 
 /// Basic value length check
@@ -51,12 +64,11 @@ fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
     )
 }
 
-/// Apply numeric comparison for integer values
-fn apply_numeric_comparison(
-    field_name: &str,
-    operator: &str,
-    value: i64,
-) -> sea_orm::sea_query::SimpleExpr {
+/// Apply numeric comparison for any numeric type (i64, f64, etc.)
+fn apply_numeric_comparison<V>(field_name: &str, operator: &str, value: V) -> SimpleExpr
+where
+    V: Into<sea_orm::Value> + Copy,
+{
     let column = Expr::col(Alias::new(field_name));
     match operator {
         ">=" => column.gte(value),
@@ -67,37 +79,14 @@ fn apply_numeric_comparison(
         _ => column.eq(value), // fallback to equality
     }
 }
-
-/// Apply numeric comparison for float values
-fn apply_float_comparison(
-    field_name: &str,
-    operator: &str,
-    value: f64,
-) -> sea_orm::sea_query::SimpleExpr {
-    let column = Expr::col(Alias::new(field_name));
-    match operator {
-        ">=" => column.gte(value),
-        "<=" => column.lte(value),
-        ">" => column.gt(value),
-        "<" => column.lt(value),
-        "!=" => column.ne(value),
-        _ => column.eq(value), // fallback to equality
-    }
-}
-
-/// Build condition for string field with LIKE queries (case-insensitive)
-#[must_use] pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
-    let escaped_value = trimmed_value.replace('\'', "''");
-    let like_sql = format!("UPPER({key}) LIKE UPPER('%{escaped_value}%')");
-    SimpleExpr::Custom(like_sql)
-}
-
 
 fn parse_filter_json(filter_str: Option<String>) -> HashMap<String, serde_json::Value> {
     filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
         Ok(parsed) => parsed,
-        Err(e) => {
-            eprintln!("Warning: Invalid JSON in filter string: {e}");
+        Err(_e) => {
+            // Log at debug level - invalid user input doesn't warrant warnings
+            // Don't include user input to avoid exposing potentially sensitive data
+            tracing::debug!("Invalid JSON in filter parameter - ignoring filter");
             HashMap::new()
         }
     })
@@ -116,6 +105,9 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
         }
         
         // Fallback to original LIKE search on regular searchable columns
+        // Escape LIKE wildcards to prevent wildcard injection
+        let escaped_query = escape_like_wildcards(q_value_str);
+
         let mut or_conditions = Condition::any();
         for (col_name, col) in searchable_columns {
             if T::is_enum_field(col_name) {
@@ -126,7 +118,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                 Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
                             ))
-                            .like(format!("%{}%", q_value_str.to_uppercase())),
+                            .like(format!("%{}%", escaped_query.to_uppercase())),
                         );
                     }
                     _ => {
@@ -135,7 +127,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                 Expr::col(*col),
                             ))
-                            .like(format!("%{}%", q_value_str.to_uppercase())),
+                            .like(format!("%{}%", escaped_query.to_uppercase())),
                         );
                     }
                 }
@@ -145,7 +137,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                         Expr::col(*col),
                     ))
-                    .like(format!("%{}%", q_value_str.to_uppercase())),
+                    .like(format!("%{}%", escaped_query.to_uppercase())),
                 );
             }
         }
@@ -176,21 +168,12 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     
     if T::is_enum_field(key) {
         // Handle enum fields with case-insensitive matching
-        return Some(match backend {
-            DatabaseBackend::Postgres => {
-                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                    Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-                ))
-                .eq(trimmed_value.to_uppercase())
-            }
-            _ => {
-                // For SQLite/MySQL
-                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                    Expr::col(column),
-                ))
-                .eq(trimmed_value.to_uppercase())
-            }
-        });
+        let col_expr = match backend {
+            DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
+            _ => Expr::col(column).into(),
+        };
+        return Some(SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr))
+            .eq(trimmed_value.to_uppercase()));
     }
     
     // Try to parse as UUID first
@@ -218,13 +201,9 @@ fn process_number_filter(
             .any(|(col_name, _)| *col_name == base_field)
         {
             if let Some(int_value) = number.as_i64() {
-                return Some(apply_numeric_comparison(
-                    base_field, operator, int_value,
-                ));
+                return Some(apply_numeric_comparison(base_field, operator, int_value));
             } else if let Some(float_value) = number.as_f64() {
-                return Some(apply_float_comparison(
-                    base_field, operator, float_value,
-                ));
+                return Some(apply_numeric_comparison(base_field, operator, float_value));
             }
         }
     } else {
@@ -342,15 +321,277 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 #[must_use] pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
-        let offset = (page.saturating_sub(1)) * per_page;
-        (offset, per_page)
+        // Enforce maximum page size to prevent DoS
+        let safe_per_page = per_page.min(MAX_PAGE_SIZE);
+
+        // Use saturating_mul to prevent overflow panic
+        let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
+
+        // Enforce maximum offset to prevent excessive database queries
+        let safe_offset = offset.min(MAX_OFFSET);
+
+        (safe_offset, safe_per_page)
     } else if let Some(range) = &params.range {
         // React Admin pagination
         let (start, end) = parse_range(Some(range.clone()));
-        let limit = end.saturating_sub(start) + 1;
-        (start, limit)
+        let limit = (end.saturating_sub(start) + 1).min(MAX_PAGE_SIZE);
+        let safe_start = start.min(MAX_OFFSET);
+        (safe_start, limit)
     } else {
         // Default pagination
         (0, 10)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that malicious field names are rejected
+    #[test]
+    fn test_field_name_validation_rejects_sql_injection() {
+        // These are currently rejected by the basic validation
+        let rejected_names = vec![
+            "../../../etc/passwd",  // Path traversal (contains ..)
+            "id..name",  // Double dots
+            "_internal",  // Starts with underscore
+            "",  // Empty
+        ];
+
+        for malicious_name in rejected_names {
+            assert!(!is_valid_field_name(malicious_name),
+                "Should reject malicious field name: {malicious_name}");
+        }
+
+        // Test too long separately
+        let too_long = "a".repeat(101);
+        assert!(!is_valid_field_name(&too_long),
+            "Should reject field names longer than 100 chars");
+    }
+
+
+    /// Test that valid field names are accepted
+    #[test]
+    fn test_field_name_validation_accepts_valid_names() {
+        let valid_names = vec![
+            "id",
+            "user_name",
+            "created_at",
+            "field123",
+        ];
+
+        for valid_name in valid_names {
+            assert!(is_valid_field_name(valid_name),
+                "Should accept valid field name: {valid_name}");
+        }
+
+        // Test max length separately
+        let max_length_name = "a".repeat(100);
+        assert!(is_valid_field_name(&max_length_name),
+            "Should accept 100-char field name");
+    }
+
+    /// Test that excessively long field values are rejected
+    #[test]
+    fn test_field_value_length_validation() {
+        let short_value = "a".repeat(100);
+        let max_value = "a".repeat(MAX_FIELD_VALUE_LENGTH);
+        let too_long_value = "a".repeat(MAX_FIELD_VALUE_LENGTH + 1);
+
+        assert!(validate_field_value(&short_value), "Short values should be valid");
+        assert!(validate_field_value(&max_value), "Max length values should be valid");
+        assert!(!validate_field_value(&too_long_value), "Overly long values should be invalid");
+    }
+
+    /// TDD: Pagination should enforce maximum page size
+    /// This test will FAIL until we add `MAX_PAGE_SIZE` enforcement
+    #[test]
+    fn test_pagination_enforces_max_page_size() {
+        const MAX_PAGE_SIZE: u64 = 1000;
+
+        let params = crate::models::FilterOptions {
+            page: Some(1),
+            per_page: Some(999_999),  // Requesting huge page size
+            ..Default::default()
+        };
+
+        let (_offset, limit) = parse_pagination(&params);
+
+        // After fix: Should be capped at MAX_PAGE_SIZE
+        assert!(
+            limit <= MAX_PAGE_SIZE,
+            "Page size should be capped at {MAX_PAGE_SIZE}, got {limit}"
+        );
+    }
+
+    /// TDD: Pagination should enforce maximum offset
+    /// This test will FAIL until we add `MAX_OFFSET` enforcement
+    #[test]
+    fn test_pagination_enforces_max_offset() {
+        const MAX_OFFSET: u64 = 1_000_000;
+
+        let params = crate::models::FilterOptions {
+            page: Some(1_000_000),  // Huge page number
+            per_page: Some(100),
+            ..Default::default()
+        };
+
+        let (offset, _limit) = parse_pagination(&params);
+
+        // After fix: Should be capped at MAX_OFFSET
+        assert!(
+            offset <= MAX_OFFSET,
+            "Offset should be capped at {MAX_OFFSET}, got {offset}"
+        );
+    }
+
+    /// TDD: Pagination should handle overflow with `saturating_mul`
+    /// This test will FAIL until we fix the overflow panic
+    #[test]
+    fn test_pagination_handles_overflow_gracefully() {
+        let params = crate::models::FilterOptions {
+            page: Some(u64::MAX),
+            per_page: Some(u64::MAX),
+            ..Default::default()
+        };
+
+        // Should NOT panic - should use saturating arithmetic
+        let (_offset, _limit) = parse_pagination(&params);
+        // After fix: This should succeed without panic
+    }
+
+    /// Test comparison operator parsing
+    #[test]
+    fn test_comparison_operator_parsing() {
+        assert_eq!(parse_comparison_operator("age_gte"), Some(("age", ">=")));
+        assert_eq!(parse_comparison_operator("age_lte"), Some(("age", "<=")));
+        assert_eq!(parse_comparison_operator("age_gt"), Some(("age", ">")));
+        assert_eq!(parse_comparison_operator("age_lt"), Some(("age", "<")));
+        assert_eq!(parse_comparison_operator("age_neq"), Some(("age", "!=")));
+        assert_eq!(parse_comparison_operator("age"), None);
+    }
+
+    /// Test wildcard escaping for LIKE queries
+    #[test]
+    fn test_escape_like_wildcards() {
+        assert_eq!(escape_like_wildcards("normal text"), "normal text");
+        assert_eq!(escape_like_wildcards("test%"), "test\\%");
+        assert_eq!(escape_like_wildcards("test_value"), "test\\_value");
+        assert_eq!(escape_like_wildcards("%_"), "\\%\\_");
+        assert_eq!(escape_like_wildcards("\\"), "\\\\");
+        assert_eq!(escape_like_wildcards("\\%"), "\\\\\\%");
+        assert_eq!(escape_like_wildcards("100% complete"), "100\\% complete");
+    }
+
+    /// Test numeric comparison operators
+    #[test]
+    fn test_apply_numeric_comparison() {
+        // Test that we can apply various comparison operators
+        let gte_expr = apply_numeric_comparison("age", ">=", 18);
+        let sql = format!("{gte_expr:?}");
+        assert!(sql.contains("age") && sql.contains("18"));
+
+        let lte_expr = apply_numeric_comparison("price", "<=", 100.50);
+        let sql = format!("{lte_expr:?}");
+        assert!(sql.contains("price"));
+
+        let gt_expr = apply_numeric_comparison("count", ">", 0);
+        let sql = format!("{gt_expr:?}");
+        assert!(sql.contains("count") && sql.contains("0"));
+
+        let lt_expr = apply_numeric_comparison("score", "<", 50);
+        let sql = format!("{lt_expr:?}");
+        assert!(sql.contains("score") && sql.contains("50"));
+
+        let neq_expr = apply_numeric_comparison("status", "!=", 404);
+        let sql = format!("{neq_expr:?}");
+        assert!(sql.contains("status") && sql.contains("404"));
+
+        // Test fallback to equality for unknown operator
+        let eq_expr = apply_numeric_comparison("id", "unknown", 123);
+        let sql = format!("{eq_expr:?}");
+        assert!(sql.contains("id") && sql.contains("123"));
+    }
+
+    /// Test JSON filter parsing
+    #[test]
+    fn test_parse_filter_json_valid() {
+        let filter_str = Some(r#"{"name": "John", "age": 30}"#.to_string());
+        let parsed = parse_filter_json(filter_str);
+
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed.get("name").and_then(|v| v.as_str()), Some("John"));
+        assert_eq!(parsed.get("age").and_then(|v| v.as_i64()), Some(30));
+    }
+
+    #[test]
+    fn test_parse_filter_json_invalid() {
+        // Invalid JSON should return empty HashMap
+        let filter_str = Some("{invalid json}".to_string());
+        let parsed = parse_filter_json(filter_str);
+        assert_eq!(parsed.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_filter_json_none() {
+        // None should return empty HashMap
+        let parsed = parse_filter_json(None);
+        assert_eq!(parsed.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_filter_json_empty() {
+        // Empty string should return empty HashMap
+        let filter_str = Some("{}".to_string());
+        let parsed = parse_filter_json(filter_str);
+        assert_eq!(parsed.len(), 0);
+    }
+
+    /// Test comparison operators with edge cases
+    #[test]
+    fn test_comparison_operator_edge_cases() {
+        // Field name that ends with operator-like suffix but isn't one
+        assert_eq!(parse_comparison_operator("created_at"), None);
+        assert_eq!(parse_comparison_operator("_gte"), Some(("", ">=")));
+
+        // Multiple suffixes (should match the longest/last one)
+        assert_eq!(parse_comparison_operator("field_gte_lte"), Some(("field_gte", "<=")));
+    }
+
+    /// Test field name validation edge cases
+    #[test]
+    fn test_field_name_validation_edge_cases() {
+        // Boundary cases
+        assert!(is_valid_field_name("a"));  // Single char
+        assert!(is_valid_field_name("a".repeat(100).as_str()));  // Exactly 100
+        assert!(!is_valid_field_name("a".repeat(101).as_str()));  // 101
+
+        // Special chars that should be allowed
+        assert!(is_valid_field_name("field_123"));
+        assert!(is_valid_field_name("Field123"));
+
+        // Special chars that should be rejected
+        assert!(!is_valid_field_name("field..name"));
+        assert!(!is_valid_field_name(".."));
+        assert!(!is_valid_field_name("_private"));
+    }
+
+    /// Test numeric comparison with different numeric types
+    #[test]
+    fn test_apply_numeric_comparison_various_types() {
+        // i64
+        let expr_i64 = apply_numeric_comparison("count", ">=", 100_i64);
+        let sql = format!("{expr_i64:?}");
+        assert!(sql.contains("count"));
+
+        // f64
+        let expr_f64 = apply_numeric_comparison("price", "<=", 99.99_f64);
+        let sql = format!("{expr_f64:?}");
+        assert!(sql.contains("price"));
+
+        // i32
+        let expr_i32 = apply_numeric_comparison("age", ">", 18_i32);
+        let sql = format!("{expr_i32:?}");
+        assert!(sql.contains("age"));
     }
 }

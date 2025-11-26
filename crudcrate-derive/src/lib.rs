@@ -1,602 +1,61 @@
+//! Procedural macros for generating CRUD operations from Sea-ORM entities.
+//!
+//! **Main macro**: `#[derive(EntityToModels)]` - see [`entity_to_models`]
+//!
+//! **Module guide**: `fields/` (field processing) | `codegen/` (models, handlers, joins, routes)
+
 mod attribute_parser;
-mod attributes;
 mod codegen;
-mod field_analyzer;
+mod fields;
 mod macro_implementation;
 mod relation_validator;
 mod traits;
 
-use crate::codegen::join_strategies::get_join_config;
-use heck::ToPascalCase;
 use proc_macro::TokenStream;
-use quote::{ToTokens, format_ident, quote};
-use syn::{
-    Data, DeriveInput, Fields, Lit, Meta, parse::Parser, parse_macro_input, punctuated::Punctuated,
-    token::Comma,
-};
-use traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use quote::{format_ident, quote};
+use syn::{DeriveInput, parse_macro_input};
+use traits::crudresource::structs::CRUDResourceMeta;
 
-fn extract_active_model_type(input: &DeriveInput, name: &syn::Ident) -> proc_macro2::TokenStream {
-    let mut active_model_override = None;
+fn extract_active_model_type(
+    input: &DeriveInput,
+    name: &syn::Ident,
+) -> Result<proc_macro2::TokenStream, proc_macro2::TokenStream> {
     for attr in &input.attrs {
         if attr.path().is_ident("active_model")
             && let Some(s) = attribute_parser::get_string_from_attr(attr)
         {
-            active_model_override =
-                Some(syn::parse_str::<syn::Type>(&s).expect("Invalid active_model type"));
-        }
-    }
-    if let Some(ty) = active_model_override {
-        quote! { #ty }
-    } else {
-        let ident = format_ident!("{}ActiveModel", name);
-        quote! { #ident }
-    }
-}
-
-fn extract_named_fields(
-    input: &DeriveInput,
-) -> syn::punctuated::Punctuated<syn::Field, syn::token::Comma> {
-    if let Data::Struct(data) = &input.data {
-        if let Fields::Named(named) = &data.fields {
-            named.named.clone()
-        } else {
-            panic!("ToCreateModel only supports structs with named fields");
-        }
-    } else {
-        panic!("ToCreateModel can only be derived for structs");
-    }
-}
-
-fn generate_update_merge_code(
-    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    included_fields: &[&syn::Field],
-) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
-    let included_merge = generate_included_merge_code(included_fields);
-    let excluded_merge = generate_excluded_merge_code(fields);
-    (included_merge, excluded_merge)
-}
-
-fn generate_included_merge_code(included_fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    included_fields
-        .iter()
-        .filter(|field| {
-            !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
-        })
-        .map(|field| {
-            let ident = &field.ident;
-            let is_optional = field_analyzer::field_is_optional(field);
-
-            if is_optional {
-                quote! {
-                    model.#ident = match self.#ident {
-                        Some(Some(value)) => sea_orm::ActiveValue::Set(Some(value.into())),
-                        Some(None)      => sea_orm::ActiveValue::Set(None),
-                        None            => sea_orm::ActiveValue::NotSet,
-                    };
-                }
-            } else {
-                quote! {
-                    model.#ident = match self.#ident {
-                        Some(Some(value)) => sea_orm::ActiveValue::Set(value.into()),
-                        Some(None) => {
-                            return Err(sea_orm::DbErr::Custom(format!(
-                                "Field '{}' is required and cannot be set to null",
-                                stringify!(#ident)
-                            )));
-                        },
-                        None => sea_orm::ActiveValue::NotSet,
-                    };
-                }
-            }
-        })
-        .collect()
-}
-
-fn generate_excluded_merge_code(
-    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .filter(|field| {
-            attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-                && !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
-        })
-        .filter_map(|field| {
-            if let Some(expr) = attribute_parser::get_crudcrate_expr(field, "on_update") {
-                let ident = &field.ident;
-                if field_analyzer::field_is_optional(field) {
-                    Some(quote! {
-                        model.#ident = sea_orm::ActiveValue::Set(Some((#expr).into()));
-                    })
-                } else {
-                    Some(quote! {
-                        model.#ident = sea_orm::ActiveValue::Set((#expr).into());
-                    })
-                }
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-fn extract_entity_fields(
-    input: &DeriveInput,
-) -> Result<&syn::punctuated::Punctuated<syn::Field, syn::token::Comma>, TokenStream> {
-    match &input.data {
-        Data::Struct(data) => match &data.fields {
-            Fields::Named(fields) => Ok(&fields.named),
-            _ => Err(syn::Error::new_spanned(
-                input,
-                "EntityToModels only supports structs with named fields",
-            )
-            .to_compile_error()
-            .into()),
-        },
-        _ => Err(
-            syn::Error::new_spanned(input, "EntityToModels only supports structs")
-                .to_compile_error()
-                .into(),
-        ),
-    }
-}
-
-fn parse_entity_attributes(input: &DeriveInput, struct_name: &syn::Ident) -> (syn::Ident, String) {
-    let mut api_struct_name = None;
-    let mut active_model_path = None;
-
-    for attr in &input.attrs {
-        if attr.path().is_ident("crudcrate")
-            && let Meta::List(meta_list) = &attr.meta
-            && let Ok(metas) =
-                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
-        {
-            for meta in &metas {
-                if let Meta::NameValue(nv) = meta {
-                    if nv.path.is_ident("api_struct") {
-                        if let syn::Expr::Lit(expr_lit) = &nv.value
-                            && let Lit::Str(s) = &expr_lit.lit
-                        {
-                            api_struct_name = Some(format_ident!("{}", s.value()));
-                        }
-                    } else if nv.path.is_ident("active_model")
-                        && let syn::Expr::Lit(expr_lit) = &nv.value
-                        && let Lit::Str(s) = &expr_lit.lit
-                    {
-                        active_model_path = Some(s.value());
-                    }
-                }
-            }
-        }
-    }
-
-    let table_name = attribute_parser::extract_table_name(&input.attrs)
-        .unwrap_or_else(|| struct_name.to_string());
-    let api_struct_name =
-        api_struct_name.unwrap_or_else(|| format_ident!("{}", table_name.to_pascal_case()));
-    let active_model_path = active_model_path.unwrap_or_else(|| "ActiveModel".to_string());
-
-    (api_struct_name, active_model_path)
-}
-
-fn analyze_entity_fields(
-    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> EntityFieldAnalysis<'_> {
-    let mut analysis = EntityFieldAnalysis {
-        db_fields: Vec::new(),
-        non_db_fields: Vec::new(),
-        primary_key_field: None,
-        sortable_fields: Vec::new(),
-        filterable_fields: Vec::new(),
-        fulltext_fields: Vec::new(),
-        join_on_one_fields: Vec::new(),
-        join_on_all_fields: Vec::new(),
-        // join_configs: std::collections::HashMap::new(), // Removed due to HashMap key issues
-    };
-
-    for field in fields {
-        let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
-
-        // Check for join attributes regardless of db/non_db status
-        if let Some(join_config) = get_join_config(field) {
-            if join_config.on_one {
-                analysis.join_on_one_fields.push(field);
-            }
-            if join_config.on_all {
-                analysis.join_on_all_fields.push(field);
-            }
-            // Note: join_configs removed to avoid HashMap key issues with syn::Field
-        }
-
-        if is_non_db {
-            analysis.non_db_fields.push(field);
-        } else {
-            analysis.db_fields.push(field);
-
-            if attribute_parser::field_has_crudcrate_flag(field, "primary_key") {
-                analysis.primary_key_field = Some(field);
-            }
-            if attribute_parser::field_has_crudcrate_flag(field, "sortable") {
-                analysis.sortable_fields.push(field);
-            }
-            if attribute_parser::field_has_crudcrate_flag(field, "filterable") {
-                analysis.filterable_fields.push(field);
-            }
-            if attribute_parser::field_has_crudcrate_flag(field, "fulltext") {
-                analysis.fulltext_fields.push(field);
-            }
-        }
-    }
-
-    analysis
-}
-
-fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenStream> {
-    if analysis.primary_key_field.is_some()
-        && analysis
-            .db_fields
-            .iter()
-            .filter(|field| attribute_parser::field_has_crudcrate_flag(field, "primary_key"))
-            .count()
-            > 1
-    {
-        return Err(syn::Error::new_spanned(
-            analysis.primary_key_field.unwrap(),
-            "Only one field can be marked with 'primary_key' attribute",
-        )
-        .to_compile_error()
-        .into());
-    }
-
-    // Validate that non_db_attr fields have #[sea_orm(ignore)]
-    for field in &analysis.non_db_fields {
-        if !has_sea_orm_ignore(field) {
-            let field_name = field
-                .ident
-                .as_ref()
-                .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
-            return Err(syn::Error::new_spanned(
-                field,
-                format!(
-                    "Field '{field_name}' has #[crudcrate(non_db_attr)] but is missing #[sea_orm(ignore)].\n\
-                     Non-database fields must be marked with both attributes.\n\
-                     Add #[sea_orm(ignore)] above the #[crudcrate(...)] attribute."
-                ),
-            )
-            .to_compile_error()
-            .into());
-        }
-    }
-
-    Ok(())
-}
-
-/// Check if a field has the `#[sea_orm(ignore)]` attribute
-fn has_sea_orm_ignore(field: &syn::Field) -> bool {
-    for attr in &field.attrs {
-        if attr.path().is_ident("sea_orm")
-            && let Meta::List(meta_list) = &attr.meta
-            && let Ok(metas) =
-                Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
-        {
-            for meta in metas {
-                if let Meta::Path(path) = meta
-                    && path.is_ident("ignore")
-                {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
-fn resolve_join_field_type_preserving_container(
-    field_type: &syn::Type,
-) -> proc_macro2::TokenStream {
-    // For join fields, use the type exactly as written by the user
-    // This allows any valid Rust path without making assumptions
-    quote! { #field_type }
-}
-
-fn generate_api_struct_content(
-    analysis: &EntityFieldAnalysis,
-    _api_struct_name: &syn::Ident,
-) -> (
-    Vec<proc_macro2::TokenStream>,
-    Vec<proc_macro2::TokenStream>,
-    std::collections::HashSet<String>,
-) {
-    let mut api_struct_fields = Vec::new();
-    let mut from_model_assignments = Vec::new();
-    let required_imports = std::collections::HashSet::new();
-
-    for field in &analysis.db_fields {
-        let field_name = &field.ident;
-        let field_type = &field.ty;
-
-        let api_field_attrs: Vec<_> = field
-            .attrs
-            .iter()
-            .filter(|attr| !attr.path().is_ident("sea_orm"))
-            .collect();
-
-        api_struct_fields.push(quote! {
-            #(#api_field_attrs)*
-            pub #field_name: #field_type
-        });
-
-        // Also populate the From<Model> assignment for this field (since it exists in the struct)
-        let assignment = if field_type
-            .to_token_stream()
-            .to_string()
-            .contains("DateTimeWithTimeZone")
-        {
-            if field_analyzer::field_is_optional(field) {
-                quote! {
-                    #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
-                }
-            } else {
-                quote! {
-                    #field_name: model.#field_name.with_timezone(&chrono::Utc)
-                }
-            }
-        } else {
-            quote! {
-                #field_name: model.#field_name
-            }
-        };
-
-        from_model_assignments.push(assignment);
-    }
-
-    for field in &analysis.non_db_fields {
-        let field_name = &field.ident;
-        let field_type = &field.ty;
-
-        let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
-            .unwrap_or_else(|| syn::parse_quote!(Default::default()));
-
-        // Preserve all original crudcrate attributes while ensuring required ones are present
-        let crudcrate_attrs: Vec<_> = field
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("crudcrate"))
-            .collect();
-
-        // Add schema(no_recursion) attribute for join fields to prevent circular dependencies
-        // This is the proper utoipa way to handle recursive relationships
-        let schema_attrs = if get_join_config(field).is_some() {
-            quote! { #[schema(no_recursion)] }
-        } else {
-            quote! {}
-        };
-
-        let final_field_type = if get_join_config(field).is_some() {
-            resolve_join_field_type_preserving_container(field_type)
-        } else {
-            quote! { #field_type }
-        };
-
-        let field_definition = quote! {
-            #schema_attrs
-            #(#crudcrate_attrs)*
-            pub #field_name: #final_field_type
-        };
-
-        api_struct_fields.push(field_definition);
-
-        let assignment = if get_join_config(field).is_some() {
-            let empty_value = if let Ok(syn::Type::Path(type_path)) =
-                syn::parse2::<syn::Type>(quote! { #final_field_type })
-            {
-                if let Some(segment) = type_path.path.segments.last() {
-                    if segment.ident == "Vec" {
-                        quote! { vec![] }
-                    } else if segment.ident == "Option" {
-                        quote! { None }
-                    } else {
-                        quote! { Default::default() }
-                    }
-                } else {
-                    quote! { Default::default() }
-                }
-            } else {
-                quote! { Default::default() }
+            return match syn::parse_str::<syn::Type>(&s) {
+                Ok(ty) => Ok(quote! { #ty }),
+                Err(_) => Err(syn::Error::new_spanned(
+                    attr,
+                    format!("Invalid active_model type: '{s}'. Expected a valid Rust type path."),
+                )
+                .to_compile_error()),
             };
-
-            quote! {
-                #field_name: #empty_value
-            }
-        } else {
-            quote! {
-                #field_name: #default_expr
-            }
-        };
-
-        from_model_assignments.push(assignment);
-    }
-
-    (api_struct_fields, from_model_assignments, required_imports)
-}
-
-fn generate_api_struct(
-    api_struct_name: &syn::Ident,
-    api_struct_fields: &[proc_macro2::TokenStream],
-    active_model_path: &str,
-    crud_meta: &crate::traits::crudresource::structs::CRUDResourceMeta,
-    analysis: &EntityFieldAnalysis,
-    _required_imports: &std::collections::HashSet<String>,
-) -> proc_macro2::TokenStream {
-    // Check if we have fields excluded from create/update models
-    let _has_create_exclusions = analysis
-        .db_fields
-        .iter()
-        .chain(analysis.non_db_fields.iter())
-        .any(|field| attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false));
-    let _has_update_exclusions = analysis
-        .db_fields
-        .iter()
-        .chain(analysis.non_db_fields.iter())
-        .any(|field| attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false));
-
-    // Check if we have join fields that require Default implementation
-    let has_join_fields =
-        !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
-
-    // Check if any non-db fields need Default (for join loading or excluded fields)
-    let has_fields_needing_default = has_join_fields
-        || analysis.non_db_fields.iter().any(|field| {
-            // Fields excluded from create/update need Default for join loading
-            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
-                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-        })
-        || analysis.db_fields.iter().any(|field| {
-            // Database fields excluded from create/update need Default
-            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
-                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-        });
-
-    // Build derive clause based on user preferences
-    let mut derives = vec![
-        quote!(Clone),
-        quote!(Debug),
-        quote!(Serialize),
-        quote!(Deserialize),
-        quote!(ToCreateModel),
-        quote!(ToUpdateModel),
-    ];
-
-    // Always include ToSchema, but handle circular dependencies with schema(no_recursion)
-    // This is the proper utoipa approach for recursive relationships
-    derives.push(quote!(ToSchema));
-
-    // Add Default derive if needed for join fields or excluded fields
-    // BUT: don't derive Default if we have join fields, as it causes E0282 type inference errors
-    // We'll manually implement Default instead
-    if has_fields_needing_default && !has_join_fields {
-        derives.push(quote!(Default));
-    }
-
-    if crud_meta.derive_partial_eq {
-        derives.push(quote!(PartialEq));
-    }
-
-    if crud_meta.derive_eq {
-        derives.push(quote!(Eq));
-    }
-
-    // No import generation needed - types are used as-written
-
-    quote! {
-        use sea_orm::ActiveValue;
-        use utoipa::ToSchema;
-        use serde::{Serialize, Deserialize};
-        use crudcrate::{ToUpdateModel, ToCreateModel};
-
-        #[derive(#(#derives),*)]
-        #[active_model = #active_model_path]
-        pub struct #api_struct_name {
-            #(#api_struct_fields),*
         }
     }
+    let ident = format_ident!("{}ActiveModel", name);
+    Ok(quote! { #ident })
 }
 
-fn generate_from_impl(
-    struct_name: &syn::Ident,
-    api_struct_name: &syn::Ident,
-    from_model_assignments: &[proc_macro2::TokenStream],
-) -> proc_macro2::TokenStream {
-    quote! {
-        impl From<#struct_name> for #api_struct_name {
-            fn from(model: #struct_name) -> Self {
-                Self {
-                    #(#from_model_assignments),*
-                }
-            }
-        }
-    }
-}
 
-fn generate_conditional_crud_impl(
-    api_struct_name: &syn::Ident,
-    crud_meta: &CRUDResourceMeta,
-    active_model_path: &str,
-    analysis: &EntityFieldAnalysis,
-    table_name: &str,
-) -> proc_macro2::TokenStream {
-    // Note: join fields should not be considered for CRUD resource generation
-    // They are populated by join loading, not direct CRUD operations
-    let has_crud_resource_fields = analysis.primary_key_field.is_some()
-        || !analysis.sortable_fields.is_empty()
-        || !analysis.filterable_fields.is_empty()
-        || !analysis.fulltext_fields.is_empty();
-
-    let crud_impl = if has_crud_resource_fields {
-        macro_implementation::generate_crud_resource_impl(
-            api_struct_name,
-            crud_meta,
-            active_model_path,
-            analysis,
-            table_name,
-        )
-    } else {
-        quote! {}
-    };
-
-    let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        crate::codegen::router::axum::generate_router_impl(api_struct_name)
-    } else {
-        quote! {}
-    };
-
-    quote! {
-        #crud_impl
-        #router_impl
-    }
-}
-
-/// ===================
-/// `ToCreateModel` Macro
-/// ===================
-/// This macro:
-/// 1. Generates a struct named `<OriginalName>Create` that includes only the fields
-///    where `#[crudcrate(create_model = false)]` is NOT specified (default = true).
-///    If a field has an `on_create` expression, its type becomes `Option<…>`
-///    (with `#[serde(default)]`) so the user can override that default.
-/// 2. Generates an `impl From<<OriginalName>Create> for <ActiveModelType>>` where:
-///    - For each field with `on_create`:
-///       - If the original type was `Option<T>`, then `create.<field>` is `Option<Option<T>>`.
-///         We match on that and do:
-///           ```rust,ignore
-///           match create.field {
-///             Some(Some(v)) => Some(v.into()),      // user overrode with T
-///             Some(None)    => None,                // user explicitly set null
-///             None          => Some((expr).into()), // fallback to expr
-///           }
-///           ```
-///       - If the original type was non‐optional `T`, then `create.<field>` is `Option<T>`.
-///         We match on that and do:
-///           ```rust,ignore
-///           match create.field {
-///             Some(v) => v.into(),
-///             None    => (expr).into(),
-///           }
-///           ```
-///    - For each field without `on_create`:
-///       - If the original type was `Option<T>`, we do `create.<field>.map(|v| v.into())`.
-///       - If it was non‐optional `T`, we do `create.<field>.into()`.
-///    - For any field excluded (`create_model = false`) but having `on_create`, we do
-///      `Some((expr).into())` if it was `Option<T>`, or just `(expr).into()` otherwise.
+/// Generates `<Name>Create` struct with fields not excluded by `exclude(create)`.
+/// Fields with `on_create` become `Option<T>` to allow user override.
+/// Implements `From<NameCreate>` for `ActiveModel` with automatic value generation.
 #[proc_macro_derive(ToCreateModel, attributes(crudcrate, active_model))]
 pub fn to_create_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let create_name = format_ident!("{}Create", name);
 
-    let active_model_type = extract_active_model_type(&input, name);
-    let fields = extract_named_fields(&input);
+    let active_model_type = match extract_active_model_type(&input, name) {
+        Ok(ty) => ty,
+        Err(e) => return e.into(),
+    };
+    let fields = match fields::extract_named_fields(&input) {
+        Ok(f) => f,
+        Err(e) => return e,
+    };
     let create_struct_fields = codegen::models::create::generate_create_struct_fields(&fields);
     let conv_lines = codegen::models::create::generate_create_conversion_lines(&fields);
 
@@ -623,43 +82,28 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// ===================
-/// `ToUpdateModel` Macro
-/// ===================
-/// This macro:
-/// 1. Generates a struct named `<OriginalName>Update` that includes only the fields
-///    where `#[crudcrate(update_model = false)]` is NOT specified (default = true).
-/// 2. Generates an impl for a method
-///    `merge_into_activemodel(self, mut model: ActiveModelType) -> ActiveModelType`
-///    that, for each field:
-///    - If it's included in the update struct, and the user provided a value:
-///       - If the original field type was `Option<T>`, we match on
-///         `Option<Option<T>>`:
-///           ```rust,ignore
-///           Some(Some(v)) => ActiveValue::Set(Some(v.into())),
-///           Some(None)    => ActiveValue::Set(None),     // explicit set to None
-///           None          => ActiveValue::NotSet,       // no change
-///           ```
-///       - If the original field type was non‐optional `T`, we match on `Option<T>`:
-///           ```rust,ignore
-///           Some(val) => ActiveValue::Set(val.into()),
-///           _         => ActiveValue::NotSet,
-///           ```
-///    - If it's excluded (`update_model = false`) but has `on_update = expr`, we do
-///      `ActiveValue::Set(expr.into())` (wrapped in `Some(...)` if the original field was `Option<T>`).
-///    - All other fields remain unchanged.
+/// Generates `<Name>Update` struct with fields not excluded by `exclude(update)`.
+/// All fields are `Option<Option<T>>` to support partial updates and explicit null.
+/// Implements `MergeIntoActiveModel` trait with `on_update` expression handling.
 #[proc_macro_derive(ToUpdateModel, attributes(crudcrate, active_model))]
 pub fn to_update_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let update_name = format_ident!("{}Update", name);
 
-    let active_model_type = extract_active_model_type(&input, name);
-    let fields = extract_named_fields(&input);
+    let active_model_type = match extract_active_model_type(&input, name) {
+        Ok(ty) => ty,
+        Err(e) => return e.into(),
+    };
+    let fields = match fields::extract_named_fields(&input) {
+        Ok(f) => f,
+        Err(e) => return e,
+    };
     let included_fields = crate::codegen::models::update::filter_update_fields(&fields);
     let update_struct_fields =
         crate::codegen::models::update::generate_update_struct_fields(&included_fields);
-    let (included_merge, excluded_merge) = generate_update_merge_code(&fields, &included_fields);
+    let included_merge = codegen::models::merge::generate_included_merge_code(&included_fields);
+    let excluded_merge = codegen::models::merge::generate_excluded_merge_code(&fields);
 
     // Always include ToSchema for Update models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -673,7 +117,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         }
 
         impl #update_name {
-            pub fn merge_fields(self, mut model: #active_model_type) -> Result<#active_model_type, sea_orm::DbErr> {
+            pub fn merge_fields(self, mut model: #active_model_type) -> Result<#active_model_type, crudcrate::ApiError> {
                 #(#included_merge)*
                 #(#excluded_merge)*
                 Ok(model)
@@ -681,7 +125,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         }
 
         impl crudcrate::traits::MergeIntoActiveModel<#active_model_type> for #update_name {
-            fn merge_into_activemodel(self, model: #active_model_type) -> Result<#active_model_type, sea_orm::DbErr> {
+            fn merge_into_activemodel(self, model: #active_model_type) -> Result<#active_model_type, crudcrate::ApiError> {
                 Self::merge_fields(self, model)
             }
         }
@@ -690,50 +134,19 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// ===================
-/// `ToListModel` Macro
-/// ===================
-/// This macro generates a struct named `<OriginalName>List` that includes only the fields
-/// where `#[crudcrate(list_model = false)]` is NOT specified (default = true).
-/// This allows creating optimized list views by excluding heavy fields like relationships,
-/// large text fields, or computed properties from collection endpoints.
-///
-/// Generated struct:
-/// ```rust,ignore
-/// #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-/// pub struct <OriginalName>List {
-///     // All fields where list_model != false
-///     pub field_name: FieldType,
-/// }
-///
-/// impl From<Model> for <OriginalName>List {
-///     fn from(model: Model) -> Self {
-///         Self {
-///             field_name: model.field_name,
-///             // ... other included fields
-///         }
-///     }
-/// }
-/// ```
-///
-/// Usage:
-/// ```rust,ignore
-/// pub struct Model {
-///     pub id: Uuid,
-///     pub name: String,
-///     #[crudcrate(list_model = false)]  // Exclude from list view
-///     pub large_description: Option<String>,
-///     #[crudcrate(list_model = false)]  // Exclude relationships from list
-///     pub related_items: Vec<RelatedItem>,
-/// }
-/// ```
+/// Generates `<Name>List` struct with fields not excluded by `exclude(list)`.
+/// Optimizes API payloads by excluding heavy fields (joins, large text) from list endpoints.
+/// Implements `From<Name>` and `From<Model>` conversions.
 #[proc_macro_derive(ToListModel, attributes(crudcrate))]
 pub fn to_list_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
 
-    let fields = extract_named_fields(&input);
+    let fields = match fields::extract_named_fields(&input) {
+        Ok(f) => f,
+        Err(e) => return e,
+    };
     let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&fields);
@@ -760,319 +173,13 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// =====================
-/// `EntityToModels` Macro
-/// =====================
-/// This macro generates an API struct from a Sea-ORM entity Model struct, along with
-/// `ToCreateModel` and `ToUpdateModel` implementations.
+/// Generates complete CRUD API structures from Sea-ORM entities.
 ///
-/// ## Available Struct-Level Attributes
+/// Creates API struct, List/Response models, and `CRUDResource` implementation.
+/// Supports custom functions, joins, filtering, sorting, and fulltext search.
 ///
-/// ```rust,ignore
-/// #[crudcrate(
-///     api_struct = "TodoItem",              // Override API struct name
-///     active_model = "ActiveModel",         // Override ActiveModel path
-///     name_singular = "todo",               // Resource name (singular)
-///     name_plural = "todos",                // Resource name (plural)
-///     description = "Manages todo items",   // Resource description
-///     entity_type = "Entity",               // Entity type for CRUDResource
-///     column_type = "Column",               // Column type for CRUDResource
-///     fn_get_one = self::custom_get_one,    // Custom get_one function
-///     fn_get_all = self::custom_get_all,    // Custom get_all function
-///     fn_create = self::custom_create,      // Custom create function
-///     fn_update = self::custom_update,      // Custom update function
-///     fn_delete = self::custom_delete,      // Custom delete function
-///     fn_delete_many = self::custom_delete_many, // Custom delete_many function
-/// )]
-/// ```
-///
-/// ## Available Field-Level Attributes
-///
-/// ```rust,ignore
-/// #[crudcrate(
-///     primary_key,                          // Mark as primary key
-///     sortable,                             // Include in sortable columns
-///     filterable,                           // Include in filterable columns
-///     create_model = false,                 // Exclude from Create model
-///     update_model = false,                 // Exclude from Update model
-///     on_create = Uuid::new_v4(),          // Auto-generate on create
-///     on_update = chrono::Utc::now(),      // Auto-update on update
-///     non_db_attr = true,                  // Non-database field
-///     default = vec![],                    // Default for non-DB fields
-///     use_target_models,                   // Use target's Create/Update models for relationships
-/// )]
-/// ```
-///
-/// Usage:
-/// ```ignore
-/// use uuid::Uuid;
-/// #[derive(EntityToModels)]
-/// #[crudcrate(api_struct = "Experiment", active_model = "spice_entity::experiments::ActiveModel")]
-/// pub struct Model {
-///     #[crudcrate(update_model = false, create_model = false, on_create = Uuid::new_v4())]
-///     pub id: Uuid,
-///     pub name: String,
-///     #[crudcrate(non_db_attr = true, default = vec![])]
-///     pub regions: Vec<RegionInput>,
-/// }
-/// ```
-///
-/// This generates:
-/// - An API struct with the specified name (e.g., `EntityName`)
-/// - `ToCreateModel` and `ToUpdateModel` implementations
-/// - `From<Model>` implementation for the API struct
-/// - Support for non-db attributes
-///
-/// Derive macro for generating complete CRUD API structures from Sea-ORM entities.
-///
-/// # Struct-Level Attributes (all optional)
-///
-/// **Boolean Flags** (can be used as just `flag` or `flag = true/false`):
-/// - `generate_router` - Auto-generate Axum router with all CRUD endpoints
-/// - `debug_output` - Print generated code to console (requires `--features debug`)
-///
-/// **Named Parameters**:
-/// - `api_struct = "Name"` - Override API struct name (default: table name in `PascalCase`)
-/// - `active_model = "Path"` - Override `ActiveModel` path (default: `ActiveModel`)
-/// - `name_singular = "name"` - Resource singular name (default: table name)
-/// - `name_plural = "names"` - Resource plural name (default: singular + "s")
-/// - `description = "desc"` - Resource description for documentation
-/// - `entity_type = "Entity"` - Entity type for `CRUDResource` (default: "Entity")
-/// - `column_type = "Column"` - Column type for `CRUDResource` (default: "Column")
-/// - `fulltext_language = "english"` - Default language for full-text search
-///
-/// **Function Overrides** (for custom CRUD behavior):
-/// - `fn_get_one = path::to::function` - Custom `get_one` function override
-/// - `fn_get_all = path::to::function` - Custom `get_all` function override
-/// - `fn_create = path::to::function` - Custom create function override
-/// - `fn_update = path::to::function` - Custom update function override
-/// - `fn_delete = path::to::function` - Custom delete function override
-/// - `fn_delete_many = path::to::function` - Custom `delete_many` function override
-///
-/// # Field-Level Attributes
-///
-/// **Boolean Flags** (can be used as just `flag` or `flag = true/false`):
-/// - `primary_key` - Mark field as primary key (only one allowed)
-/// - `sortable` - Include field in `sortable_columns()`
-/// - `filterable` - Include field in `filterable_columns()`
-/// - `fulltext` - Enable full-text search for this field
-/// - `non_db_attr` - Field is not in database, won't appear in DB operations
-/// - `use_target_models` - Use target's Create/Update models instead of full entity model
-///
-/// **Named Parameters**:
-/// - `create_model = false` - Exclude from Create model (default: true)
-/// - `update_model = false` - Exclude from Update model (default: true)
-/// - `list_model = false` - Exclude from List model (default: true)
-/// - `on_create = expression` - Auto-generate value on create (e.g., `Uuid::new_v4()`)
-/// - `on_update = expression` - Auto-generate value on update (e.g., `Utc::now()`)
-/// - `default = expression` - Default value for non-DB fields
-/// - `fulltext_language = "english"` - Language for full-text search
-///
-/// **Model Exclusion** (Rust-idiomatic alternative to negative boolean flags):
-/// - `exclude(create)` - Exclude from Create model (same as `create_model = false`)
-/// - `exclude(update)` - Exclude from Update model (same as `update_model = false`)
-/// - `exclude(list)` - Exclude from List model (same as `list_model = false`)
-/// - `exclude(create, update)` - Exclude from multiple models
-/// - `exclude(create, update, list)` - Exclude from all models
-///
-/// **Join Configuration** (for relationship loading):
-/// - `join(one)` - Load this relationship in `get_one()` calls
-/// - `join(all)` - Load this relationship in `get_all()` calls
-/// - `join(one, all)` - Load in both `get_one()` and `get_all()` calls
-/// - `join(one, all, depth = 2)` - Recursive loading with specified depth
-/// - `join(one, all, relation = "CustomRelation")` - Use custom Sea-ORM relation name
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use uuid::Uuid;
-/// use crudcrate_derive::EntityToModels;
-/// use sea_orm::prelude::*;
-///
-/// #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-/// #[sea_orm(table_name = "customers")]
-/// #[crudcrate(api_struct = "EntityName", generate_router)]
-/// pub struct Model {
-///     #[sea_orm(primary_key, auto_increment = false)]
-///     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-///     pub id: Uuid,
-///
-///     #[crudcrate(sortable, filterable)]
-///     pub name: String,
-///
-///     #[crudcrate(filterable)]
-///     pub email: String,
-///
-///     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
-///     pub created_at: DateTime<Utc>,
-///
-///     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
-///     pub updated_at: DateTime<Utc>,
-///
-///     // Join field - loads vehicles automatically with depth=3 recursive loading
-///     #[sea_orm(ignore)]
-///     #[crudcrate(non_db_attr, join(one, all))]  // depth=3 by default
-///     pub related_entities: Vec<RelatedEntity>,
-/// }
-///
-/// #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-/// pub enum Relation {}
-///
-/// impl ActiveModelBehavior for ActiveModel {}
-/// ```
-///
-/// Parse and validate attributes for `EntityToModels` macro
-fn parse_and_validate_entity_attributes(
-    input: &DeriveInput,
-    struct_name: &syn::Ident,
-) -> Result<(String, syn::Ident, String, CRUDResourceMeta), TokenStream> {
-    let (api_struct_name, active_model_path) = parse_entity_attributes(input, struct_name);
-    let table_name = attribute_parser::extract_table_name(&input.attrs)
-        .unwrap_or_else(|| struct_name.to_string());
-
-    let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
-    let crud_meta = meta.with_defaults(&table_name);
-
-    // Validate active model path
-    if syn::parse_str::<syn::Type>(&active_model_path).is_err() {
-        return Err(syn::Error::new_spanned(
-            input,
-            format!("Invalid active_model path: {active_model_path}"),
-        )
-        .to_compile_error()
-        .into());
-    }
-
-    Ok((table_name, api_struct_name, active_model_path, crud_meta))
-}
-
-/// Setup join validation and entity registration
-fn setup_join_validation(
-    field_analysis: &EntityFieldAnalysis,
-    api_struct_name: &syn::Ident,
-) -> Result<proc_macro2::TokenStream, TokenStream> {
-    // No global registry needed - types are used as explicitly written
-
-    // Generate compile-time validation for join relationships
-    let _join_validation = relation_validator::generate_join_relation_validation(field_analysis);
-
-    // Check for cyclic dependencies and emit compile-time error if detected
-    let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
-        field_analysis,
-        &api_struct_name.to_string(),
-    );
-    if !cyclic_dependency_check.is_empty() {
-        return Err(cyclic_dependency_check.into());
-    }
-
-    Ok(quote! {})
-}
-
-/// Generate core API model components
-fn generate_core_api_models(
-    struct_name: &syn::Ident,
-    api_struct_name: &syn::Ident,
-    crud_meta: &CRUDResourceMeta,
-    active_model_path: &str,
-    field_analysis: &EntityFieldAnalysis,
-    table_name: &str,
-) -> (
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-) {
-    let (api_struct_fields, from_model_assignments, required_imports) =
-        generate_api_struct_content(field_analysis, api_struct_name);
-    let api_struct = generate_api_struct(
-        api_struct_name,
-        &api_struct_fields,
-        active_model_path,
-        crud_meta,
-        field_analysis,
-        &required_imports,
-    );
-    let from_impl = generate_from_impl(struct_name, api_struct_name, &from_model_assignments);
-    let crud_impl = generate_conditional_crud_impl(
-        api_struct_name,
-        crud_meta,
-        active_model_path,
-        field_analysis,
-        table_name,
-    );
-
-    (api_struct, from_impl, crud_impl)
-}
-
-/// Generate list and response models
-fn generate_list_and_response_models(
-    input: &DeriveInput,
-    api_struct_name: &syn::Ident,
-    struct_name: &syn::Ident,
-    field_analysis: &EntityFieldAnalysis,
-) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
-    // Generate List model
-    let list_name = format_ident!("{}List", api_struct_name);
-    let raw_fields = extract_named_fields(input);
-    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&raw_fields);
-    let list_from_assignments =
-        crate::codegen::models::list::generate_list_from_assignments(&raw_fields);
-    let list_from_model_assignments =
-        crate::codegen::models::list::generate_list_from_model_assignments(field_analysis);
-
-    let list_derives =
-        quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
-
-    let list_model = quote! {
-        #[derive(#list_derives)]
-        pub struct #list_name {
-            #(#list_struct_fields),*
-        }
-
-        impl From<#api_struct_name> for #list_name {
-            fn from(model: #api_struct_name) -> Self {
-                Self {
-                    #(#list_from_assignments),*
-                }
-            }
-        }
-
-        impl From<#struct_name> for #list_name {
-            fn from(model: #struct_name) -> Self {
-                Self {
-                    #(#list_from_model_assignments),*
-                }
-            }
-        }
-    };
-
-    // Generate Response model
-    let response_name = format_ident!("{}Response", api_struct_name);
-    let response_struct_fields =
-        crate::codegen::models::response::generate_response_struct_fields(&raw_fields);
-    let response_from_assignments =
-        crate::codegen::models::response::generate_response_from_assignments(&raw_fields);
-
-    let response_derives =
-        quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
-
-    let response_model = quote! {
-        #[derive(#response_derives)]
-        pub struct #response_name {
-            #(#response_struct_fields),*
-        }
-
-        impl From<#api_struct_name> for #response_name {
-            fn from(model: #api_struct_name) -> Self {
-                Self {
-                    #(#response_from_assignments),*
-                }
-            }
-        }
-    };
-
-    (list_model, response_model)
-}
-
+/// Key attributes: `api_struct`, `generate_router`, `exclude()`, `join()`, `on_create/update`.
+/// See crate documentation for full attribute reference and examples.
 /// # Panics
 ///
 /// This function will panic in the following cases:
@@ -1085,41 +192,109 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let struct_name = &input.ident;
 
     // Parse and validate attributes
-    let (table_name, api_struct_name, active_model_path, crud_meta) =
-        match parse_and_validate_entity_attributes(&input, struct_name) {
-            Ok(result) => result,
-            Err(e) => return e,
-        };
+    let (api_struct_name, active_model_path) = fields::parse_entity_attributes(&input, struct_name);
+    let table_name = attribute_parser::extract_table_name(&input.attrs)
+        .unwrap_or_else(|| struct_name.to_string());
+    let meta = attribute_parser::parse_crud_resource_meta(&input.attrs);
+
+    // Check for deprecation errors (legacy fn_* syntax)
+    if !meta.deprecation_errors.is_empty() {
+        let errors: proc_macro2::TokenStream = meta
+            .deprecation_errors
+            .iter()
+            .map(syn::Error::to_compile_error)
+            .collect();
+        return errors.into();
+    }
+
+    let crud_meta = meta.with_defaults(&table_name);
+
+    // Validate active model path
+    if syn::parse_str::<syn::Type>(&active_model_path).is_err() {
+        return syn::Error::new_spanned(
+            &input,
+            format!("Invalid active_model path: {active_model_path}"),
+        )
+        .to_compile_error()
+        .into();
+    }
 
     // Extract fields and create field analysis
-    let fields = match extract_entity_fields(&input) {
+    let fields = match fields::extract_entity_fields(&input) {
         Ok(f) => f,
         Err(e) => return e,
     };
-    let field_analysis = analyze_entity_fields(fields);
-    if let Err(e) = validate_field_analysis(&field_analysis) {
+    let field_analysis = fields::analyze_entity_fields(fields);
+    if let Err(e) = fields::validate_field_analysis(&field_analysis) {
         return e;
     }
 
-    // Setup join validation and entity registration
-    let _join_validation = match setup_join_validation(&field_analysis, &api_struct_name) {
-        Ok(validation) => validation,
-        Err(e) => return e,
-    };
+    // Setup join validation - check for cyclic dependencies
+    let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
+        &field_analysis,
+        &api_struct_name.to_string(),
+    );
+    if !cyclic_dependency_check.is_empty() {
+        return cyclic_dependency_check.into();
+    }
 
     // Generate core API model components
-    let (api_struct, from_impl, crud_impl) = generate_core_api_models(
-        struct_name,
+    let (api_struct_fields, from_model_assignments) =
+        codegen::models::api_struct::generate_api_struct_content(&field_analysis);
+    let api_struct = codegen::models::api_struct::generate_api_struct(
         &api_struct_name,
-        &crud_meta,
+        &api_struct_fields,
         &active_model_path,
+        &crud_meta,
         &field_analysis,
-        &table_name,
     );
+    let from_impl = quote! {
+        impl From<#struct_name> for #api_struct_name {
+            fn from(model: #struct_name) -> Self {
+                Self {
+                    #(#from_model_assignments),*
+                }
+            }
+        }
+    };
+
+    // Generate CRUD implementation
+    let has_crud_resource_fields = field_analysis.primary_key_field.is_some()
+        || !field_analysis.sortable_fields.is_empty()
+        || !field_analysis.filterable_fields.is_empty()
+        || !field_analysis.fulltext_fields.is_empty();
+
+    let crud_impl_inner = if has_crud_resource_fields {
+        macro_implementation::generate_crud_resource_impl(
+            &api_struct_name,
+            &crud_meta,
+            &active_model_path,
+            &field_analysis,
+            &table_name,
+        )
+    } else {
+        quote! {}
+    };
+
+    let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
+        crate::codegen::router::axum::generate_router_impl(&api_struct_name)
+    } else {
+        quote! {}
+    };
+
+    let crud_impl = quote! {
+        #crud_impl_inner
+        #router_impl
+    };
 
     // Generate list and response models
     let (list_model, response_model) =
-        generate_list_and_response_models(&input, &api_struct_name, struct_name, &field_analysis);
+        codegen::models::list_response::generate_list_and_response_models(
+            &input,
+            &api_struct_name,
+            struct_name,
+            &field_analysis,
+        );
 
     // Generate final output
     let expanded = quote! {
@@ -1128,7 +303,6 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         #crud_impl
         #list_model
         #response_model
-        #_join_validation
     };
 
     TokenStream::from(expanded)

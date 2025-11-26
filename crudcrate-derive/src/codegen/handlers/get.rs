@@ -1,134 +1,20 @@
-use crate::codegen::join_strategies::get_join_config;
-use crate::codegen::join_strategies::recursion::{
-    generate_join_loading_for_direct_query, generate_recursive_loading_implementation,
-};
-use crate::codegen::type_resolution::{
-    extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
-    extract_vec_inner_type, get_entity_path_from_field_type, get_model_path_from_field_type,
-    is_vec_type,
-};
+use crate::codegen::joins::loading::{generate_get_all_join_loading, generate_get_one_join_loading};
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
-/// Generate join loading logic for `get_all` method
-#[allow(clippy::too_many_lines)]
-pub fn generate_get_all_join_loading(analysis: &EntityFieldAnalysis) -> proc_macro2::TokenStream {
-    let mut loading_statements = Vec::new();
-    let mut field_assignments = Vec::new();
-
-    for field in &analysis.join_on_all_fields {
-        if let Some(field_name) = &field.ident {
-            let join_config = get_join_config(field).unwrap_or_default();
-            let is_vec_field = is_vec_type(&field.ty);
-            // Check if this join should stop recursion at this level
-            let stop_recursion = join_config.depth == Some(1);
-
-            // Extract entity and model paths from the field type or use custom path
-            let entity_path = if let Some(custom_path) = &join_config.path {
-                // Parse custom path string into a token stream
-                let path_tokens: proc_macro2::TokenStream = custom_path.parse().unwrap();
-                quote! { #path_tokens::Entity }
-            } else {
-                get_entity_path_from_field_type(&field.ty)
-            };
-            let _model_path = get_model_path_from_field_type(&field.ty);
-
-            if is_vec_field {
-                // No complex type resolution needed - extract directly from Vec<T>
-                let _target_type = syn::parse2::<syn::Type>(extract_vec_inner_type(&field.ty))
-                    .unwrap_or_else(|_| field.ty.clone());
-
-                // For Vec<T> relationships, load all related models - depth-aware
-                let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);
-
-                if stop_recursion {
-                    // Depth-limited loading (depth=1) - Load data but don't recurse
-                    let loaded_var_name = quote::format_ident!("loaded_{}", field_name);
-                    loading_statements.push(quote! {
-                        let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
-                        let #loaded_var_name: Vec<#api_struct_type> = related_models.into_iter()
-                            .map(|related_model| Into::<#api_struct_type>::into(related_model))
-                            .collect();
-                    });
-                    field_assignments.push(quote! {
-                        result.#field_name = #loaded_var_name;
-                    });
-                } else {
-                    // Unlimited recursion - use recursive get_one calls
-                    loading_statements.push(quote! {
-                        let related_models = model.find_related(#entity_path).all(db).await.unwrap_or_default();
-                        let mut #field_name = Vec::new();
-                        for related_model in related_models {
-                            // Try recursive loading by calling the target type's get_one method
-                            match #api_struct_type::get_one(db, related_model.id).await {
-                                Ok(loaded_entity) => #field_name.push(loaded_entity),
-                                Err(_) => {
-                                    // Fallback: convert Model to API struct using explicit Into::into with full path
-                                    #field_name.push(Into::<#api_struct_type>::into(related_model))
-                                },
-                            }
-                        }
-                    });
-                    field_assignments.push(quote! {
-                        result.#field_name = #field_name;
-                    });
-                }
-            } else {
-                // For single relationships (Option<T> or T), load one related model - depth-aware
-                let target_type = extract_option_or_direct_inner_type(&field.ty);
-
-                if stop_recursion {
-                    // Depth-limited loading (depth=1) - Load data but don't recurse
-                    let loaded_var_name = quote::format_ident!("loaded_{}", field_name);
-                    loading_statements.push(quote! {
-                        let #loaded_var_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
-                            Some(related_model) => Some(Into::<#target_type>::into(related_model)),
-                            None => None,
-                        };
-                    });
-                    field_assignments.push(quote! {
-                        result.#field_name = #loaded_var_name.unwrap_or_default();
-                    });
-                } else {
-                    // Unlimited recursion - use recursive get_one calls
-                    loading_statements.push(quote! {
-                        let #field_name = match model.find_related(#entity_path).one(db).await.unwrap_or_default() {
-                            Some(related_model) => {
-                                // Try recursive loading by calling the target type's get_one method
-                                match #target_type::get_one(db, related_model.id).await {
-                                    Ok(loaded_entity) => Some(loaded_entity),
-                                    Err(_) => {
-                                        // Fallback: convert Model to API struct using explicit Into::into
-                                        Some(Into::<#target_type>::into(related_model))
-                                    },
-                                }
-                            }
-                            None => None,
-                        };
-                    });
-                    field_assignments.push(quote! {
-                        result.#field_name = #field_name.unwrap_or_default();
-                    });
-                }
-            }
-        }
-    }
-
-    // Convert base model to API struct and assign join fields
-    quote! {
-        #(#loading_statements)*
-        let mut result: Self = model.into();
-        #(#field_assignments)*
-    }
-}
-
-/// Generate `get_all` method implementation
+/// Generate `get_all` method implementation with hook support.
+///
+/// Hook execution order: pre → body → post
+/// - `read::many::pre`: Preparation before query (receives condition, pagination params)
+/// - `read::many::body`: Replaces default query logic (returns Vec<ListModel>)
+/// - `read::many::post`: Side effects after query (receives &[ListModel])
 pub fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
-    if let Some(fn_path) = &crud_meta.fn_get_all {
-        quote! {
+    // If operations is specified, use it (takes full control)
+    if let Some(ops_path) = &crud_meta.operations {
+        return quote! {
             async fn get_all(
                 db: &sea_orm::DatabaseConnection,
                 condition: &sea_orm::Condition,
@@ -136,124 +22,163 @@ pub fn generate_get_all_impl(
                 order_direction: sea_orm::Order,
                 offset: u64,
                 limit: u64,
-            ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
-                #fn_path(db, condition, order_column, order_direction, offset, limit).await
+            ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
+            }
+        };
+    }
+
+    // Get hooks for read::many
+    let hooks = &crud_meta.hooks.read.many;
+
+    // Generate pre hook call
+    let pre_hook = hooks.pre.as_ref().map(|fn_path| {
+        quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+    });
+
+    // Check if there are join(all) fields that need loading
+    let has_join_all_fields = !analysis.join_on_all_fields.is_empty();
+
+    // Generate body - either custom or default
+    let body = if let Some(fn_path) = &hooks.body {
+        quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+    } else if has_join_all_fields {
+        // Generate get_all with join loading
+        let join_loading = generate_get_all_join_loading(analysis);
+        quote! {
+            use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
+
+            let models = Self::EntityType::find()
+                .filter(condition.clone())
+                .order_by(order_column, order_direction)
+                .offset(offset)
+                .limit(limit)
+                .all(db)
+                .await?;
+
+            let mut result = Vec::new();
+            for model in models {
+                let item = {
+                    #join_loading
+                };
+                result.push(Self::ListModel::from(item));
             }
         }
     } else {
-        // Check if there are join(all) fields that need loading
-        let has_join_all_fields = !analysis.join_on_all_fields.is_empty();
+        // Standard get_all without joins
+        quote! {
+            use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
 
-        if has_join_all_fields {
-            // Generate get_all with join loading
-            let join_loading = generate_get_all_join_loading(analysis);
+            let models = Self::EntityType::find()
+                .filter(condition.clone())
+                .order_by(order_column, order_direction)
+                .offset(offset)
+                .limit(limit)
+                .all(db)
+                .await?;
+            let result: Vec<Self::ListModel> = models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect();
+        }
+    };
 
-            quote! {
-                async fn get_all(
-                    db: &sea_orm::DatabaseConnection,
-                    condition: &sea_orm::Condition,
-                    order_column: Self::ColumnType,
-                    order_direction: sea_orm::Order,
-                    offset: u64,
-                    limit: u64,
-                ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
-                    use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
+    // Generate post hook call
+    let post_hook = hooks.post.as_ref().map(|fn_path| {
+        quote! { #fn_path(db, &result).await?; }
+    });
 
-                    let models = Self::EntityType::find()
-                        .filter(condition.clone())
-                        .order_by(order_column, order_direction)
-                        .offset(offset)
-                        .limit(limit)
-                        .all(db)
-                        .await?;
-
-                    let mut results = Vec::new();
-                    for model in models {
-                        #join_loading
-                        results.push(Self::ListModel::from(result));
-                    }
-                    Ok(results)
-                }
-            }
-        } else {
-            // Standard get_all without joins
-            quote! {
-                async fn get_all(
-                    db: &sea_orm::DatabaseConnection,
-                    condition: &sea_orm::Condition,
-                    order_column: Self::ColumnType,
-                    order_direction: sea_orm::Order,
-                    offset: u64,
-                    limit: u64,
-                ) -> Result<Vec<Self::ListModel>, sea_orm::DbErr> {
-                    use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
-
-                    let models = Self::EntityType::find()
-                        .filter(condition.clone())
-                        .order_by(order_column, order_direction)
-                        .offset(offset)
-                        .limit(limit)
-                        .all(db)
-                        .await?;
-                    Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
-                }
-            }
+    quote! {
+        async fn get_all(
+            db: &sea_orm::DatabaseConnection,
+            condition: &sea_orm::Condition,
+            order_column: Self::ColumnType,
+            order_direction: sea_orm::Order,
+            offset: u64,
+            limit: u64,
+        ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
+            #pre_hook
+            #body
+            #post_hook
+            Ok(result)
         }
     }
 }
 
-/// Generate `get_one` method implementation
+/// Generate `get_one` method implementation with hook support.
+///
+/// Hook execution order: pre → body → post
+/// - `read::one::pre`: Preparation before fetch (receives id)
+/// - `read::one::body`: Replaces default fetch logic (receives id, returns Self)
+/// - `read::one::post`: Side effects after fetch (receives &Self)
 pub fn generate_get_one_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
 ) -> proc_macro2::TokenStream {
-    if let Some(fn_path) = &crud_meta.fn_get_one {
-        quote! {
-            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
-                #fn_path(db, id).await
+    // If operations is specified, use it (takes full control)
+    if let Some(ops_path) = &crud_meta.operations {
+        return quote! {
+            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::get_one(&ops, db, id).await
             }
+        };
+    }
+
+    // Get hooks for read::one
+    let hooks = &crud_meta.hooks.read.one;
+
+    // Generate pre hook call
+    let pre_hook = hooks.pre.as_ref().map(|fn_path| {
+        quote! { #fn_path(db, id).await?; }
+    });
+
+    // Generate default implementation for get_one with recursive join support
+    let has_joins =
+        !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
+
+    // Generate body - either custom or default
+    let body = if let Some(fn_path) = &hooks.body {
+        quote! { let result = #fn_path(db, id).await?; }
+    } else if has_joins {
+        // Use consolidated join loading implementation
+        let join_loading_code = generate_get_one_join_loading(analysis);
+        quote! {
+            use sea_orm::{EntityTrait, ModelTrait, Related};
+
+            // Load the main entity first
+            let main_model = Self::EntityType::find_by_id(id)
+                .one(db)
+                .await?;
+
+            let result = match main_model {
+                Some(model) => {
+                    #join_loading_code
+                }
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+            };
         }
     } else {
-        // Generate default implementation for get_one with recursive join support
-        let has_joins =
-            !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
+        quote! {
+            let model = Self::EntityType::find_by_id(id)
+                .one(db)
+                .await?;
+            let result = match model {
+                Some(model) => Self::from(model),
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+            };
+        }
+    };
 
-        if has_joins {
-            // Generate the recursive loading statements for ALL join fields (direct query loads all joins)
-            let _join_loading_statements = generate_join_loading_for_direct_query(analysis);
+    // Generate post hook call
+    let post_hook = hooks.post.as_ref().map(|fn_path| {
+        quote! { #fn_path(db, &result).await?; }
+    });
 
-            // Generate the actual recursive loading implementation
-            let recursive_loading_code = generate_recursive_loading_implementation(analysis);
-
-            quote! {
-                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
-                    use sea_orm::{EntityTrait, ModelTrait, Related};
-
-                    // Load the main entity first
-                    let main_model = Self::EntityType::find_by_id(id)
-                        .one(db)
-                        .await?;
-
-                    match main_model {
-                        Some(model) => {
-                            #recursive_loading_code
-                        }
-                        None => Err(sea_orm::DbErr::RecordNotFound("Record not found".to_string())),
-                    }
-                }
-            }
-        } else {
-            quote! {
-                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, sea_orm::DbErr> {
-                    let model = Self::EntityType::find_by_id(id)
-                        .one(db)
-                        .await?;
-                    match model {
-                        Some(model) => Ok(model.into()),
-                        None => Err(sea_orm::DbErr::RecordNotFound("Record not found".to_string())),
-                    }
-                }
-            }
+    quote! {
+        async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
+            #pre_hook
+            #body
+            #post_hook
+            Ok(result)
         }
     }
 }

@@ -1,0 +1,36 @@
+error: The `fn_create` attribute is deprecated and no longer supported.
+       Use the new hook syntax instead: `create::one::body = your_function`
+
+       Migration guide:
+       - fn_create      -> create::one::body
+       - fn_get_one     -> read::one::body
+       - fn_get_all     -> read::many::body
+       - fn_update      -> update::one::body
+       - fn_delete      -> delete::one::body
+       - fn_delete_many -> delete::many::body
+
+       New hook phases available:
+       - ::pre  - runs before the operation (validation, auth)
+       - ::body - replaces the default implementation
+       - ::post - runs after the operation (notifications, side effects)
+  --> tests/ui-fail/deprecated_fn_create.rs:15:5
+   |
+15 |     fn_create = custom_create,  // Deprecated syntax - should error
+   |     ^^^^^^^^^
+
+error[E0412]: cannot find type `TodoCreate` in this scope
+ --> tests/ui-fail/deprecated_fn_create.rs:7:57
+  |
+7 | async fn custom_create(_db: &DatabaseConnection, _data: TodoCreate) -> Result<Todo, crudcrate::ApiError> {
+  |                                                         ^^^^^^^^^^ not found in this scope
+
+error[E0412]: cannot find type `Todo` in this scope
+ --> tests/ui-fail/deprecated_fn_create.rs:7:79
+  |
+7 | async fn custom_create(_db: &DatabaseConnection, _data: TodoCreate) -> Result<Todo, crudcrate::ApiError> {
+  |                                                                               ^^^^ not found in this scope
+  |
+help: you might be missing a type parameter
+  |
+7 | async fn custom_create<Todo>(_db: &DatabaseConnection, _data: TodoCreate) -> Result<Todo, crudcrate::ApiError> {
+  |                       ++++++

@@ -4,58 +4,22 @@ use quote::{format_ident, quote};
 
 use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 
-/// Map field types to their corresponding entity paths
-pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    let unwrapped_type = field_type;
-
-    // No complex type resolution needed - use types as-written
-    let resolved_type = unwrapped_type.clone();
-
-    // Extract the target type from Vec<T> or Option<T>
-    let target_type = if let syn::Type::Path(type_path) = &resolved_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Vec" {
-                // Vec<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else if segment.ident == "Option" {
-                // Option<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                // T (direct type)
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
+/// Map field types to their corresponding entity or model paths
+/// This function replaces both `get_entity_path_from_field_type` and `get_model_path_from_field_type`
+pub fn get_path_from_field_type(field_type: &syn::Type, target_suffix: &str) -> proc_macro2::TokenStream {
+    // Extract the target type from Vec<T> or Option<T> using canonical helpers
+    let target_type = extract_vec_inner_type_ref(field_type);
+    let target_type = extract_option_inner_type_ref(target_type);
 
     // Handle fully qualified paths like crate::path::to::module::StructName
     if let syn::Type::Path(type_path) = target_type {
         if type_path.path.segments.len() > 1 {
             // For paths like crate::path::to::module::StructName
-            // Convert to crate::sites::replicates::db::Entity
+            // Convert to crate::sites::replicates::db::{Entity|Model}
             let mut path_segments = type_path.path.segments.clone();
             if let Some(last_segment) = path_segments.last_mut() {
-                // Replace the last segment (e.g., StructName) with Entity
-                last_segment.ident = syn::Ident::new("Entity", last_segment.ident.span());
+                // Replace the last segment (e.g., StructName) with target
+                last_segment.ident = syn::Ident::new(target_suffix, last_segment.ident.span());
                 let modified_path = syn::Path {
                     leading_colon: type_path.path.leading_colon,
                     segments: path_segments,
@@ -63,7 +27,7 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
                 return quote! { #modified_path };
             }
         } else if let Some(segment) = type_path.path.segments.last() {
-            // Fallback: Convert TypeName to snake_case for simple paths
+            // Fallback: Convert TypeName to snake_case::{Entity|Model} for simple paths
             // Handle API struct aliases by stripping common suffixes
             let type_name = segment.ident.to_string();
             let base_name = if type_name.ends_with("API") {
@@ -73,153 +37,47 @@ pub fn get_entity_path_from_field_type(field_type: &syn::Type) -> proc_macro2::T
                 &type_name
             };
             let entity_name = base_name.to_case(Case::Snake);
-            let entity_path = format_ident!("{}", entity_name);
-            return quote! { super::#entity_path::Entity };
+            let path_name = format_ident!("{}", entity_name);
+            let target_ident = syn::Ident::new(target_suffix, proc_macro2::Span::call_site());
+            return quote! { super::#path_name::#target_ident };
         }
     }
 
-    quote! { Entity } // Fallback
-}
-
-/// Map field types to their corresponding model paths
-pub fn get_model_path_from_field_type(field_type: &syn::Type) -> proc_macro2::TokenStream {
-    let unwrapped_type = field_type;
-
-    // No complex type resolution needed - use types as-written
-    let resolved_type = unwrapped_type.clone();
-
-    // Extract the target type from Vec<T> or Option<T>
-    let target_type = if let syn::Type::Path(type_path) = &resolved_type {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Vec" {
-                // Vec<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else if segment.ident == "Option" {
-                // Option<T> - extract T
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
-                        inner_ty
-                    } else {
-                        field_type
-                    }
-                } else {
-                    field_type
-                }
-            } else {
-                // T (direct type)
-                field_type
-            }
-        } else {
-            field_type
-        }
-    } else {
-        field_type
-    };
-
-    // Handle fully qualified paths like crate::path::to::module::StructName
-    if let syn::Type::Path(type_path) = target_type {
-        if type_path.path.segments.len() > 1 {
-            // For paths like crate::path::to::module::StructName
-            // Convert to crate::sites::replicates::db::Model
-            let mut path_segments = type_path.path.segments.clone();
-            if let Some(last_segment) = path_segments.last_mut() {
-                // Replace the last segment (e.g., StructName) with Model
-                last_segment.ident = syn::Ident::new("Model", last_segment.ident.span());
-                let modified_path = syn::Path {
-                    leading_colon: type_path.path.leading_colon,
-                    segments: path_segments,
-                };
-                return quote! { #modified_path };
-            }
-        } else if let Some(segment) = type_path.path.segments.last() {
-            // Fallback: Convert TypeName to snake_case::Model for simple paths
-            // Handle API struct aliases by stripping common suffixes
-            let type_name = segment.ident.to_string();
-            let base_name = if type_name.ends_with("API") {
-                // Convert ModuleAPI → Module
-                type_name.strip_suffix("API").unwrap_or(&type_name)
-            } else {
-                &type_name
-            };
-            let entity_name = base_name.to_case(Case::Snake);
-            let model_path = format_ident!("{}", entity_name);
-            return quote! { super::#model_path::Model };
-        }
-    }
-
-    quote! { Model } // Fallback
+    let target_ident = syn::Ident::new(target_suffix, proc_macro2::Span::call_site());
+    quote! { #target_ident } // Fallback
 }
 
 /// Extract the API struct type for recursive `get_one()` calls from field types
+/// Recursively unwraps Vec/Option wrappers and handles Join type aliases
 pub fn extract_api_struct_type_for_recursive_call(
     field_type: &syn::Type,
 ) -> proc_macro2::TokenStream {
-    fn extract_inner_type_from_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-        if let syn::Type::Path(type_path) = ty
-            && let Some(segment) = type_path.path.segments.last()
-            && (segment.ident == "Vec" || segment.ident == "Option")
-            && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-            && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-        {
-            return extract_inner_type_from_type(inner_ty);
-        }
-        if let syn::Type::Path(_type_path) = ty {}
+    // Recursively unwrap Vec and Option wrappers using canonical helpers
+    let mut current_type = field_type;
+    loop {
+        let unwrapped_vec = extract_vec_inner_type_ref(current_type);
+        let unwrapped_option = extract_option_inner_type_ref(unwrapped_vec);
 
-        quote! { #ty } // Fallback: return the type as-is
+        // If no more unwrapping happened, we've reached the inner type
+        if std::ptr::eq(unwrapped_option, current_type) {
+            break;
+        }
+        current_type = unwrapped_option;
     }
 
-    // No complex type resolution needed - use types as-written
-    let resolved_type = field_type.clone();
-
-    // Now extract the inner type from the resolved type
-    if let syn::Type::Path(type_path) = &resolved_type
+    // Handle type aliases that end with "Join" (ModuleJoin -> Module)
+    if let syn::Type::Path(type_path) = current_type
         && let Some(segment) = type_path.path.segments.last()
     {
         let type_name = segment.ident.to_string();
-
-        if (segment.ident == "Vec" || segment.ident == "Option")
-            && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-            && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-        {
-            let inner_type = extract_inner_type_from_type(inner_ty);
-
-            return inner_type;
-        }
-
-        // Handle type aliases that end with "Join" (ModuleJoin -> Module)
-        // This handles cases where the type alias wasn't resolved to Vec<T> properly
         if type_name.ends_with("Join") {
             let base_name = type_name.strip_suffix("Join").unwrap_or(&type_name);
-            let api_struct_name = base_name; // Most API structs have the same name as the entity
-            return quote! { #api_struct_name };
+            return quote! { #base_name };
         }
-
-        // For direct types, use them as-is
-        return quote! { #resolved_type };
     }
 
-    // Fallback: extract inner type from the original field type directly
-    extract_inner_type_from_type(field_type)
-}
-
-pub fn extract_vec_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
-    if let syn::Type::Path(type_path) = ty
-        && let Some(segment) = type_path.path.segments.last()
-        && segment.ident == "Vec"
-        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-    {
-        return quote! { #inner_ty };
-    }
-    quote! { () } // Fallback
+    // Return the fully unwrapped type
+    quote! { #current_type }
 }
 
 pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
@@ -243,9 +101,38 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
     false
 }
 
+/// Extract inner type from Vec<T>, or return the type itself if not a Vec
+/// This is the canonical implementation used across the codebase
+/// Returns a reference to the inner `syn::Type`
+pub fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Vec"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        return inner_ty;
+    }
+    ty
+}
+
+/// Extract inner type from Option<T>, or return the type itself if not an Option
+/// Returns a reference to the inner `syn::Type`
+pub fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        return inner_ty;
+    }
+    ty
+}
+
 pub fn generate_crud_type_aliases(
     api_struct_name: &syn::Ident,
-    crud_meta: &CRUDResourceMeta,
+    _crud_meta: &CRUDResourceMeta,
     active_model_path: &str,
 ) -> (
     syn::Ident,
@@ -259,17 +146,9 @@ pub fn generate_crud_type_aliases(
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
 
-    let entity_type: syn::Type = crud_meta
-        .entity_type
-        .as_ref()
-        .and_then(|s| syn::parse_str(s).ok())
-        .unwrap_or_else(|| syn::parse_quote!(Entity));
-
-    let column_type: syn::Type = crud_meta
-        .column_type
-        .as_ref()
-        .and_then(|s| syn::parse_str(s).ok())
-        .unwrap_or_else(|| syn::parse_quote!(Column));
+    // Sea-ORM always uses Entity and Column - these are not configurable
+    let entity_type: syn::Type = syn::parse_quote!(Entity);
+    let column_type: syn::Type = syn::parse_quote!(Column);
 
     let active_model_type: syn::Type =
         syn::parse_str(active_model_path).unwrap_or_else(|_| syn::parse_quote!(ActiveModel));
@@ -319,18 +198,6 @@ pub fn generate_like_filterable_entries(fields: &[&syn::Field]) -> Vec<proc_macr
             } else {
                 None
             }
-        })
-        .collect()
-}
-
-pub fn generate_fulltext_field_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_str = ident_to_string(field_name);
-            let column_name = format_ident!("{}", field_str.to_pascal_case());
-            quote! { (#field_str, Self::ColumnType::#column_name) }
         })
         .collect()
 }

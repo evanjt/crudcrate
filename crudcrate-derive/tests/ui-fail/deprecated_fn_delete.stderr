@@ -1,0 +1,19 @@
+error: The `fn_delete` attribute is deprecated and no longer supported.
+       Use the new hook syntax instead: `delete::one::body = your_function`
+
+       Migration guide:
+       - fn_create      -> create::one::body
+       - fn_get_one     -> read::one::body
+       - fn_get_all     -> read::many::body
+       - fn_update      -> update::one::body
+       - fn_delete      -> delete::one::body
+       - fn_delete_many -> delete::many::body
+
+       New hook phases available:
+       - ::pre  - runs before the operation (validation, auth)
+       - ::body - replaces the default implementation
+       - ::post - runs after the operation (notifications, side effects)
+  --> tests/ui-fail/deprecated_fn_delete.rs:15:5
+   |
+15 |     fn_delete = custom_delete,  // Deprecated syntax - should error
+   |     ^^^^^^^^^

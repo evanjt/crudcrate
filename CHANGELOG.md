@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Harden search queries with proper wildcard escaping
+- Improve input sanitization in filtering and pagination
+- Add pagination limits to prevent excessive queries
+
+### Added
+
+- **Hook System**: Attribute-based customization with `{operation}::{cardinality}::{phase}` syntax
+  - Operations: `create`, `read`, `update`, `delete`
+  - Cardinality: `one` (single), `many` (batch)
+  - Phases: `pre`, `body`, `post`
+  - Example: `#[crudcrate(create::one::pre = validate_fn)]`
+- Batch operations: `create_many` and `update_many` with hook support
+- **`ApiError` error type**: Consistent error handling with separate internal/client messages (fixes #3)
+  - `impl From<DbErr>` for seamless Sea-ORM integration with automatic internal logging
+  - Internal errors logged via `tracing`, generic message sent to client
+  - Custom errors: `ApiError::custom(StatusCode::IM_A_TEAPOT, "client msg", Some("internal log"))`
+  - Variants: `NotFound`, `BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `ValidationFailed`, `Database`, `Internal`, `Custom`
+- Lifecycle hooks in `CRUDOperations` trait
+- Improved test coverage across modules
+
+### Changed
+
+- Major codebase refactoring (38% size reduction)
+  - Removed `index_analysis` module
+  - Simplified `relation_validator.rs`
+  - Consolidated join/recursion handling
+  - Modular `codegen/` structure
+- Handler code generation refactored for hook flow
+- Replace `eprintln!` with `tracing` for logging
+- Legacy `fn_*` attributes auto-map to new hook syntax
+
+### Fixed
+
+- Improved error handling in join path parsing
+- Fixed flaky tests with serial execution
+- All clippy::pedantic warnings resolved
+
+### Removed
+
+- **`index_analysis` module**: Database index recommendations moved to external tooling (pgAdmin, MySQL Workbench, etc.)
+- **`register_crud_analyser!` macro**: No longer needed without index analysis
+- **`attributes.rs`**: Dead code (IDE autocomplete hints only, never used at runtime)
+- **`join_strategies/` module**: Consolidated into `codegen/joins/`
+- **`field_analyzer.rs`**: Reorganized into `fields/` module
+- **Redundant examples**: `minimal_debug.rs`, `minimal_spring.rs`, `test_router_only.rs`
+- **Verbose documentation**: ~400 lines of excessive doc comments trimmed
+
+### Dependencies
+
+- Added `serial_test = "3.2"` for test isolation
+- Added `tracing` for structured logging
+
 ## [0.6.1] - 2025-11-03
 
 ### Fixed

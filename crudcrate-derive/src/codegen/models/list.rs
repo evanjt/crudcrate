@@ -1,6 +1,10 @@
-use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_bool, get_crudcrate_expr};
-use crate::codegen::join_strategies::get_join_config;
-use crate::field_analyzer::{field_is_optional, resolve_target_models_with_list};
+use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
+use crate::codegen::joins::get_join_config;
+use crate::codegen::models::shared::{
+    generate_target_model_conversion, resolve_field_type_with_target_models,
+};
+use crate::codegen::models::should_include_in_model;
+use crate::fields::field_is_optional;
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::{ToTokens, quote};
 
@@ -9,48 +13,14 @@ pub(crate) fn generate_list_struct_fields(
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
-        .filter(|field| {
-            let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-            // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
-            let is_join_one_only = if let Some(join_config) = get_join_config(field) {
-                !join_config.on_all // Exclude if NOT loading in get_all (on_all = false)
-            } else {
-                false
-            };
-            include_in_list && !is_join_one_only
-        })
+        .filter(|field| should_include_in_model(field, "list_model"))
         .map(|field| {
             let ident = &field.ident;
             let ty = &field.ty;
 
-            // Check if this field uses target models
-            let final_ty = if field_has_crudcrate_flag(field, "use_target_models") {
-                if let Some((_, _, list_model)) = resolve_target_models_with_list(ty) {
-                    // Replace the type with the target's List model
-                    if let syn::Type::Path(type_path) = ty {
-                        if let Some(last_seg) = type_path.path.segments.last() {
-                            if last_seg.ident == "Vec" {
-                                // Vec<Treatment> -> Vec<TreatmentList>
-                                quote! { Vec<#list_model> }
-                            } else {
-                                // Treatment -> TreatmentList
-                                quote! { #list_model }
-                            }
-                        } else {
-                            quote! { #ty }
-                        }
-                    } else {
-                        quote! { #ty }
-                    }
-                } else {
-                    quote! { #ty }
-                }
-            } else if get_join_config(field).is_some() {
-                // This ensures List models have proper API struct types, not DB Model types
-                crate::resolve_join_field_type_preserving_container(ty)
-            } else {
-                quote! { #ty }
-            };
+            // Resolve type with target models (list model)
+            let final_ty =
+                resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone());
 
             quote! {
                 pub #ident: #final_ty
@@ -64,46 +34,16 @@ pub(crate) fn generate_list_from_assignments(
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
-        .filter(|field| {
-            let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-            // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
-            let is_join_one_only = if let Some(join_config) = get_join_config(field) {
-                !join_config.on_all // Exclude if NOT loading in get_all (on_all = false)
-            } else {
-                false
-            };
-            include_in_list && !is_join_one_only
-        })
+        .filter(|field| should_include_in_model(field, "list_model"))
         .map(|field| {
             let ident = &field.ident;
-            let ty = &field.ty;
 
-            // Check if this field uses target models
-            if field_has_crudcrate_flag(field, "use_target_models") {
-                if let Some((_, _, _)) = resolve_target_models_with_list(ty) {
-                    // For Vec<T>, convert each item using From trait
-                    if let syn::Type::Path(type_path) = ty
-                        && let Some(last_seg) = type_path.path.segments.last()
-                        && last_seg.ident == "Vec"
-                    {
-                        return quote! {
-                            #ident: model.#ident.into_iter().map(Into::into).collect()
-                        };
-                    }
-                    // For single item, use direct conversion
-                    quote! {
-                        #ident: model.#ident.into()
-                    }
-                } else {
-                    quote! {
-                        #ident: model.#ident
-                    }
-                }
-            } else {
+            // Try to generate target model conversion, fallback to direct assignment
+            generate_target_model_conversion(field, ident.as_ref()).unwrap_or_else(|| {
                 quote! {
                     #ident: model.#ident
                 }
-            }
+            })
         })
         .collect()
 }
@@ -119,25 +59,9 @@ pub(crate) fn generate_list_from_model_assignments(
 
         if get_crudcrate_bool(field, "list_model").unwrap_or(true) {
             // Field is included in ListModel - use actual data from Model
-            if field_has_crudcrate_flag(field, "use_target_models") {
-                let field_type = &field.ty;
-                if let Some((_, _, list_type)) = resolve_target_models_with_list(field_type) {
-                    // For Vec<T>, convert each item using From trait to ListModel
-                    if let syn::Type::Path(type_path) = field_type
-                        && let Some(last_seg) = type_path.path.segments.last()
-                        && last_seg.ident == "Vec"
-                    {
-                        assignments.push(quote! {
-                                    #field_name: model.#field_name.into_iter().map(|item| #list_type::from(item)).collect()
-                                });
-                        continue;
-                    }
-                    // For single item, use direct conversion to ListModel
-                    assignments.push(quote! {
-                        #field_name: #list_type::from(model.#field_name)
-                    });
-                    continue;
-                }
+            if let Some(conversion) = generate_target_model_conversion(field, field_name.as_ref()) {
+                assignments.push(conversion);
+                continue;
             }
 
             // Handle DateTime conversion for Model -> ListModel

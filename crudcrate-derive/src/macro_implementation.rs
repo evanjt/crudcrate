@@ -2,7 +2,7 @@ use crate::codegen::{
     handlers::{create, delete, get, update},
     type_resolution::{
         generate_crud_type_aliases, generate_enum_field_checker, generate_field_entries,
-        generate_fulltext_field_entries, generate_id_column, generate_like_filterable_entries,
+        generate_id_column, generate_like_filterable_entries,
     },
 };
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
@@ -28,36 +28,19 @@ pub(crate) fn generate_crud_resource_impl(
     let sortable_entries = generate_field_entries(&analysis.sortable_fields);
     let filterable_entries = generate_field_entries(&analysis.filterable_fields);
     let like_filterable_entries = generate_like_filterable_entries(&analysis.filterable_fields);
-    let fulltext_entries = generate_fulltext_field_entries(&analysis.fulltext_fields);
+    let fulltext_entries = generate_field_entries(&analysis.fulltext_fields);
     let enum_field_checker = generate_enum_field_checker(&analysis.db_fields);
     let name_singular = crud_meta.name_singular.as_deref().unwrap_or("resource");
     let description = crud_meta.description.as_deref().unwrap_or("");
     let fulltext_language = crud_meta.fulltext_language.as_deref().unwrap_or("english");
 
-    let (get_one_impl, get_all_impl, create_impl, update_impl, delete_impl, delete_many_impl) =
+    let (get_one_impl, get_all_impl, create_impl, create_many_impl, update_impl, update_many_impl, delete_impl, delete_many_impl) =
         generate_method_impls(crud_meta, analysis);
 
     // Generate registration lazy static and auto-registration call only for models without join fields
     // Models with join fields may have circular dependencies that prevent CRUDResource compilation
-    let has_join_fields =
+    let _has_join_fields =
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
-
-    let (registration_static, auto_register_call) = if has_join_fields {
-        // Skip registration for models with join fields to avoid circular dependency issues
-        (quote! {}, quote! {})
-    } else {
-        (
-            quote! {
-                // Lazy static that ensures registration happens on first trait usage
-                static __REGISTER_LAZY: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-                    crudcrate::register_analyser::<#api_struct_name>();
-                });
-            },
-            quote! {
-                std::sync::LazyLock::force(&__REGISTER_LAZY);
-            },
-        )
-    };
 
     // Generate resource name plural constant
     let resource_name_plural_impl = {
@@ -68,8 +51,6 @@ pub(crate) fn generate_crud_resource_impl(
     };
 
     quote! {
-        #registration_static
-
         #[async_trait::async_trait]
         impl crudcrate::CRUDResource for #api_struct_name {
             type EntityType = #entity_type;
@@ -87,12 +68,10 @@ pub(crate) fn generate_crud_resource_impl(
             const FULLTEXT_LANGUAGE: &'static str = #fulltext_language;
 
             fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-                #auto_register_call
                 vec![#(#sortable_entries),*]
             }
 
             fn filterable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-                #auto_register_call
                 vec![#(#filterable_entries),*]
             }
 
@@ -105,14 +84,15 @@ pub(crate) fn generate_crud_resource_impl(
             }
 
             fn fulltext_searchable_columns() -> Vec<(&'static str, Self::ColumnType)> {
-                #auto_register_call
                 vec![#(#fulltext_entries),*]
             }
 
             #get_one_impl
             #get_all_impl
             #create_impl
+            #create_many_impl
             #update_impl
+            #update_many_impl
             #delete_impl
             #delete_many_impl
         }
@@ -130,11 +110,15 @@ fn generate_method_impls(
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
     proc_macro2::TokenStream,
+    proc_macro2::TokenStream,
+    proc_macro2::TokenStream,
 ) {
     let get_one_impl = get::generate_get_one_impl(crud_meta, analysis);
     let get_all_impl = get::generate_get_all_impl(crud_meta, analysis);
-    let create_impl = create::generate_create_impl(crud_meta, analysis);
-    let update_impl = update::generate_update_impl(crud_meta, analysis);
+    let create_impl = create::generate_create_impl(crud_meta);
+    let create_many_impl = create::generate_create_many_impl(crud_meta);
+    let update_impl = update::generate_update_impl(crud_meta);
+    let update_many_impl = update::generate_update_many_impl(crud_meta);
     let delete_impl = delete::generate_delete_impl(crud_meta);
     let delete_many_impl = delete::generate_delete_many_impl(crud_meta);
 
@@ -142,7 +126,9 @@ fn generate_method_impls(
         get_one_impl,
         get_all_impl,
         create_impl,
+        create_many_impl,
         update_impl,
+        update_many_impl,
         delete_impl,
         delete_many_impl,
     )
