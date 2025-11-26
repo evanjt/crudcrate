@@ -96,7 +96,7 @@ pub(crate) fn generate_list_from_model_assignments(
 
         let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
         // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
-        let is_join_one_only = if let Some(join_config) = get_join_config(field) {
+        let is_join_one_only = if let Some(join_config) = get_join_config(field).config {
             !join_config.on_all // Exclude if NOT loading in get_all (on_all = false)
         } else {
             false

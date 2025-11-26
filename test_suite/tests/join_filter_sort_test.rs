@@ -106,13 +106,11 @@ pub mod customer {
         #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
         pub created_at: DateTime<Utc>,
 
-        /// Vehicles relationship - with join_filterable and join_sortable
+        /// Vehicles relationship - with filterable and sortable inside join()
         #[sea_orm(ignore)]
         #[crudcrate(
             non_db_attr,
-            join(one, all, depth = 1),
-            join_filterable("make", "year", "color"),
-            join_sortable("year", "mileage")
+            join(one, all, depth = 1, filterable("make", "year", "color"), sortable("year", "mileage"))
         )]
         pub vehicles: Vec<super::vehicle::Vehicle>,
     }

@@ -275,7 +275,7 @@ CRUDCrate supports filtering on columns from related entities using dot-notation
 
 ### Enabling Join Filtering
 
-Use the `join_filterable` attribute to specify which columns from a related entity can be used for filtering:
+Use the `filterable(...)` parameter inside `join(...)` to specify which columns from a related entity can be used for filtering:
 
 ```rust
 #[derive(EntityToModels)]
@@ -291,8 +291,7 @@ pub struct Model {
     #[sea_orm(ignore)]
     #[crudcrate(
         non_db_attr,
-        join(one, all, depth = 1),
-        join_filterable("make", "year", "color")
+        join(one, all, depth = 1, filterable("make", "year", "color"))
     )]
     pub vehicles: Vec<Vehicle>,
 }
@@ -331,19 +330,19 @@ All standard operators work with dot-notation:
 
 ### Security (Whitelist Validation)
 
-Only columns explicitly listed in `join_filterable` can be filtered:
+Only columns explicitly listed in `filterable(...)` can be filtered:
 
 ```rust
 // Only make, year, and color can be filtered
-#[crudcrate(join_filterable("make", "year", "color"))]
+#[crudcrate(join(one, all, filterable("make", "year", "color")))]
 pub vehicles: Vec<Vehicle>,
 ```
 
 ```bash
-# ✅ Allowed - year is in join_filterable
+# ✅ Allowed - year is in filterable
 GET /customers?filter={"vehicles.year":2020}
 
-# ❌ Ignored - model is NOT in join_filterable
+# ❌ Ignored - model is NOT in filterable
 GET /customers?filter={"vehicles.model":"Civic"}
 
 # ❌ Ignored - invalid join field

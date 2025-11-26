@@ -224,7 +224,10 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(e) => return e,
     };
-    let field_analysis = fields::analyze_entity_fields(fields);
+    let field_analysis = match fields::analyze_entity_fields(fields) {
+        Ok(a) => a,
+        Err(e) => return e,
+    };
     if let Err(e) = fields::validate_field_analysis(&field_analysis) {
         return e;
     }

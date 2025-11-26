@@ -14,13 +14,41 @@ pub struct JoinConfig {
     pub sortable_columns: Vec<String>,
 }
 
+/// Result of parsing join config - may contain deprecation errors
+pub struct JoinConfigResult {
+    pub config: Option<JoinConfig>,
+    pub errors: Vec<syn::Error>,
+}
+
+impl JoinConfigResult {
+    /// Returns true if a join config was found (regardless of errors)
+    pub fn is_some(&self) -> bool {
+        self.config.is_some()
+    }
+
+    /// Check if join config exists and satisfies a predicate
+    pub fn is_some_and<F: FnOnce(&JoinConfig) -> bool>(&self, f: F) -> bool {
+        self.config.as_ref().is_some_and(f)
+    }
+
+    /// Unwrap the config or return default
+    pub fn unwrap_or_default(self) -> JoinConfig {
+        self.config.unwrap_or_default()
+    }
+}
+
 /// Parses join configuration from a field's crudcrate attributes.
 /// Looks for `#[crudcrate(join(...))]` syntax and extracts join parameters.
-/// Also looks for `join_filterable(...)` and `join_sortable(...)` at the same level.
-pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
+///
+/// New syntax (supported):
+///   `join(one, all, depth = 1, filterable("make", "year"), sortable("year"))`
+///
+/// Old syntax (emits compile error with migration instructions):
+///   `join_filterable("make", "year")` - use `filterable(...)` inside `join()` instead
+///   `join_sortable("year")` - use `sortable(...)` inside `join()` instead
+pub(crate) fn get_join_config(field: &syn::Field) -> JoinConfigResult {
     let mut config: Option<JoinConfig> = None;
-    let mut filterable_columns: Vec<String> = Vec::new();
-    let mut sortable_columns: Vec<String> = Vec::new();
+    let mut errors: Vec<syn::Error> = Vec::new();
 
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate")
@@ -34,10 +62,18 @@ pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
                         config = parse_join_parameters(list_meta);
                     }
                     Meta::List(list_meta) if list_meta.path.is_ident("join_filterable") => {
-                        filterable_columns = parse_string_list(list_meta);
+                        errors.push(create_join_attr_deprecation_error(
+                            "join_filterable",
+                            "filterable",
+                            list_meta,
+                        ));
                     }
                     Meta::List(list_meta) if list_meta.path.is_ident("join_sortable") => {
-                        sortable_columns = parse_string_list(list_meta);
+                        errors.push(create_join_attr_deprecation_error(
+                            "join_sortable",
+                            "sortable",
+                            list_meta,
+                        ));
                     }
                     _ => {}
                 }
@@ -45,14 +81,36 @@ pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
         }
     }
 
-    // Merge filterable/sortable columns into config if join was found
-    if let Some(mut cfg) = config {
-        cfg.filterable_columns = filterable_columns;
-        cfg.sortable_columns = sortable_columns;
-        Some(cfg)
-    } else {
-        None
-    }
+    JoinConfigResult { config, errors }
+}
+
+/// Create an error for deprecated join_filterable/join_sortable syntax
+fn create_join_attr_deprecation_error(
+    old_attr: &str,
+    new_attr: &str,
+    meta_list: &syn::MetaList,
+) -> syn::Error {
+    let columns = parse_string_list(meta_list);
+    let columns_str = columns
+        .iter()
+        .map(|c| format!("\"{c}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    syn::Error::new_spanned(
+        meta_list,
+        format!(
+            "The `{old_attr}(...)` attribute has been removed.\n\
+             Move it inside the `join(...)` attribute as `{new_attr}(...)`.\n\
+             \n\
+             Migration:\n\
+             Before: #[crudcrate(join(one, all), {old_attr}({columns_str}))]\n\
+             After:  #[crudcrate(join(one, all, {new_attr}({columns_str})))]\n\
+             \n\
+             Example with all options:\n\
+             #[crudcrate(join(one, all, depth = 1, filterable(\"make\", \"year\"), sortable(\"year\")))]"
+        ),
+    )
 }
 
 /// Parse a list of string literals from an attribute like `join_filterable("col1", "col2")`
@@ -74,6 +132,11 @@ fn parse_string_list(meta_list: &syn::MetaList) -> Vec<String> {
 }
 
 /// Parses the parameters inside join(...) function call
+///
+/// Supports:
+/// - Flags: `one`, `all`, `on_one`, `on_all`
+/// - Named: `depth = 2`, `relation = "Name"`, `path = "crate::path"`
+/// - Nested lists: `filterable("col1", "col2")`, `sortable("col1")`
 fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
     let mut config = JoinConfig::default();
 
@@ -109,7 +172,14 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
                             }
                         }
                     }
-                    Meta::List(_) => {}
+                    // Parse nested lists: filterable("col1", "col2"), sortable("col1")
+                    Meta::List(nested_list) => {
+                        if nested_list.path.is_ident("filterable") {
+                            config.filterable_columns = parse_string_list(&nested_list);
+                        } else if nested_list.path.is_ident("sortable") {
+                            config.sortable_columns = parse_string_list(&nested_list);
+                        }
+                    }
                 }
             }
         }

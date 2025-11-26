@@ -281,7 +281,7 @@ where
     ///
     /// Define on join fields using:
     /// ```ignore
-    /// #[crudcrate(join(one, all), join_filterable("make", "year", "color"))]
+    /// #[crudcrate(join(one, all, filterable("make", "year", "color")))]
     /// pub vehicles: Vec<Vehicle>,
     /// ```
     #[must_use]
@@ -298,7 +298,7 @@ where
     ///
     /// Define on join fields using:
     /// ```ignore
-    /// #[crudcrate(join(one, all), join_sortable("year", "mileage"))]
+    /// #[crudcrate(join(one, all, sortable("year", "mileage")))]
     /// pub vehicles: Vec<Vehicle>,
     /// ```
     #[must_use]
