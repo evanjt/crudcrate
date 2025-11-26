@@ -1,12 +1,15 @@
-// Test cases for field exclusion and join loading inconsistencies
+// Test cases for field exclusion and join loading
 //
-// These tests document the current broken behavior and will serve as regression tests
-// once the issues are fixed in the crudcrate library.
+// These tests verify the correct behavior of exclude() and join() attributes.
 //
-// ISSUES IDENTIFIED:
-// 1. exclude(one) not working: created_at/updated_at appear in get_one() when they shouldn't
-// 2. join(one, all) not working: vehicles field missing from get_one() when it should appear
-// 3. Inconsistent behavior between get_all() and get_one() endpoints
+// EXPECTED BEHAVIOR:
+// - exclude(one): Field excluded from get_one() responses only
+// - exclude(list): Field excluded from get_all() (list) responses only
+// - exclude(create): Field excluded from CreateModel
+// - exclude(update): Field excluded from UpdateModel
+// - join(one): Load relationship in get_one() only
+// - join(all): Load relationship in get_all() only
+// - join(one, all): Load relationship in both endpoints
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -79,9 +82,10 @@ async fn test_exclude_one_fields_not_in_get_one_responses() {
         !created_at_present,
         "exclude(one) not working: created_at field appears in get_one() but should be excluded"
     );
+    // updated_at has exclude(list), so it SHOULD appear in get_one
     assert!(
-        !updated_at_present,
-        "exclude(all) not working: updated_at field appears in get_one() but should be excluded"
+        updated_at_present,
+        "updated_at should be present in get_one() - only excluded from list responses"
     );
 }
 
@@ -281,14 +285,14 @@ async fn test_consistency_between_get_all_and_get_one() {
         "created_at should NOT be present in get_one() response due to exclude(one)"
     );
 
-    // updated_at has exclude(all), so should NOT appear in either endpoint
+    // updated_at has exclude(list), so should NOT appear in get_all but SHOULD appear in get_one
     assert!(
         !get_all_has_updated_at,
-        "updated_at should NOT be present in get_all() response due to exclude(all)"
+        "updated_at should NOT be present in get_all() response due to exclude(list)"
     );
     assert!(
-        !get_one_has_updated_at,
-        "updated_at should NOT be present in get_one() response due to exclude(all)"
+        get_one_has_updated_at,
+        "updated_at SHOULD be present in get_one() response (only excluded from list)"
     );
 }
 
@@ -376,14 +380,15 @@ async fn test_all_field_exclusion_and_join_issues() {
         .find(|customer| customer["id"] == json!(created_customer.id.to_string()))
         .expect("Customer should be in get_all response");
 
-    // TEST 1: exclude(one) and exclude(all) fields should be absent in get_one()
+    // TEST 1: exclude(one) fields should be absent in get_one()
     assert!(
         get_one_json.get("created_at").is_none(),
         "exclude(one) not working: created_at appears in get_one()"
     );
+    // updated_at has exclude(list), so it SHOULD appear in get_one
     assert!(
-        get_one_json.get("updated_at").is_none(),
-        "exclude(all) not working: updated_at appears in get_one()"
+        get_one_json.get("updated_at").is_some(),
+        "updated_at should be present in get_one() - only excluded from list"
     );
 
     // TEST 2: join(one, all) fields should be present in both endpoints
@@ -410,16 +415,16 @@ async fn test_all_field_exclusion_and_join_issues() {
         "created_at should NOT be present in get_one() response due to exclude(one)"
     );
 
-    // updated_at has exclude(all) - should NOT appear in either endpoint
+    // updated_at has exclude(list) - should NOT appear in get_all but SHOULD appear in get_one
     let get_all_has_updated_at = get_all_customer.get("updated_at").is_some();
     let get_one_has_updated_at = get_one_json.get("updated_at").is_some();
 
     assert!(
         !get_all_has_updated_at,
-        "updated_at should NOT be present in get_all() response due to exclude(all)"
+        "updated_at should NOT be present in get_all() response due to exclude(list)"
     );
     assert!(
-        !get_one_has_updated_at,
-        "updated_at should NOT be present in get_one() response due to exclude(all)"
+        get_one_has_updated_at,
+        "updated_at SHOULD be present in get_one() response (only excluded from list)"
     );
 }

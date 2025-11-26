@@ -9,7 +9,7 @@ use tower::ServiceExt;
 mod common;
 use common::{setup_test_app, setup_test_db};
 
-use crate::common::customer::CustomerResponse;
+use crate::common::customer::{CustomerList, CustomerResponse};
 
 #[tokio::test]
 async fn test_exclude_one_get_customer() {
@@ -211,7 +211,7 @@ async fn test_exclude_list_customers() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<CustomerResponse> =
+    let customers: Vec<CustomerList> =
         serde_json::from_slice(&body).expect("Failed to parse customers list");
 
     // Find our customer in the list
@@ -422,7 +422,7 @@ async fn test_exclude_function_comprehensive() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<CustomerResponse> =
+    let customers: Vec<CustomerList> =
         serde_json::from_slice(&body).expect("Failed to parse customers list");
 
     // Find our customer in the list
@@ -499,7 +499,7 @@ async fn test_exclude_all() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<CustomerResponse> =
+    let customers: Vec<CustomerList> =
         serde_json::from_slice(&body).expect("Failed to parse customers list");
 
     // Find our customer in the list

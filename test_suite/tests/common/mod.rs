@@ -39,7 +39,7 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
 
 #[allow(dead_code)] // Used in tests
 pub fn setup_test_app(db: &DatabaseConnection) -> Router {
-    // Create a simple router that uses the generated CRUD endpoints from local models
+    // Create router with all CRUD endpoints for testing
     Router::new()
         .nest("/categories", category::Category::router(db).into())
         .nest("/customers", customer::Customer::router(db).into())

@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::models::customer::CustomerResponse;
+use common::models::customer::{CustomerList, CustomerResponse};
 use common::{setup_test_app, setup_test_db};
 
 #[tokio::test]
@@ -114,7 +114,7 @@ async fn test_customer_crud_operations() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<CustomerResponse> =
+    let customers: Vec<CustomerList> =
         serde_json::from_slice(&body).expect("Failed to parse customers list");
 
     assert!(!customers.is_empty());

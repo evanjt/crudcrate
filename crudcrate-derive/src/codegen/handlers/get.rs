@@ -11,6 +11,7 @@ use quote::quote;
 pub fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
@@ -45,7 +46,7 @@ pub fn generate_get_all_impl(
         quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
     } else if has_join_all_fields {
         // Generate get_all with join loading
-        let join_loading = generate_get_all_join_loading(analysis);
+        let join_loading = generate_get_all_join_loading(analysis, api_struct_name);
         quote! {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
 
@@ -112,6 +113,7 @@ pub fn generate_get_all_impl(
 pub fn generate_get_one_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
@@ -140,7 +142,7 @@ pub fn generate_get_one_impl(
         quote! { let result = #fn_path(db, id).await?; }
     } else if has_joins {
         // Use consolidated join loading implementation
-        let join_loading_code = generate_get_one_join_loading(analysis);
+        let join_loading_code = generate_get_one_join_loading(analysis, api_struct_name);
         quote! {
             use sea_orm::{EntityTrait, ModelTrait, Related};
 
