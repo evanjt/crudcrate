@@ -9,7 +9,7 @@ use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 /// - Legacy: `fn_delete = my_fn`
 /// - New: `create::one::pre = validate_fn`
 pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResourceMeta {
-    let mut meta = CRUDResourceMeta::default();
+    let mut meta = CRUDResourceMeta::new();
 
     for attr in attrs {
         if attr.path().is_ident("crudcrate")

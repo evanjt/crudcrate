@@ -271,4 +271,38 @@ where
     fn fulltext_searchable_columns() -> Vec<(&'static str, Self::ColumnType)> {
         vec![]
     }
+
+    /// Returns a list of filterable columns on joined/related entities.
+    ///
+    /// These columns can be filtered using dot-notation in query parameters:
+    /// ```ignore
+    /// GET /customers?filter={"vehicles.make":"BMW","vehicles.year_gte":2020}
+    /// ```
+    ///
+    /// Define on join fields using:
+    /// ```ignore
+    /// #[crudcrate(join(one, all), join_filterable("make", "year", "color"))]
+    /// pub vehicles: Vec<Vehicle>,
+    /// ```
+    #[must_use]
+    fn joined_filterable_columns() -> Vec<crate::JoinedColumnDef> {
+        vec![]
+    }
+
+    /// Returns a list of sortable columns on joined/related entities.
+    ///
+    /// These columns can be sorted using dot-notation in query parameters:
+    /// ```ignore
+    /// GET /customers?sort=["vehicles.year","DESC"]
+    /// ```
+    ///
+    /// Define on join fields using:
+    /// ```ignore
+    /// #[crudcrate(join(one, all), join_sortable("year", "mileage"))]
+    /// pub vehicles: Vec<Vehicle>,
+    /// ```
+    #[must_use]
+    fn joined_sortable_columns() -> Vec<crate::JoinedColumnDef> {
+        vec![]
+    }
 }

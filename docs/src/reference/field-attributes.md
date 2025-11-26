@@ -173,6 +173,46 @@ pub nested: Vec<Nested>,
 
 ---
 
+### `join_filterable(...)`
+
+Enable filtering on columns from related entities using dot-notation.
+
+```rust
+#[sea_orm(ignore)]
+#[crudcrate(
+    non_db_attr,
+    join(one, all),
+    join_filterable("make", "year", "color")
+)]
+pub vehicles: Vec<Vehicle>,
+```
+
+**Type:** List of column names
+**Effect:** Enables `?filter={"vehicles.make":"BMW","vehicles.year_gte":2020}`
+**Security:** Only listed columns can be filtered - unlisted columns are silently ignored
+
+---
+
+### `join_sortable(...)`
+
+Enable sorting on columns from related entities using dot-notation.
+
+```rust
+#[sea_orm(ignore)]
+#[crudcrate(
+    non_db_attr,
+    join(one, all),
+    join_sortable("year", "mileage")
+)]
+pub vehicles: Vec<Vehicle>,
+```
+
+**Type:** List of column names
+**Effect:** Enables `?sort=["vehicles.year","DESC"]`
+**Security:** Only listed columns can be sorted - unlisted columns fall back to default sort
+
+---
+
 ## Common Patterns
 
 ### Auto-Generated ID
@@ -223,6 +263,24 @@ pub author_id: Uuid,
 #[crudcrate(non_db_attr, join(one, all, depth = 1))]
 pub author: Option<User>,
 ```
+
+### Relationship with Join Filtering/Sorting
+
+```rust
+// Enable filtering and sorting on related entity columns
+#[sea_orm(ignore)]
+#[crudcrate(
+    non_db_attr,
+    join(one, all, depth = 1),
+    join_filterable("make", "year", "color"),
+    join_sortable("year", "mileage")
+)]
+pub vehicles: Vec<Vehicle>,
+```
+
+Enables queries like:
+- `?filter={"vehicles.make":"BMW"}`
+- `?sort=["vehicles.year","DESC"]`
 
 ### Computed Field (Read-Only)
 
@@ -283,6 +341,16 @@ pub struct Model {
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one))]
     pub comments: Vec<Comment>,
+
+    // Relationship with join filtering/sorting
+    #[sea_orm(ignore)]
+    #[crudcrate(
+        non_db_attr,
+        join(one, all, depth = 1),
+        join_filterable("tag_name"),
+        join_sortable("tag_name")
+    )]
+    pub tags: Vec<Tag>,
 }
 ```
 
@@ -297,8 +365,10 @@ pub struct Model {
 | `fulltext` | `filterable`, `sortable`, `exclude` |
 | `on_create` | `on_update`, `exclude(create)` |
 | `on_update` | `on_create`, `exclude(update)` |
-| `non_db_attr` | `join` (required) |
-| `join` | `non_db_attr` (required) |
+| `non_db_attr` | `join`, `join_filterable`, `join_sortable` (required) |
+| `join` | `non_db_attr` (required), `join_filterable`, `join_sortable` |
+| `join_filterable` | `non_db_attr`, `join`, `join_sortable` |
+| `join_sortable` | `non_db_attr`, `join`, `join_filterable` |
 
 ## See Also
 

@@ -130,6 +130,35 @@ pub comments: Vec<Comment>,
 
 **Default**: When not specified, recursion is limited to 5 levels for safety.
 
+### `join_filterable` and `join_sortable`
+
+Enable filtering and sorting on columns from related entities:
+
+```rust
+#[sea_orm(ignore)]
+#[crudcrate(
+    non_db_attr,
+    join(one, all, depth = 1),
+    join_filterable("make", "year", "color"),
+    join_sortable("year", "mileage")
+)]
+pub vehicles: Vec<Vehicle>,
+```
+
+This enables dot-notation queries:
+
+```bash
+# Filter by related entity columns
+GET /customers?filter={"vehicles.make":"BMW","vehicles.year_gte":2020}
+
+# Sort by related entity columns
+GET /customers?sort=["vehicles.year","DESC"]
+```
+
+Only whitelisted columns can be filtered/sorted - invalid columns are silently ignored for security.
+
+See [Filtering](./filtering.md#filtering-on-related-entities-join-filtering) and [Sorting](./sorting.md#sorting-by-related-entity-columns-join-sorting) for detailed documentation.
+
 ## Relationship Types
 
 ### Has Many (One-to-Many)

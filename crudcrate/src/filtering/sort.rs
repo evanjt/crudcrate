@@ -85,6 +85,76 @@ where
     (order_column, order_direction)
 }
 
+/// Parse sorting with support for dot-notation (joined column) sorting.
+///
+/// Returns a `SortConfig` which can be either:
+/// - `SortConfig::Column` for regular column sorting
+/// - `SortConfig::Joined` for sorting by a column on a joined entity
+///
+/// # Example
+/// ```ignore
+/// // Regular sort
+/// GET /customers?sort=["name","DESC"]
+/// // -> SortConfig::Column { column: name, direction: Desc }
+///
+/// // Joined sort
+/// GET /customers?sort=["vehicles.year","DESC"]
+/// // -> SortConfig::Joined { join_field: "vehicles", column: "year", direction: Desc }
+/// ```
+pub fn parse_sorting_with_joins<T, C>(
+    params: &crate::models::FilterOptions,
+    order_column_logic: &[(&str, C)],
+    default_column: C,
+) -> super::joined::SortConfig<C>
+where
+    T: crate::traits::CRUDResource,
+    C: ColumnTrait + Copy,
+{
+    use super::joined::SortConfig;
+
+    let (sort_column, sort_order) = if let Some(sort_by) = &params.sort_by {
+        (sort_by.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
+    } else if let Some(sort) = &params.sort {
+        if sort.starts_with('[') {
+            parse_json_sort(sort)
+        } else {
+            (sort.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
+        }
+    } else {
+        (DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string())
+    };
+
+    let order_direction = parse_order(&sort_order);
+
+    // Check if this is a dot-notation sort (e.g., "vehicles.year")
+    if sort_column.contains('.') {
+        let parts: Vec<&str> = sort_column.splitn(2, '.').collect();
+        if parts.len() == 2 {
+            let join_field = parts[0];
+            let column = parts[1];
+
+            // Validate against allowed joined sortable columns
+            let joined_sortable = T::joined_sortable_columns();
+            let is_allowed = joined_sortable.iter().any(|c| c.full_path == sort_column);
+
+            if is_allowed {
+                return SortConfig::Joined {
+                    join_field: join_field.to_string(),
+                    column: column.to_string(),
+                    direction: order_direction,
+                };
+            }
+        }
+    }
+
+    // Regular column sort
+    let order_column = find_column(&sort_column, order_column_logic, default_column);
+    SortConfig::Column {
+        column: order_column,
+        direction: order_direction,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

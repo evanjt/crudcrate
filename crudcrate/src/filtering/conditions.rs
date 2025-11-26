@@ -347,6 +347,106 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     }
 }
 
+/// Parse filters with support for dot-notation filtering on joined entities.
+///
+/// This function separates filters into:
+/// - Main entity filters (applied to the primary table)
+/// - Joined entity filters (applied after joining related tables)
+///
+/// # Example
+/// ```ignore
+/// // Input: filter={"name":"John","vehicles.make":"BMW","vehicles.year_gte":2020}
+/// // Output:
+/// //   main_condition: name = 'John'
+/// //   joined_filters: [vehicles.make = 'BMW', vehicles.year >= 2020]
+/// ```
+pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
+    filter_str: Option<String>,
+    searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
+    backend: DatabaseBackend,
+) -> super::joined::ParsedFilters {
+    use super::joined::{JoinedFilter, ParsedFilters, parse_dot_notation};
+
+    let filters = parse_filter_json(filter_str);
+    let mut result = ParsedFilters::default();
+
+    // Get allowed joined columns for validation
+    let joined_filterable = T::joined_filterable_columns();
+
+    // Handle fulltext search (always goes to main condition)
+    if let Some(fulltext_condition) = handle_fulltext_search::<T>(&filters, searchable_columns, backend) {
+        result.main_condition = result.main_condition.add(fulltext_condition);
+    }
+
+    // Process other filters
+    for (key, value) in &filters {
+        if key == "q" {
+            continue; // Skip fulltext search, already handled
+        }
+
+        // Check if this is a dot-notation filter (e.g., "vehicles.make")
+        if let Some((join_field, column, operator)) = parse_dot_notation(key) {
+            // Validate against allowed joined columns
+            let full_path_for_check = format!("{}.{}", join_field, column);
+            let is_allowed = joined_filterable.iter().any(|c| c.full_path == full_path_for_check);
+
+            if is_allowed {
+                result.joined_filters.push(JoinedFilter {
+                    join_field,
+                    column,
+                    operator,
+                    value: value.clone(),
+                });
+                result.has_joined_filters = true;
+            }
+            // Skip invalid joined filters silently (security: don't expose schema)
+            continue;
+        }
+
+        // Regular filter - validate field name and apply to main condition
+        if !is_valid_field_name(key) {
+            continue;
+        }
+
+        // Parse comparison operator to get base field name
+        let (base_field, _operator) = parse_comparison_operator(key).unwrap_or((key, "="));
+
+        // Find the column in searchable columns using the BASE field name
+        let column_opt = searchable_columns
+            .iter()
+            .find(|(col_name, _)| *col_name == base_field)
+            .map(|(_, col)| col);
+
+        if let Some(column) = column_opt {
+            // Handle different value types (same as apply_filters)
+            let filter_condition = match value {
+                serde_json::Value::String(string_value) => {
+                    process_string_filter::<T>(key, string_value, *column, backend)
+                }
+                serde_json::Value::Number(number) => {
+                    process_number_filter(key, number, *column, searchable_columns)
+                }
+                serde_json::Value::Bool(bool_value) => {
+                    Some(Expr::col(*column).eq(*bool_value))
+                }
+                serde_json::Value::Array(array_values) => {
+                    process_array_filter(array_values, *column)
+                }
+                serde_json::Value::Null => {
+                    Some(Expr::col(*column).is_null())
+                }
+                serde_json::Value::Object(_) => None,
+            };
+
+            if let Some(filter_expr) = filter_condition {
+                result.main_condition = result.main_condition.add(filter_expr);
+            }
+        }
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -141,6 +141,7 @@ mod tests {
             fulltext_fields: vec![],
             join_on_one_fields: vec![],
             join_on_all_fields: vec![],
+            join_filter_sort_configs: vec![],
         };
         let result = generate_cyclic_dependency_check(&analysis, "TestEntity");
         assert!(result.is_empty());

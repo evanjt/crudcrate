@@ -8,11 +8,20 @@ pub struct JoinConfig {
     pub depth: Option<u8>,
     pub relation: Option<String>,
     pub path: Option<String>,
+    /// Columns on the joined entity that can be filtered via dot-notation (e.g., "vehicles.make")
+    pub filterable_columns: Vec<String>,
+    /// Columns on the joined entity that can be sorted via dot-notation (e.g., "vehicles.year")
+    pub sortable_columns: Vec<String>,
 }
 
 /// Parses join configuration from a field's crudcrate attributes.
 /// Looks for `#[crudcrate(join(...))]` syntax and extracts join parameters.
+/// Also looks for `join_filterable(...)` and `join_sortable(...)` at the same level.
 pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
+    let mut config: Option<JoinConfig> = None;
+    let mut filterable_columns: Vec<String> = Vec::new();
+    let mut sortable_columns: Vec<String> = Vec::new();
+
     for attr in &field.attrs {
         if attr.path().is_ident("crudcrate")
             && let Meta::List(meta_list) = &attr.meta
@@ -20,15 +29,48 @@ pub(crate) fn get_join_config(field: &syn::Field) -> Option<JoinConfig> {
                 Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
         {
             for meta in metas {
-                if let Meta::List(list_meta) = meta
-                    && list_meta.path.is_ident("join")
-                {
-                    return parse_join_parameters(&list_meta);
+                match &meta {
+                    Meta::List(list_meta) if list_meta.path.is_ident("join") => {
+                        config = parse_join_parameters(list_meta);
+                    }
+                    Meta::List(list_meta) if list_meta.path.is_ident("join_filterable") => {
+                        filterable_columns = parse_string_list(list_meta);
+                    }
+                    Meta::List(list_meta) if list_meta.path.is_ident("join_sortable") => {
+                        sortable_columns = parse_string_list(list_meta);
+                    }
+                    _ => {}
                 }
             }
         }
     }
-    None
+
+    // Merge filterable/sortable columns into config if join was found
+    if let Some(mut cfg) = config {
+        cfg.filterable_columns = filterable_columns;
+        cfg.sortable_columns = sortable_columns;
+        Some(cfg)
+    } else {
+        None
+    }
+}
+
+/// Parse a list of string literals from an attribute like `join_filterable("col1", "col2")`
+fn parse_string_list(meta_list: &syn::MetaList) -> Vec<String> {
+    let mut result = Vec::new();
+
+    // Try to parse the tokens as a list of expressions (string literals)
+    if let Ok(exprs) = Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+        for expr in exprs {
+            if let syn::Expr::Lit(expr_lit) = expr {
+                if let Lit::Str(lit_str) = expr_lit.lit {
+                    result.push(lit_str.value());
+                }
+            }
+        }
+    }
+
+    result
 }
 
 /// Parses the parameters inside join(...) function call

@@ -269,6 +269,110 @@ Complex filters can impact performance. Consider:
 3. **Caching**: Cache common filter results
 4. **Limits**: Set maximum result limits
 
+## Filtering on Related Entities (Join Filtering)
+
+CRUDCrate supports filtering on columns from related entities using dot-notation syntax. This lets you filter parent entities based on properties of their children.
+
+### Enabling Join Filtering
+
+Use the `join_filterable` attribute to specify which columns from a related entity can be used for filtering:
+
+```rust
+#[derive(EntityToModels)]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    #[crudcrate(primary_key)]
+    pub id: Uuid,
+
+    #[crudcrate(filterable, sortable)]
+    pub name: String,
+
+    // Vehicles relationship with filterable columns
+    #[sea_orm(ignore)]
+    #[crudcrate(
+        non_db_attr,
+        join(one, all, depth = 1),
+        join_filterable("make", "year", "color")
+    )]
+    pub vehicles: Vec<Vehicle>,
+}
+```
+
+### Dot-Notation Syntax
+
+Filter using `relation.column` format:
+
+```bash
+# Filter customers by vehicle make
+GET /customers?filter={"vehicles.make":"BMW"}
+
+# Filter with comparison operators
+GET /customers?filter={"vehicles.year_gte":2020}
+
+# Multiple join filters
+GET /customers?filter={"vehicles.make":"Toyota","vehicles.year_gte":2018}
+
+# Combine with main entity filters
+GET /customers?filter={"name":"John","vehicles.color":"Black"}
+```
+
+### Supported Operators
+
+All standard operators work with dot-notation:
+
+| Operator | Example |
+|----------|---------|
+| (none) | `{"vehicles.make":"BMW"}` |
+| `_neq` | `{"vehicles.color_neq":"Red"}` |
+| `_gt` | `{"vehicles.year_gt":2019}` |
+| `_gte` | `{"vehicles.year_gte":2020}` |
+| `_lt` | `{"vehicles.mileage_lt":50000}` |
+| `_lte` | `{"vehicles.mileage_lte":100000}` |
+
+### Security (Whitelist Validation)
+
+Only columns explicitly listed in `join_filterable` can be filtered:
+
+```rust
+// Only make, year, and color can be filtered
+#[crudcrate(join_filterable("make", "year", "color"))]
+pub vehicles: Vec<Vehicle>,
+```
+
+```bash
+# ✅ Allowed - year is in join_filterable
+GET /customers?filter={"vehicles.year":2020}
+
+# ❌ Ignored - model is NOT in join_filterable
+GET /customers?filter={"vehicles.model":"Civic"}
+
+# ❌ Ignored - invalid join field
+GET /customers?filter={"fake.column":"value"}
+```
+
+This prevents:
+- SQL injection via dot-notation
+- Access to sensitive columns not intended for filtering
+- Schema discovery through filter probing
+
+### Limitations
+
+**Single-level joins only**: Join filtering supports direct relationships only. Nested paths like `vehicles.parts.name` are not supported—only single-level paths like `vehicles.make`.
+
+```bash
+# ✅ Supported - single level
+GET /customers?filter={"vehicles.make":"BMW"}
+
+# ❌ Not supported - nested path
+GET /customers?filter={"vehicles.parts.name":"Engine"}
+```
+
+### Implementation Notes
+
+Join filtering is validated and parsed automatically. The parsed filters are available in the handler for custom implementation via lifecycle hooks. For basic use cases, filters on the main entity work immediately.
+
+> **Note**: Full automatic query execution for join filters requires a custom `read::many::body` hook. The built-in handler validates and parses join filters but uses only the main entity condition.
+
 ## LIKE-Filterable Fields (Partial Matching)
 
 For fields that need partial/substring matching instead of exact equality, implement `like_filterable_columns()` in your `CRUDResource` trait:

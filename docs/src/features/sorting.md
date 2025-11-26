@@ -236,6 +236,111 @@ CREATE INDEX idx_items_status_created
     ON items(status, created_at DESC);
 ```
 
+## Sorting by Related Entity Columns (Join Sorting)
+
+CRUDCrate supports sorting by columns from related entities using dot-notation syntax.
+
+### Enabling Join Sorting
+
+Use the `join_sortable` attribute to specify which columns from a related entity can be used for sorting:
+
+```rust
+#[derive(EntityToModels)]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    #[crudcrate(primary_key)]
+    pub id: Uuid,
+
+    #[crudcrate(filterable, sortable)]
+    pub name: String,
+
+    // Vehicles relationship with sortable columns
+    #[sea_orm(ignore)]
+    #[crudcrate(
+        non_db_attr,
+        join(one, all, depth = 1),
+        join_sortable("year", "mileage")
+    )]
+    pub vehicles: Vec<Vehicle>,
+}
+```
+
+### Dot-Notation Syntax
+
+Sort using `relation.column` format:
+
+```bash
+# Sort customers by their vehicle's year (newest first)
+GET /customers?sort=["vehicles.year","DESC"]
+
+# Sort by vehicle mileage (lowest first)
+GET /customers?sort=["vehicles.mileage","ASC"]
+
+# REST format also supported
+GET /customers?sort_by=vehicles.year&order=DESC
+```
+
+### Combining with Filtering
+
+```bash
+# Filter by vehicle make, sort by vehicle year
+GET /customers?filter={"vehicles.make":"BMW"}&sort=["vehicles.year","DESC"]
+
+# Filter by customer name, sort by vehicle mileage
+GET /customers?filter={"name":"John"}&sort=["vehicles.mileage","ASC"]
+```
+
+### Security (Whitelist Validation)
+
+Only columns explicitly listed in `join_sortable` can be sorted:
+
+```rust
+// Only year and mileage can be sorted
+#[crudcrate(join_sortable("year", "mileage"))]
+pub vehicles: Vec<Vehicle>,
+```
+
+```bash
+# ✅ Allowed - year is in join_sortable
+GET /customers?sort=["vehicles.year","DESC"]
+
+# ❌ Falls back to default - make is NOT in join_sortable
+GET /customers?sort=["vehicles.make","ASC"]
+```
+
+Invalid sort fields silently fall back to the default sort column.
+
+### Combining with `join_filterable`
+
+You can use both attributes together:
+
+```rust
+#[sea_orm(ignore)]
+#[crudcrate(
+    non_db_attr,
+    join(one, all, depth = 1),
+    join_filterable("make", "year", "color"),
+    join_sortable("year", "mileage")
+)]
+pub vehicles: Vec<Vehicle>,
+```
+
+### Limitations
+
+**Single-level joins only**: Join sorting supports direct relationships only. Nested paths like `vehicles.parts.price` are not supported—only single-level paths like `vehicles.year`.
+
+```bash
+# ✅ Supported - single level
+GET /customers?sort=["vehicles.year","DESC"]
+
+# ❌ Not supported - nested path
+GET /customers?sort=["vehicles.parts.price","ASC"]
+```
+
+### Implementation Notes
+
+Join sorting is validated and parsed automatically. Like join filtering, full automatic query execution for join sorts requires a custom `read::many::body` hook. The built-in handler validates and parses join sorts but falls back to the default sort column.
+
 ## Common Patterns
 
 ### Newest First (Default for Lists)
