@@ -10,9 +10,11 @@ use crate::traits::crudresource::structs::{EntityFieldAnalysis, JoinFilterSortCo
 use proc_macro::TokenStream;
 
 /// Analyze entity fields and categorize them by attributes
+///
+/// Returns an error if deprecated syntax (like `join_filterable`/`join_sortable`) is used.
 pub fn analyze_entity_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> EntityFieldAnalysis<'_> {
+) -> Result<EntityFieldAnalysis<'_>, TokenStream> {
     let mut analysis = EntityFieldAnalysis {
         db_fields: Vec::new(),
         non_db_fields: Vec::new(),
@@ -25,11 +27,18 @@ pub fn analyze_entity_fields(
         join_filter_sort_configs: Vec::new(),
     };
 
+    let mut deprecation_errors: Vec<syn::Error> = Vec::new();
+
     for field in fields {
         let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
 
         // Check for join attributes regardless of db/non_db status
-        if let Some(join_config) = get_join_config(field) {
+        let join_result = get_join_config(field);
+
+        // Collect any deprecation errors (e.g., from old join_filterable/join_sortable syntax)
+        deprecation_errors.extend(join_result.errors);
+
+        if let Some(join_config) = join_result.config {
             if join_config.on_one {
                 analysis.join_on_one_fields.push(field);
             }
@@ -73,7 +82,17 @@ pub fn analyze_entity_fields(
         }
     }
 
-    analysis
+    // If there are deprecation errors, return them immediately
+    if !deprecation_errors.is_empty() {
+        // Combine all errors into one
+        let mut combined = deprecation_errors.remove(0);
+        for err in deprecation_errors {
+            combined.combine(err);
+        }
+        return Err(combined.to_compile_error().into());
+    }
+
+    Ok(analysis)
 }
 
 /// Validate field analysis for consistency

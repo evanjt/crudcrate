@@ -20,15 +20,17 @@ pub fn generate_cyclic_dependency_check(
 
     // Check join_on_one fields
     for field in &analysis.join_on_one_fields {
-        if let Some(join_config) = get_join_config(field) {
-            check_join_depth(field, &join_config, entity_name, &mut warnings);
+        let result = get_join_config(field);
+        if let Some(ref join_config) = result.config {
+            check_join_depth(field, join_config, entity_name, &mut warnings);
         }
     }
 
     // Check join_on_all fields
     for field in &analysis.join_on_all_fields {
-        if let Some(join_config) = get_join_config(field) {
-            check_join_depth(field, &join_config, entity_name, &mut warnings);
+        let result = get_join_config(field);
+        if let Some(ref join_config) = result.config {
+            check_join_depth(field, join_config, entity_name, &mut warnings);
         }
     }
 

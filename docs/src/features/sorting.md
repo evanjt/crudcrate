@@ -242,7 +242,7 @@ CRUDCrate supports sorting by columns from related entities using dot-notation s
 
 ### Enabling Join Sorting
 
-Use the `join_sortable` attribute to specify which columns from a related entity can be used for sorting:
+Use the `sortable(...)` parameter inside `join(...)` to specify which columns from a related entity can be used for sorting:
 
 ```rust
 #[derive(EntityToModels)]
@@ -258,8 +258,7 @@ pub struct Model {
     #[sea_orm(ignore)]
     #[crudcrate(
         non_db_attr,
-        join(one, all, depth = 1),
-        join_sortable("year", "mileage")
+        join(one, all, depth = 1, sortable("year", "mileage"))
     )]
     pub vehicles: Vec<Vehicle>,
 }
@@ -292,35 +291,33 @@ GET /customers?filter={"name":"John"}&sort=["vehicles.mileage","ASC"]
 
 ### Security (Whitelist Validation)
 
-Only columns explicitly listed in `join_sortable` can be sorted:
+Only columns explicitly listed in `sortable(...)` can be sorted:
 
 ```rust
 // Only year and mileage can be sorted
-#[crudcrate(join_sortable("year", "mileage"))]
+#[crudcrate(join(one, all, sortable("year", "mileage")))]
 pub vehicles: Vec<Vehicle>,
 ```
 
 ```bash
-# ✅ Allowed - year is in join_sortable
+# ✅ Allowed - year is in sortable
 GET /customers?sort=["vehicles.year","DESC"]
 
-# ❌ Falls back to default - make is NOT in join_sortable
+# ❌ Falls back to default - make is NOT in sortable
 GET /customers?sort=["vehicles.make","ASC"]
 ```
 
 Invalid sort fields silently fall back to the default sort column.
 
-### Combining with `join_filterable`
+### Combining Filterable and Sortable
 
-You can use both attributes together:
+You can use both `filterable(...)` and `sortable(...)` together inside `join(...)`:
 
 ```rust
 #[sea_orm(ignore)]
 #[crudcrate(
     non_db_attr,
-    join(one, all, depth = 1),
-    join_filterable("make", "year", "color"),
-    join_sortable("year", "mileage")
+    join(one, all, depth = 1, filterable("make", "year", "color"), sortable("year", "mileage"))
 )]
 pub vehicles: Vec<Vehicle>,
 ```

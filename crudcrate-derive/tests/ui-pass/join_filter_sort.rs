@@ -1,4 +1,4 @@
-//! Test that join_filterable and join_sortable attributes compile correctly
+//! Test that filterable() and sortable() inside join() compile correctly
 use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -42,7 +42,7 @@ pub mod vehicle {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// Parent entity with join_filterable/join_sortable
+// Parent entity with nested filterable/sortable in join()
 pub mod customer {
     use super::*;
 
@@ -59,9 +59,7 @@ pub mod customer {
         #[sea_orm(ignore)]
         #[crudcrate(
             non_db_attr,
-            join(one, all, depth = 1),
-            join_filterable("make", "year"),
-            join_sortable("year")
+            join(one, all, depth = 1, filterable("make", "year"), sortable("year"))
         )]
         pub vehicles: Vec<super::vehicle::Vehicle>,
     }

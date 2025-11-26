@@ -17,7 +17,7 @@ pub(crate) fn should_include_in_model(field: &syn::Field, model_type: &str) -> b
     let include_in_model = get_crudcrate_bool(field, model_type).unwrap_or(true);
 
     // Handle join field exclusion based on model type
-    if let Some(join_config) = get_join_config(field) {
+    if let Some(join_config) = get_join_config(field).config {
         match model_type {
             "create_model" | "update_model" => {
                 // Create/Update models: exclude ALL join fields

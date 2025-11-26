@@ -7,7 +7,7 @@
 //! Each ui-pass test verifies a specific feature:
 //! - basic_entity.rs: Basic EntityToModels derive
 //! - entity_with_hooks.rs: Lifecycle hooks
-//! - join_filter_sort.rs: join_filterable/join_sortable attributes
+//! - join_filter_sort.rs: filterable/sortable inside join() attribute
 //! - field_exclusion.rs: exclude(create, update, one, list) attributes
 
 /// Tests that invalid macro usage produces helpful error messages
