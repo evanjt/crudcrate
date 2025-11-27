@@ -1,0 +1,132 @@
+name: Deploy Docs to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - '.github/workflows/docs.yml'
+    tags:
+      - '*.*.*'  # Trigger on semver tags (0.6.0, 1.0.0, etc.)
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for tags
+
+      - name: Install mdBook
+        uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Build all versions
+        run: |
+          set -e
+          OUTPUT_DIR=${{ github.workspace }}/gh-pages
+          mkdir -p "$OUTPUT_DIR"
+
+          # Get all version tags, sorted by semver (newest first)
+          VERSIONS=$(git tag -l '*.*.*' | sort -V -r || echo "")
+          echo "Found versions: $VERSIONS"
+
+          # Create versions.json
+          echo "[]" > /tmp/versions.json
+
+          # Build docs for each version tag
+          for VERSION in $VERSIONS; do
+            echo "========================================"
+            echo "Building docs for $VERSION..."
+            echo "========================================"
+
+            git checkout "$VERSION" -- docs/ CHANGELOG.md 2>/dev/null || continue
+
+            # Skip if no docs directory
+            if [ ! -d docs ] || [ ! -f docs/book.toml ]; then
+              echo "No docs found for $VERSION, skipping..."
+              git checkout HEAD -- docs/ CHANGELOG.md 2>/dev/null || true
+              continue
+            fi
+
+            # Update book.toml site-url for this version
+            sed -i "s|site-url = .*|site-url = \"/$VERSION/\"|" docs/book.toml 2>/dev/null || true
+
+            # Copy CHANGELOG into docs
+            cp CHANGELOG.md docs/src/changelog.md 2>/dev/null || true
+
+            # Build
+            mdbook build docs -d "$OUTPUT_DIR/$VERSION"
+
+            # Add to versions.json
+            jq --arg v "$VERSION" '. += [{"version": $v, "url": ("/" + $v + "/")}]' /tmp/versions.json > /tmp/versions_new.json
+            mv /tmp/versions_new.json /tmp/versions.json
+
+            # Reset for next version
+            git checkout HEAD -- docs/ CHANGELOG.md 2>/dev/null || true
+
+            echo "Successfully built $VERSION"
+          done
+
+          # Build latest from HEAD
+          echo "========================================"
+          echo "Building docs for latest..."
+          echo "========================================"
+          git checkout HEAD -- docs/ CHANGELOG.md
+
+          if [ -d docs ] && [ -f docs/book.toml ]; then
+            sed -i "s|site-url = .*|site-url = \"/latest/\"|" docs/book.toml 2>/dev/null || true
+            cp CHANGELOG.md docs/src/changelog.md 2>/dev/null || true
+            mdbook build docs -d "$OUTPUT_DIR/latest"
+          fi
+
+          # Add latest to versions.json (at the beginning)
+          jq '. = [{"version": "latest", "url": "/latest/", "latest": true}] + .' /tmp/versions.json > "$OUTPUT_DIR/versions.json"
+
+          # Create index.html redirect
+          cat > "$OUTPUT_DIR/index.html" << 'HTML'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>CRUDCrate Documentation</title>
+              <meta http-equiv="refresh" content="0; url=/latest/">
+              <link rel="canonical" href="/latest/">
+          </head>
+          <body>
+              <p>Redirecting to <a href="/latest/">latest documentation</a>...</p>
+          </body>
+          </html>
+          HTML
+
+          # Create CNAME for custom domain
+          echo "crudcrate.evanjt.com" > "$OUTPUT_DIR/CNAME"
+
+          # Create .nojekyll to disable Jekyll processing
+          touch "$OUTPUT_DIR/.nojekyll"
+
+          echo "========================================"
+          echo "Build complete!"
+          echo "========================================"
+          ls -la "$OUTPUT_DIR/"
+          cat "$OUTPUT_DIR/versions.json"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages
+          cname: crudcrate.evanjt.com
