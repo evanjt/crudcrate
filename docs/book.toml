@@ -14,6 +14,7 @@ preferred-dark-theme = "ayu"
 git-repository-url = "https://github.com/evanjt/crudcrate"
 site-url = "/"
 additional-css = ["theme/custom.css"]
+additional-js = ["theme/version-selector.js"]
 
 [output.html.search]
 enable = true
