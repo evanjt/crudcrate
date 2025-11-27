@@ -1,5 +1,44 @@
 /* CRUDCrate Documentation - Custom Theme */
 
+/* Version Selector */
+.version-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+}
+
+.version-selector label {
+    color: var(--sidebar-fg);
+    opacity: 0.7;
+}
+
+#version-select {
+    background-color: transparent;
+    color: var(--sidebar-fg);
+    border: 1px solid var(--sidebar-fg);
+    opacity: 0.7;
+    border-radius: 3px;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    position: relative;
+    z-index: 10;
+}
+
+#version-select:hover {
+    opacity: 1;
+    border-color: var(--sidebar-active);
+}
+
+#version-select:focus {
+    opacity: 1;
+    border-color: var(--sidebar-active);
+}
+
 /* Import Rust-style fonts */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=Fira+Mono:wght@400;500&display=swap');
 
