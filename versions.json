@@ -1,0 +1,11 @@
+[
+  {
+    "version": "latest",
+    "url": "/latest/",
+    "latest": true
+  },
+  {
+    "version": "0.7.0",
+    "url": "/0.7.0/"
+  }
+]
