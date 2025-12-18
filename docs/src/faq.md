@@ -240,3 +240,11 @@ Planned features:
 - OpenAPI generation
 - More database optimizations
 - Cursor-based pagination option
+
+---
+
+## Learn More
+
+- **Getting Started**: [First Steps Tutorial](./tutorial/first-steps.md)
+- **Examples**: [Minimal Example](./examples/minimal.md)
+- **Reference**: [Field Attributes](./reference/field-attributes.md)

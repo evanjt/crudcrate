@@ -1,6 +1,14 @@
 # E-commerce Orders Example
 
-Order management with products, customers, and line items.
+Order management with products, customers, and line items demonstrating deep joins.
+
+> **Note**: This is a reference example. To see multi-level relationships in action, run:
+> ```bash
+> cargo run --example recursive_join
+> ```
+> This shows Customer → Vehicle → Parts/Maintenance (similar to Order → Items → Products).
+
+---
 
 ## Entities
 
@@ -315,3 +323,7 @@ curl -X PUT http://localhost:3000/orders/{id} \
   -H "Content-Type: application/json" \
   -d '{"status": "shipped"}'
 ```
+
+---
+
+**Ready to dive deeper?** Check out the [Tutorial](../tutorial/first-steps.md) for step-by-step learning, or the [Reference](../reference/field-attributes.md) for all available options.

@@ -1,20 +1,30 @@
-# Minimal API Example
+# Minimal Example
 
-The simplest possible CRUDCrate API.
+The simplest CRUDCrate API - under 60 lines of code.
 
-## Full Code
+## Run It Now
+
+```bash
+git clone https://github.com/evanjt/crudcrate
+cd crudcrate/crudcrate
+cargo run --example minimal
+```
+
+Then visit:
+- **API**: http://localhost:3000/todo
+- **Docs**: http://localhost:3000/docs (interactive OpenAPI)
+
+---
+
+## The Code
 
 ```rust
-// main.rs
-use axum::{Extension, Router};
+use axum::Router;
 use crudcrate::EntityToModels;
 use sea_orm::{entity::prelude::*, Database, DatabaseConnection};
-use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
 use uuid::Uuid;
 
-// Define the entity
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, EntityToModels)]
+#[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
 #[crudcrate(generate_router)]
 #[sea_orm(table_name = "items")]
 pub struct Model {
@@ -39,25 +49,29 @@ async fn main() {
         .await
         .expect("Failed to connect");
 
-    // Create table (use migrations in production)
-    let schema = sea_orm::Schema::new(sea_orm::DatabaseBackend::Sqlite);
-    db.execute(db.get_database_backend().build(&schema.create_table_from_entity(Entity)))
-        .await
-        .expect("Failed to create table");
+    setup_database(&db).await;
 
     let app = Router::new()
         .merge(item_router())
-        .layer(Extension(db));
+        .layer(axum::Extension(db));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("Running at http://{}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    println!("Running at http://localhost:3000");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn setup_database(db: &DatabaseConnection) {
+    db.execute(sea_orm::Statement::from_string(
+        db.get_database_backend(),
+        "CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT)"
+            .to_owned(),
+    ))
+    .await
+    .expect("Failed to create table");
 }
 ```
 
-## Cargo.toml
+## Dependencies
 
 ```toml
 [package]
@@ -86,12 +100,18 @@ cargo run
 # Create
 curl -X POST http://localhost:3000/items \
   -H "Content-Type: application/json" \
-  -d '{"name": "Test Item"}'
+  -d '{"name": "Test", "description": "A test item"}'
 
-# List
+# List all
 curl http://localhost:3000/items
 
-# Get
+# Filter
+curl 'http://localhost:3000/items?filter={"name":"Test"}'
+
+# Sort
+curl 'http://localhost:3000/items?sort=["name","DESC"]'
+
+# Get one (use ID from create response)
 curl http://localhost:3000/items/{id}
 
 # Update
@@ -103,10 +123,19 @@ curl -X PUT http://localhost:3000/items/{id} \
 curl -X DELETE http://localhost:3000/items/{id}
 ```
 
-## Lines of Code
+## What You Get
 
-- Entity definition: ~20 lines
-- Server setup: ~15 lines
-- **Total: ~35 lines**
+From ~35 lines:
+- 6 REST endpoints
+- UUID generation
+- Filtering on `name`
+- Sorting on `name`
+- Pagination with Content-Range headers
+- JSON serialization
+- Error handling
 
-Without CRUDCrate, this would require ~500+ lines for handlers, models, filtering, pagination, etc.
+Without CRUDCrate, this would require 500+ lines of handlers, models, and parsing logic.
+
+---
+
+**Next:** See the [Todo App](./todo-app.md) for a more complete example with timestamps and status tracking.

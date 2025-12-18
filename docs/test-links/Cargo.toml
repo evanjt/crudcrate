@@ -1,0 +1,16 @@
+[package]
+name = "mdbook-test-links"
+version = "0.1.0"
+edition = "2021"
+description = "mdBook preprocessor that links documentation to test files"
+
+[[bin]]
+name = "mdbook-test-links"
+path = "src/main.rs"
+
+[dependencies]
+mdbook-core = "0.5"
+mdbook-preprocessor = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1.10"

@@ -2,6 +2,22 @@
 
 A practical todo app with filtering, sorting, and search.
 
+## Run It Now
+
+The minimal example includes a todo entity:
+
+```bash
+git clone https://github.com/evanjt/crudcrate
+cd crudcrate/crudcrate
+cargo run --example minimal
+```
+
+Then visit:
+- **API**: http://localhost:3000/todo
+- **Docs**: http://localhost:3000/docs
+
+---
+
 ## Entity Definition
 
 ```rust
@@ -163,3 +179,7 @@ export const dataProvider = {
   // ... other methods
 };
 ```
+
+---
+
+**Next:** See the [Blog Example](./blog.md) for handling relationships between entities.

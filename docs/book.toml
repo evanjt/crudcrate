@@ -35,3 +35,6 @@ editable = false
 copyable = true
 line-numbers = true
 runnable = false
+
+[preprocessor.test-links]
+command = "mdbook-test-links"

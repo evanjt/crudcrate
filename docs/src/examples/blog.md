@@ -1,6 +1,14 @@
 # Blog with Comments Example
 
-A blog API with posts, comments, and authors.
+A blog API with posts, comments, and authors demonstrating relationships.
+
+> **Note**: This is a reference example. To see relationships in action, run:
+> ```bash
+> cargo run --example recursive_join
+> ```
+> Then visit http://localhost:3000/docs
+
+---
 
 ## Entities
 
@@ -267,3 +275,7 @@ curl -X POST http://localhost:3000/comments \
 ```bash
 curl "http://localhost:3000/posts?q=rust programming"
 ```
+
+---
+
+**Next:** See the [E-commerce Example](./ecommerce.md) for complex entity relationships with custom operations.

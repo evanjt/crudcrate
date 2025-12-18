@@ -4,46 +4,34 @@
 
 ---
 
-# Getting Started
+# Tutorial
 
-- [Quick Start](./tutorial/quickstart.md)
-- [Installation](./tutorial/installation.md)
-- [First API in 5 Minutes](./tutorial/first-api.md)
-- [Project Structure](./tutorial/project-structure.md)
+Build a task manager from scratch, adding features as you need them.
 
----
-
-# Core Concepts
-
-- [How It Works](./concepts/how-it-works.md)
-- [The Entity Model](./concepts/entity-model.md)
-- [Generated Models](./concepts/generated-models.md)
-- [The CRUDResource Trait](./concepts/crudresource-trait.md)
-- [Attribute System](./concepts/attributes.md)
-
----
-
-# Features
-
-- [Filtering](./features/filtering.md)
-- [Sorting](./features/sorting.md)
-- [Pagination](./features/pagination.md)
-- [Fulltext Search](./features/fulltext-search.md)
-- [Relationships & Joins](./features/relationships.md)
-- [Field Exclusion](./features/field-exclusion.md)
-- [Default Values](./features/default-values.md)
-- [Error Handling](./features/error-handling.md)
+- [Your First API](./tutorial/first-steps.md)
+- [Auto-Generating IDs](./tutorial/auto-ids.md)
+- [Adding Timestamps](./tutorial/timestamps.md)
+- [Finding Tasks - Filtering](./tutorial/filtering.md)
+- [Sorting & Pagination](./tutorial/sorting.md)
+- [Searching Text](./tutorial/search.md)
+- [Hiding Sensitive Data](./tutorial/hiding-fields.md)
+- [Relationships](./tutorial/relationships.md)
+- [Custom Logic - Hooks](./tutorial/hooks.md)
 
 ---
 
 # Advanced
 
-- [Custom Operations](./advanced/custom-operations.md)
-- [Lifecycle Hooks](./advanced/lifecycle-hooks.md)
-- [Validation](./advanced/validation.md)
 - [Security Best Practices](./advanced/security.md)
-- [Performance Optimization](./advanced/performance.md)
-- [Multi-Database Support](./advanced/multi-database.md)
+- [Performance](./advanced/performance.md)
+- [Custom Operations](./advanced/custom-operations.md)
+
+---
+
+# How It Works
+
+- [Architecture Overview](./concepts/how-it-works.md)
+- [Generated Models](./concepts/generated-models.md)
 
 ---
 
@@ -51,22 +39,18 @@
 
 - [Struct Attributes](./reference/struct-attributes.md)
 - [Field Attributes](./reference/field-attributes.md)
-- [CRUDResource API](./reference/crudresource-api.md)
-- [CRUDOperations API](./reference/crudoperations-api.md)
-- [Error Types](./reference/error-types.md)
 - [Query Parameters](./reference/query-parameters.md)
 
 ---
 
 # Examples
 
-- [Minimal API](./examples/minimal.md)
-- [Todo Application](./examples/todo-app.md)
-- [Blog with Comments](./examples/blog.md)
-- [E-commerce Orders](./examples/ecommerce.md)
+- [Minimal](./examples/minimal.md)
+- [Todo App](./examples/todo-app.md)
+- [Blog with Relationships](./examples/blog.md)
+- [E-commerce](./examples/ecommerce.md)
 
 ---
 
 [FAQ](./faq.md)
 [Changelog](./changelog.md)
-[Contributing](./contributing.md)

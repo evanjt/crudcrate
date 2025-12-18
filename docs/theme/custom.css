@@ -264,3 +264,42 @@ table tr:hover {
     background-color: var(--crate-primary);
     color: white;
 }
+
+/* Test link styling */
+.test-link {
+    display: inline-block;
+    font-size: 0.85em;
+    margin-bottom: 0.5rem;
+}
+
+.test-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    background-color: rgba(34, 134, 58, 0.1);
+    color: var(--crate-success);
+    border: 1px solid rgba(34, 134, 58, 0.3);
+    border-radius: 4px;
+    font-size: 0.85em;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.test-link a:hover {
+    background-color: rgba(34, 134, 58, 0.2);
+    border-color: var(--crate-success);
+    text-decoration: none;
+}
+
+/* Dark mode adjustments for test links */
+.rust .test-link a,
+.ayu .test-link a {
+    background-color: rgba(34, 134, 58, 0.15);
+    border-color: rgba(34, 134, 58, 0.4);
+}
+
+.rust .test-link a:hover,
+.ayu .test-link a:hover {
+    background-color: rgba(34, 134, 58, 0.25);
+}
