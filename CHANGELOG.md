@@ -9,10 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable Limits**: Override batch operation and pagination limits per-resource
+  - `#[crudcrate(batch_limit = 500)]` - Max items for batch create/update/delete (default: 100)
+  - `#[crudcrate(max_page_size = 500)]` - Max items per page (default: 1000)
+  - Constants available via `MyResource::BATCH_LIMIT` and `MyResource::MAX_PAGE_SIZE`
 - **Documentation Test Links**: New mdbook preprocessor linking documentation examples to test files
   - Syntax: `{{#test_link filtering}}` generates GitHub links to relevant tests
   - Builds confidence that documented features are tested
   - Version-aware links (uses `CRUDCRATE_VERSION` or `GITHUB_REF_NAME` env vars)
+- **IDE Documentation**: Comprehensive attribute reference in crate-level documentation
+  - Struct-level attributes table (generate_router, batch_limit, hooks, etc.)
+  - Field-level attributes table (filterable, sortable, join, exclude, etc.)
+  - Example usage patterns
 
 ### Changed
 
@@ -23,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced examples with "Run It Now" sections
   - Removed verbose, fragmented quickstart/installation/first-api tutorials
   - Net reduction of ~800 lines while covering more features
+- Batch operation limit checking now uses `Self::BATCH_LIMIT` constant (configurable per-resource)
 
 ### Fixed
 
