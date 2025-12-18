@@ -304,7 +304,6 @@ Falls back to default pagination.
 
 ## See Also
 
-- [Filtering](../features/filtering.md)
-- [Sorting](../features/sorting.md)
-- [Pagination](../features/pagination.md)
-- [Fulltext Search](../features/fulltext-search.md)
+- [Filtering Tutorial](../tutorial/filtering.md)
+- [Sorting & Pagination Tutorial](../tutorial/sorting.md)
+- [Fulltext Search Tutorial](../tutorial/search.md)

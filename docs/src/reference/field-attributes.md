@@ -373,5 +373,7 @@ pub struct Model {
 ## See Also
 
 - [Struct Attributes Reference](./struct-attributes.md)
-- [Field Exclusion](../features/field-exclusion.md)
-- [Relationships](../features/relationships.md)
+- [Hiding Sensitive Data](../tutorial/hiding-fields.md)
+- [Relationships Tutorial](../tutorial/relationships.md)
+- [Auto-Generating IDs](../tutorial/auto-ids.md)
+- [Adding Timestamps](../tutorial/timestamps.md)

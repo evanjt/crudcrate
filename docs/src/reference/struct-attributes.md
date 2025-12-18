@@ -324,5 +324,5 @@ pub struct Model {
 ## See Also
 
 - [Field Attributes Reference](./field-attributes.md)
-- [CRUDResource API](./crudresource-api.md)
-- [CRUDOperations API](./crudoperations-api.md)
+- [Custom Logic with Hooks](../tutorial/hooks.md)
+- [Custom Operations](../advanced/custom-operations.md)
