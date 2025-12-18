@@ -5,6 +5,41 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Documentation Test Links**: New mdbook preprocessor linking documentation examples to test files
+  - Syntax: `{{#test_link filtering}}` generates GitHub links to relevant tests
+  - Builds confidence that documented features are tested
+  - Version-aware links (uses `CRUDCRATE_VERSION` or `GITHUB_REF_NAME` env vars)
+
+### Changed
+
+- **Documentation Overhaul**: Complete restructure of tutorial documentation
+  - New progressive tutorial: First Steps → Auto IDs → Timestamps → Filtering → Sorting → Search → Hiding Fields → Relationships → Hooks
+  - Simplified navigation structure in SUMMARY.md
+  - Improved landing page with quick start guide
+  - Enhanced examples with "Run It Now" sections
+  - Removed verbose, fragmented quickstart/installation/first-api tutorials
+  - Net reduction of ~800 lines while covering more features
+
+### Fixed
+
+- Broken cross-reference links in reference documentation
+  - `field-attributes.md`: Fixed links to tutorials
+  - `query-parameters.md`: Fixed links to filtering/sorting/search tutorials
+  - `struct-attributes.md`: Fixed link to hooks tutorial
+- Clippy doc-markdown warnings in `attribute_parser.rs` and `codegen/handlers/create.rs`
+
+### Removed
+
+- **Documentation**: Legacy tutorial structure
+  - `tutorial/quickstart.md` (replaced by `first-steps.md`)
+  - `tutorial/installation.md` (merged into landing page)
+  - `tutorial/first-api.md` (replaced by progressive tutorial)
+  - `tutorial/project-structure.md` (content distributed across tutorials)
+
 ## [0.7.0] - 2025-11-26
 
 ### Security
