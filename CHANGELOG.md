@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Transform Hooks**: New `transform` phase in hook system for result modification
+  - Hook execution order: pre → body → transform → post
+  - Transform hooks receive the result and return a modified version
+  - Allows enriching, decorating, or transforming CRUD results before returning
+  - Supported for all operations: create, read, update, delete (one and many)
+  - Example: `#[crudcrate(read::one::transform = enrich_with_metadata)]`
 - **Configurable Limits**: Override batch operation and pagination limits per-resource
   - `#[crudcrate(batch_limit = 500)]` - Max items for batch create/update/delete (default: 100)
   - `#[crudcrate(max_page_size = 500)]` - Max items per page (default: 1000)

@@ -4,10 +4,11 @@ use quote::quote;
 
 /// Generate `get_all` method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
+/// Hook execution order: pre → body → transform → post
 /// - `read::many::pre`: Preparation before query (receives condition, pagination params)
-/// - `read::many::body`: Replaces default query logic (returns Vec<ListModel>)
-/// - `read::many::post`: Side effects after query (receives &[ListModel])
+/// - `read::many::body`: Replaces default query logic (returns `Vec<ListModel>`)
+/// - `read::many::transform`: Modify the results (receives `Vec<ListModel>`, returns `Vec<ListModel>`)
+/// - `read::many::post`: Side effects after query (receives `&[ListModel]`)
 pub fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
@@ -82,6 +83,11 @@ pub fn generate_get_all_impl(
         }
     };
 
+    // Generate transform hook call (modifies the results)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -98,6 +104,7 @@ pub fn generate_get_all_impl(
         ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }
@@ -106,10 +113,11 @@ pub fn generate_get_all_impl(
 
 /// Generate `get_one` method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
+/// Hook execution order: pre → body → transform → post
 /// - `read::one::pre`: Preparation before fetch (receives id)
-/// - `read::one::body`: Replaces default fetch logic (receives id, returns Self)
-/// - `read::one::post`: Side effects after fetch (receives &Self)
+/// - `read::one::body`: Replaces default fetch logic (receives id, returns `Self`)
+/// - `read::one::transform`: Modify the result (receives `Self`, returns `Self`)
+/// - `read::one::post`: Side effects after fetch (receives `&Self`)
 pub fn generate_get_one_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
@@ -170,6 +178,11 @@ pub fn generate_get_one_impl(
         }
     };
 
+    // Generate transform hook call (modifies the result)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -179,6 +192,7 @@ pub fn generate_get_one_impl(
         async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }

@@ -4,9 +4,10 @@ use quote::quote;
 
 /// Generate create method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
+/// Hook execution order: pre → body → transform → post
 /// - `create::one::pre`: Validation/preparation before create (receives `&CreateModel`)
 /// - `create::one::body`: Replaces default create logic (receives `CreateModel`, returns `Self`)
+/// - `create::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `create::one::post`: Side effects after create (receives `&Self`)
 pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
@@ -38,6 +39,11 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         }
     };
 
+    // Generate transform hook call (modifies the result)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -47,6 +53,7 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }
@@ -55,9 +62,10 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 
 /// Generate `create_many` method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
+/// Hook execution order: pre → body → transform → post
 /// - `create::many::pre`: Validation/preparation before batch create (receives `&[CreateModel]`)
 /// - `create::many::body`: Replaces default create logic (receives `Vec<CreateModel>`, returns `Vec<Self>`)
+/// - `create::many::transform`: Modify the results (receives `Vec<Self>`, returns `Vec<Self>`)
 /// - `create::many::post`: Side effects after batch create (receives `&[Self]`)
 ///
 /// **Security Note**: The default implementation limits batch creates to 100 items to prevent
@@ -104,6 +112,11 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         }
     };
 
+    // Generate transform hook call (modifies the results)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -113,6 +126,7 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         async fn create_many(db: &sea_orm::DatabaseConnection, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }

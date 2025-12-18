@@ -1,10 +1,11 @@
 use convert_case::{Case, Casing};
 
-/// Hook configuration for a single operation phase (pre, body, post)
+/// Hook configuration for a single operation phase (pre, body, transform, post)
 #[derive(Default, Clone)]
 pub(crate) struct OperationHooks {
     pub(crate) pre: Option<syn::Path>,
     pub(crate) body: Option<syn::Path>,
+    pub(crate) transform: Option<syn::Path>,
     pub(crate) post: Option<syn::Path>,
 }
 

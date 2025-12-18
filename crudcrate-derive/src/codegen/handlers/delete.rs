@@ -4,9 +4,10 @@ use quote::quote;
 
 /// Generate delete method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
+/// Hook execution order: pre → body → transform → post
 /// - `delete::one::pre`: Validation/cleanup before delete (receives id)
-/// - `delete::one::body`: Replaces default delete logic (receives id, returns Uuid)
+/// - `delete::one::body`: Replaces default delete logic (receives id, returns `Uuid`)
+/// - `delete::one::transform`: Modify the result (receives `Uuid`, returns `Uuid`)
 /// - `delete::one::post`: Side effects after delete (receives deleted id)
 pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
@@ -45,6 +46,11 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         }
     };
 
+    // Generate transform hook call (modifies the result)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, result).await?; }
@@ -54,6 +60,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }
@@ -62,9 +69,10 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 
 /// Generate `delete_many` method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
-/// - `delete::many::pre`: Validation/cleanup before batch delete (receives &[Uuid])
-/// - `delete::many::body`: Replaces default delete logic (receives Vec<Uuid>, returns Vec<Uuid>)
+/// Hook execution order: pre → body → transform → post
+/// - `delete::many::pre`: Validation/cleanup before batch delete (receives `&[Uuid]`)
+/// - `delete::many::body`: Replaces default delete logic (receives `Vec<Uuid>`, returns `Vec<Uuid>`)
+/// - `delete::many::transform`: Modify the results (receives `Vec<Uuid>`, returns `Vec<Uuid>`)
 /// - `delete::many::post`: Side effects after batch delete (receives deleted ids)
 ///
 /// **Security Note**: The default implementation limits batch deletes to 100 items to prevent
@@ -110,6 +118,11 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         }
     };
 
+    // Generate transform hook call (modifies the results)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -119,6 +132,7 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }

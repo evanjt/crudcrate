@@ -3,10 +3,11 @@ use quote::quote;
 
 /// Generate update method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
-/// - `update::one::pre`: Validation/preparation before update (receives id, &UpdateModel)
-/// - `update::one::body`: Replaces default update logic (receives id, UpdateModel, returns Self)
-/// - `update::one::post`: Side effects after update (receives &Self)
+/// Hook execution order: pre → body → transform → post
+/// - `update::one::pre`: Validation/preparation before update (receives id, `&UpdateModel`)
+/// - `update::one::body`: Replaces default update logic (receives id, `UpdateModel`, returns `Self`)
+/// - `update::one::transform`: Modify the result (receives `Self`, returns `Self`)
+/// - `update::one::post`: Side effects after update (receives `&Self`)
 pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
@@ -48,6 +49,11 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         }
     };
 
+    // Generate transform hook call (modifies the result)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -57,6 +63,7 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }
@@ -65,7 +72,7 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 
 /// Generate `update_many` method implementation with hook support.
 ///
-/// Hook execution order: pre → body → post
+/// Hook execution order: pre → body → transform → post
 /// - `update::many::pre`: Validation/preparation before batch update (receives &[(Uuid, UpdateModel)])
 /// - `update::many::body`: Replaces default update logic (receives Vec<(Uuid, UpdateModel)>, returns Vec<Self>)
 /// - `update::many::post`: Side effects after batch update (receives &[Self])
@@ -123,6 +130,11 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         }
     };
 
+    // Generate transform hook call (modifies the results)
+    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
+        quote! { let result = #fn_path(db, result).await?; }
+    });
+
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
         quote! { #fn_path(db, &result).await?; }
@@ -132,6 +144,7 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(uuid::Uuid, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
             #post_hook
             Ok(result)
         }

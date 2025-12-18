@@ -5,7 +5,7 @@
 //! Hook syntax:
 //! - Operations: create, read, update, delete
 //! - Cardinality: one (single item), many (batch)
-//! - Phases: pre (before), body (replace), post (after)
+//! - Phases: pre (before), body (replace), transform (modify result), post (after)
 
 use chrono::{DateTime, Utc};
 use crudcrate::{ApiError, CRUDResource, EntityToModels};
@@ -19,22 +19,30 @@ use uuid::Uuid;
 
 static CREATE_PRE_CALLED: AtomicBool = AtomicBool::new(false);
 static CREATE_POST_CALLED: AtomicBool = AtomicBool::new(false);
+static CREATE_TRANSFORM_CALLED: AtomicBool = AtomicBool::new(false);
 static READ_PRE_CALLED: AtomicBool = AtomicBool::new(false);
 static READ_POST_CALLED: AtomicBool = AtomicBool::new(false);
+static READ_TRANSFORM_CALLED: AtomicBool = AtomicBool::new(false);
 static UPDATE_PRE_CALLED: AtomicBool = AtomicBool::new(false);
 static UPDATE_POST_CALLED: AtomicBool = AtomicBool::new(false);
+static UPDATE_TRANSFORM_CALLED: AtomicBool = AtomicBool::new(false);
 static DELETE_PRE_CALLED: AtomicBool = AtomicBool::new(false);
 static DELETE_POST_CALLED: AtomicBool = AtomicBool::new(false);
+static DELETE_TRANSFORM_CALLED: AtomicBool = AtomicBool::new(false);
 
 fn reset_hook_flags() {
     CREATE_PRE_CALLED.store(false, Ordering::SeqCst);
     CREATE_POST_CALLED.store(false, Ordering::SeqCst);
+    CREATE_TRANSFORM_CALLED.store(false, Ordering::SeqCst);
     READ_PRE_CALLED.store(false, Ordering::SeqCst);
     READ_POST_CALLED.store(false, Ordering::SeqCst);
+    READ_TRANSFORM_CALLED.store(false, Ordering::SeqCst);
     UPDATE_PRE_CALLED.store(false, Ordering::SeqCst);
     UPDATE_POST_CALLED.store(false, Ordering::SeqCst);
+    UPDATE_TRANSFORM_CALLED.store(false, Ordering::SeqCst);
     DELETE_PRE_CALLED.store(false, Ordering::SeqCst);
     DELETE_POST_CALLED.store(false, Ordering::SeqCst);
+    DELETE_TRANSFORM_CALLED.store(false, Ordering::SeqCst);
 }
 
 // ============================================================================
@@ -127,6 +135,53 @@ async fn notify_after_delete(
 }
 
 // ============================================================================
+// TRANSFORM HOOK FUNCTIONS - Modify results before returning
+// ============================================================================
+
+/// Transform hook for create: modify the created entity before returning
+async fn transform_after_create(
+    _db: &sea_orm::DatabaseConnection,
+    mut entity: TransformTestItem,
+) -> Result<TransformTestItem, ApiError> {
+    CREATE_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
+    // Add a suffix to the name to prove we modified it
+    entity.name = format!("{}_transformed", entity.name);
+    Ok(entity)
+}
+
+/// Transform hook for read::one: modify the entity before returning
+async fn transform_after_read_one(
+    _db: &sea_orm::DatabaseConnection,
+    mut entity: TransformTestItem,
+) -> Result<TransformTestItem, ApiError> {
+    READ_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
+    // Add a suffix to the name to prove we modified it
+    entity.name = format!("{}_read_transformed", entity.name);
+    Ok(entity)
+}
+
+/// Transform hook for update: modify the updated entity before returning
+async fn transform_after_update(
+    _db: &sea_orm::DatabaseConnection,
+    mut entity: TransformTestItem,
+) -> Result<TransformTestItem, ApiError> {
+    UPDATE_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
+    // Add a suffix to the name to prove we modified it
+    entity.name = format!("{}_update_transformed", entity.name);
+    Ok(entity)
+}
+
+/// Transform hook for delete: modify the deleted id before returning
+async fn transform_after_delete(
+    _db: &sea_orm::DatabaseConnection,
+    id: Uuid,
+) -> Result<Uuid, ApiError> {
+    DELETE_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
+    // For delete, we just pass through the ID (can't meaningfully transform it)
+    Ok(id)
+}
+
+// ============================================================================
 // ENTITY WITH ALL HOOKS
 // ============================================================================
 
@@ -165,6 +220,50 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
+
+// ============================================================================
+// ENTITY WITH TRANSFORM HOOKS - Tests the transform phase
+// ============================================================================
+
+mod transform_test_entity {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "transform_test_items")]
+    #[crudcrate(
+        api_struct = "TransformTestItem",
+        name_singular = "transform_test_item",
+        name_plural = "transform_test_items",
+        // Transform hooks only
+        create::one::transform = super::transform_after_create,
+        read::one::transform = super::transform_after_read_one,
+        update::one::transform = super::transform_after_update,
+        delete::one::transform = super::transform_after_delete,
+    )]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+        pub id: Uuid,
+
+        #[crudcrate(filterable, sortable)]
+        pub name: String,
+
+        #[crudcrate(exclude(create, update), on_create = Utc::now())]
+        pub created_at: DateTime<Utc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// Re-export for easier access in tests
+pub use transform_test_entity::{
+    ActiveModel as TransformActiveModel, Column as TransformColumn, Entity as TransformEntity,
+    Model as TransformModel, TransformTestItem, TransformTestItemCreate, TransformTestItemList,
+    TransformTestItemUpdate,
+};
 
 // ============================================================================
 // TESTS - Verify hook syntax compiles and models are generated
@@ -981,5 +1080,221 @@ mod integration {
         assert!(!HookTestItem::RESOURCE_DESCRIPTION.is_empty(), "Description should be set");
         // Fulltext language defaults to "english"
         assert_eq!(HookTestItem::FULLTEXT_LANGUAGE, "english");
+    }
+
+    // ========================================================================
+    // TRANSFORM HOOK TESTS - Verify transform hooks modify results
+    // ========================================================================
+
+    async fn setup_transform_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
+        let db = Database::connect("sqlite::memory:").await?;
+
+        db.execute(sea_orm::Statement::from_string(
+            db.get_database_backend(),
+            r"CREATE TABLE transform_test_items (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )"
+            .to_owned(),
+        ))
+        .await?;
+
+        Ok(db)
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_create_transform_hook_modifies_result() {
+        reset_hook_flags();
+        let db = setup_transform_db().await.expect("Failed to setup database");
+
+        // Verify transform hook not called yet
+        assert!(!CREATE_TRANSFORM_CALLED.load(Ordering::SeqCst));
+
+        // Create an item
+        let create_data = TransformTestItemCreate {
+            name: "original".to_string(),
+        };
+        let result = TransformTestItem::create(&db, create_data).await;
+        assert!(result.is_ok(), "Create should succeed: {:?}", result);
+
+        let created = result.unwrap();
+
+        // Verify transform hook was called
+        assert!(
+            CREATE_TRANSFORM_CALLED.load(Ordering::SeqCst),
+            "create::one::transform hook should have been called"
+        );
+
+        // Note: The default create implementation calls get_one() internally to fetch the
+        // created entity, so both read::one::transform and create::one::transform are applied.
+        // Flow: insert -> get_one (applies read transform) -> create transform
+        // "original" -> "original_read_transformed" -> "original_read_transformed_transformed"
+        assert!(
+            created.name.ends_with("_transformed"),
+            "Transform hook should have added '_transformed' suffix, got: {}",
+            created.name
+        );
+        assert_eq!(created.name, "original_read_transformed_transformed");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_read_transform_hook_modifies_result() {
+        reset_hook_flags();
+        let db = setup_transform_db().await.expect("Failed to setup database");
+
+        // First create an item (this will also transform it)
+        let create_data = TransformTestItemCreate {
+            name: "read_test".to_string(),
+        };
+        let created = TransformTestItem::create(&db, create_data)
+            .await
+            .expect("Create should succeed");
+
+        // Reset flags before read
+        reset_hook_flags();
+
+        // Read the item
+        let result = TransformTestItem::get_one(&db, created.id).await;
+        assert!(result.is_ok(), "Get one should succeed: {:?}", result);
+
+        let fetched = result.unwrap();
+
+        // Verify read transform hook was called
+        assert!(
+            READ_TRANSFORM_CALLED.load(Ordering::SeqCst),
+            "read::one::transform hook should have been called"
+        );
+
+        // The name should have both transforms applied:
+        // create: "read_test" -> "read_test_transformed"
+        // read: "read_test_transformed" -> "read_test_transformed_read_transformed"
+        assert!(
+            fetched.name.ends_with("_read_transformed"),
+            "Read transform hook should have added '_read_transformed' suffix, got: {}",
+            fetched.name
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_update_transform_hook_modifies_result() {
+        reset_hook_flags();
+        let db = setup_transform_db().await.expect("Failed to setup database");
+
+        // First create an item
+        let create_data = TransformTestItemCreate {
+            name: "update_test".to_string(),
+        };
+        let created = TransformTestItem::create(&db, create_data)
+            .await
+            .expect("Create should succeed");
+
+        // Reset flags before update
+        reset_hook_flags();
+
+        // Update the item
+        let update_data = TransformTestItemUpdate {
+            name: Some(Some("updated_value".to_string())),
+        };
+        let result = TransformTestItem::update(&db, created.id, update_data).await;
+        assert!(result.is_ok(), "Update should succeed: {:?}", result);
+
+        let updated = result.unwrap();
+
+        // Verify update transform hook was called
+        assert!(
+            UPDATE_TRANSFORM_CALLED.load(Ordering::SeqCst),
+            "update::one::transform hook should have been called"
+        );
+
+        // Verify the result was modified by the transform hook
+        assert!(
+            updated.name.ends_with("_update_transformed"),
+            "Update transform hook should have added '_update_transformed' suffix, got: {}",
+            updated.name
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_delete_transform_hook_called() {
+        reset_hook_flags();
+        let db = setup_transform_db().await.expect("Failed to setup database");
+
+        // First create an item
+        let create_data = TransformTestItemCreate {
+            name: "delete_test".to_string(),
+        };
+        let created = TransformTestItem::create(&db, create_data)
+            .await
+            .expect("Create should succeed");
+
+        // Reset flags before delete
+        reset_hook_flags();
+
+        // Delete the item
+        let result = TransformTestItem::delete(&db, created.id).await;
+        assert!(result.is_ok(), "Delete should succeed: {:?}", result);
+
+        // Verify delete transform hook was called
+        assert!(
+            DELETE_TRANSFORM_CALLED.load(Ordering::SeqCst),
+            "delete::one::transform hook should have been called"
+        );
+
+        // Verify the deleted ID matches
+        let deleted_id = result.unwrap();
+        assert_eq!(deleted_id, created.id, "Deleted ID should match created ID");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transform_hook_execution_order() {
+        // This test verifies that hooks are executed in the correct order:
+        // pre -> body -> transform -> post
+        //
+        // We verify this by checking that the transform hook modifies the result
+        // that is returned to the caller, which only works if it runs after body
+        // but before the return statement.
+        reset_hook_flags();
+        let db = setup_transform_db().await.expect("Failed to setup database");
+
+        let create_data = TransformTestItemCreate {
+            name: "order_test".to_string(),
+        };
+        let created = TransformTestItem::create(&db, create_data)
+            .await
+            .expect("Create should succeed");
+
+        // If transform ran after body but before return, the name should be modified
+        assert!(
+            created.name.contains("_transformed"),
+            "Transform hook should modify result (hook execution order: pre -> body -> transform -> post)"
+        );
+
+        // The actual name in the database should NOT have the transform suffix
+        // because transform only modifies the returned value, not the persisted data
+        // We can verify this by reading with a raw query or checking via another entity
+    }
+
+    #[test]
+    fn test_transform_test_item_syntax_compiles() {
+        // Verify the TransformTestItem entity compiled correctly with transform hooks
+        let create_model = TransformTestItemCreate {
+            name: "test".to_string(),
+        };
+        assert_eq!(create_model.name, "test");
+
+        let update_model = TransformTestItemUpdate {
+            name: Some(Some("updated".to_string())),
+        };
+        assert!(update_model.name.is_some());
+
+        // Verify trait constants
+        assert_eq!(TransformTestItem::RESOURCE_NAME_SINGULAR, "transform_test_item");
+        assert_eq!(TransformTestItem::RESOURCE_NAME_PLURAL, "transform_test_items");
     }
 }

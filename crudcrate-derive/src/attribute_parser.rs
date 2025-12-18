@@ -137,7 +137,7 @@ fn parse_hook_path(path: &syn::Path) -> Option<(String, String, String)> {
     }
 
     // Validate phase
-    if !matches!(phase.as_str(), "pre" | "body" | "post") {
+    if !matches!(phase.as_str(), "pre" | "body" | "transform" | "post") {
         return None;
     }
 
@@ -169,6 +169,7 @@ fn set_hook(
     match phase {
         "pre" => card_hooks.pre = Some(fn_path),
         "body" => card_hooks.body = Some(fn_path),
+        "transform" => card_hooks.transform = Some(fn_path),
         "post" => card_hooks.post = Some(fn_path),
         _ => {}
     }
