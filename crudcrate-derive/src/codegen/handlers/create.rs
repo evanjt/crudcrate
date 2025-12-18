@@ -5,9 +5,9 @@ use quote::quote;
 /// Generate create method implementation with hook support.
 ///
 /// Hook execution order: pre → body → post
-/// - `create::one::pre`: Validation/preparation before create (receives &CreateModel)
-/// - `create::one::body`: Replaces default create logic (receives CreateModel, returns Self)
-/// - `create::one::post`: Side effects after create (receives &Self)
+/// - `create::one::pre`: Validation/preparation before create (receives `&CreateModel`)
+/// - `create::one::body`: Replaces default create logic (receives `CreateModel`, returns `Self`)
+/// - `create::one::post`: Side effects after create (receives `&Self`)
 pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
@@ -56,9 +56,9 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// Generate `create_many` method implementation with hook support.
 ///
 /// Hook execution order: pre → body → post
-/// - `create::many::pre`: Validation/preparation before batch create (receives &[CreateModel])
-/// - `create::many::body`: Replaces default create logic (receives Vec<CreateModel>, returns Vec<Self>)
-/// - `create::many::post`: Side effects after batch create (receives &[Self])
+/// - `create::many::pre`: Validation/preparation before batch create (receives `&[CreateModel]`)
+/// - `create::many::body`: Replaces default create logic (receives `Vec<CreateModel>`, returns `Vec<Self>`)
+/// - `create::many::post`: Side effects after batch create (receives `&[Self]`)
 ///
 /// **Security Note**: The default implementation limits batch creates to 100 items to prevent
 /// DoS attacks via resource exhaustion.

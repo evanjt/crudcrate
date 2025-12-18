@@ -132,7 +132,7 @@ fn parse_hook_path(path: &syn::Path) -> Option<(String, String, String)> {
     Some((operation.clone(), cardinality.clone(), phase.clone()))
 }
 
-/// Set a hook in the CrudHooks structure
+/// Set a hook in the `CrudHooks` structure
 fn set_hook(
     hooks: &mut crate::traits::crudresource::structs::CrudHooks,
     operation: &str,
@@ -289,8 +289,8 @@ fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
 
 /// Create a deprecation message for old model exclusion syntax
 ///
-/// Note: Returns syn::Error for consistent formatting, but we extract the message
-/// rather than using to_compile_error() to avoid breaking backward compatibility.
+/// Note: Returns `syn::Error` for consistent formatting, but we extract the message
+/// rather than using `to_compile_error()` to avoid breaking backward compatibility.
 fn create_deprecation_error(key: &str, path: &syn::Path) -> syn::Error {
     let new_syntax = match key {
         "create_model" => "exclude(create)",
