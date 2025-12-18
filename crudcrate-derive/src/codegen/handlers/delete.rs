@@ -95,11 +95,10 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         quote! {
             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
-            // Security: Limit batch size to prevent DoS attacks
-            const MAX_BATCH_DELETE_SIZE: usize = 100;
-            if ids.len() > MAX_BATCH_DELETE_SIZE {
+            // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
+            if ids.len() > Self::BATCH_LIMIT {
                 return Err(crudcrate::ApiError::bad_request(
-                    format!("Batch delete limited to {} items. Received {} items.", MAX_BATCH_DELETE_SIZE, ids.len())
+                    format!("Batch delete limited to {} items. Received {} items.", Self::BATCH_LIMIT, ids.len())
                 ));
             }
 

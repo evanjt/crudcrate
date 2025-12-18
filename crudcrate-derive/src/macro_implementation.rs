@@ -54,6 +54,19 @@ pub(crate) fn generate_crud_resource_impl(
         }
     };
 
+    // Generate configurable limits (only if specified, otherwise use trait defaults)
+    let batch_limit_impl = crud_meta.batch_limit.map(|limit| {
+        quote! {
+            const BATCH_LIMIT: usize = #limit;
+        }
+    });
+
+    let max_page_size_impl = crud_meta.max_page_size.map(|size| {
+        quote! {
+            const MAX_PAGE_SIZE: u64 = #size;
+        }
+    });
+
     quote! {
         #[async_trait::async_trait]
         impl crudcrate::CRUDResource for #api_struct_name {
@@ -70,6 +83,8 @@ pub(crate) fn generate_crud_resource_impl(
             const TABLE_NAME: &'static str = #table_name;
             const RESOURCE_DESCRIPTION: &'static str = #description;
             const FULLTEXT_LANGUAGE: &'static str = #fulltext_language;
+            #batch_limit_impl
+            #max_page_size_impl
 
             fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
                 vec![#(#sortable_entries),*]

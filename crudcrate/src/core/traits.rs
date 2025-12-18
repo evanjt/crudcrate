@@ -41,6 +41,14 @@ where
     const RESOURCE_DESCRIPTION: &'static str = "";
     const FULLTEXT_LANGUAGE: &'static str = "english";
 
+    /// Maximum number of items allowed in batch create/update operations.
+    /// Override with `#[crudcrate(batch_limit = 500)]` on your struct.
+    const BATCH_LIMIT: usize = 100;
+
+    /// Maximum page size for pagination.
+    /// Override with `#[crudcrate(max_page_size = 500)]` on your struct.
+    const MAX_PAGE_SIZE: u64 = 1000;
+
     async fn get_all(
         db: &DatabaseConnection,
         condition: &Condition,
@@ -148,10 +156,9 @@ where
         use sea_orm::ActiveModelTrait;
 
         // Security: Limit batch size to prevent DoS attacks
-        const MAX_BATCH_CREATE_SIZE: usize = 100;
-        if create_models.len() > MAX_BATCH_CREATE_SIZE {
+        if create_models.len() > Self::BATCH_LIMIT {
             return Err(ApiError::bad_request(
-                format!("Batch create limited to {} items. Received {} items.", MAX_BATCH_CREATE_SIZE, create_models.len())
+                format!("Batch create limited to {} items. Received {} items.", Self::BATCH_LIMIT, create_models.len())
             ));
         }
 
@@ -180,10 +187,9 @@ where
         updates: Vec<(Uuid, Self::UpdateModel)>,
     ) -> Result<Vec<Self>, ApiError> {
         // Security: Limit batch size to prevent DoS attacks
-        const MAX_BATCH_UPDATE_SIZE: usize = 100;
-        if updates.len() > MAX_BATCH_UPDATE_SIZE {
+        if updates.len() > Self::BATCH_LIMIT {
             return Err(ApiError::bad_request(
-                format!("Batch update limited to {} items. Received {} items.", MAX_BATCH_UPDATE_SIZE, updates.len())
+                format!("Batch update limited to {} items. Received {} items.", Self::BATCH_LIMIT, updates.len())
             ));
         }
 

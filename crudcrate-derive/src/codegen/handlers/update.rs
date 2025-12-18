@@ -99,11 +99,10 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
             use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
             use crudcrate::traits::MergeIntoActiveModel;
 
-            // Security: Limit batch size to prevent DoS attacks
-            const MAX_BATCH_UPDATE_SIZE: usize = 100;
-            if updates.len() > MAX_BATCH_UPDATE_SIZE {
+            // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
+            if updates.len() > Self::BATCH_LIMIT {
                 return Err(crudcrate::ApiError::bad_request(
-                    format!("Batch update limited to {} items. Received {} items.", MAX_BATCH_UPDATE_SIZE, updates.len())
+                    format!("Batch update limited to {} items. Received {} items.", Self::BATCH_LIMIT, updates.len())
                 ));
             }
 

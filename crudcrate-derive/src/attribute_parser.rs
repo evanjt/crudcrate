@@ -44,6 +44,18 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                         _ => {}
                                     }
                                 }
+                                Lit::Int(i) => {
+                                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                                    match ident.as_deref() {
+                                        Some("batch_limit") => {
+                                            meta.batch_limit = i.base10_parse().ok();
+                                        }
+                                        Some("max_page_size") => {
+                                            meta.max_page_size = i.base10_parse().ok();
+                                        }
+                                        _ => {}
+                                    }
+                                }
                                 _ => {}
                             }
                         } else if let syn::Expr::Path(expr_path) = &nv.value {

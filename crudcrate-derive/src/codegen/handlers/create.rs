@@ -88,11 +88,10 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         quote! {
             use sea_orm::ActiveModelTrait;
 
-            // Security: Limit batch size to prevent DoS attacks
-            const MAX_BATCH_CREATE_SIZE: usize = 100;
-            if data.len() > MAX_BATCH_CREATE_SIZE {
+            // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
+            if data.len() > Self::BATCH_LIMIT {
                 return Err(crudcrate::ApiError::bad_request(
-                    format!("Batch create limited to {} items. Received {} items.", MAX_BATCH_CREATE_SIZE, data.len())
+                    format!("Batch create limited to {} items. Received {} items.", Self::BATCH_LIMIT, data.len())
                 ));
             }
 

@@ -352,12 +352,12 @@ pub trait CRUDOperations: Send + Sync {
     async fn perform_delete_many(&self, db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
         use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
-        // Security: Limit batch size to prevent DoS attacks
-        const MAX_BATCH_DELETE_SIZE: usize = 100;
-        if ids.len() > MAX_BATCH_DELETE_SIZE {
+        // Security: Limit batch size to prevent DoS attacks (uses resource's configured limit)
+        let batch_limit = <Self::Resource as CRUDResource>::BATCH_LIMIT;
+        if ids.len() > batch_limit {
             return Err(ApiError::bad_request(format!(
                 "Batch delete limited to {} items. Received {} items.",
-                MAX_BATCH_DELETE_SIZE,
+                batch_limit,
                 ids.len()
             )));
         }
