@@ -3435,6 +3435,7 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http",
+ "tracing",
  "url",
  "url-escape",
  "utoipa",

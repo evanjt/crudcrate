@@ -110,7 +110,7 @@ pub mod pagination;
 pub mod joined;
 
 // Re-export commonly used items
-pub use query_parser::FilterOptions;
+pub use query_parser::{FilterOptions, BatchOptions};
 pub use conditions::{apply_filters, apply_filters_with_joins, parse_pagination, parse_range};
 pub use search::build_fulltext_condition;
 pub use sort::{parse_sorting, parse_sorting_with_joins};

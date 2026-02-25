@@ -12,7 +12,7 @@ Hooks use this syntax: `{operation}::{cardinality}::{phase}`
 |------|---------|---------|
 | operation | `create`, `update`, `delete`, `read` | Which action |
 | cardinality | `one`, `many` | Single item or batch |
-| phase | `pre`, `post`, `body` | When to run |
+| phase | `pre`, `body`, `transform`, `post` | When to run |
 
 ## Example: Validate Task Title
 
@@ -122,6 +122,25 @@ async fn soft_delete(
 }
 ```
 
+### `transform` — Modify Results
+
+Transform hooks receive the operation result and return a modified version. Use for enrichment, decoration, or data transformation.
+
+```rust
+#[crudcrate(read::one::transform = enrich_with_metadata)]
+
+async fn enrich_with_metadata(
+    db: &DatabaseConnection,
+    mut task: Task,  // Takes ownership, returns modified
+) -> Result<Task, ApiError> {
+    // Add computed fields, enrich from other sources, etc.
+    task.comment_count = count_comments(db, task.id).await?;
+    Ok(task)
+}
+```
+
+Transform runs **after** the operation (or `body` replacement) but **before** `post` hooks.
+
 ## Multiple Hooks
 
 Combine hooks for complete workflows:
@@ -157,6 +176,9 @@ async fn create_post(db: &DatabaseConnection, task: &Task) -> Result<(), ApiErro
 
 // Body: replace create logic
 async fn create_body(db: &DatabaseConnection, data: TaskCreate) -> Result<Task, ApiError>;
+
+// Transform: modify result before returning
+async fn create_transform(db: &DatabaseConnection, task: Task) -> Result<Task, ApiError>;
 ```
 
 ### Update
@@ -190,9 +212,12 @@ async fn delete_body(db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
 
 1. `pre` hook runs
 2. Default operation (or `body` if specified)
-3. `post` hook runs
+3. `transform` hook runs (modifies the result)
+4. `post` hook runs
 
 If `pre` returns an error, nothing else runs.
+
+> **Note**: When using `?partial=true` for batch operations, items are processed individually using single-item hooks (`create::one::*`, etc.), not batch hooks (`create::many::*`).
 
 ---
 

@@ -79,16 +79,292 @@ pub fn generate_get_one_join_loading(
     generate_join_loading_impl(&join_fields, "get_one", api_struct_name)
 }
 
-/// Generate join loading code for `get_all()` method
-pub fn generate_get_all_join_loading(
+/// Generate batch loading code for `get_all()` method
+///
+/// This generates optimized batch loading that reduces N+1 queries to 2 queries:
+/// 1. One query to fetch N parent entities (already done before this code runs)
+/// 2. One query per join field to fetch ALL related entities for ALL parents
+///
+/// Returns a tuple of (pre_loop_code, in_loop_code):
+/// - `pre_loop_code`: Batch loads all related entities and groups them by parent ID
+/// - `in_loop_code`: Looks up pre-loaded data from HashMaps (no queries)
+pub fn generate_get_all_batch_loading(
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
-) -> proc_macro2::TokenStream {
+) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     if analysis.join_on_all_fields.is_empty() {
-        return quote! {};
+        return (quote! {}, quote! { Self::from(model) });
     }
+
+    // Extract PK field ident (fallback to `id` for backward compat)
+    let pk_ident = analysis.primary_key_field
+        .and_then(|f| f.ident.as_ref())
+        .cloned()
+        .unwrap_or_else(|| quote::format_ident!("id"));
+
     let join_fields: Vec<&syn::Field> = analysis.join_on_all_fields.clone();
-    generate_join_loading_impl(&join_fields, "get_all", api_struct_name)
+    generate_batch_loading_impl(&join_fields, api_struct_name, &pk_ident)
+}
+
+
+/// Generate optimized batch loading code for get_all()
+///
+/// Returns (pre_loop_code, in_loop_code) where:
+/// - pre_loop_code runs ONCE before the loop to batch load all related entities
+/// - in_loop_code runs for each model to assign pre-loaded data
+fn generate_batch_loading_impl(
+    join_fields: &[&syn::Field],
+    api_struct_name: &syn::Ident,
+    pk_ident: &syn::Ident,
+) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+    let mut batch_loading_statements = Vec::new();
+    let mut field_assignments = Vec::new();
+
+    for field in join_fields {
+        let Some(field_name) = &field.ident else {
+            continue;
+        };
+
+        let join_config = get_join_config(field).unwrap_or_default();
+        let is_vec_field = is_vec_type(&field.ty);
+
+        // Check if this is a self-referencing field
+        let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
+        let inner_type_string = inner_type.to_string();
+        let api_struct_name_string = api_struct_name.to_string();
+        let is_self_referencing = inner_type_string.trim() == api_struct_name_string.trim();
+
+        // Security: Cap depth
+        let effective_depth = if is_self_referencing {
+            let original_depth = join_config.depth.unwrap_or(1).min(MAX_JOIN_DEPTH);
+            if original_depth > 1 {
+                let error_msg = format!(
+                    "Self-referencing field '{}' in struct '{}' has depth={}, but self-references only support depth=1",
+                    field_name, api_struct_name, original_depth
+                );
+                return (quote! { compile_error!(#error_msg); }, quote! {});
+            }
+            1
+        } else {
+            join_config.depth.unwrap_or(MAX_JOIN_DEPTH).min(MAX_JOIN_DEPTH)
+        };
+
+        let depth_limited = effective_depth == 1;
+
+        // Get entity and model paths
+        let (entity_path, model_path) = if let Some(custom_path) = &join_config.path {
+            match custom_path.parse::<proc_macro2::TokenStream>() {
+                Ok(path_tokens) => (
+                    quote! { #path_tokens::Entity },
+                    quote! { #path_tokens::Model },
+                ),
+                Err(_) => {
+                    let error_msg = format!(
+                        "Invalid join path '{}' for field '{}'",
+                        custom_path, field_name
+                    );
+                    return (quote! { compile_error!(#error_msg); }, quote! {});
+                }
+            }
+        } else {
+            (
+                get_path_from_field_type(&field.ty, "Entity"),
+                get_path_from_field_type(&field.ty, "Model"),
+            )
+        };
+
+        // Get the Column path for the FK column
+        let column_path = get_path_from_field_type(&field.ty, "Column");
+
+        // Derive FK column name from parent struct name
+        // Convention: Customer -> Column::CustomerId (PascalCase) and field.customer_id (snake_case)
+        let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
+        let fk_field_snake = quote::format_ident!("{}_id", to_snake_case(&api_struct_name.to_string()));
+
+        // HashMap variable for storing batch-loaded data
+        let map_var = quote::format_ident!("{}_by_parent", field_name);
+
+        if is_vec_field {
+            let api_struct_type = extract_api_struct_type_for_recursive_call(&field.ty);
+
+            if depth_limited {
+                // Depth=1: Simple batch load without recursion
+                if is_self_referencing {
+                    // Self-referencing: use ParentId column
+                    batch_loading_statements.push(quote! {
+                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+
+                            let all_related = #entity_path::find()
+                                .filter(#column_path::ParentId.is_in(parent_ids.clone()))
+                                .all(db)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    tracing::warn!(error = %e, "Failed to batch load self-referencing children");
+                                    Vec::new()
+                                });
+
+                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                                std::collections::HashMap::new();
+                            for related_model in all_related {
+                                if let Some(parent_id) = related_model.parent_id {
+                                    map.entry(parent_id)
+                                        .or_insert_with(Vec::new)
+                                        .push(#api_struct_type::from(related_model));
+                                }
+                            }
+                            map
+                        };
+                    });
+                } else {
+                    // Regular join: use derived FK column name
+                    // Column enum uses PascalCase (CustomerId), field uses snake_case (customer_id)
+                    batch_loading_statements.push(quote! {
+                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+
+                            let all_related = #entity_path::find()
+                                .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()))
+                                .all(db)
+                                .await?;
+
+                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                                std::collections::HashMap::new();
+                            for related_model in all_related {
+                                let fk_value = related_model.#fk_field_snake;
+                                map.entry(fk_value)
+                                    .or_insert_with(Vec::new)
+                                    .push(#api_struct_type::from(related_model));
+                            }
+                            map
+                        };
+                    });
+                }
+
+                field_assignments.push(quote! {
+                    item.#field_name = #map_var.remove(&parent_id).unwrap_or_default();
+                });
+            } else {
+                // Depth > 1: Need recursive loading via get_one()
+                // For batch loading with depth > 1, we batch load the immediate children,
+                // then for each child we call get_one() to load its nested relations
+                // Note: Self-referencing fields are always depth=1, so this branch is
+                // only reached for cross-model joins.
+                // Batch load immediate children, then recursively load their nested relations
+                batch_loading_statements.push(quote! {
+                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+
+                            let all_related_models: Vec<#model_path> = #entity_path::find()
+                                .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()))
+                                .all(db)
+                                .await?;
+
+                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                                std::collections::HashMap::new();
+
+                            // For each related model, call get_one() to load its nested relations
+                            for related_model in all_related_models {
+                                let fk_value = related_model.#fk_field_snake;
+                                let entity = match #api_struct_type::get_one(db, related_model.id).await {
+                                    Ok(e) => e,
+                                    Err(e) => {
+                                        tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                        #api_struct_type::from(related_model)
+                                    }
+                                };
+                                map.entry(fk_value)
+                                    .or_insert_with(Vec::new)
+                                    .push(entity);
+                            }
+                            map
+                        };
+                    });
+
+                field_assignments.push(quote! {
+                    item.#field_name = #map_var.remove(&parent_id).unwrap_or_default();
+                });
+            }
+        } else {
+            // Option<T> relationships (belongs_to/has_one)
+            // These are typically 1:1 and benefit less from batch loading,
+            // but we can still optimize if there are many parents
+            let target_type = extract_option_or_direct_inner_type(&field.ty);
+
+            if depth_limited {
+                batch_loading_statements.push(quote! {
+                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = {
+                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+
+                        let all_related = #entity_path::find()
+                            .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()))
+                            .all(db)
+                            .await?;
+
+                        let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
+                            std::collections::HashMap::new();
+                        for related_model in all_related {
+                            let fk_value = related_model.#fk_field_snake;
+                            map.insert(fk_value, #target_type::from(related_model));
+                        }
+                        map
+                    };
+                });
+            } else {
+                batch_loading_statements.push(quote! {
+                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = {
+                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+
+                        let all_related_models: Vec<#model_path> = #entity_path::find()
+                            .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()))
+                            .all(db)
+                            .await?;
+
+                        let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
+                            std::collections::HashMap::new();
+                        for related_model in all_related_models {
+                            let fk_value = related_model.#fk_field_snake;
+                            let entity = match #target_type::get_one(db, related_model.id).await {
+                                Ok(e) => e,
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    #target_type::from(related_model)
+                                }
+                            };
+                            map.insert(fk_value, entity);
+                        }
+                        map
+                    };
+                });
+            }
+
+            field_assignments.push(quote! {
+                item.#field_name = #map_var.remove(&parent_id);
+            });
+        }
+    }
+
+    let pre_loop_code = quote! {
+        // Collect all parent IDs for batch loading
+        let parent_ids: Vec<uuid::Uuid> = models.iter().map(|m| m.#pk_ident).collect();
+
+        #( #batch_loading_statements )*
+    };
+
+    let in_loop_code = quote! {
+        let parent_id = model.#pk_ident;
+        let mut item = Self::from(model);
+        #( #field_assignments )*
+        item
+    };
+
+    (pre_loop_code, in_loop_code)
+}
+
+/// Convert PascalCase to snake_case
+fn to_snake_case(s: &str) -> String {
+    use convert_case::{Case, Casing};
+    s.to_case(Case::Snake)
 }
 
 /// Shared implementation for generating join loading code
@@ -201,7 +477,10 @@ fn generate_join_loading_impl(
                                 .filter(condition)
                                 .all(db)
                                 .await
-                                .unwrap_or_else(|_| Vec::new())
+                                .unwrap_or_else(|e| {
+                                    tracing::warn!(error = %e, "Failed to load self-referencing children");
+                                    Vec::new()
+                                })
                         };
 
                         let #loaded_var: Vec<#api_struct_type> = related_models
@@ -235,14 +514,20 @@ fn generate_join_loading_impl(
                                 .filter(condition)
                                 .all(db)
                                 .await
-                                .unwrap_or_else(|_| Vec::new())
+                                .unwrap_or_else(|e| {
+                                    tracing::warn!(error = %e, "Failed to load self-referencing children");
+                                    Vec::new()
+                                })
                         };
 
                         let mut #field_name = Vec::new();
                         for related_model in related_models {
                             match #api_struct_type::get_one(db, related_model.id).await {
                                 Ok(entity) => #field_name.push(entity),
-                                Err(_) => #field_name.push(related_model.into()),
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    #field_name.push(related_model.into());
+                                }
                             }
                         }
                     });
@@ -253,7 +538,10 @@ fn generate_join_loading_impl(
                         for related_model in related_models {
                             match #api_struct_type::get_one(db, related_model.id).await {
                                 Ok(entity) => #field_name.push(entity),
-                                Err(_) => #field_name.push(related_model.into()),
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    #field_name.push(related_model.into());
+                                }
                             }
                         }
                     });
@@ -285,7 +573,10 @@ fn generate_join_loading_impl(
                         Some(related_model) => {
                             match #target_type::get_one(db, related_model.id).await {
                                 Ok(entity) => Some(entity),
-                                Err(_) => Some(related_model.into()),
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    Some(related_model.into())
+                                }
                             }
                         }
                         None => None,

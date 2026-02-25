@@ -101,20 +101,39 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         quote! { let result = #fn_path(db, ids).await?; }
     } else {
         quote! {
-            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+            use sea_orm::{EntityTrait, QueryFilter, QuerySelect, ColumnTrait};
 
             // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
-            if ids.len() > Self::BATCH_LIMIT {
+            if ids.len() > Self::batch_limit() {
                 return Err(crudcrate::ApiError::bad_request(
-                    format!("Batch delete limited to {} items. Received {} items.", Self::BATCH_LIMIT, ids.len())
+                    format!("Batch delete limited to {} items. Received {} items.", Self::batch_limit(), ids.len())
                 ));
             }
 
-            Self::EntityType::delete_many()
-                .filter(Self::ID_COLUMN.is_in(ids.clone()))
-                .exec(db)
-                .await?;
-            let result = ids;
+            let result = if ids.is_empty() {
+                vec![]
+            } else {
+                // Pre-query: which IDs actually exist?
+                let existing: Vec<crudcrate::UuidIdResult> = Self::EntityType::find()
+                    .select_only()
+                    .column_as(Self::ID_COLUMN, "id")
+                    .filter(Self::ID_COLUMN.is_in(ids.clone()))
+                    .into_model::<crudcrate::UuidIdResult>()
+                    .all(db)
+                    .await?;
+                let existing_set: std::collections::HashSet<uuid::Uuid> = existing.into_iter().map(|r| r.id).collect();
+
+                // Delete only existing IDs
+                if !existing_set.is_empty() {
+                    Self::EntityType::delete_many()
+                        .filter(Self::ID_COLUMN.is_in(existing_set.iter().copied().collect::<Vec<_>>()))
+                        .exec(db)
+                        .await?;
+                }
+
+                // Return only IDs that actually existed (preserving input order)
+                ids.into_iter().filter(|id| existing_set.contains(id)).collect()
+            };
         }
     };
 

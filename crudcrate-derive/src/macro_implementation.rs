@@ -57,13 +57,13 @@ pub(crate) fn generate_crud_resource_impl(
     // Generate configurable limits (only if specified, otherwise use trait defaults)
     let batch_limit_impl = crud_meta.batch_limit.map(|limit| {
         quote! {
-            const BATCH_LIMIT: usize = #limit;
+            fn batch_limit() -> usize { #limit }
         }
     });
 
     let max_page_size_impl = crud_meta.max_page_size.map(|size| {
         quote! {
-            const MAX_PAGE_SIZE: u64 = #size;
+            fn max_page_size() -> u64 { #size }
         }
     });
 

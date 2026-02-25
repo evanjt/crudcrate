@@ -1,4 +1,4 @@
-use crate::codegen::joins::loading::{generate_get_all_join_loading, generate_get_one_join_loading};
+use crate::codegen::joins::loading::{generate_get_all_batch_loading, generate_get_one_join_loading};
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
@@ -9,6 +9,12 @@ use quote::quote;
 /// - `read::many::body`: Replaces default query logic (returns `Vec<ListModel>`)
 /// - `read::many::transform`: Modify the results (receives `Vec<ListModel>`, returns `Vec<ListModel>`)
 /// - `read::many::post`: Side effects after query (receives `&[ListModel]`)
+///
+/// **Performance**: Uses batch loading to reduce N+1 queries to 2 queries when loading
+/// related entities. Instead of querying for each parent's children separately, we:
+/// 1. Query all parents
+/// 2. Batch query all children WHERE parent_id IN (parent_ids)
+/// 3. Group children by parent_id in memory
 pub fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
@@ -46,8 +52,8 @@ pub fn generate_get_all_impl(
     let body = if let Some(fn_path) = &hooks.body {
         quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
     } else if has_join_all_fields {
-        // Generate get_all with join loading
-        let join_loading = generate_get_all_join_loading(analysis, api_struct_name);
+        // Generate get_all with BATCH loading (optimized: 2 queries instead of N+1)
+        let (pre_loop_code, in_loop_code) = generate_get_all_batch_loading(analysis, api_struct_name);
         quote! {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
 
@@ -59,10 +65,14 @@ pub fn generate_get_all_impl(
                 .all(db)
                 .await?;
 
+            // Batch load all related entities (one query per join field)
+            #pre_loop_code
+
+            // Assign pre-loaded data to each model (no queries in loop)
             let mut result = Vec::new();
             for model in models {
                 let item = {
-                    #join_loading
+                    #in_loop_code
                 };
                 result.push(Self::ListModel::from(item));
             }

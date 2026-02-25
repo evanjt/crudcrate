@@ -349,32 +349,32 @@ impl Related<super::comment::Entity> for Entity {
 
 ## Performance Considerations
 
-### N+1 Query Problem
+### Batch Loading (N+1 Query Fix)
 
-CRUDCrate loads relationships using additional queries:
-
-```sql
--- Main query
-SELECT * FROM posts WHERE id = 1;
-
--- Relationship queries (N+1)
-SELECT * FROM comments WHERE post_id = 1;
-SELECT * FROM users WHERE id = 5;
-```
-
-For lists with `join(all)`, this becomes:
+CRUDCrate automatically uses **batch loading** for `get_all()` with `join(all)` or `join(one, all)` fields. Instead of issuing one query per parent entity (N+1), it loads all related entities in a single query:
 
 ```sql
--- For each post
-SELECT * FROM users WHERE id = ?;
+-- 1. Fetch all parent entities
+SELECT * FROM posts LIMIT 20;
+
+-- 2. Batch-load ALL related entities for the page (one query per join field)
+SELECT * FROM users WHERE id IN (5, 12, 7, ...);
+SELECT * FROM comments WHERE post_id IN (1, 2, 3, ...);
 ```
+
+This reduces query count from **N+1 to 2** for depth=1 joins (1 for parents + 1 per join field). Results are grouped by parent ID in memory.
+
+**Depth > 1**: Joins with `depth > 1` fall back to per-item `get_one()` calls for nested children. For example, `depth = 2` loads level-1 children via batch, then loads level-2 grandchildren per parent.
+
+**`get_one()` behavior**: Single-item `get_one()` with `join(one)` uses per-item queries. This is acceptable since it's a single entity lookup.
+
+> **Note**: Batch loading currently requires UUID primary keys. This is consistent with the `CRUDResource` trait contract.
 
 ### Optimization Strategies
 
 1. **Use `join(one)` by default**: Only load in detail views
 2. **Limit depth**: Prevent deep recursive loading
 3. **Add indexes**: On foreign key columns
-4. **Consider eager loading** for critical paths
 
 ```sql
 -- Index foreign keys
@@ -384,12 +384,12 @@ CREATE INDEX idx_comments_post_id ON comments(post_id);
 
 ### When to Use `join(all)`
 
-✅ Use for:
+Use for:
 - Small reference data (categories, tags)
 - Essential context (author names in list)
 - Data needed for display
 
-❌ Avoid for:
+Avoid for:
 - Large collections (comments, history)
 - Deep hierarchies
 - Optional/rare data

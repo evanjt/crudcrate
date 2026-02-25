@@ -128,6 +128,36 @@ pub struct Model { }
 
 ---
 
+### `batch_limit`
+
+Set the maximum number of items for batch create/update/delete operations.
+
+```rust
+#[crudcrate(batch_limit = 500)]
+pub struct Model { }
+```
+
+**Type:** Integer
+**Default:** `100`
+**Runtime override:** Implement `fn batch_limit() -> usize` on your `CRUDResource` impl for dynamic values (env vars, config).
+
+---
+
+### `max_page_size`
+
+Set the maximum items per page for pagination.
+
+```rust
+#[crudcrate(max_page_size = 500)]
+pub struct Model { }
+```
+
+**Type:** Integer
+**Default:** `1000`
+**Runtime override:** Implement `fn max_page_size() -> u64` on your `CRUDResource` impl for dynamic values.
+
+---
+
 ## Lifecycle Hook Attributes
 
 ### `create::one::pre`
@@ -320,6 +350,29 @@ pub struct Model {
     // ...
 }
 ```
+
+## Foreign Key Naming Convention
+
+When using `join()` for batch loading in `get_all()`, CRUDCrate derives the foreign key column name from the parent struct name using PascalCase convention:
+
+- **Parent struct** `Customer` → **FK column** `CustomerId` (SeaORM Column enum) / `customer_id` (field name)
+- **Parent struct** `VehiclePart` → **FK column** `VehiclePartId` / `vehicle_part_id`
+
+Your related entity's SeaORM model must have a matching foreign key field. For example, if `Customer` has `vehicles: Vec<Vehicle>`, the `Vehicle` model must have a `customer_id: Uuid` field and a `Column::CustomerId` variant.
+
+> **Note**: Custom FK names (e.g., `owner_id` instead of `customer_id`) are not yet supported via attributes. If your FK name doesn't follow the convention, use a custom `read::many::body` hook to implement the loading logic.
+
+### Batch Loading Query Behavior
+
+For `get_all()` with `join(all)` or `join(one, all)`, CRUDCrate uses batch loading:
+
+- **Depth=1 joins**: 2 queries total (1 for parents + 1 per join field using `WHERE fk IN (...)`)
+- **Depth > 1 joins**: Additional per-item queries for nested children (falls back to `get_one()` calls)
+- **`get_one()` with `join(one)`**: Per-item queries (single entity, no batching needed)
+
+> **Note**: Batch loading currently requires UUID primary keys, consistent with the `CRUDResource` trait contract.
+
+See [Security](../advanced/security.md) for partial success and batch limit configuration.
 
 ## See Also
 

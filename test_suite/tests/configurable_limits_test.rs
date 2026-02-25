@@ -1,9 +1,12 @@
 // Tests for configurable limits feature
 // Verifies that batch_limit and max_page_size can be configured via struct attributes
 
+use axum::body::Body;
+use axum::http::Request;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use tower::ServiceExt;
 use uuid::Uuid;
 
 // Define a model with custom batch_limit
@@ -83,17 +86,17 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
 }
 
 #[tokio::test]
-async fn test_custom_batch_limit_constant_is_set() {
-    // Verify that the BATCH_LIMIT constant is correctly set to 5
-    assert_eq!(limited_item::LimitedItem::BATCH_LIMIT, 5);
-    assert_eq!(limited_item::LimitedItem::MAX_PAGE_SIZE, 50);
+async fn test_custom_batch_limit_is_set() {
+    // Verify that batch_limit() is correctly set to 5
+    assert_eq!(limited_item::LimitedItem::batch_limit(), 5);
+    assert_eq!(limited_item::LimitedItem::max_page_size(), 50);
 }
 
 #[tokio::test]
-async fn test_default_batch_limit_constant() {
-    // Verify that the default BATCH_LIMIT is 100
-    assert_eq!(default_item::DefaultItem::BATCH_LIMIT, 100);
-    assert_eq!(default_item::DefaultItem::MAX_PAGE_SIZE, 1000);
+async fn test_default_batch_limit() {
+    // Verify that the default batch_limit() is 100
+    assert_eq!(default_item::DefaultItem::batch_limit(), 100);
+    assert_eq!(default_item::DefaultItem::max_page_size(), 1000);
 }
 
 #[tokio::test]
@@ -208,5 +211,56 @@ async fn test_batch_update_exceeds_limit_fails() {
         error_message.contains("Batch update limited to 5 items"),
         "Error should mention the batch limit: {}",
         error_message
+    );
+}
+
+#[tokio::test]
+async fn test_max_page_size_enforced_at_handler_level() {
+    let db = setup_test_db().await.expect("Failed to setup test database");
+
+    // Create 60 items (more than max_page_size=50 for LimitedItem)
+    let items: Vec<limited_item::LimitedItemCreate> = (0..60)
+        .map(|i| limited_item::LimitedItemCreate {
+            name: format!("Page Size Test Item {}", i),
+        })
+        .collect();
+
+    // Insert in batches of 5 (batch_limit=5)
+    for chunk in items.chunks(5) {
+        limited_item::LimitedItem::create_many(&db, chunk.to_vec())
+            .await
+            .expect("Failed to create items");
+    }
+
+    // Set up router
+    let app: axum::Router = axum::Router::new()
+        .nest(
+            "/limited_items",
+            limited_item::LimitedItem::router(&db).into(),
+        );
+
+    // Request with per_page=1000 (exceeds max_page_size=50)
+    let request = Request::builder()
+        .method("GET")
+        .uri("/limited_items?page=1&per_page=1000")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(
+        response.status(),
+        axum::http::StatusCode::OK,
+        "GET request should succeed"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let items: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+
+    assert!(
+        items.len() <= 50,
+        "max_page_size=50 should be enforced at handler level, but got {} items",
+        items.len()
     );
 }

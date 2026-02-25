@@ -15,9 +15,11 @@
 //! - `GET /resource` - List all items with filtering and pagination
 //! - `GET /resource/{id}` - Get specific item by ID
 //! - `POST /resource` - Create new item
+//! - `POST /resource/batch` - Batch create items
 //! - `PUT /resource/{id}` - Update existing item
+//! - `PATCH /resource/batch` - Batch update items
 //! - `DELETE /resource/{id}` - Delete specific item
-//! - `DELETE /resource` - Bulk delete with filtering
+//! - `DELETE /resource/batch` - Bulk delete by IDs
 //!
 //! ### Generated Structs
 //! - **API Struct** (e.g., `Todo`): For HTTP responses
@@ -46,4 +48,4 @@ pub mod traits;
 pub mod crud_operations;
 
 // Re-export commonly used items
-pub use traits::{CRUDResource, MergeIntoActiveModel};
+pub use traits::{CRUDResource, MergeIntoActiveModel, UuidIdResult};

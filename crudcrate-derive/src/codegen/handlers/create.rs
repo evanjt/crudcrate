@@ -94,21 +94,30 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         quote! { let result = #fn_path(db, data).await?; }
     } else {
         quote! {
-            use sea_orm::ActiveModelTrait;
+            use sea_orm::{ActiveModelTrait, TransactionTrait};
+
+            if data.is_empty() {
+                return Ok(vec![]);
+            }
 
             // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
-            if data.len() > Self::BATCH_LIMIT {
+            if data.len() > Self::batch_limit() {
                 return Err(crudcrate::ApiError::bad_request(
-                    format!("Batch create limited to {} items. Received {} items.", Self::BATCH_LIMIT, data.len())
+                    format!("Batch create limited to {} items. Received {} items.", Self::batch_limit(), data.len())
                 ));
             }
+
+            // Use a transaction for all-or-nothing semantics
+            let txn = db.begin().await?;
 
             let mut result = Vec::with_capacity(data.len());
             for create_model in data {
                 let active_model: Self::ActiveModelType = create_model.into();
-                let model = active_model.insert(db).await?;
+                let model = active_model.insert(&txn).await?;
                 result.push(Self::from(model));
             }
+
+            txn.commit().await?;
         }
     };
 

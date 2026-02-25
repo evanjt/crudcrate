@@ -15,10 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Allows enriching, decorating, or transforming CRUD results before returning
   - Supported for all operations: create, read, update, delete (one and many)
   - Example: `#[crudcrate(read::one::transform = enrich_with_metadata)]`
-- **Configurable Limits**: Override batch operation and pagination limits per-resource
+- **Partial Success for Batch Operations**: New `?partial=true` query parameter for batch endpoints
+  - Returns HTTP 207 Multi-Status when some items succeed and some fail
+  - Response includes `succeeded` and `failed` arrays with indices and error messages
+  - Available for: `POST /batch`, `PATCH /batch`, `DELETE /batch`
+  - New types: `BatchResult<T>`, `BatchFailure`, `BatchOptions`
+  - **Note**: Partial mode processes items individually using single-item hooks (`create::one::*`, etc.), not batch hooks (`create::many::*`). Each item commits independently with no shared transaction.
+- **Batch Create/Update Endpoints**: `POST /batch` and `PATCH /batch` for bulk operations
+  - Transaction-based all-or-nothing semantics by default
+  - Pre-validation for batch updates ensures true atomicity across all DB backends
+- **Runtime-Configurable Limits**: Override batch and pagination limits per-resource
   - `#[crudcrate(batch_limit = 500)]` - Max items for batch create/update/delete (default: 100)
   - `#[crudcrate(max_page_size = 500)]` - Max items per page (default: 1000)
-  - Constants available via `MyResource::BATCH_LIMIT` and `MyResource::MAX_PAGE_SIZE`
+  - Trait methods `fn batch_limit()` and `fn max_page_size()` can be overridden for runtime logic (env vars, config)
+- **Security Startup Log**: Info-level log message when mounting CRUD routes
+  - Reports resource name, table, batch_limit, max_page_size, and enabled security defaults
+  - Silent when no tracing subscriber is configured
+- **Batch Loading for Joins (N+1 Query Fix)**: Optimized `get_all()` with joins
+  - Reduced from N+1 queries to 2 queries for depth=1 joins (1 for parents + 1 per join field). Deeper joins (depth > 1) may issue additional queries to load nested relations.
+  - Uses `WHERE parent_id IN (...)` with in-memory grouping
 - **Documentation Test Links**: New mdbook preprocessor linking documentation examples to test files
   - Syntax: `{{#test_link filtering}}` generates GitHub links to relevant tests
   - Builds confidence that documented features are tested
@@ -37,10 +52,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced examples with "Run It Now" sections
   - Removed verbose, fragmented quickstart/installation/first-api tutorials
   - Net reduction of ~800 lines while covering more features
-- Batch operation limit checking now uses `Self::BATCH_LIMIT` constant (configurable per-resource)
+- Batch operation limit checking now uses `Self::batch_limit()` method (configurable per-resource)
+- `BATCH_LIMIT` and `MAX_PAGE_SIZE` changed from associated constants to trait methods for runtime overridability
+- Batch loading uses `.remove()` from HashMap instead of `.get().cloned()` — moves data instead of copying
 
 ### Fixed
 
+- `max_page_size()` trait method now enforced in HTTP pagination handler (was ignored; only the global `MAX_PAGE_SIZE` constant had effect)
+- `delete_many()` returns only actually-deleted IDs (was returning all input IDs regardless of existence)
+- `update_many()` removed redundant pre-validation queries outside the transaction (TOCTOU race with no safety benefit)
+- Self-referencing join errors now logged via `tracing::warn!` instead of silently swallowed
+- Nested relation loading errors (`get_one()` fallbacks) now logged via `tracing::warn!`
+- `to_snake_case` in FK derivation now handles acronyms correctly (e.g., "APIUser" → "api_user", was "a_p_i_user")
+- Batch loading uses PK field name from entity metadata instead of hardcoded `id`
+- `update()` trait default used `RESOURCE_NAME_PLURAL` instead of `RESOURCE_NAME_SINGULAR` in not-found error
+- `delete_many()` trait default had no batch limit check (now enforces `batch_limit()`)
 - Broken cross-reference links in reference documentation
   - `field-attributes.md`: Fixed links to tutorials
   - `query-parameters.md`: Fixed links to filtering/sorting/search tutorials
@@ -49,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **`BatchUpdateItem<T>`**: Dead struct removed from public API (batch updates use per-macro `BatchUpdateRequest` instead)
+- **Dead code path**: Unreachable self-referencing branch in batch loading (self-refs are always depth=1)
 - **Documentation**: Legacy tutorial structure
   - `tutorial/quickstart.md` (replaced by `first-steps.md`)
   - `tutorial/installation.md` (merged into landing page)
@@ -454,7 +482,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
-[0.6.0]: https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1
+[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.7.0...HEAD
+[0.7.0]: https://github.com/evanjt/crudcrate/compare/0.6.1...0.7.0
+[0.6.1]: https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1
 [0.6.0]: https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0
 [0.5.0]: https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0
 [0.4.5]: https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5

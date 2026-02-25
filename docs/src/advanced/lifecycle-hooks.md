@@ -86,16 +86,49 @@ async fn soft_delete(
 }
 ```
 
+### Transform Hooks (`::transform`)
+
+Modify the result **after** the operation (or body replacement) but **before** the post hook:
+
+```rust
+#[crudcrate(read::one::transform = enrich_article)]
+
+// Hook function signature
+async fn enrich_article(
+    db: &DatabaseConnection,
+    article: Article,  // Takes ownership
+) -> Result<Article, ApiError> {
+    // Enrich, decorate, or transform the result
+    Ok(article)
+}
+```
+
+Transform hooks take ownership of the result and return a modified version. Supported for all operations (create, read, update, delete) in both `one` and `many` cardinality.
+
+For `many` operations, the transform receives and returns `Vec<T>`:
+
+```rust
+async fn transform_articles(
+    db: &DatabaseConnection,
+    articles: Vec<Article>,
+) -> Result<Vec<Article>, ApiError> {
+    // Transform the batch
+    Ok(articles)
+}
+```
+
 ## Available Operations
 
 | Operation | Description |
 |-----------|-------------|
 | `create::one` | Create single item (POST /items) |
+| `create::many` | Batch create (POST /items/batch) |
 | `update::one` | Update single item (PUT /items/:id) |
+| `update::many` | Batch update (PATCH /items/batch) |
 | `delete::one` | Delete single item (DELETE /items/:id) |
 | `delete::many` | Bulk delete (DELETE /items with body) |
-| `get::one` | Get single item (GET /items/:id) |
-| `get::all` | List items (GET /items) |
+| `read::one` | Get single item (GET /items/:id) |
+| `read::all` | List items (GET /items) |
 
 ## Function Signatures
 
@@ -118,6 +151,12 @@ async fn create_post(
 async fn create_body(
     db: &DatabaseConnection,
     data: ArticleCreate,
+) -> Result<Article, ApiError>;
+
+// Transform - modify the result
+async fn create_transform(
+    db: &DatabaseConnection,
+    created: Article,
 ) -> Result<Article, ApiError>;
 ```
 
@@ -142,6 +181,12 @@ async fn update_body(
     db: &DatabaseConnection,
     id: Uuid,
     data: ArticleUpdate,
+) -> Result<Article, ApiError>;
+
+// Transform - modify the result
+async fn update_transform(
+    db: &DatabaseConnection,
+    updated: Article,
 ) -> Result<Article, ApiError>;
 ```
 
@@ -398,9 +443,21 @@ pub struct Model { }
 Execution order:
 1. Attribute hook (`create::one::pre`)
 2. `CRUDOperations::before_create`
-3. Database operation
-4. `CRUDOperations::after_create`
-5. Attribute hook (`create::one::post`)
+3. Database operation (or `create::one::body` replacement)
+4. Attribute hook (`create::one::transform`)
+5. `CRUDOperations::after_create`
+6. Attribute hook (`create::one::post`)
+
+## Hooks and Partial Success Mode
+
+When using `?partial=true` on batch endpoints, items are processed **individually** using single-item hooks (`create::one::*`, `update::one::*`, `delete::one::*`), not batch hooks (`create::many::*`, etc.). Each item commits independently with no shared transaction.
+
+This means:
+- `create::one::pre` runs once per item, not `create::many::pre` once for the batch
+- A failing item does not roll back previously succeeded items
+- Transform hooks run per-item, receiving a single entity (not a `Vec`)
+
+See [Security](./security.md) for more details on partial success behavior.
 
 ## Next Steps
 

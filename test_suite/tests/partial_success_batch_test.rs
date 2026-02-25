@@ -1,15 +1,12 @@
-//! Tests for partial success in batch operations
+//! Tests for partial success in batch operations.
 //!
-//! Currently, batch operations in CRUDCrate are all-or-nothing:
-//! - If any item fails, the entire batch fails
-//! - No partial results are returned
+//! CRUDCrate supports two batch operation modes:
 //!
-//! This test file documents the expected behavior for a future partial success feature:
-//! - Batch operations can succeed partially
-//! - Response includes both successful results and errors
-//! - Successful items are committed even if some fail
+//! 1. **All-or-nothing** (default): If any item fails, the entire batch is rolled back.
+//! 2. **Partial success** (`?partial=true`): Items are processed independently.
+//!    Successful items are committed even if others fail.
 //!
-//! ## Proposed Response Format
+//! ## Partial Success Response Format (HTTP 207 Multi-Status)
 //!
 //! ```json
 //! {
@@ -23,11 +20,6 @@
 //!   ]
 //! }
 //! ```
-//!
-//! ## Current Behavior Tests
-//!
-//! These tests document the CURRENT all-or-nothing behavior.
-//! When partial success is implemented, these will be updated or replaced.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -285,16 +277,14 @@ async fn test_batch_update_nonexistent_fails_all_currently() {
 }
 
 // =============================================================================
-// FUTURE PARTIAL SUCCESS TESTS
-// These tests will pass once partial success is implemented
-// Currently marked as ignored
+// PARTIAL SUCCESS TESTS
+// These tests verify the ?partial=true query parameter behavior
 // =============================================================================
 
-/// Future behavior: batch update returns partial success
+/// Batch update returns partial success
 /// Some items succeed, some fail, with detailed error info
 #[tokio::test]
-#[ignore = "Partial success not yet implemented"]
-async fn test_batch_update_partial_success_future() {
+async fn test_batch_update_partial_success() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
@@ -380,10 +370,13 @@ async fn test_batch_update_partial_success_future() {
     );
 }
 
-/// Future behavior: batch create with validation errors returns partial success
+/// Batch create with validation errors returns partial success
+/// Note: This test assumes custom validation that rejects empty names.
+/// Since we don't have validation in the test model, we can only test
+/// basic partial success with DB-level errors.
 #[tokio::test]
-#[ignore = "Partial success not yet implemented"]
-async fn test_batch_create_validation_partial_success_future() {
+#[ignore = "Requires custom validation hooks to test properly"]
+async fn test_batch_create_validation_partial_success() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
@@ -436,10 +429,9 @@ async fn test_batch_create_validation_partial_success_future() {
     }
 }
 
-/// Future behavior: batch delete with mixed existing/nonexisting IDs
+/// Batch delete with mixed existing/nonexisting IDs
 #[tokio::test]
-#[ignore = "Partial success not yet implemented"]
-async fn test_batch_delete_partial_success_future() {
+async fn test_batch_delete_partial_success() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
@@ -657,6 +649,218 @@ async fn test_batch_create_consistency() {
             all_customers.iter().any(|c| c.id.to_string() == *id),
             "Created customer {} should be in list",
             id
+        );
+    }
+}
+
+// =============================================================================
+// DELETE_MANY PHANTOM ID TESTS
+// =============================================================================
+
+/// Test that batch delete only returns IDs that actually existed.
+/// Previously, delete_many returned ALL input IDs regardless of whether they were deleted.
+#[tokio::test]
+async fn test_batch_delete_returns_only_existing_ids() {
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
+    let app = setup_test_app(&db);
+
+    // Create one customer
+    let customer_json = json!({
+        "name": "Delete Phantom Test",
+        "email": "phantom@test.com"
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/customers")
+        .header("content-type", "application/json")
+        .body(Body::from(customer_json.to_string()))
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let customer: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let existing_id = customer["id"].as_str().unwrap().to_string();
+
+    let nonexistent_id = "00000000-0000-0000-0000-000000000099";
+
+    // Batch delete: one existing + one nonexistent (all-or-nothing mode, no ?partial)
+    let delete_ids = json!([existing_id, nonexistent_id]);
+
+    let request = Request::builder()
+        .method("DELETE")
+        .uri("/customers/batch")
+        .header("content-type", "application/json")
+        .body(Body::from(delete_ids.to_string()))
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Batch delete should succeed (deleting what exists)"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let deleted_ids: Vec<String> = serde_json::from_slice(&body).unwrap();
+
+    // Should only contain the existing ID, not the nonexistent one
+    assert!(
+        deleted_ids.contains(&existing_id),
+        "Should contain the existing ID that was deleted"
+    );
+    assert!(
+        !deleted_ids.contains(&nonexistent_id.to_string()),
+        "Should NOT contain nonexistent ID - was a phantom return"
+    );
+    assert_eq!(
+        deleted_ids.len(),
+        1,
+        "Should return exactly 1 deleted ID, not 2"
+    );
+}
+
+// =============================================================================
+// ADDITIONAL PARTIAL SUCCESS EDGE CASE TESTS
+// =============================================================================
+
+/// Test that partial delete with ALL nonexistent IDs returns 400 with empty succeeded
+#[tokio::test]
+async fn test_batch_delete_partial_all_fail() {
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
+    let app = setup_test_app(&db);
+
+    // Try to delete 2 nonexistent IDs
+    let delete_ids = json!([
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002"
+    ]);
+
+    let request = Request::builder()
+        .method("DELETE")
+        .uri("/customers/batch?partial=true")
+        .header("content-type", "application/json")
+        .body(Body::from(delete_ids.to_string()))
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+
+    // All failed -> HTTP 400
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "All-fail partial delete should return 400"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    assert!(succeeded.is_empty(), "No items should succeed");
+
+    let failed = result["failed"].as_array().expect("Should have failed array");
+    assert_eq!(failed.len(), 2, "Both items should fail");
+}
+
+/// Test that partial update with ALL valid items returns 200 with BatchResult shape
+#[tokio::test]
+async fn test_batch_update_partial_all_succeed() {
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
+    let app = setup_test_app(&db);
+
+    // Create 3 customers
+    let mut customer_ids = Vec::new();
+    for i in 0..3 {
+        let customer_json = json!({
+            "name": format!("Partial All Succeed {}", i),
+            "email": format!("partial_all_succeed{}@test.com", i)
+        });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/customers")
+            .header("content-type", "application/json")
+            .body(Body::from(customer_json.to_string()))
+            .unwrap();
+
+        let response = app.clone().oneshot(request).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let customer: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        customer_ids.push(customer["id"].as_str().unwrap().to_string());
+    }
+
+    // Update all 3 with partial=true (all valid)
+    let updates: Vec<serde_json::Value> = customer_ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| {
+            json!({
+                "id": id,
+                "name": format!("All Succeed Updated {}", i)
+            })
+        })
+        .collect();
+
+    let request = Request::builder()
+        .method("PATCH")
+        .uri("/customers/batch?partial=true")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_string(&updates).unwrap()))
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+
+    // All succeeded -> HTTP 200
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "All-succeed partial update should return 200"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    // Response should be BatchResult shape even when all succeed
+    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    assert_eq!(succeeded.len(), 3, "All 3 items should succeed");
+
+    let failed = result["failed"].as_array().expect("Should have failed array");
+    assert!(failed.is_empty(), "No items should fail");
+
+    // Verify names were actually updated
+    for (i, id) in customer_ids.iter().enumerate() {
+        let request = Request::builder()
+            .method("GET")
+            .uri(format!("/customers/{}", id))
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.clone().oneshot(request).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let customer: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            customer["name"].as_str().unwrap(),
+            format!("All Succeed Updated {}", i),
+            "Customer {} should be updated", id
         );
     }
 }

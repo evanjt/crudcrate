@@ -28,10 +28,10 @@
 //!
 //! | Operation | Cardinality | Phase | Description |
 //! |-----------|-------------|-------|-------------|
-//! | `create` | `one`, `many` | `pre`, `body`, `post` | Create hooks |
-//! | `read` | `one`, `many` | `pre`, `body`, `post` | Read hooks |
-//! | `update` | `one`, `many` | `pre`, `body`, `post` | Update hooks |
-//! | `delete` | `one`, `many` | `pre`, `body`, `post` | Delete hooks |
+//! | `create` | `one`, `many` | `pre`, `body`, `transform`, `post` | Create hooks |
+//! | `read` | `one`, `many` | `pre`, `body`, `transform`, `post` | Read hooks |
+//! | `update` | `one`, `many` | `pre`, `body`, `transform`, `post` | Update hooks |
+//! | `delete` | `one`, `many` | `pre`, `body`, `transform`, `post` | Delete hooks |
 //!
 //! Example: `#[crudcrate(create::one::pre = validate_input)]`
 //!

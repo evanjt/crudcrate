@@ -99,15 +99,51 @@ Prevents wildcard injection in search queries:
 
 ### Batch Operation Limits
 
+All batch operations (create, update, delete) enforce a configurable size limit to prevent resource exhaustion:
+
 ```rust
-// Bulk delete limited to 100 items
-async fn delete_many(ids: Vec<Uuid>) -> Result<u64, ApiError> {
-    if ids.len() > 100 {
-        return Err(ApiError::BadRequest("Cannot delete more than 100 items".into()));
+// Default: 100 items per batch
+#[crudcrate(batch_limit = 500)]  // Override per-resource
+pub struct Model { }
+```
+
+For runtime-configurable limits (e.g., from environment variables), override the trait method:
+
+```rust
+impl CRUDResource for MyResource {
+    fn batch_limit() -> usize {
+        std::env::var("MY_BATCH_LIMIT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100)
     }
     // ...
 }
 ```
+
+### Partial Success Mode
+
+Batch endpoints support a `?partial=true` query parameter that changes behavior:
+
+**Response shape**: With `?partial=true`, the response wraps results in a `BatchResult<T>` instead of `Vec<T>`:
+```json
+{
+  "succeeded": [{ "id": "...", "name": "..." }],
+  "failed": [{ "index": 2, "error": "..." }]
+}
+```
+
+**Hook behavior**: Partial mode processes each item individually via single-item methods (`create`, `update`, `delete`). This means:
+- `create::many::*`, `update::many::*`, and `delete::many::*` hooks are **not called**
+- Single-item hooks (`create::one::*`, etc.) are called for each item instead
+- There is no shared transaction — each item commits independently
+
+**Error sanitization**: Error messages in the `failed` array use sanitized `ApiError::Display` output. Database errors show "A database error occurred" rather than internal details.
+
+**HTTP status codes**:
+- `200` — All items succeeded
+- `207 Multi-Status` — Some items succeeded, some failed
+- `400 Bad Request` — All items failed
 
 ### Error Sanitization
 

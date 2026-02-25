@@ -167,7 +167,7 @@ No. Generated code has zero runtime overhead. All generation happens at compile 
 
 ### Does loading relationships cause N+1 queries?
 
-Currently, yes. Relationships are loaded with additional queries. For performance-critical paths, consider custom handlers with batch loading.
+No — `get_all()` with `join(all)` uses **batch loading** that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using `WHERE parent_id IN (...)`. This applies to depth=1 joins; deeper joins (depth > 1) may issue additional queries for nested relations. Single-item `get_one()` uses per-item queries, which is acceptable for individual lookups.
 
 ## Troubleshooting
 

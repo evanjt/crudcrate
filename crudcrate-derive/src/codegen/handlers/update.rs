@@ -103,20 +103,23 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         quote! { let result = #fn_path(db, updates).await?; }
     } else {
         quote! {
-            use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
+            use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait, TransactionTrait};
             use crudcrate::traits::MergeIntoActiveModel;
 
             // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
-            if updates.len() > Self::BATCH_LIMIT {
+            if updates.len() > Self::batch_limit() {
                 return Err(crudcrate::ApiError::bad_request(
-                    format!("Batch update limited to {} items. Received {} items.", Self::BATCH_LIMIT, updates.len())
+                    format!("Batch update limited to {} items. Received {} items.", Self::batch_limit(), updates.len())
                 ));
             }
+
+            // Use a transaction for atomicity
+            let txn = db.begin().await?;
 
             let mut result = Vec::with_capacity(updates.len());
             for (id, update_model) in updates {
                 let model = Self::EntityType::find_by_id(id)
-                    .one(db)
+                    .one(&txn)
                     .await?
                     .ok_or_else(|| crudcrate::ApiError::not_found(
                         Self::RESOURCE_NAME_SINGULAR,
@@ -124,9 +127,11 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
                     ))?;
                 let existing: Self::ActiveModelType = model.into_active_model();
                 let updated_model = update_model.merge_into_activemodel(existing)?;
-                let updated = updated_model.update(db).await?;
+                let updated = updated_model.update(&txn).await?;
                 result.push(Self::from(updated));
             }
+
+            txn.commit().await?;
         }
     };
 

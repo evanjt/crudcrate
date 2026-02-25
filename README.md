@@ -211,7 +211,8 @@ pub struct Vehicle {
 
 **Multi-level recursive loading works out of the box:**
 - Customer → Vehicles → Parts/Maintenance Records (3 levels deep)
-- No complex SQL joins required - uses efficient recursive queries
+- `get_all()` uses batch loading: 2 queries for depth=1 joins (1 for parents + 1 per join field)
+- `get_one()` uses per-item loading (acceptable for single-entity lookups)
 - Automatic cycle detection prevents infinite recursion
 
 **Join options:**

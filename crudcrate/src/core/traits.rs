@@ -7,6 +7,13 @@ use uuid::Uuid;
 
 use crate::ApiError;
 
+/// Helper for extracting UUID PKs in batch queries.
+/// Used by `delete_many` to verify which IDs actually existed.
+#[derive(Debug, sea_orm::FromQueryResult)]
+pub struct UuidIdResult {
+    pub id: Uuid,
+}
+
 pub trait MergeIntoActiveModel<ActiveModelType> {
     /// Merge this update model into an existing active model
     ///
@@ -41,13 +48,15 @@ where
     const RESOURCE_DESCRIPTION: &'static str = "";
     const FULLTEXT_LANGUAGE: &'static str = "english";
 
-    /// Maximum number of items allowed in batch create/update operations.
-    /// Override with `#[crudcrate(batch_limit = 500)]` on your struct.
-    const BATCH_LIMIT: usize = 100;
+    /// Maximum number of items allowed in batch create/update/delete operations.
+    /// Override with `#[crudcrate(batch_limit = 500)]` on your struct, or implement
+    /// manually for runtime logic (env vars, config, etc.).
+    fn batch_limit() -> usize { 100 }
 
     /// Maximum page size for pagination.
-    /// Override with `#[crudcrate(max_page_size = 500)]` on your struct.
-    const MAX_PAGE_SIZE: u64 = 1000;
+    /// Override with `#[crudcrate(max_page_size = 500)]` on your struct, or implement
+    /// manually for runtime logic (env vars, config, etc.).
+    fn max_page_size() -> u64 { 1000 }
 
     async fn get_all(
         db: &DatabaseConnection,
@@ -109,7 +118,7 @@ where
                 .await
                 .map_err(ApiError::database)?
                 .ok_or_else(|| ApiError::not_found(
-                    Self::RESOURCE_NAME_PLURAL,
+                    Self::RESOURCE_NAME_SINGULAR,
                     Some(id.to_string()),
                 ))?;
         let existing: Self::ActiveModelType = model.into_active_model();
@@ -130,15 +139,44 @@ where
     }
 
     async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
-        Self::EntityType::delete_many()
+        if ids.len() > Self::batch_limit() {
+            return Err(ApiError::bad_request(
+                format!("Batch delete limited to {} items. Received {} items.", Self::batch_limit(), ids.len())
+            ));
+        }
+
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Pre-query: which IDs actually exist?
+        let existing: Vec<UuidIdResult> = Self::EntityType::find()
+            .select_only()
+            .column_as(Self::ID_COLUMN, "id")
             .filter(Self::ID_COLUMN.is_in(ids.clone()))
-            .exec(db)
+            .into_model::<UuidIdResult>()
+            .all(db)
             .await
             .map_err(ApiError::database)?;
-        Ok(ids)
+        let existing_set: std::collections::HashSet<Uuid> = existing.into_iter().map(|r| r.id).collect();
+
+        // Delete only existing IDs
+        if !existing_set.is_empty() {
+            Self::EntityType::delete_many()
+                .filter(Self::ID_COLUMN.is_in(existing_set.iter().copied().collect::<Vec<_>>()))
+                .exec(db)
+                .await
+                .map_err(ApiError::database)?;
+        }
+
+        // Return only IDs that actually existed (preserving input order)
+        Ok(ids.into_iter().filter(|id| existing_set.contains(id)).collect())
     }
 
     /// Create multiple entities in a batch.
+    ///
+    /// Uses a transaction to ensure all-or-nothing semantics: if any insert fails,
+    /// the entire batch is rolled back and no entities are created.
     ///
     /// # Arguments
     /// * `db` - The database connection
@@ -148,30 +186,44 @@ where
     /// A vector of the created entities
     ///
     /// # Errors
-    /// Returns an `ApiError` if the batch insert fails
+    /// Returns an `ApiError` if any insert fails (entire batch is rolled back)
     async fn create_many(
         db: &DatabaseConnection,
         create_models: Vec<Self::CreateModel>,
     ) -> Result<Vec<Self>, ApiError> {
-        use sea_orm::ActiveModelTrait;
+        use sea_orm::{ActiveModelTrait, TransactionTrait};
 
         // Security: Limit batch size to prevent DoS attacks
-        if create_models.len() > Self::BATCH_LIMIT {
+        if create_models.len() > Self::batch_limit() {
             return Err(ApiError::bad_request(
-                format!("Batch create limited to {} items. Received {} items.", Self::BATCH_LIMIT, create_models.len())
+                format!("Batch create limited to {} items. Received {} items.", Self::batch_limit(), create_models.len())
             ));
         }
+
+        // Use a transaction for all-or-nothing semantics
+        let txn = db.begin().await.map_err(ApiError::database)?;
 
         let mut results = Vec::with_capacity(create_models.len());
         for create_model in create_models {
             let active_model: Self::ActiveModelType = create_model.into();
-            let model = active_model.insert(db).await.map_err(ApiError::database)?;
+            let model = match active_model.insert(&txn).await {
+                Ok(m) => m,
+                Err(e) => {
+                    // Rollback is automatic when txn is dropped
+                    return Err(ApiError::database(e));
+                }
+            };
             results.push(Self::from(model));
         }
+
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(results)
     }
 
     /// Update multiple entities in a batch.
+    ///
+    /// Uses a transaction to ensure all-or-nothing semantics: if any update fails,
+    /// the entire batch is rolled back and no entities are updated.
     ///
     /// # Arguments
     /// * `db` - The database connection
@@ -181,22 +233,27 @@ where
     /// A vector of the updated entities
     ///
     /// # Errors
-    /// Returns an `ApiError` if any update fails
+    /// Returns an `ApiError` if any update fails (entire batch is rolled back)
     async fn update_many(
         db: &DatabaseConnection,
         updates: Vec<(Uuid, Self::UpdateModel)>,
     ) -> Result<Vec<Self>, ApiError> {
+        use sea_orm::TransactionTrait;
+
         // Security: Limit batch size to prevent DoS attacks
-        if updates.len() > Self::BATCH_LIMIT {
+        if updates.len() > Self::batch_limit() {
             return Err(ApiError::bad_request(
-                format!("Batch update limited to {} items. Received {} items.", Self::BATCH_LIMIT, updates.len())
+                format!("Batch update limited to {} items. Received {} items.", Self::batch_limit(), updates.len())
             ));
         }
+
+        // Use a transaction for atomicity
+        let txn = db.begin().await.map_err(ApiError::database)?;
 
         let mut results = Vec::with_capacity(updates.len());
         for (id, update_model) in updates {
             let model = Self::EntityType::find_by_id(id)
-                .one(db)
+                .one(&txn)
                 .await
                 .map_err(ApiError::database)?
                 .ok_or_else(|| ApiError::not_found(
@@ -205,9 +262,11 @@ where
                 ))?;
             let existing: Self::ActiveModelType = model.into_active_model();
             let updated_model = update_model.merge_into_activemodel(existing)?;
-            let updated = updated_model.update(db).await.map_err(ApiError::database)?;
+            let updated = updated_model.update(&txn).await.map_err(ApiError::database)?;
             results.push(Self::from(updated));
         }
+
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(results)
     }
 

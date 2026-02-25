@@ -34,11 +34,21 @@ fn generate_axum_router(
             {
                 use utoipa_axum::{router::OpenApiRouter, routes};
 
+                tracing::info!(
+                    resource = Self::RESOURCE_NAME_PLURAL,
+                    table = Self::TABLE_NAME,
+                    batch_limit = Self::batch_limit(),
+                    max_page_size = Self::max_page_size(),
+                    "Mounting CRUD routes with security defaults: input_sanitization=enabled, sql_parameterization=enabled. See https://crudcrate.evanjt.com/latest/advanced/security.html"
+                );
+
                 OpenApiRouter::new()
                     .routes(routes!(get_one_handler))
                     .routes(routes!(get_all_handler))
                     .routes(routes!(create_one_handler))
+                    .routes(routes!(create_many_handler))
                     .routes(routes!(update_one_handler))
+                    .routes(routes!(update_many_handler))
                     .routes(routes!(delete_one_handler))
                     .routes(routes!(delete_many_handler))
                     .with_state(db.clone())

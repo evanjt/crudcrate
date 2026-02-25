@@ -79,3 +79,67 @@ pub struct FilterOptions {
     #[param(example = "ASC")]
     pub order: Option<String>,
 }
+
+/// Query parameters for batch operations.
+///
+/// # Partial Success Mode
+///
+/// By default, batch operations use all-or-nothing semantics - if any item fails,
+/// the entire batch is rolled back. When `partial=true` is specified, the operation
+/// processes each item independently:
+///
+/// - Items that succeed are committed
+/// - Items that fail are collected with their error messages
+/// - Response includes both `succeeded` and `failed` arrays
+/// - HTTP status is 207 Multi-Status for partial success
+///
+/// ## Important: Hook Behavior
+///
+/// Partial mode processes items via single-item methods (`create`, `update`, `delete`),
+/// **not** the batch methods (`create_many`, `update_many`, `delete_many`). This means:
+/// - `create::many::*`, `update::many::*`, and `delete::many::*` hooks are **not called**
+/// - Single-item hooks (`create::one::*`, etc.) are called for each item
+/// - There is no shared transaction — each item commits independently
+///
+/// ## Response Shape
+///
+/// When `partial=true`, the response is always a `BatchResult<T>` (with `succeeded`
+/// and `failed` arrays), even when all items succeed. Without `partial=true`, the
+/// response is a plain `Vec<T>`.
+///
+/// # Example
+///
+/// ```bash
+/// # All-or-nothing (default)
+/// POST /resources/batch
+///
+/// # Partial success mode
+/// POST /resources/batch?partial=true
+/// ```
+///
+/// ## Partial Success Response
+///
+/// ```json
+/// {
+///   "succeeded": [
+///     { "id": "uuid-1", "name": "Item 1", ... }
+///   ],
+///   "failed": [
+///     { "index": 1, "error": "Validation failed" }
+///   ]
+/// }
+/// ```
+#[derive(Deserialize, IntoParams, ToSchema, Default, Clone)]
+#[into_params(parameter_in = Query)]
+pub struct BatchOptions {
+    /// Enable partial success mode for batch operations.
+    ///
+    /// When `true`, the operation processes each item independently instead of
+    /// using all-or-nothing semantics. Items that succeed are committed even if
+    /// other items fail.
+    ///
+    /// Default: `false` (all-or-nothing)
+    #[param(example = false)]
+    #[serde(default)]
+    pub partial: bool,
+}
