@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-03-06
+
 ### Added
 
 - **Transform Hooks**: New `transform` phase in hook system for result modification
@@ -35,53 +37,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduced from N+1 queries to 2 queries for depth=1 joins (1 for parents + 1 per join field). Deeper joins (depth > 1) may issue additional queries to load nested relations.
   - Uses `WHERE parent_id IN (...)` with in-memory grouping
 - **Documentation Test Links**: New mdbook preprocessor linking documentation examples to test files
-  - Syntax: `{{#test_link filtering}}` generates GitHub links to relevant tests
-  - Builds confidence that documented features are tested
-  - Version-aware links (uses `CRUDCRATE_VERSION` or `GITHUB_REF_NAME` env vars)
 - **IDE Documentation**: Comprehensive attribute reference in crate-level documentation
-  - Struct-level attributes table (generate_router, batch_limit, hooks, etc.)
-  - Field-level attributes table (filterable, sortable, join, exclude, etc.)
-  - Example usage patterns
 
 ### Changed
 
 - **Documentation Overhaul**: Complete restructure of tutorial documentation
   - New progressive tutorial: First Steps → Auto IDs → Timestamps → Filtering → Sorting → Search → Hiding Fields → Relationships → Hooks
   - Simplified navigation structure in SUMMARY.md
-  - Improved landing page with quick start guide
   - Enhanced examples with "Run It Now" sections
-  - Removed verbose, fragmented quickstart/installation/first-api tutorials
   - Net reduction of ~800 lines while covering more features
+- **DateTimeWithTimeZone schema fix**: All generated model structs (API, Create, Update, List, Response) now resolve `DateTimeWithTimeZone` to `chrono::DateTime<chrono::FixedOffset>` so utoipa's ToSchema derive recognizes it as a DateTime type
+- Generated API struct derives now use fully qualified paths (`serde::Serialize`, `utoipa::ToSchema`, etc.) to avoid conflicts with user imports
+- Bumped `sea-orm` from 1.1.17 to 1.1.19
 - Batch operation limit checking now uses `Self::batch_limit()` method (configurable per-resource)
 - `BATCH_LIMIT` and `MAX_PAGE_SIZE` changed from associated constants to trait methods for runtime overridability
 - Batch loading uses `.remove()` from HashMap instead of `.get().cloned()` — moves data instead of copying
 
 ### Fixed
 
-- `max_page_size()` trait method now enforced in HTTP pagination handler (was ignored; only the global `MAX_PAGE_SIZE` constant had effect)
-- `delete_many()` returns only actually-deleted IDs (was returning all input IDs regardless of existence)
-- `update_many()` removed redundant pre-validation queries outside the transaction (TOCTOU race with no safety benefit)
+- UUID array filtering now passes native `Uuid` values to `is_in()` instead of stringified values, fixing incorrect query generation for UUID column arrays
+- `max_page_size()` trait method now enforced in HTTP pagination handler
+- `delete_many()` returns only actually-deleted IDs
+- `update_many()` removed redundant pre-validation queries outside the transaction (TOCTOU race)
 - Self-referencing join errors now logged via `tracing::warn!` instead of silently swallowed
 - Nested relation loading errors (`get_one()` fallbacks) now logged via `tracing::warn!`
-- `to_snake_case` in FK derivation now handles acronyms correctly (e.g., "APIUser" → "api_user", was "a_p_i_user")
+- `to_snake_case` in FK derivation now handles acronyms correctly
 - Batch loading uses PK field name from entity metadata instead of hardcoded `id`
-- `update()` trait default used `RESOURCE_NAME_PLURAL` instead of `RESOURCE_NAME_SINGULAR` in not-found error
+- `update()` trait default used plural instead of singular resource name in not-found error
 - `delete_many()` trait default had no batch limit check (now enforces `batch_limit()`)
 - Broken cross-reference links in reference documentation
-  - `field-attributes.md`: Fixed links to tutorials
-  - `query-parameters.md`: Fixed links to filtering/sorting/search tutorials
-  - `struct-attributes.md`: Fixed link to hooks tutorial
-- Clippy doc-markdown warnings in `attribute_parser.rs` and `codegen/handlers/create.rs`
+- Clippy doc-markdown warnings
 
 ### Removed
 
-- **`BatchUpdateItem<T>`**: Dead struct removed from public API (batch updates use per-macro `BatchUpdateRequest` instead)
-- **Dead code path**: Unreachable self-referencing branch in batch loading (self-refs are always depth=1)
-- **Documentation**: Legacy tutorial structure
-  - `tutorial/quickstart.md` (replaced by `first-steps.md`)
-  - `tutorial/installation.md` (merged into landing page)
-  - `tutorial/first-api.md` (replaced by progressive tutorial)
-  - `tutorial/project-structure.md` (content distributed across tutorials)
+- **`BatchUpdateItem<T>`**: Dead struct removed from public API
+- **Dead code path**: Unreachable self-referencing branch in batch loading
+- **Documentation**: Legacy tutorial structure replaced by progressive tutorials
 
 ## [0.7.0] - 2025-11-26
 
@@ -482,7 +473,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
-[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.7.0...HEAD
+[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.7.1...HEAD
+[0.7.1]: https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1
 [0.7.0]: https://github.com/evanjt/crudcrate/compare/0.6.1...0.7.0
 [0.6.1]: https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1
 [0.6.0]: https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0
