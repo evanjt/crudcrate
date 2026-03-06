@@ -324,7 +324,42 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return cyclic_dependency_check.into();
     }
 
-    // Generate core API model components
+    // Build filterable column info for aggregate codegen
+    use convert_case::{Case, Casing};
+    let filterable_columns: codegen::handlers::aggregate::FilterableColumnInfo =
+        field_analysis
+            .filterable_fields
+            .iter()
+            .map(|f| {
+                let name = f.ident.as_ref().unwrap().to_string();
+                let pascal = name.to_case(Case::Pascal);
+                (name, pascal)
+            })
+            .collect();
+
+    // Detect aggregate-only mode: has aggregate config but no generate_router
+    let aggregate_only = crud_meta.aggregate.is_some() && !crud_meta.generate_router;
+
+    if aggregate_only {
+        // Aggregate-only: generate a unit struct with aggregate_query + aggregate_router
+        // NO CRUDResource impl, NO Create/Update/List models, NO CRUD handlers
+        let aggregate_router = crate::codegen::router::axum::generate_aggregate_router_impl(
+            &api_struct_name,
+            &crud_meta,
+            &filterable_columns,
+        );
+
+        let expanded = quote! {
+            /// Aggregate-only API struct (no CRUD endpoints).
+            pub struct #api_struct_name;
+
+            #aggregate_router
+        };
+
+        return TokenStream::from(expanded);
+    }
+
+    // Full mode: generate API struct, CRUDResource impl, models, router
     let (api_struct_fields, from_model_assignments) =
         codegen::models::api_struct::generate_api_struct_content(&field_analysis, &api_struct_name);
     let api_struct = codegen::models::api_struct::generate_api_struct(
@@ -363,7 +398,11 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        crate::codegen::router::axum::generate_router_impl(&api_struct_name)
+        crate::codegen::router::axum::generate_router_impl(
+            &api_struct_name,
+            &crud_meta,
+            &filterable_columns,
+        )
     } else {
         quote! {}
     };

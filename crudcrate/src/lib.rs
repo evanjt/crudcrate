@@ -219,6 +219,14 @@ pub mod operations;
 pub mod relationships;
 pub mod validation;
 
+// Aggregation (behind feature flag)
+#[cfg(feature = "aggregation")]
+pub mod aggregation;
+#[cfg(feature = "aggregation")]
+pub use sea_orm_timescale;
+#[cfg(feature = "aggregation")]
+pub use chrono;
+
 // Legacy modules for backward compatibility (re-export from new structure)
 pub mod filter {
     pub use crate::filtering::conditions::*;

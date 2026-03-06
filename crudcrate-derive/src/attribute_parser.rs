@@ -1,4 +1,4 @@
-use crate::traits::crudresource::structs::CRUDResourceMeta;
+use crate::traits::crudresource::structs::{AggregateConfig, CRUDResourceMeta};
 use syn::parse::Parser;
 use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 
@@ -141,13 +141,72 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             _ => {}
                         }
                     }
-                    Meta::List(_) => {}
+                    Meta::List(list) => {
+                        if list.path.is_ident("aggregate") {
+                            meta.aggregate = Some(parse_aggregate_config(&list));
+                        }
+                    }
                 }
             }
         }
     }
 
     meta
+}
+
+/// Parse `aggregate(time_column = "time", intervals = ["1 hour", ...], metrics = ["value"], group_by = ["site_id"])`
+fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
+    let mut config = AggregateConfig::default();
+
+    if let Ok(nested) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+        for item in nested {
+            match item {
+                Meta::NameValue(nv) => {
+                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                    if let Some(key) = ident {
+                        if let syn::Expr::Lit(expr_lit) = &nv.value {
+                            if let Lit::Str(s) = &expr_lit.lit {
+                                match key.as_str() {
+                                    "time_column" => config.time_column = s.value(),
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+                Meta::List(list) => {
+                    let ident = list.path.get_ident().map(std::string::ToString::to_string);
+                    if let Some(key) = ident {
+                        let values = parse_string_array(&list);
+                        match key.as_str() {
+                            "intervals" => config.intervals = values,
+                            "metrics" => config.metrics = values,
+                            "group_by" => config.group_by = values,
+                            _ => {}
+                        }
+                    }
+                }
+                Meta::Path(_) => {}
+            }
+        }
+    }
+
+    config
+}
+
+/// Parse a list of string literals like `["a", "b", "c"]` from a MetaList
+fn parse_string_array(meta_list: &syn::MetaList) -> Vec<String> {
+    let mut values = Vec::new();
+    if let Ok(nested) = Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+        for expr in nested {
+            if let syn::Expr::Lit(expr_lit) = expr {
+                if let Lit::Str(s) = &expr_lit.lit {
+                    values.push(s.value());
+                }
+            }
+        }
+    }
+    values
 }
 
 /// Parse a path like `create::one::pre` into (operation, cardinality, phase)
@@ -163,7 +222,7 @@ fn parse_hook_path(path: &syn::Path) -> Option<(String, String, String)> {
     let phase = &segments[2];
 
     // Validate operation
-    if !matches!(operation.as_str(), "create" | "read" | "update" | "delete") {
+    if !matches!(operation.as_str(), "create" | "read" | "update" | "delete" | "aggregate") {
         return None;
     }
 
@@ -193,6 +252,7 @@ fn set_hook(
         "read" => &mut hooks.read,
         "update" => &mut hooks.update,
         "delete" => &mut hooks.delete,
+        "aggregate" => &mut hooks.aggregate,
         _ => return,
     };
 

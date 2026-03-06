@@ -23,6 +23,20 @@ pub(crate) struct CrudHooks {
     pub(crate) read: CrudOperationHooks,
     pub(crate) update: CrudOperationHooks,
     pub(crate) delete: CrudOperationHooks,
+    pub(crate) aggregate: CrudOperationHooks,
+}
+
+/// Configuration for aggregate endpoint generation
+#[derive(Default, Clone)]
+pub(crate) struct AggregateConfig {
+    /// The time column name (snake_case, e.g., "time")
+    pub(crate) time_column: String,
+    /// Allowed interval strings (e.g., ["1 hour", "1 day", "1 week"])
+    pub(crate) intervals: Vec<String>,
+    /// Metric column names to compute AVG/MIN/MAX/COUNT over
+    pub(crate) metrics: Vec<String>,
+    /// Additional grouping columns beyond time
+    pub(crate) group_by: Vec<String>,
 }
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
@@ -42,6 +56,8 @@ pub(crate) struct CRUDResourceMeta {
     // Configurable limits
     pub(crate) batch_limit: Option<usize>,
     pub(crate) max_page_size: Option<u64>,
+    // Aggregation configuration
+    pub(crate) aggregate: Option<AggregateConfig>,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

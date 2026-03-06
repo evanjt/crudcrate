@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 # Use the local crudcrate with derive feature
-crudcrate = { path = "../crudcrate", features = ["derive", "sqlite"] }
+crudcrate = { path = "../crudcrate", features = ["derive", "sqlite", "aggregation"] }
 
 # Core dependencies
 axum = { workspace = true, features = ["macros"] }
