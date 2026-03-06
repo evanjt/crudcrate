@@ -1,6 +1,6 @@
 use crate::attribute_parser::get_crudcrate_bool;
 use crate::codegen::models::shared::{
-    generate_field_with_optional_default, resolve_field_type_with_target_models,
+    generate_field_with_optional_default, resolve_dtwtz, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
 use quote::quote;
@@ -31,13 +31,14 @@ pub(crate) fn generate_update_struct_fields(
                 } else {
                     ty.clone()
                 };
+                let resolved_inner = resolve_dtwtz(&inner_ty);
                 quote! {
                     #[serde(
                         default,
                         skip_serializing_if = "Option::is_none",
                         with = "crudcrate::serde_with::rust::double_option"
                     )]
-                    pub #ident: Option<Option<#inner_ty>>
+                    pub #ident: Option<Option<#resolved_inner>>
                 }
             }
         })

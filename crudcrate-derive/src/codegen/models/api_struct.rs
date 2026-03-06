@@ -9,7 +9,7 @@
 
 use crate::attribute_parser;
 use crate::codegen::joins::get_join_config;
-use crate::fields;
+use crate::codegen::models::shared::resolve_dtwtz;
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::{quote, ToTokens};
 
@@ -37,33 +37,17 @@ pub(crate) fn generate_api_struct_content(
             .filter(|attr| !attr.path().is_ident("sea_orm"))
             .collect();
 
+        // Resolve DateTimeWithTimeZone to chrono::DateTime<chrono::FixedOffset> so utoipa's
+        // ToSchema derive (with chrono feature) recognizes it as a DateTime type.
+        let resolved_type = resolve_dtwtz(field_type);
+
         api_struct_fields.push(quote! {
             #(#api_field_attrs)*
-            pub #field_name: #field_type
+            pub #field_name: #resolved_type
         });
-
-        // Generate From<Model> assignment with DateTimeWithTimeZone conversion
-        let assignment = if field_type
-            .to_token_stream()
-            .to_string()
-            .contains("DateTimeWithTimeZone")
-        {
-            if fields::field_is_optional(field) {
-                quote! {
-                    #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
-                }
-            } else {
-                quote! {
-                    #field_name: model.#field_name.with_timezone(&chrono::Utc)
-                }
-            }
-        } else {
-            quote! {
-                #field_name: model.#field_name
-            }
-        };
-
-        from_model_assignments.push(assignment);
+        from_model_assignments.push(quote! {
+            #field_name: model.#field_name
+        });
     }
 
     // Process non-database fields (joins, computed fields, etc.)
@@ -167,15 +151,16 @@ pub(crate) fn generate_api_struct(
                 || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
         });
 
-    // Build derive clause declaratively based on requirements
+    // Build derive clause declaratively based on requirements.
+    // Use fully qualified paths for derives to avoid name conflicts with user imports.
     let derives: Vec<_> = [
         (true, quote!(Clone)),
         (true, quote!(Debug)),
-        (true, quote!(Serialize)),
-        (true, quote!(Deserialize)),
-        (true, quote!(ToCreateModel)),
-        (true, quote!(ToUpdateModel)),
-        (true, quote!(ToSchema)),
+        (true, quote!(serde::Serialize)),
+        (true, quote!(serde::Deserialize)),
+        (true, quote!(crudcrate::ToCreateModel)),
+        (true, quote!(crudcrate::ToUpdateModel)),
+        (true, quote!(utoipa::ToSchema)),
         (has_fields_needing_default && !has_join_fields, quote!(Default)),
         (crud_meta.derive_partial_eq, quote!(PartialEq)),
         (crud_meta.derive_eq, quote!(Eq)),
@@ -186,9 +171,6 @@ pub(crate) fn generate_api_struct(
 
     quote! {
         use sea_orm::ActiveValue;
-        use utoipa::ToSchema;
-        use serde::{Serialize, Deserialize};
-        use crudcrate::{ToUpdateModel, ToCreateModel};
 
         #[derive(#(#derives),*)]
         #[active_model = #active_model_path]

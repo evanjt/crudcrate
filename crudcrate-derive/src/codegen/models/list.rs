@@ -1,12 +1,11 @@
 use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::joins::get_join_config;
 use crate::codegen::models::shared::{
-    generate_target_model_conversion, resolve_field_type_with_target_models,
+    generate_target_model_conversion, resolve_dtwtz, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::fields::field_is_optional;
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
-use quote::{ToTokens, quote};
+use quote::quote;
 
 pub(crate) fn generate_list_struct_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
@@ -22,9 +21,8 @@ pub(crate) fn generate_list_struct_fields(
             let final_ty =
                 resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone());
 
-            quote! {
-                pub #ident: #final_ty
-            }
+            let resolved_ty = resolve_dtwtz(&final_ty);
+            quote! { pub #ident: #resolved_ty }
         })
         .collect()
 }
@@ -64,28 +62,9 @@ pub(crate) fn generate_list_from_model_assignments(
                 continue;
             }
 
-            // Handle DateTime conversion for Model -> ListModel
-            let field_type = &field.ty;
-            if field_type
-                .to_token_stream()
-                .to_string()
-                .contains("DateTimeWithTimeZone")
-            {
-                if field_is_optional(field) {
-                    assignments.push(quote! {
-                        #field_name: model.#field_name.map(|dt| dt.with_timezone(&chrono::Utc))
-                    });
-                } else {
-                    assignments.push(quote! {
-                        #field_name: model.#field_name.with_timezone(&chrono::Utc)
-                    });
-                }
-            } else {
-                // Standard field - use directly from Model
-                assignments.push(quote! {
-                    #field_name: model.#field_name
-                });
-            }
+            assignments.push(quote! {
+                #field_name: model.#field_name
+            });
         }
         // Fields with list_model = false are not included in ListModel struct, so skip them
     }

@@ -2,7 +2,29 @@
 
 use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_expr};
 use crate::fields::{resolve_target_models, resolve_target_models_with_list};
-use quote::quote;
+use quote::{ToTokens, quote};
+
+/// Resolves `DateTimeWithTimeZone` to `chrono::DateTime<chrono::FixedOffset>` in a type.
+///
+/// SeaORM's `DateTimeWithTimeZone` is a type alias for `chrono::DateTime<chrono::FixedOffset>`,
+/// but utoipa's `ToSchema` derive only recognizes `DateTime` (the bare ident), not the alias.
+/// This function rewrites the type so utoipa's chrono feature can recognize it, while keeping
+/// the same underlying Rust type (no runtime conversion needed).
+///
+/// Returns the original token stream unchanged if `DateTimeWithTimeZone` is not present.
+pub(crate) fn resolve_dtwtz(ty: &impl ToTokens) -> proc_macro2::TokenStream {
+    let type_str = ty.to_token_stream().to_string();
+    if !type_str.contains("DateTimeWithTimeZone") {
+        return ty.to_token_stream();
+    }
+    let resolved = type_str.replace(
+        "DateTimeWithTimeZone",
+        "chrono::DateTime<chrono::FixedOffset>",
+    );
+    syn::parse_str::<syn::Type>(&resolved)
+        .map(|t| quote! { #t })
+        .unwrap_or_else(|_| ty.to_token_stream())
+}
 
 /// Resolves the final type for a field, handling `use_target_models` transformations
 ///

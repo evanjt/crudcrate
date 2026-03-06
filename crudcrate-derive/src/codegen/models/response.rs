@@ -6,6 +6,7 @@
 
 use crate::attribute_parser::get_crudcrate_bool;
 use crate::codegen::joins::config::get_join_config;
+use crate::codegen::models::shared::resolve_dtwtz;
 use quote::{quote, ToTokens};
 
 /// Generate field assignment expressions for converting API struct to Response.
@@ -69,7 +70,7 @@ pub(crate) fn generate_response_struct_fields(
                 None
             };
 
-            let final_ty = quote! { #ty };
+            let final_ty = resolve_dtwtz(ty);
 
             quote! {
                 #schema_attr

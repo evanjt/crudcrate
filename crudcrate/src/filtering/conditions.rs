@@ -221,30 +221,39 @@ fn process_array_filter(
     array_values: &[serde_json::Value],
     column: impl sea_orm::ColumnTrait + Copy,
 ) -> Option<SimpleExpr> {
-    let mut values = Vec::new();
-    for array_value in array_values {
-        match array_value {
-            serde_json::Value::String(s) => {
-                if let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
-                    values.push(serde_json::Value::String(uuid_value.to_string()));
-                } else {
-                    values.push(array_value.clone());
-                }
-            }
-            _ => values.push(array_value.clone()),
-        }
+    if array_values.is_empty() {
+        return None;
     }
 
-    if !values.is_empty() {
-        // Use IN operator for array values
-        let in_values: Vec<String> = values.into_iter()
-            .filter_map(|v| match v {
-                serde_json::Value::String(s) => Some(s),
-                serde_json::Value::Number(n) => Some(n.to_string()),
-                serde_json::Value::Bool(b) => Some(b.to_string()),
-                _ => None,
-            })
-            .collect();
+    // Try to parse all values as UUIDs first
+    let mut uuid_values = Vec::new();
+    let mut all_uuids = true;
+    for v in array_values {
+        if let Some(s) = v.as_str() {
+            if let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
+                uuid_values.push(uuid_value);
+                continue;
+            }
+        }
+        all_uuids = false;
+        break;
+    }
+
+    if all_uuids && !uuid_values.is_empty() {
+        return Some(Expr::col(column).is_in(uuid_values));
+    }
+
+    // Fall back to string-based IN for non-UUID values
+    let in_values: Vec<String> = array_values.iter()
+        .filter_map(|v| match v {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            serde_json::Value::Bool(b) => Some(b.to_string()),
+            _ => None,
+        })
+        .collect();
+
+    if !in_values.is_empty() {
         return Some(Expr::col(column).is_in(in_values));
     }
     None

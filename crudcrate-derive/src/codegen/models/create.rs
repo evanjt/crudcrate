@@ -1,6 +1,6 @@
 use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::models::shared::{
-    generate_active_value_set, generate_field_with_optional_default,
+    generate_active_value_set, generate_field_with_optional_default, resolve_dtwtz,
     resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
@@ -74,13 +74,15 @@ pub(crate) fn generate_create_struct_fields(
                 let final_ty = resolve_field_type_with_target_models(ty, field, |create, _, _| create.clone());
                 generate_field_with_optional_default(ident.as_ref(), &final_ty, field)
             } else if get_crudcrate_expr(field, "on_create").is_some() {
+                let resolved_ty = resolve_dtwtz(ty);
                 quote! {
                     #[serde(default)]
-                    pub #ident: Option<#ty>
+                    pub #ident: Option<#resolved_ty>
                 }
             } else {
+                let resolved_ty = resolve_dtwtz(ty);
                 quote! {
-                    pub #ident: #ty
+                    pub #ident: #resolved_ty
                 }
             }
         })
