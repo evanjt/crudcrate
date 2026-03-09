@@ -6,7 +6,7 @@
 //!
 //! ## Security Limits
 //!
-//! **Regular Joins - MAX_JOIN_DEPTH = 5**: Cross-model join recursion is capped at depth 5 to prevent:
+//! **Regular Joins - `MAX_JOIN_DEPTH` = 5**: Cross-model join recursion is capped at depth 5 to prevent:
 //! - Infinite recursion with circular references
 //! - Exponential query growth (N+1 problem)
 //! - Database connection pool exhaustion
@@ -93,9 +93,9 @@ pub fn generate_get_one_join_loading(
 /// 1. One query to fetch N parent entities (already done before this code runs)
 /// 2. One query per join field to fetch ALL related entities for ALL parents
 ///
-/// Returns a tuple of (pre_loop_code, in_loop_code):
+/// Returns a tuple of (`pre_loop_code`, `in_loop_code)`:
 /// - `pre_loop_code`: Batch loads all related entities and groups them by parent ID
-/// - `in_loop_code`: Looks up pre-loaded data from HashMaps (no queries)
+/// - `in_loop_code`: Looks up pre-loaded data from `HashMaps` (no queries)
 pub fn generate_get_all_batch_loading(
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
@@ -115,11 +115,11 @@ pub fn generate_get_all_batch_loading(
     generate_batch_loading_impl(&join_fields, api_struct_name, &pk_ident)
 }
 
-/// Generate optimized batch loading code for get_all()
+/// Generate optimized batch loading code for `get_all()`
 ///
-/// Returns (pre_loop_code, in_loop_code) where:
-/// - pre_loop_code runs ONCE before the loop to batch load all related entities
-/// - in_loop_code runs for each model to assign pre-loaded data
+/// Returns (`pre_loop_code`, `in_loop_code`) where:
+/// - `pre_loop_code` runs ONCE before the loop to batch load all related entities
+/// - `in_loop_code` runs for each model to assign pre-loaded data
 fn generate_batch_loading_impl(
     join_fields: &[&syn::Field],
     api_struct_name: &syn::Ident,
@@ -147,8 +147,7 @@ fn generate_batch_loading_impl(
             let original_depth = join_config.depth.unwrap_or(1).min(MAX_JOIN_DEPTH);
             if original_depth > 1 {
                 let error_msg = format!(
-                    "Self-referencing field '{}' in struct '{}' has depth={}, but self-references only support depth=1",
-                    field_name, api_struct_name, original_depth
+                    "Self-referencing field '{field_name}' in struct '{api_struct_name}' has depth={original_depth}, but self-references only support depth=1"
                 );
                 return (quote! { compile_error!(#error_msg); }, quote! {});
             }
@@ -164,18 +163,14 @@ fn generate_batch_loading_impl(
 
         // Get entity and model paths
         let (entity_path, model_path) = if let Some(custom_path) = &join_config.path {
-            match custom_path.parse::<proc_macro2::TokenStream>() {
-                Ok(path_tokens) => (
-                    quote! { #path_tokens::Entity },
-                    quote! { #path_tokens::Model },
-                ),
-                Err(_) => {
-                    let error_msg = format!(
-                        "Invalid join path '{}' for field '{}'",
-                        custom_path, field_name
-                    );
-                    return (quote! { compile_error!(#error_msg); }, quote! {});
-                }
+            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() { (
+                quote! { #path_tokens::Entity },
+                quote! { #path_tokens::Model },
+            ) } else {
+                let error_msg = format!(
+                    "Invalid join path '{custom_path}' for field '{field_name}'"
+                );
+                return (quote! { compile_error!(#error_msg); }, quote! {});
             }
         } else {
             (
@@ -373,7 +368,7 @@ fn generate_batch_loading_impl(
     (pre_loop_code, in_loop_code)
 }
 
-/// Convert PascalCase to snake_case
+/// Convert `PascalCase` to `snake_case`
 fn to_snake_case(s: &str) -> String {
     use convert_case::{Case, Casing};
     s.to_case(Case::Snake)
@@ -411,8 +406,7 @@ fn generate_join_loading_impl(
             let original_depth = join_config.depth.unwrap_or(1).min(MAX_JOIN_DEPTH);
             if original_depth > 1 {
                 let error_msg = format!(
-                    "Self-referencing field '{}' in struct '{}' has depth={}, but self-references only support depth=1 to prevent exponential query growth. Please change to: join(one, depth = 1)",
-                    field_name, api_struct_name, original_depth
+                    "Self-referencing field '{field_name}' in struct '{api_struct_name}' has depth={original_depth}, but self-references only support depth=1 to prevent exponential query growth. Please change to: join(one, depth = 1)"
                 );
                 return quote! { compile_error!(#error_msg); };
             }
@@ -431,19 +425,15 @@ fn generate_join_loading_impl(
 
         // Get entity path and model path (custom or derived from type)
         let (entity_path, model_path) = if let Some(custom_path) = &join_config.path {
-            match custom_path.parse::<proc_macro2::TokenStream>() {
-                Ok(path_tokens) => (
-                    quote! { #path_tokens::Entity },
-                    quote! { #path_tokens::Model },
-                ),
-                Err(_) => {
-                    // Generate a compile error if the path is invalid
-                    let error_msg = format!(
-                        "Invalid join path '{}' for field '{}'. Expected a valid Rust module path.",
-                        custom_path, field_name
-                    );
-                    return quote! { compile_error!(#error_msg); };
-                }
+            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() { (
+                quote! { #path_tokens::Entity },
+                quote! { #path_tokens::Model },
+            ) } else {
+                // Generate a compile error if the path is invalid
+                let error_msg = format!(
+                    "Invalid join path '{custom_path}' for field '{field_name}'. Expected a valid Rust module path."
+                );
+                return quote! { compile_error!(#error_msg); };
             }
         } else {
             (

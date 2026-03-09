@@ -95,7 +95,7 @@ fn build_mysql_fulltext_condition(
     Some(SimpleExpr::Custom(search_sql))
 }
 
-/// Build fallback fulltext search for SQLite and other standard SQL databases
+/// Build fallback fulltext search for `SQLite` and other standard SQL databases
 /// Uses || for concatenation and CAST AS TEXT (standard SQL syntax)
 fn build_fallback_fulltext_condition(
     query: &str,

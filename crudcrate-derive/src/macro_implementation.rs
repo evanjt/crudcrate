@@ -139,7 +139,7 @@ pub(crate) fn generate_crud_resource_impl(
     }
 }
 
-/// Generate JoinedColumnDef entries for filterable or sortable columns on joined entities.
+/// Generate `JoinedColumnDef` entries for filterable or sortable columns on joined entities.
 ///
 /// # Arguments
 /// * `configs` - The join filter/sort configurations from field analysis
@@ -159,7 +159,7 @@ fn generate_joined_column_entries(
         };
 
         for column in columns {
-            let full_path = format!("{}.{}", join_field, column);
+            let full_path = format!("{join_field}.{column}");
             entries.push(quote! {
                 crudcrate::JoinedColumnDef {
                     join_field: #join_field,

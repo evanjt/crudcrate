@@ -15,8 +15,8 @@ use quote::quote;
 /// **Performance**: Uses batch loading to reduce N+1 queries to 2 queries when loading
 /// related entities. Instead of querying for each parent's children separately, we:
 /// 1. Query all parents
-/// 2. Batch query all children WHERE parent_id IN (parent_ids)
-/// 3. Group children by parent_id in memory
+/// 2. Batch query all children WHERE `parent_id` IN (`parent_ids`)
+/// 3. Group children by `parent_id` in memory
 pub fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,

@@ -47,8 +47,8 @@ pub(crate) struct CRUDResourceMeta {
 }
 
 impl CRUDResourceMeta {
-    /// Create new CRUDResourceMeta with sensible defaults
-    /// Neither PartialEq nor Eq are derived by default (use derive_partial_eq/derive_eq to opt in)
+    /// Create new `CRUDResourceMeta` with sensible defaults
+    /// Neither `PartialEq` nor Eq are derived by default (use `derive_partial_eq/derive_eq` to opt in)
     pub(crate) fn new() -> Self {
         Self::default()
     }

@@ -85,6 +85,7 @@ pub struct BatchResult<T> {
 
 impl<T> BatchResult<T> {
     /// Create a new empty batch result
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             succeeded: Vec::new(),
@@ -106,16 +107,19 @@ impl<T> BatchResult<T> {
     }
 
     /// Returns true if all items failed
+    #[must_use] 
     pub fn all_failed(&self) -> bool {
         self.succeeded.is_empty() && !self.failed.is_empty()
     }
 
     /// Returns true if all items succeeded
+    #[must_use] 
     pub fn all_succeeded(&self) -> bool {
         !self.succeeded.is_empty() && self.failed.is_empty()
     }
 
     /// Returns true if some items succeeded and some failed
+    #[must_use] 
     pub fn is_partial(&self) -> bool {
         !self.succeeded.is_empty() && !self.failed.is_empty()
     }
@@ -273,6 +277,7 @@ impl ApiError {
     ///     "Password must be at least 8 characters".to_string(),
     /// ]));
     /// ```
+    #[must_use] 
     pub fn validation_failed(errors: Vec<String>) -> Self {
         Self::ValidationFailed { errors }
     }
@@ -285,6 +290,7 @@ impl ApiError {
     /// ```rust,ignore
     /// let user = entity.insert(db).await.map_err(ApiError::database)?;
     /// ```
+    #[must_use] 
     pub fn database(err: DbErr) -> Self {
         Self::Database {
             message: "A database error occurred".to_string(),
@@ -351,9 +357,9 @@ impl ApiError {
         match self {
             Self::NotFound { resource, id } => {
                 if let Some(id) = id {
-                    format!("{} with ID '{}' not found", resource, id)
+                    format!("{resource} with ID '{id}' not found")
                 } else {
-                    format!("{} not found", resource)
+                    format!("{resource} not found")
                 }
             }
             Self::BadRequest { message } => message.clone(),
@@ -463,7 +469,7 @@ impl std::error::Error for ApiError {}
 // Conversions from common error types
 // ============================================================================
 
-/// Convert SeaORM DbErr to ApiError
+/// Convert `SeaORM` `DbErr` to `ApiError`
 ///
 /// **Conversion Rules:**
 /// - `DbErr::RecordNotFound` → 404 Not Found

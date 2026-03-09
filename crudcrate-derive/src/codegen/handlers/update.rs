@@ -73,12 +73,12 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// Generate `update_many` method implementation with hook support.
 ///
 /// Hook execution order: pre → body → transform → post
-/// - `update::many::pre`: Validation/preparation before batch update (receives &[(Uuid, UpdateModel)])
-/// - `update::many::body`: Replaces default update logic (receives Vec<(Uuid, UpdateModel)>, returns Vec<Self>)
+/// - `update::many::pre`: Validation/preparation before batch update (receives &[(Uuid, `UpdateModel`)])
+/// - `update::many::body`: Replaces default update logic (receives Vec<(Uuid, `UpdateModel`)>, returns Vec<Self>)
 /// - `update::many::post`: Side effects after batch update (receives &[Self])
 ///
 /// **Security Note**: The default implementation limits batch updates to 100 items to prevent
-/// DoS attacks via resource exhaustion.
+/// `DoS` attacks via resource exhaustion.
 pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {

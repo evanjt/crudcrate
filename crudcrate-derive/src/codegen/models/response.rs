@@ -32,7 +32,7 @@ pub(crate) fn generate_response_from_assignments(
 
 /// Generate field definitions for Response struct.
 ///
-/// Join fields receive `#[schema(no_recursion)]` to prevent infinite OpenAPI schema
+/// Join fields receive `#[schema(no_recursion)]` to prevent infinite `OpenAPI` schema
 /// recursion while still allowing serialization in responses.
 pub(crate) fn generate_response_struct_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,

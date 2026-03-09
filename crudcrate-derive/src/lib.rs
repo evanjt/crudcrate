@@ -14,8 +14,8 @@
 //! | `api_struct = "Name"` | string | Override generated struct name |
 //! | `name_singular = "item"` | string | Singular resource name for errors/headers |
 //! | `name_plural = "items"` | string | Plural resource name for routes |
-//! | `description = "..."` | string | OpenAPI description |
-//! | `fulltext_language = "english"` | string | PostgreSQL fulltext language |
+//! | `description = "..."` | string | `OpenAPI` description |
+//! | `fulltext_language = "english"` | string | `PostgreSQL` fulltext language |
 //! | `batch_limit = 100` | integer | Max items for batch create/update/delete |
 //! | `max_page_size = 1000` | integer | Max items per page for pagination |
 //! | `operations = MyOps` | path | Custom `CRUDOperations` implementation |
@@ -47,13 +47,13 @@
 //! | `fulltext` | flag | Include in fulltext search |
 //! | `exclude(create)` | list | Exclude from create model |
 //! | `exclude(update)` | list | Exclude from update model |
-//! | `exclude(one)` | list | Exclude from get_one response |
-//! | `exclude(list)` | list | Exclude from get_all response |
+//! | `exclude(one)` | list | Exclude from `get_one` response |
+//! | `exclude(list)` | list | Exclude from `get_all` response |
 //! | `on_create = expr` | expr | Auto-generate value on create |
 //! | `on_update = expr` | expr | Auto-generate value on update |
 //! | `non_db_attr` | flag | Mark as non-database field (for joins) |
-//! | `join(one)` | config | Load in get_one only |
-//! | `join(all)` | config | Load in get_all only |
+//! | `join(one)` | config | Load in `get_one` only |
+//! | `join(all)` | config | Load in `get_all` only |
 //! | `join(one, all)` | config | Load in both endpoints |
 //! | `join(one, all, depth = N)` | config | With max recursion depth (1-5) |
 //! | `join_filterable("col1", "col2")` | list | Enable filtering on join columns |

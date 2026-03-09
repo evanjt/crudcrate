@@ -76,7 +76,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// - `delete::many::post`: Side effects after batch delete (receives deleted ids)
 ///
 /// **Security Note**: The default implementation limits batch deletes to 100 items to prevent
-/// DoS attacks via resource exhaustion.
+/// `DoS` attacks via resource exhaustion.
 pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {

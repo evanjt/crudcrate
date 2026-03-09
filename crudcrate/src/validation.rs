@@ -113,7 +113,7 @@ impl fmt::Display for ValidationErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Validation failed with {} error(s):", self.errors.len())?;
         for error in &self.errors {
-            write!(f, "\n  - {}", error)?;
+            write!(f, "\n  - {error}")?;
         }
         Ok(())
     }
@@ -147,23 +147,21 @@ pub mod validators {
     ) -> Result<(), ValidationError> {
         let len = value.len();
 
-        if let Some(min_len) = min {
-            if len < min_len {
+        if let Some(min_len) = min
+            && len < min_len {
                 return Err(ValidationError::new(
                     field,
-                    format!("Must be at least {} characters", min_len),
+                    format!("Must be at least {min_len} characters"),
                 ));
             }
-        }
 
-        if let Some(max_len) = max {
-            if len > max_len {
+        if let Some(max_len) = max
+            && len > max_len {
                 return Err(ValidationError::new(
                     field,
-                    format!("Must be at most {} characters", max_len),
+                    format!("Must be at most {max_len} characters"),
                 ));
             }
-        }
 
         Ok(())
     }
@@ -175,23 +173,21 @@ pub mod validators {
         min: Option<T>,
         max: Option<T>,
     ) -> Result<(), ValidationError> {
-        if let Some(min_val) = min {
-            if value < min_val {
+        if let Some(min_val) = min
+            && value < min_val {
                 return Err(ValidationError::new(
                     field,
-                    format!("Must be at least {}", min_val),
+                    format!("Must be at least {min_val}"),
                 ));
             }
-        }
 
-        if let Some(max_val) = max {
-            if value > max_val {
+        if let Some(max_val) = max
+            && value > max_val {
                 return Err(ValidationError::new(
                     field,
-                    format!("Must be at most {}", max_val),
+                    format!("Must be at most {max_val}"),
                 ));
             }
-        }
 
         Ok(())
     }

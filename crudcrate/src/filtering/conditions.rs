@@ -231,12 +231,11 @@ fn process_array_filter(
     let mut uuid_values = Vec::new();
     let mut all_uuids = true;
     for v in array_values {
-        if let Some(s) = v.as_str() {
-            if let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
+        if let Some(s) = v.as_str()
+            && let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
                 uuid_values.push(uuid_value);
                 continue;
             }
-        }
         all_uuids = false;
         break;
     }
@@ -401,7 +400,7 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
         // Check if this is a dot-notation filter (e.g., "vehicles.make")
         if let Some((join_field, column, operator)) = parse_dot_notation(key) {
             // Validate against allowed joined columns
-            let full_path_for_check = format!("{}.{}", join_field, column);
+            let full_path_for_check = format!("{join_field}.{column}");
             let is_allowed = joined_filterable
                 .iter()
                 .any(|c| c.full_path == full_path_for_check);

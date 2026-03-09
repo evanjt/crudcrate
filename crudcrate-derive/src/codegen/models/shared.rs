@@ -6,7 +6,7 @@ use quote::{ToTokens, quote};
 
 /// Resolves `DateTimeWithTimeZone` to `chrono::DateTime<chrono::FixedOffset>` in a type.
 ///
-/// SeaORM's `DateTimeWithTimeZone` is a type alias for `chrono::DateTime<chrono::FixedOffset>`,
+/// `SeaORM`'s `DateTimeWithTimeZone` is a type alias for `chrono::DateTime<chrono::FixedOffset>`,
 /// but utoipa's `ToSchema` derive only recognizes `DateTime` (the bare ident), not the alias.
 /// This function rewrites the type so utoipa's chrono feature can recognize it, while keeping
 /// the same underlying Rust type (no runtime conversion needed).
@@ -21,9 +21,7 @@ pub(crate) fn resolve_dtwtz(ty: &impl ToTokens) -> proc_macro2::TokenStream {
         "DateTimeWithTimeZone",
         "chrono::DateTime<chrono::FixedOffset>",
     );
-    syn::parse_str::<syn::Type>(&resolved)
-        .map(|t| quote! { #t })
-        .unwrap_or_else(|_| ty.to_token_stream())
+    syn::parse_str::<syn::Type>(&resolved).map_or_else(|_| ty.to_token_stream(), |t| quote! { #t })
 }
 
 /// Resolves the final type for a field, handling `use_target_models` transformations

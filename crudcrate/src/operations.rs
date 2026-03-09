@@ -459,7 +459,7 @@ pub trait CRUDOperations: Send + Sync {
 
     /// Fetch a single entity by ID
     ///
-    /// Orchestrates the full get_one lifecycle:
+    /// Orchestrates the full `get_one` lifecycle:
     /// 1. `before_get_one` - validation, auth, logging
     /// 2. `fetch_one` - database query
     /// 3. `after_get_one` - enrichment, computed fields
@@ -483,7 +483,7 @@ pub trait CRUDOperations: Send + Sync {
 
     /// Fetch multiple entities with filtering, sorting, and pagination
     ///
-    /// Orchestrates the full get_all lifecycle:
+    /// Orchestrates the full `get_all` lifecycle:
     /// 1. `before_get_all` - validation, auth, logging
     /// 2. `fetch_all` - database query
     /// 3. `after_get_all` - enrichment, computed fields
@@ -641,7 +641,7 @@ pub trait CRUDOperations: Send + Sync {
     /// 2. Database batch insertion
     /// 3. After hooks (per item)
     ///
-    /// **Security**: Limited to 100 items by default to prevent DoS.
+    /// **Security**: Limited to 100 items by default to prevent `DoS`.
     ///
     /// # Errors
     ///
@@ -662,7 +662,7 @@ pub trait CRUDOperations: Send + Sync {
     /// 2. Database batch updates
     /// 3. After hooks (per item)
     ///
-    /// **Security**: Limited to 100 items by default to prevent DoS.
+    /// **Security**: Limited to 100 items by default to prevent `DoS`.
     ///
     /// # Errors
     ///

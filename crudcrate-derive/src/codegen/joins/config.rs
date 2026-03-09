@@ -84,7 +84,7 @@ pub(crate) fn get_join_config(field: &syn::Field) -> JoinConfigResult {
     JoinConfigResult { config, errors }
 }
 
-/// Create an error for deprecated join_filterable/join_sortable syntax
+/// Create an error for deprecated `join_filterable/join_sortable` syntax
 fn create_join_attr_deprecation_error(
     old_attr: &str,
     new_attr: &str,
@@ -122,11 +122,10 @@ fn parse_string_list(meta_list: &syn::MetaList) -> Vec<String> {
         Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
     {
         for expr in exprs {
-            if let syn::Expr::Lit(expr_lit) = expr {
-                if let Lit::Str(lit_str) = expr_lit.lit {
+            if let syn::Expr::Lit(expr_lit) = expr
+                && let Lit::Str(lit_str) = expr_lit.lit {
                     result.push(lit_str.value());
                 }
-            }
         }
     }
 

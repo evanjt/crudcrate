@@ -57,6 +57,7 @@ pub enum FilterOperator {
 
 impl FilterOperator {
     /// Parse operator from field name suffix (e.g., "_gte", "_lte")
+    #[must_use] 
     pub fn from_suffix(suffix: &str) -> Option<Self> {
         match suffix {
             "_gte" => Some(Self::Gte),
@@ -70,6 +71,7 @@ impl FilterOperator {
     }
 
     /// Get the suffix for this operator
+    #[must_use] 
     pub fn suffix(&self) -> &'static str {
         match self {
             Self::Eq => "",
@@ -139,12 +141,13 @@ impl<C> SortConfig<C> {
     }
 }
 
-/// Parse a dot-notation field path into (join_field, column, operator).
+/// Parse a dot-notation field path into (`join_field`, column, operator).
 ///
 /// Examples:
 /// - "vehicles.make" -> Some(("vehicles", "make", Eq))
-/// - "vehicles.year_gte" -> Some(("vehicles", "year", Gte))
+/// - "`vehicles.year_gte`" -> Some(("vehicles", "year", Gte))
 /// - "name" -> None (not a join field)
+#[must_use] 
 pub fn parse_dot_notation(field: &str) -> Option<(String, String, FilterOperator)> {
     let dot_pos = field.find('.')?;
     let join_field = &field[..dot_pos];

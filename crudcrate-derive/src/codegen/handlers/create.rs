@@ -69,7 +69,7 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// - `create::many::post`: Side effects after batch create (receives `&[Self]`)
 ///
 /// **Security Note**: The default implementation limits batch creates to 100 items to prevent
-/// DoS attacks via resource exhaustion.
+/// `DoS` attacks via resource exhaustion.
 pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
