@@ -52,7 +52,7 @@ where
     /// Maximum number of items allowed in batch create/update/delete operations.
     /// Override with `#[crudcrate(batch_limit = 500)]` on your struct, or implement
     /// manually for runtime logic (env vars, config, etc.).
-    #[must_use] 
+    #[must_use]
     fn batch_limit() -> usize {
         100
     }
@@ -60,7 +60,7 @@ where
     /// Maximum page size for pagination.
     /// Override with `#[crudcrate(max_page_size = 500)]` on your struct, or implement
     /// manually for runtime logic (env vars, config, etc.).
-    #[must_use] 
+    #[must_use]
     fn max_page_size() -> u64 {
         1000
     }

@@ -148,20 +148,22 @@ pub mod validators {
         let len = value.len();
 
         if let Some(min_len) = min
-            && len < min_len {
-                return Err(ValidationError::new(
-                    field,
-                    format!("Must be at least {min_len} characters"),
-                ));
-            }
+            && len < min_len
+        {
+            return Err(ValidationError::new(
+                field,
+                format!("Must be at least {min_len} characters"),
+            ));
+        }
 
         if let Some(max_len) = max
-            && len > max_len {
-                return Err(ValidationError::new(
-                    field,
-                    format!("Must be at most {max_len} characters"),
-                ));
-            }
+            && len > max_len
+        {
+            return Err(ValidationError::new(
+                field,
+                format!("Must be at most {max_len} characters"),
+            ));
+        }
 
         Ok(())
     }
@@ -174,20 +176,22 @@ pub mod validators {
         max: Option<T>,
     ) -> Result<(), ValidationError> {
         if let Some(min_val) = min
-            && value < min_val {
-                return Err(ValidationError::new(
-                    field,
-                    format!("Must be at least {min_val}"),
-                ));
-            }
+            && value < min_val
+        {
+            return Err(ValidationError::new(
+                field,
+                format!("Must be at least {min_val}"),
+            ));
+        }
 
         if let Some(max_val) = max
-            && value > max_val {
-                return Err(ValidationError::new(
-                    field,
-                    format!("Must be at most {max_val}"),
-                ));
-            }
+            && value > max_val
+        {
+            return Err(ValidationError::new(
+                field,
+                format!("Must be at most {max_val}"),
+            ));
+        }
 
         Ok(())
     }

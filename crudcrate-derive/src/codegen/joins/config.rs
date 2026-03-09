@@ -123,9 +123,10 @@ fn parse_string_list(meta_list: &syn::MetaList) -> Vec<String> {
     {
         for expr in exprs {
             if let syn::Expr::Lit(expr_lit) = expr
-                && let Lit::Str(lit_str) = expr_lit.lit {
-                    result.push(lit_str.value());
-                }
+                && let Lit::Str(lit_str) = expr_lit.lit
+            {
+                result.push(lit_str.value());
+            }
         }
     }
 

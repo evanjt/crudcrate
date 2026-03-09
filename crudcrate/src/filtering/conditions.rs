@@ -232,10 +232,11 @@ fn process_array_filter(
     let mut all_uuids = true;
     for v in array_values {
         if let Some(s) = v.as_str()
-            && let Ok(uuid_value) = Uuid::parse_str(s.trim()) {
-                uuid_values.push(uuid_value);
-                continue;
-            }
+            && let Ok(uuid_value) = Uuid::parse_str(s.trim())
+        {
+            uuid_values.push(uuid_value);
+            continue;
+        }
         all_uuids = false;
         break;
     }

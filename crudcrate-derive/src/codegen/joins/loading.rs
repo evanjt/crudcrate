@@ -163,13 +163,14 @@ fn generate_batch_loading_impl(
 
         // Get entity and model paths
         let (entity_path, model_path) = if let Some(custom_path) = &join_config.path {
-            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() { (
-                quote! { #path_tokens::Entity },
-                quote! { #path_tokens::Model },
-            ) } else {
-                let error_msg = format!(
-                    "Invalid join path '{custom_path}' for field '{field_name}'"
-                );
+            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() {
+                (
+                    quote! { #path_tokens::Entity },
+                    quote! { #path_tokens::Model },
+                )
+            } else {
+                let error_msg =
+                    format!("Invalid join path '{custom_path}' for field '{field_name}'");
                 return (quote! { compile_error!(#error_msg); }, quote! {});
             }
         } else {
@@ -425,10 +426,12 @@ fn generate_join_loading_impl(
 
         // Get entity path and model path (custom or derived from type)
         let (entity_path, model_path) = if let Some(custom_path) = &join_config.path {
-            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() { (
-                quote! { #path_tokens::Entity },
-                quote! { #path_tokens::Model },
-            ) } else {
+            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() {
+                (
+                    quote! { #path_tokens::Entity },
+                    quote! { #path_tokens::Model },
+                )
+            } else {
                 // Generate a compile error if the path is invalid
                 let error_msg = format!(
                     "Invalid join path '{custom_path}' for field '{field_name}'. Expected a valid Rust module path."
