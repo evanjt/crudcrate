@@ -1,4 +1,6 @@
-use crate::codegen::joins::loading::{generate_get_all_batch_loading, generate_get_one_join_loading};
+use crate::codegen::joins::loading::{
+    generate_get_all_batch_loading, generate_get_one_join_loading,
+};
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
 use quote::quote;
 
@@ -53,7 +55,8 @@ pub fn generate_get_all_impl(
         quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
     } else if has_join_all_fields {
         // Generate get_all with BATCH loading (optimized: 2 queries instead of N+1)
-        let (pre_loop_code, in_loop_code) = generate_get_all_batch_loading(analysis, api_struct_name);
+        let (pre_loop_code, in_loop_code) =
+            generate_get_all_batch_loading(analysis, api_struct_name);
         quote! {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
 

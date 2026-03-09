@@ -169,16 +169,37 @@ mod tests {
     #[test]
     fn test_parse_dot_notation_simple() {
         let result = parse_dot_notation("vehicles.make");
-        assert_eq!(result, Some(("vehicles".to_string(), "make".to_string(), FilterOperator::Eq)));
+        assert_eq!(
+            result,
+            Some((
+                "vehicles".to_string(),
+                "make".to_string(),
+                FilterOperator::Eq
+            ))
+        );
     }
 
     #[test]
     fn test_parse_dot_notation_with_operator() {
         let result = parse_dot_notation("vehicles.year_gte");
-        assert_eq!(result, Some(("vehicles".to_string(), "year".to_string(), FilterOperator::Gte)));
+        assert_eq!(
+            result,
+            Some((
+                "vehicles".to_string(),
+                "year".to_string(),
+                FilterOperator::Gte
+            ))
+        );
 
         let result = parse_dot_notation("vehicles.year_lte");
-        assert_eq!(result, Some(("vehicles".to_string(), "year".to_string(), FilterOperator::Lte)));
+        assert_eq!(
+            result,
+            Some((
+                "vehicles".to_string(),
+                "year".to_string(),
+                FilterOperator::Lte
+            ))
+        );
     }
 
     #[test]

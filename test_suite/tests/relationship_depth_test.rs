@@ -28,7 +28,9 @@ use common::{setup_test_app, setup_test_db};
 
 #[tokio::test]
 async fn test_depth_1_loads_direct_children_only() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Vehicle has depth=1 on parts, so parts should load but not recurse further
@@ -127,7 +129,9 @@ async fn test_depth_1_loads_direct_children_only() {
 
 #[tokio::test]
 async fn test_depth_1_self_referencing_loads_one_level() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Category has depth=2 annotation but self-referencing is capped at 1
@@ -216,7 +220,9 @@ async fn test_depth_1_self_referencing_loads_one_level() {
     assert!(
         children[0].get("children").is_none()
             || children[0]["children"].is_null()
-            || children[0]["children"].as_array().map_or(true, |a| a.is_empty()),
+            || children[0]["children"]
+                .as_array()
+                .map_or(true, |a| a.is_empty()),
         "Self-referencing depth > 1 not supported - grandchildren should not be loaded"
     );
 }
@@ -227,7 +233,9 @@ async fn test_depth_1_self_referencing_loads_one_level() {
 
 #[tokio::test]
 async fn test_depth_2_loads_two_levels_non_self_referencing() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Customer has depth=2 on vehicles, Vehicle has depth=1 on parts
@@ -363,7 +371,9 @@ async fn test_depth_5_is_maximum_allowed() {
     // This test verifies that depth=5 is the maximum allowed
     // Values > 5 are capped to 5
 
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a simple customer to verify the system works at depth boundaries
@@ -416,7 +426,9 @@ async fn test_depth_6_is_capped_to_5() {
     // Models with depth > 5 should be silently capped to 5
     // This prevents DoS attacks via excessive recursion
 
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // The Category model has depth=2, but even if someone tried depth=6,
@@ -468,7 +480,9 @@ async fn test_depth_6_is_capped_to_5() {
 
 #[tokio::test]
 async fn test_join_one_excluded_from_get_all() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Category has join(one) only (not join(all))
@@ -539,7 +553,9 @@ async fn test_join_one_excluded_from_get_all() {
     assert!(
         root_cat.get("children").is_none()
             || root_cat["children"].is_null()
-            || root_cat["children"].as_array().map_or(true, |a| a.is_empty()),
+            || root_cat["children"]
+                .as_array()
+                .map_or(true, |a| a.is_empty()),
         "join(one) should not load in get_all - children should be empty"
     );
 
@@ -568,7 +584,9 @@ async fn test_join_one_excluded_from_get_all() {
 
 #[tokio::test]
 async fn test_join_all_loads_in_get_all() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Customer has join(one, all) on vehicles
@@ -654,7 +672,9 @@ async fn test_join_all_loads_in_get_all() {
 
 #[tokio::test]
 async fn test_circular_reference_prevention() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Customer -> Vehicle is a potential circular if Vehicle had back-reference
@@ -728,7 +748,9 @@ async fn test_circular_reference_prevention() {
 
 #[tokio::test]
 async fn test_self_referencing_does_not_infinitely_recurse() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a deep category hierarchy
@@ -796,7 +818,9 @@ async fn test_self_referencing_does_not_infinitely_recurse() {
 #[tokio::test]
 #[ignore = "self-referencing depth > 1 not implemented"]
 async fn test_depth_2_self_referencing_loads_grandchildren() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create Root -> Child -> Grandchild

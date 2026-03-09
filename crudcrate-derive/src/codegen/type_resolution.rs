@@ -6,7 +6,10 @@ use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
 
 /// Map field types to their corresponding entity or model paths
 /// This function replaces both `get_entity_path_from_field_type` and `get_model_path_from_field_type`
-pub fn get_path_from_field_type(field_type: &syn::Type, target_suffix: &str) -> proc_macro2::TokenStream {
+pub fn get_path_from_field_type(
+    field_type: &syn::Type,
+    target_suffix: &str,
+) -> proc_macro2::TokenStream {
     // Extract the target type from Vec<T> or Option<T> using canonical helpers
     let target_type = extract_vec_inner_type_ref(field_type);
     let target_type = extract_option_inner_type_ref(target_type);

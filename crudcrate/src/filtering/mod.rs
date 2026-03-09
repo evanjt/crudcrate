@@ -102,17 +102,19 @@
 //! // GET /todos?priority_gte=5&sort=created_at_desc
 //! ```
 
+pub mod conditions;
+pub mod joined;
+pub mod pagination;
 pub mod query_parser;
 pub mod search;
-pub mod conditions;
 pub mod sort;
-pub mod pagination;
-pub mod joined;
 
 // Re-export commonly used items
-pub use query_parser::{FilterOptions, BatchOptions};
 pub use conditions::{apply_filters, apply_filters_with_joins, parse_pagination, parse_range};
+pub use joined::{
+    FilterOperator, JoinedColumnDef, JoinedFilter, ParsedFilters, SortConfig, parse_dot_notation,
+};
+pub use pagination::calculate_content_range;
+pub use query_parser::{BatchOptions, FilterOptions};
 pub use search::build_fulltext_condition;
 pub use sort::{parse_sorting, parse_sorting_with_joins};
-pub use pagination::calculate_content_range;
-pub use joined::{JoinedColumnDef, JoinedFilter, FilterOperator, ParsedFilters, SortConfig, parse_dot_notation};

@@ -25,18 +25,22 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             match &expr_lit.lit {
                                 Lit::Str(s) => {
                                     let value = s.value();
-                                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                                    let ident =
+                                        nv.path.get_ident().map(std::string::ToString::to_string);
                                     match ident.as_deref() {
                                         Some("name_singular") => meta.name_singular = Some(value),
                                         Some("name_plural") => meta.name_plural = Some(value),
                                         Some("description") => meta.description = Some(value),
-                                        Some("fulltext_language") => meta.fulltext_language = Some(value),
+                                        Some("fulltext_language") => {
+                                            meta.fulltext_language = Some(value)
+                                        }
                                         _ => {}
                                     }
                                 }
                                 Lit::Bool(b) => {
                                     let value = b.value();
-                                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                                    let ident =
+                                        nv.path.get_ident().map(std::string::ToString::to_string);
                                     match ident.as_deref() {
                                         Some("generate_router") => meta.generate_router = value,
                                         Some("derive_partial_eq") => meta.derive_partial_eq = value,
@@ -45,7 +49,8 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                     }
                                 }
                                 Lit::Int(i) => {
-                                    let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                                    let ident =
+                                        nv.path.get_ident().map(std::string::ToString::to_string);
                                     match ident.as_deref() {
                                         Some("batch_limit") => {
                                             meta.batch_limit = i.base10_parse().ok();
@@ -64,28 +69,59 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
 
                             // Try to parse as new hook syntax (create::one::pre = fn)
                             if let Some((op, cardinality, phase)) = parse_hook_path(&nv.path) {
-                                set_hook(&mut meta.hooks, &op, &cardinality, &phase, fn_path.clone());
+                                set_hook(
+                                    &mut meta.hooks,
+                                    &op,
+                                    &cardinality,
+                                    &phase,
+                                    fn_path.clone(),
+                                );
                             } else {
                                 // Check for legacy fn_* syntax and emit deprecation errors
-                                let ident = nv.path.get_ident().map(std::string::ToString::to_string);
+                                let ident =
+                                    nv.path.get_ident().map(std::string::ToString::to_string);
                                 match ident.as_deref() {
                                     Some("fn_get_one") => {
-                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_get_one", "read::one::body", &nv.path));
+                                        meta.deprecation_errors.push(create_fn_deprecation_error(
+                                            "fn_get_one",
+                                            "read::one::body",
+                                            &nv.path,
+                                        ));
                                     }
                                     Some("fn_get_all") => {
-                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_get_all", "read::many::body", &nv.path));
+                                        meta.deprecation_errors.push(create_fn_deprecation_error(
+                                            "fn_get_all",
+                                            "read::many::body",
+                                            &nv.path,
+                                        ));
                                     }
                                     Some("fn_create") => {
-                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_create", "create::one::body", &nv.path));
+                                        meta.deprecation_errors.push(create_fn_deprecation_error(
+                                            "fn_create",
+                                            "create::one::body",
+                                            &nv.path,
+                                        ));
                                     }
                                     Some("fn_update") => {
-                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_update", "update::one::body", &nv.path));
+                                        meta.deprecation_errors.push(create_fn_deprecation_error(
+                                            "fn_update",
+                                            "update::one::body",
+                                            &nv.path,
+                                        ));
                                     }
                                     Some("fn_delete") => {
-                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_delete", "delete::one::body", &nv.path));
+                                        meta.deprecation_errors.push(create_fn_deprecation_error(
+                                            "fn_delete",
+                                            "delete::one::body",
+                                            &nv.path,
+                                        ));
                                     }
                                     Some("fn_delete_many") => {
-                                        meta.deprecation_errors.push(create_fn_deprecation_error("fn_delete_many", "delete::many::body", &nv.path));
+                                        meta.deprecation_errors.push(create_fn_deprecation_error(
+                                            "fn_delete_many",
+                                            "delete::many::body",
+                                            &nv.path,
+                                        ));
                                     }
                                     Some("operations") => meta.operations = Some(fn_path.clone()),
                                     _ => {}
@@ -261,7 +297,10 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                                 && !b.value()
                             {
                                 // Emit visible deprecation warning during compilation
-                                eprintln!("\n⚠️  DEPRECATION WARNING: {}\n", create_deprecation_error(key, &nv.path));
+                                eprintln!(
+                                    "\n⚠️  DEPRECATION WARNING: {}\n",
+                                    create_deprecation_error(key, &nv.path)
+                                );
                             }
                             return Some(b.value());
                         }
@@ -270,14 +309,13 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                     Meta::Path(path) if path.is_ident(key) => {
                         return Some(true);
                     }
-                      _ => {}
+                    _ => {}
                 }
             }
         }
     }
     None
 }
-
 
 /// Check if field has an exclude(...) configuration that affects the given key
 fn check_exclude_config(field: &syn::Field, key: &str) -> Option<bool> {
@@ -431,28 +469,40 @@ mod tests {
     fn test_parse_hook_path_valid_create_one_pre() {
         let path = make_path(quote!(create::one::pre));
         let result = parse_hook_path(&path);
-        assert_eq!(result, Some(("create".to_string(), "one".to_string(), "pre".to_string())));
+        assert_eq!(
+            result,
+            Some(("create".to_string(), "one".to_string(), "pre".to_string()))
+        );
     }
 
     #[test]
     fn test_parse_hook_path_valid_delete_many_body() {
         let path = make_path(quote!(delete::many::body));
         let result = parse_hook_path(&path);
-        assert_eq!(result, Some(("delete".to_string(), "many".to_string(), "body".to_string())));
+        assert_eq!(
+            result,
+            Some(("delete".to_string(), "many".to_string(), "body".to_string()))
+        );
     }
 
     #[test]
     fn test_parse_hook_path_valid_read_one_post() {
         let path = make_path(quote!(read::one::post));
         let result = parse_hook_path(&path);
-        assert_eq!(result, Some(("read".to_string(), "one".to_string(), "post".to_string())));
+        assert_eq!(
+            result,
+            Some(("read".to_string(), "one".to_string(), "post".to_string()))
+        );
     }
 
     #[test]
     fn test_parse_hook_path_valid_update_many_pre() {
         let path = make_path(quote!(update::many::pre));
         let result = parse_hook_path(&path);
-        assert_eq!(result, Some(("update".to_string(), "many".to_string(), "pre".to_string())));
+        assert_eq!(
+            result,
+            Some(("update".to_string(), "many".to_string(), "pre".to_string()))
+        );
     }
 
     #[test]
@@ -557,7 +607,10 @@ mod tests {
         let path = make_path(quote!(fn_create));
         let error = create_fn_deprecation_error("fn_create", "create::one::body", &path);
         let msg = error.to_string();
-        assert!(msg.contains("fn_create"), "Error should mention old attribute");
+        assert!(
+            msg.contains("fn_create"),
+            "Error should mention old attribute"
+        );
     }
 
     #[test]
@@ -565,7 +618,10 @@ mod tests {
         let path = make_path(quote!(fn_delete));
         let error = create_fn_deprecation_error("fn_delete", "delete::one::body", &path);
         let msg = error.to_string();
-        assert!(msg.contains("delete::one::body"), "Error should mention new syntax");
+        assert!(
+            msg.contains("delete::one::body"),
+            "Error should mention new syntax"
+        );
     }
 
     #[test]
@@ -573,7 +629,10 @@ mod tests {
         let path = make_path(quote!(fn_get_all));
         let error = create_fn_deprecation_error("fn_get_all", "read::many::body", &path);
         let msg = error.to_string();
-        assert!(msg.contains("Migration guide"), "Error should contain migration guide");
+        assert!(
+            msg.contains("Migration guide"),
+            "Error should contain migration guide"
+        );
     }
 
     // ============== create_deprecation_error tests ==============
@@ -583,7 +642,10 @@ mod tests {
         let path = make_path(quote!(create_model));
         let error = create_deprecation_error("create_model", &path);
         let msg = error.to_string();
-        assert!(msg.contains("exclude(create)"), "Should suggest exclude(create)");
+        assert!(
+            msg.contains("exclude(create)"),
+            "Should suggest exclude(create)"
+        );
     }
 
     #[test]
@@ -591,7 +653,10 @@ mod tests {
         let path = make_path(quote!(update_model));
         let error = create_deprecation_error("update_model", &path);
         let msg = error.to_string();
-        assert!(msg.contains("exclude(update)"), "Should suggest exclude(update)");
+        assert!(
+            msg.contains("exclude(update)"),
+            "Should suggest exclude(update)"
+        );
     }
 
     #[test]
@@ -599,7 +664,10 @@ mod tests {
         let path = make_path(quote!(list_model));
         let error = create_deprecation_error("list_model", &path);
         let msg = error.to_string();
-        assert!(msg.contains("exclude(list)"), "Should suggest exclude(list)");
+        assert!(
+            msg.contains("exclude(list)"),
+            "Should suggest exclude(list)"
+        );
     }
 
     #[test]
@@ -607,7 +675,10 @@ mod tests {
         let path = make_path(quote!(unknown));
         let error = create_deprecation_error("unknown_key", &path);
         let msg = error.to_string();
-        assert!(msg.contains("exclude(...)"), "Should suggest generic exclude syntax");
+        assert!(
+            msg.contains("exclude(...)"),
+            "Should suggest generic exclude syntax"
+        );
     }
 
     // ============== parse_exclude_parameters tests ==============
@@ -616,7 +687,10 @@ mod tests {
     fn test_parse_exclude_create() {
         let tokens = quote!(exclude(create));
         let meta_list: syn::MetaList = syn::parse2(tokens).expect("Failed to parse");
-        assert_eq!(parse_exclude_parameters(&meta_list, "create_model"), Some(true));
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "create_model"),
+            Some(true)
+        );
         assert_eq!(parse_exclude_parameters(&meta_list, "update_model"), None);
     }
 
@@ -624,7 +698,10 @@ mod tests {
     fn test_parse_exclude_update() {
         let tokens = quote!(exclude(update));
         let meta_list: syn::MetaList = syn::parse2(tokens).expect("Failed to parse");
-        assert_eq!(parse_exclude_parameters(&meta_list, "update_model"), Some(true));
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "update_model"),
+            Some(true)
+        );
         assert_eq!(parse_exclude_parameters(&meta_list, "create_model"), None);
     }
 
@@ -632,17 +709,32 @@ mod tests {
     fn test_parse_exclude_multiple() {
         let tokens = quote!(exclude(create, update, list));
         let meta_list: syn::MetaList = syn::parse2(tokens).expect("Failed to parse");
-        assert_eq!(parse_exclude_parameters(&meta_list, "create_model"), Some(true));
-        assert_eq!(parse_exclude_parameters(&meta_list, "update_model"), Some(true));
-        assert_eq!(parse_exclude_parameters(&meta_list, "list_model"), Some(true));
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "create_model"),
+            Some(true)
+        );
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "update_model"),
+            Some(true)
+        );
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "list_model"),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_parse_exclude_all_affects_list_and_one() {
         let tokens = quote!(exclude(all));
         let meta_list: syn::MetaList = syn::parse2(tokens).expect("Failed to parse");
-        assert_eq!(parse_exclude_parameters(&meta_list, "list_model"), Some(true));
-        assert_eq!(parse_exclude_parameters(&meta_list, "one_model"), Some(true));
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "list_model"),
+            Some(true)
+        );
+        assert_eq!(
+            parse_exclude_parameters(&meta_list, "one_model"),
+            Some(true)
+        );
         // exclude(all) doesn't affect create/update
         assert_eq!(parse_exclude_parameters(&meta_list, "create_model"), None);
     }
@@ -678,4 +770,3 @@ mod tests {
         assert!(parse_hook_path(&make_path(quote!(create::one::post))).is_some());
     }
 }
-

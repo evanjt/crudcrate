@@ -11,8 +11,14 @@ fn parse_json_sort(json: &str) -> (String, String) {
         DEFAULT_SORT_ORDER.to_string(),
     ]);
     (
-        sort_vec.first().cloned().unwrap_or(DEFAULT_SORT_COLUMN.to_string()),
-        sort_vec.get(1).cloned().unwrap_or(DEFAULT_SORT_ORDER.to_string()),
+        sort_vec
+            .first()
+            .cloned()
+            .unwrap_or(DEFAULT_SORT_COLUMN.to_string()),
+        sort_vec
+            .get(1)
+            .cloned()
+            .unwrap_or(DEFAULT_SORT_ORDER.to_string()),
     )
 }
 
@@ -44,9 +50,13 @@ pub fn generic_sort<C>(
 where
     C: ColumnTrait + Copy,
 {
-
-    let (sort_column, sort_order) = sort
-        .map_or((DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string()), parse_json_sort);
+    let (sort_column, sort_order) = sort.map_or(
+        (
+            DEFAULT_SORT_COLUMN.to_string(),
+            DEFAULT_SORT_ORDER.to_string(),
+        ),
+        parse_json_sort,
+    );
 
     let order_direction = parse_order(&sort_order);
     let order_column = find_column(&sort_column, order_column_logic, default_column);
@@ -65,7 +75,14 @@ where
 {
     let (sort_column, sort_order) = if let Some(sort_by) = &params.sort_by {
         // Standard REST format: sort_by=column&order=ASC/DESC
-        (sort_by.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
+        (
+            sort_by.clone(),
+            params
+                .order
+                .as_deref()
+                .unwrap_or(DEFAULT_SORT_ORDER)
+                .to_string(),
+        )
     } else if let Some(sort) = &params.sort {
         // Check if sort is a simple column name (REST) or JSON array (React Admin)
         if sort.starts_with('[') {
@@ -73,10 +90,20 @@ where
             parse_json_sort(sort)
         } else {
             // REST format: sort=column&order=ASC/DESC
-            (sort.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
+            (
+                sort.clone(),
+                params
+                    .order
+                    .as_deref()
+                    .unwrap_or(DEFAULT_SORT_ORDER)
+                    .to_string(),
+            )
         }
     } else {
-        (DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string())
+        (
+            DEFAULT_SORT_COLUMN.to_string(),
+            DEFAULT_SORT_ORDER.to_string(),
+        )
     };
 
     let order_direction = parse_order(&sort_order);
@@ -113,15 +140,32 @@ where
     use super::joined::SortConfig;
 
     let (sort_column, sort_order) = if let Some(sort_by) = &params.sort_by {
-        (sort_by.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
+        (
+            sort_by.clone(),
+            params
+                .order
+                .as_deref()
+                .unwrap_or(DEFAULT_SORT_ORDER)
+                .to_string(),
+        )
     } else if let Some(sort) = &params.sort {
         if sort.starts_with('[') {
             parse_json_sort(sort)
         } else {
-            (sort.clone(), params.order.as_deref().unwrap_or(DEFAULT_SORT_ORDER).to_string())
+            (
+                sort.clone(),
+                params
+                    .order
+                    .as_deref()
+                    .unwrap_or(DEFAULT_SORT_ORDER)
+                    .to_string(),
+            )
         }
     } else {
-        (DEFAULT_SORT_COLUMN.to_string(), DEFAULT_SORT_ORDER.to_string())
+        (
+            DEFAULT_SORT_COLUMN.to_string(),
+            DEFAULT_SORT_ORDER.to_string(),
+        )
     };
 
     let order_direction = parse_order(&sort_order);
@@ -243,7 +287,10 @@ mod tests {
 
         // When sort_by is present, it should be used
         assert!(params.sort_by.is_some(), "sort_by should be present");
-        assert!(params.sort.is_some(), "sort should also be present but ignored");
+        assert!(
+            params.sort.is_some(),
+            "sort should also be present but ignored"
+        );
     }
 
     /// Test plain sort parameter detection (non-JSON)
@@ -251,22 +298,34 @@ mod tests {
     fn test_plain_sort_detection() {
         // Plain text sort (doesn't start with '[')
         let sort = "name";
-        assert!(!sort.starts_with('['), "Plain sort should not start with '['");
+        assert!(
+            !sort.starts_with('['),
+            "Plain sort should not start with '['"
+        );
 
         // JSON array sort (starts with '[')
         let json_sort = r#"["name", "ASC"]"#;
-        assert!(json_sort.starts_with('['), "JSON sort should start with '['");
+        assert!(
+            json_sort.starts_with('['),
+            "JSON sort should start with '['"
+        );
     }
 
     /// Test default order constant
     #[test]
     fn test_default_order_is_asc() {
-        assert_eq!(DEFAULT_SORT_ORDER, "ASC", "Default sort order should be ASC");
+        assert_eq!(
+            DEFAULT_SORT_ORDER, "ASC",
+            "Default sort order should be ASC"
+        );
     }
 
     /// Test default column constant
     #[test]
     fn test_default_column_is_id() {
-        assert_eq!(DEFAULT_SORT_COLUMN, "id", "Default sort column should be id");
+        assert_eq!(
+            DEFAULT_SORT_COLUMN, "id",
+            "Default sort column should be id"
+        );
     }
 }

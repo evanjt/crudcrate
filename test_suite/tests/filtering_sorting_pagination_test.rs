@@ -27,7 +27,9 @@ fn encode_filter(filter: &serde_json::Value) -> String {
 /// Should return records where the field is NULL
 #[tokio::test]
 async fn test_filter_null_field() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // First create a customer and vehicle
@@ -148,7 +150,11 @@ async fn test_filter_null_field() {
     let records: Vec<MaintenanceRecordList> = serde_json::from_slice(&body).unwrap();
 
     // Should find only the record without mechanic_name
-    assert_eq!(records.len(), 1, "Should find exactly 1 record with NULL mechanic_name");
+    assert_eq!(
+        records.len(),
+        1,
+        "Should find exactly 1 record with NULL mechanic_name"
+    );
     assert_eq!(records[0].service_type, "Oil Change");
 }
 
@@ -156,7 +162,9 @@ async fn test_filter_null_field() {
 /// Should return records matching any value in the array
 #[tokio::test]
 async fn test_filter_array_in() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create multiple customers
@@ -212,7 +220,9 @@ async fn test_filter_array_in() {
 /// Filtering should match regardless of case
 #[tokio::test]
 async fn test_filter_case_insensitive() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customer with mixed case name
@@ -267,7 +277,9 @@ async fn test_filter_case_insensitive() {
 /// Should correctly parse and filter by UUID values
 #[tokio::test]
 async fn test_filter_uuid() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a customer and get their UUID
@@ -343,7 +355,9 @@ async fn test_filter_uuid() {
 /// Should correctly filter by true/false values
 #[tokio::test]
 async fn test_filter_boolean() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customer and vehicle first
@@ -492,7 +506,9 @@ async fn test_filter_boolean() {
 /// (Current behavior - not 400 error as docs suggest)
 #[tokio::test]
 async fn test_filter_unknown_field_ignored() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a customer
@@ -537,7 +553,10 @@ async fn test_filter_unknown_field_ignored() {
         .unwrap();
     let result: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
-    assert!(!result.is_empty(), "Should return records when unknown fields are ignored");
+    assert!(
+        !result.is_empty(),
+        "Should return records when unknown fields are ignored"
+    );
 }
 
 // ============================================================================
@@ -547,7 +566,9 @@ async fn test_filter_unknown_field_ignored() {
 /// Test REST sort format: sort=column&order=ASC
 #[tokio::test]
 async fn test_sort_rest_format() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
@@ -620,7 +641,9 @@ async fn test_sort_rest_format() {
 /// Test REST sort_by format: sort_by=column&order=ASC
 #[tokio::test]
 async fn test_sort_by_rest_format() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
@@ -664,13 +687,18 @@ async fn test_sort_by_rest_format() {
     let result: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     assert!(result.len() >= 3);
-    assert_eq!(result[0].name, "Alice", "First should be Alice with sort_by");
+    assert_eq!(
+        result[0].name, "Alice",
+        "First should be Alice with sort_by"
+    );
 }
 
 /// Test invalid sort field falls back to default
 #[tokio::test]
 async fn test_sort_invalid_field_fallback() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a customer
@@ -716,7 +744,9 @@ async fn test_sort_invalid_field_fallback() {
 /// Test React Admin range pagination: [0,9]
 #[tokio::test]
 async fn test_pagination_range_format() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 15 customers
@@ -774,7 +804,11 @@ async fn test_pagination_range_format() {
         .unwrap();
     let result: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(result.len(), 5, "Should return exactly 5 items for range [0,4]");
+    assert_eq!(
+        result.len(),
+        5,
+        "Should return exactly 5 items for range [0,4]"
+    );
 
     // Test range=[5,9] (second page)
     let response = app
@@ -795,13 +829,19 @@ async fn test_pagination_range_format() {
         .unwrap();
     let result: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(result.len(), 5, "Should return exactly 5 items for range [5,9]");
+    assert_eq!(
+        result.len(),
+        5,
+        "Should return exactly 5 items for range [5,9]"
+    );
 }
 
 /// Test default pagination when no params provided
 #[tokio::test]
 async fn test_pagination_default() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 15 customers
@@ -855,7 +895,9 @@ async fn test_pagination_default() {
 /// Test case-insensitive fulltext search
 #[tokio::test]
 async fn test_fulltext_case_insensitive() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customer and vehicle
@@ -965,7 +1007,9 @@ async fn test_fulltext_case_insensitive() {
 /// Test empty fulltext search returns all results
 #[tokio::test]
 async fn test_fulltext_empty_query_returns_all() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create some customers
@@ -1046,11 +1090,15 @@ async fn test_fulltext_empty_query_returns_all() {
 /// Test combining filter, sort, and pagination
 #[tokio::test]
 async fn test_combined_filter_sort_pagination() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 10 customers with different names
-    let names = ["Zara", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry", "Ivy"];
+    let names = [
+        "Zara", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry", "Ivy",
+    ];
     for name in names.iter() {
         app.clone()
             .oneshot(

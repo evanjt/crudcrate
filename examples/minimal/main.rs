@@ -12,8 +12,8 @@
 
 mod todo;
 
-use todo::{Todo, setup_todo_database};
 use std::env;
+use todo::{Todo, setup_todo_database};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_scalar::{Scalar, Servable};

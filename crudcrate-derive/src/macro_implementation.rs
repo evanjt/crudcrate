@@ -5,7 +5,9 @@ use crate::codegen::{
         generate_id_column, generate_like_filterable_entries,
     },
 };
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig};
+use crate::traits::crudresource::structs::{
+    CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig,
+};
 use quote::quote;
 
 pub(crate) fn generate_crud_resource_impl(
@@ -35,11 +37,21 @@ pub(crate) fn generate_crud_resource_impl(
     let fulltext_language = crud_meta.fulltext_language.as_deref().unwrap_or("english");
 
     // Generate joined filterable/sortable column definitions
-    let joined_filterable_entries = generate_joined_column_entries(&analysis.join_filter_sort_configs, true);
-    let joined_sortable_entries = generate_joined_column_entries(&analysis.join_filter_sort_configs, false);
+    let joined_filterable_entries =
+        generate_joined_column_entries(&analysis.join_filter_sort_configs, true);
+    let joined_sortable_entries =
+        generate_joined_column_entries(&analysis.join_filter_sort_configs, false);
 
-    let (get_one_impl, get_all_impl, create_impl, create_many_impl, update_impl, update_many_impl, delete_impl, delete_many_impl) =
-        generate_method_impls(crud_meta, analysis, api_struct_name);
+    let (
+        get_one_impl,
+        get_all_impl,
+        create_impl,
+        create_many_impl,
+        update_impl,
+        update_many_impl,
+        delete_impl,
+        delete_many_impl,
+    ) = generate_method_impls(crud_meta, analysis, api_struct_name);
 
     // Generate registration lazy static and auto-registration call only for models without join fields
     // Models with join fields may have circular dependencies that prevent CRUDResource compilation

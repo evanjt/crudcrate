@@ -75,7 +75,10 @@ async fn create_customers_with_vehicles(
 }
 
 /// Measure time to fetch all customers with their vehicles loaded
-async fn time_get_all_customers(app: &axum::Router, per_page: usize) -> (std::time::Duration, usize) {
+async fn time_get_all_customers(
+    app: &axum::Router,
+    per_page: usize,
+) -> (std::time::Duration, usize) {
     let start = Instant::now();
 
     let request = Request::builder()
@@ -116,7 +119,10 @@ async fn test_batch_loading_scales_linearly() {
     let vehicles_per = 3;
 
     println!("\n=== Batch Loading Benchmark ===\n");
-    println!("Creating {} customers with {} vehicles each...", small_count, vehicles_per);
+    println!(
+        "Creating {} customers with {} vehicles each...",
+        small_count, vehicles_per
+    );
 
     create_customers_with_vehicles(&app, small_count, vehicles_per).await;
 
@@ -129,7 +135,10 @@ async fn test_batch_loading_scales_linearly() {
 
     // Now test with larger dataset
     let large_count = 40; // Add 40 more for total of 50
-    println!("\nCreating {} more customers with {} vehicles each...", large_count, vehicles_per);
+    println!(
+        "\nCreating {} more customers with {} vehicles each...",
+        large_count, vehicles_per
+    );
 
     create_customers_with_vehicles(&app, large_count, vehicles_per).await;
 
@@ -137,7 +146,9 @@ async fn test_batch_loading_scales_linearly() {
     let (large_time, large_result_count) = time_get_all_customers(&app, 100).await;
     println!(
         "Large dataset ({} customers): {:?} ({} results)",
-        small_count + large_count, large_time, large_result_count
+        small_count + large_count,
+        large_time,
+        large_result_count
     );
 
     // Calculate scaling factor
@@ -147,10 +158,7 @@ async fn test_batch_loading_scales_linearly() {
     println!("\n--- Results ---");
     println!("Count ratio: {:.1}x", count_ratio);
     println!("Time ratio: {:.1}x", time_ratio);
-    println!(
-        "Expected with batch loading (linear): ~{:.1}x",
-        count_ratio
-    );
+    println!("Expected with batch loading (linear): ~{:.1}x", count_ratio);
     println!(
         "Expected with N+1 (quadratic): ~{:.1}x",
         count_ratio * count_ratio
@@ -165,7 +173,10 @@ async fn test_batch_loading_scales_linearly() {
     // With N+1, it would be closer to 25x for a 5x increase
     let max_acceptable_ratio = count_ratio * 3.0; // Allow 3x linear (still much better than quadratic)
 
-    println!("\nAssertion: time_ratio ({:.1}) <= max_acceptable ({:.1})", time_ratio, max_acceptable_ratio);
+    println!(
+        "\nAssertion: time_ratio ({:.1}) <= max_acceptable ({:.1})",
+        time_ratio, max_acceptable_ratio
+    );
 
     assert!(
         time_ratio <= max_acceptable_ratio,
@@ -194,13 +205,20 @@ async fn test_batch_loading_correctness_with_many_entities() {
     let customer_count = 20;
     let vehicles_per_customer = 5;
 
-    println!("\nCreating {} customers with {} vehicles each...", customer_count, vehicles_per_customer);
-    let _customer_ids = create_customers_with_vehicles(&app, customer_count, vehicles_per_customer).await;
+    println!(
+        "\nCreating {} customers with {} vehicles each...",
+        customer_count, vehicles_per_customer
+    );
+    let _customer_ids =
+        create_customers_with_vehicles(&app, customer_count, vehicles_per_customer).await;
 
     // Fetch all customers (request more than we created to ensure we get all)
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/customers?page=1&per_page={}", customer_count + 10))
+        .uri(format!(
+            "/customers?page=1&per_page={}",
+            customer_count + 10
+        ))
         .body(Body::empty())
         .unwrap();
 
@@ -217,10 +235,7 @@ async fn test_batch_loading_correctness_with_many_entities() {
     // Verify each customer has the correct number of vehicles
     for customer in &customers {
         let vehicles = customer["vehicles"].as_array();
-        assert!(
-            vehicles.is_some(),
-            "Customer should have vehicles array"
-        );
+        assert!(vehicles.is_some(), "Customer should have vehicles array");
         let vehicles = vehicles.unwrap();
         assert_eq!(
             vehicles.len(),
@@ -244,7 +259,10 @@ async fn test_batch_loading_correctness_with_many_entities() {
         "Total vehicles should match expected"
     );
 
-    println!("Verified {} customers with {} total vehicles", customer_count, total_vehicles);
+    println!(
+        "Verified {} customers with {} total vehicles",
+        customer_count, total_vehicles
+    );
 }
 
 /// Stress test with larger dataset
@@ -259,7 +277,10 @@ async fn test_batch_loading_stress_test() {
     let customer_count = 100;
     let vehicles_per = 3;
 
-    println!("\n=== Stress Test: {} customers x {} vehicles ===", customer_count, vehicles_per);
+    println!(
+        "\n=== Stress Test: {} customers x {} vehicles ===",
+        customer_count, vehicles_per
+    );
 
     let start = Instant::now();
     create_customers_with_vehicles(&app, customer_count, vehicles_per).await;
@@ -270,7 +291,10 @@ async fn test_batch_loading_stress_test() {
     let start = Instant::now();
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/customers?page=1&per_page={}", customer_count + 10))
+        .uri(format!(
+            "/customers?page=1&per_page={}",
+            customer_count + 10
+        ))
         .body(Body::empty())
         .unwrap();
 
@@ -283,7 +307,11 @@ async fn test_batch_loading_stress_test() {
     let customers: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
     let fetch_time = start.elapsed();
 
-    println!("Fetch time for {} customers with vehicles: {:?}", customers.len(), fetch_time);
+    println!(
+        "Fetch time for {} customers with vehicles: {:?}",
+        customers.len(),
+        fetch_time
+    );
 
     // With batch loading, fetching 100 customers should be fast (< 1 second for SQLite in-memory)
     // With N+1 queries, this could take much longer

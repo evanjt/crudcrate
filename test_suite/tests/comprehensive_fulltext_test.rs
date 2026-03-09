@@ -8,8 +8,8 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_app, setup_test_db};
 use crate::common::customer::CustomerList;
+use common::{setup_test_app, setup_test_db};
 
 // =============================================================================
 // COMBINED OPERATIONS TESTS (fulltext-search.md lines 122-133)
@@ -18,7 +18,9 @@ use crate::common::customer::CustomerList;
 
 #[tokio::test]
 async fn test_fulltext_search_with_sort_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with searchable content at different times
@@ -64,19 +66,27 @@ async fn test_fulltext_search_with_sort_as_documented() {
 
     // Should find all 3 Rust-related customers
     assert_eq!(customers.len(), 3, "Should find all Rust-related customers");
-    assert!(customers.iter().all(|c| c.name.to_lowercase().contains("rust")),
-        "All results should contain 'Rust'");
+    assert!(
+        customers
+            .iter()
+            .all(|c| c.name.to_lowercase().contains("rust")),
+        "All results should contain 'Rust'"
+    );
 
     // Verify they're sorted by created_at DESC (newest first)
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].created_at >= customers[i+1].created_at,
-            "Results should be sorted by created_at DESC");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].created_at >= customers[i + 1].created_at,
+            "Results should be sorted by created_at DESC"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_fulltext_search_with_paginate_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create many customers with "Developer" in name
@@ -118,9 +128,15 @@ async fn test_fulltext_search_with_paginate_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 5 customers (range [0,4])
-    assert_eq!(customers.len(), 5, "Search with pagination should respect range limit");
-    assert!(customers.iter().all(|c| c.name.contains("Developer")),
-        "All paginated results should match search query");
+    assert_eq!(
+        customers.len(),
+        5,
+        "Search with pagination should respect range limit"
+    );
+    assert!(
+        customers.iter().all(|c| c.name.contains("Developer")),
+        "All paginated results should match search query"
+    );
 }
 
 // =============================================================================
@@ -169,7 +185,9 @@ async fn test_fulltext_mysql_sqlite_like_fallback_documented_behavior() {
 
 #[tokio::test]
 async fn test_fulltext_search_filter_sort_paginate_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create diverse customers
@@ -222,9 +240,15 @@ async fn test_fulltext_search_filter_sort_paginate_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should find Alice Developer only
-    assert_eq!(customers.len(), 1, "Combined search+filter should find Alice Developer");
-    assert!(customers[0].name.contains("Alice") && customers[0].name.contains("Developer"),
-        "Result should match both search and filter");
+    assert_eq!(
+        customers.len(),
+        1,
+        "Combined search+filter should find Alice Developer"
+    );
+    assert!(
+        customers[0].name.contains("Alice") && customers[0].name.contains("Developer"),
+        "Result should match both search and filter"
+    );
 }
 
 // =============================================================================
@@ -234,7 +258,9 @@ async fn test_fulltext_search_filter_sort_paginate_as_documented() {
 
 #[tokio::test]
 async fn test_fulltext_special_characters_documented_examples() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with special characters in names
@@ -273,7 +299,11 @@ async fn test_fulltext_special_characters_documented_examples() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK, "Search with 'c++' should work safely");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Search with 'c++' should work safely"
+    );
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -293,7 +323,11 @@ async fn test_fulltext_special_characters_documented_examples() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK, "Search with 'node.js' should work safely");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Search with 'node.js' should work safely"
+    );
 
     // Test 3: user@email (docs example: q=user@email)
     let response = app
@@ -307,7 +341,11 @@ async fn test_fulltext_special_characters_documented_examples() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK, "Search with 'user@email' should work safely");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Search with 'user@email' should work safely"
+    );
 
     // All special character searches should work without errors
 }
@@ -318,7 +356,9 @@ async fn test_fulltext_special_characters_documented_examples() {
 
 #[tokio::test]
 async fn test_fulltext_optimized_search_pattern_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create many customers in different categories
@@ -371,8 +411,15 @@ async fn test_fulltext_optimized_search_pattern_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should find Rust developers only, paginated
-    assert!(customers.len() <= 20, "Optimized search should respect pagination");
-    assert!(customers.iter().all(|c| c.name.to_lowercase().contains("rust") &&
-                                      c.name.to_lowercase().contains("developer")),
-        "Optimized search should apply both search and filter");
+    assert!(
+        customers.len() <= 20,
+        "Optimized search should respect pagination"
+    );
+    assert!(
+        customers
+            .iter()
+            .all(|c| c.name.to_lowercase().contains("rust")
+                && c.name.to_lowercase().contains("developer")),
+        "Optimized search should apply both search and filter"
+    );
 }

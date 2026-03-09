@@ -2,17 +2,35 @@
 macro_rules! crud_handlers {
     // New version with ListModel and ResponseModel
     ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty) => {
-        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model, $response_model);
+        crudcrate::crud_handlers_impl!(
+            $resource,
+            $update_model,
+            $create_model,
+            $list_model,
+            $response_model
+        );
     };
 
     // Backward compatibility - use Self as ResponseModel
     ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty) => {
-        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $list_model, $resource);
+        crudcrate::crud_handlers_impl!(
+            $resource,
+            $update_model,
+            $create_model,
+            $list_model,
+            $resource
+        );
     };
 
     // Backward compatibility - use Self as ListModel and ResponseModel
     ($resource:ty, $update_model:ty, $create_model:ty) => {
-        crudcrate::crud_handlers_impl!($resource, $update_model, $create_model, $resource, $resource);
+        crudcrate::crud_handlers_impl!(
+            $resource,
+            $update_model,
+            $create_model,
+            $resource,
+            $resource
+        );
     };
 }
 

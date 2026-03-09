@@ -5,8 +5,8 @@
 
 use chrono::{DateTime, Utc};
 use crudcrate::{
-    traits::CRUDResource, EntityToModels, SortConfig,
-    apply_filters_with_joins, parse_sorting_with_joins, parse_dot_notation,
+    EntityToModels, SortConfig, apply_filters_with_joins, parse_dot_notation,
+    parse_sorting_with_joins, traits::CRUDResource,
 };
 use sea_orm::{
     ActiveModelBehavior, DeriveEntityModel, DeriveRelation, EntityTrait, EnumIter,
@@ -27,7 +27,17 @@ use uuid::Uuid;
 pub mod vehicle {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels, Serialize, Deserialize, ToSchema)]
+    #[derive(
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        DeriveEntityModel,
+        EntityToModels,
+        Serialize,
+        Deserialize,
+        ToSchema,
+    )]
     #[sea_orm(table_name = "vehicles")]
     #[crudcrate(
         api_struct = "Vehicle",
@@ -110,7 +120,13 @@ pub mod customer {
         #[sea_orm(ignore)]
         #[crudcrate(
             non_db_attr,
-            join(one, all, depth = 1, filterable("make", "year", "color"), sortable("year", "mileage"))
+            join(
+                one,
+                all,
+                depth = 1,
+                filterable("make", "year", "color"),
+                sortable("year", "mileage")
+            )
         )]
         pub vehicles: Vec<super::vehicle::Vehicle>,
     }
@@ -329,7 +345,10 @@ mod filter_parsing_tests {
 
     #[test]
     fn test_filter_with_multiple_joined_filters() {
-        let filter_str = Some(r#"{"vehicles.make":"BMW","vehicles.year_gte":2020,"vehicles.color":"Black"}"#.to_string());
+        let filter_str = Some(
+            r#"{"vehicles.make":"BMW","vehicles.year_gte":2020,"vehicles.color":"Black"}"#
+                .to_string(),
+        );
         let filterable_columns = Customer::filterable_columns();
 
         let parsed = apply_filters_with_joins::<Customer>(
@@ -351,8 +370,8 @@ mod filter_parsing_tests {
 #[cfg(test)]
 mod sort_parsing_tests {
     use super::*;
-    use customer::Customer;
     use crudcrate::FilterOptions;
+    use customer::Customer;
 
     #[test]
     fn test_sort_by_main_column() {
@@ -364,11 +383,8 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config = parse_sorting_with_joins::<Customer, _>(
-            &params,
-            &sortable_columns,
-            default_column,
-        );
+        let sort_config =
+            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
 
         // Should be a Column sort
         match sort_config {
@@ -391,15 +407,16 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config = parse_sorting_with_joins::<Customer, _>(
-            &params,
-            &sortable_columns,
-            default_column,
-        );
+        let sort_config =
+            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
 
         // Should be a Joined sort
         match sort_config {
-            SortConfig::Joined { join_field, column, direction } => {
+            SortConfig::Joined {
+                join_field,
+                column,
+                direction,
+            } => {
                 assert_eq!(join_field, "vehicles");
                 assert_eq!(column, "year");
                 assert_eq!(direction, sea_orm::Order::Desc);
@@ -421,11 +438,8 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config = parse_sorting_with_joins::<Customer, _>(
-            &params,
-            &sortable_columns,
-            default_column,
-        );
+        let sort_config =
+            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
 
         // Should fall back to Column sort (invalid joined sort)
         match sort_config {
@@ -448,11 +462,8 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config = parse_sorting_with_joins::<Customer, _>(
-            &params,
-            &sortable_columns,
-            default_column,
-        );
+        let sort_config =
+            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
 
         assert!(sort_config.is_joined());
     }
@@ -467,11 +478,8 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config = parse_sorting_with_joins::<Customer, _>(
-            &params,
-            &sortable_columns,
-            default_column,
-        );
+        let sort_config =
+            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
 
         assert_eq!(sort_config.direction(), sea_orm::Order::Asc);
     }

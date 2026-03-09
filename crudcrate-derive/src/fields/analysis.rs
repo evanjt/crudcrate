@@ -47,18 +47,22 @@ pub fn analyze_entity_fields(
             }
 
             // Extract join filter/sort configuration if present
-            if !join_config.filterable_columns.is_empty() || !join_config.sortable_columns.is_empty() {
+            if !join_config.filterable_columns.is_empty()
+                || !join_config.sortable_columns.is_empty()
+            {
                 let field_name = field
                     .ident
                     .as_ref()
                     .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
-                analysis.join_filter_sort_configs.push(JoinFilterSortConfig {
-                    field_name,
-                    entity_path: join_config.path.clone(),
-                    filterable_columns: join_config.filterable_columns.clone(),
-                    sortable_columns: join_config.sortable_columns.clone(),
-                });
+                analysis
+                    .join_filter_sort_configs
+                    .push(JoinFilterSortConfig {
+                        field_name,
+                        entity_path: join_config.path.clone(),
+                        filterable_columns: join_config.filterable_columns.clone(),
+                        sortable_columns: join_config.sortable_columns.clone(),
+                    });
             }
         }
 

@@ -122,7 +122,6 @@ fn extract_active_model_type(
     Ok(quote! { #ident })
 }
 
-
 /// Generates `<Name>Create` struct with fields not excluded by `exclude(create)`.
 /// Fields with `on_create` become `Option<T>` to allow user override.
 /// Implements `From<NameCreate>` for `ActiveModel` with automatic value generation.

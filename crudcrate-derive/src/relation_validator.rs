@@ -46,7 +46,10 @@ fn check_join_depth(
     entity_name: &str,
     warnings: &mut Vec<proc_macro2::TokenStream>,
 ) {
-    let field_name = field.ident.as_ref().map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
+    let field_name = field
+        .ident
+        .as_ref()
+        .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
     // Get the actual depth from join_config (None defaults to MAX_ALLOWED_DEPTH at runtime)
     if let Some(depth) = join_config.depth {
@@ -84,7 +87,12 @@ fn extract_target_type(field_type: &syn::Type) -> Result<String, ()> {
     let inner = extract_option_inner_type_ref(inner);
 
     if let syn::Type::Path(path) = inner {
-        let segments: Vec<String> = path.path.segments.iter().map(|s| s.ident.to_string()).collect();
+        let segments: Vec<String> = path
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect();
         Ok(segments.join("::"))
     } else {
         Err(())
@@ -123,7 +131,10 @@ mod tests {
     #[test]
     fn test_extract_target_type_path() {
         let ty: syn::Type = parse_quote!(super::vehicle::Vehicle);
-        assert_eq!(extract_target_type(&ty), Ok("super::vehicle::Vehicle".to_string()));
+        assert_eq!(
+            extract_target_type(&ty),
+            Ok("super::vehicle::Vehicle".to_string())
+        );
     }
 
     #[test]

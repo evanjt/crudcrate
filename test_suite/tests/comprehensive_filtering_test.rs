@@ -8,9 +8,9 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{create_test_customer, setup_test_app, setup_test_db};
 use crate::common::customer::CustomerList;
 use crate::common::vehicle::VehicleList;
+use common::{create_test_customer, setup_test_app, setup_test_db};
 
 // =============================================================================
 // COMPARISON OPERATORS TESTS (filtering.md lines 46-65)
@@ -18,7 +18,9 @@ use crate::common::vehicle::VehicleList;
 
 #[tokio::test]
 async fn test_filtering_comparison_operator_neq_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -67,12 +69,17 @@ async fn test_filtering_comparison_operator_neq_as_documented() {
 
     // Should return 2020 and 2022, but NOT 2021
     assert_eq!(vehicles.len(), 2, "Should exclude year 2021");
-    assert!(vehicles.iter().all(|v| v.year != 2021), "No vehicle should have year 2021");
+    assert!(
+        vehicles.iter().all(|v| v.year != 2021),
+        "No vehicle should have year 2021"
+    );
 }
 
 #[tokio::test]
 async fn test_filtering_comparison_operator_gt_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -121,12 +128,17 @@ async fn test_filtering_comparison_operator_gt_as_documented() {
 
     // Should return 2020 and 2021 (both > 2019)
     assert_eq!(vehicles.len(), 2, "Should return vehicles with year > 2019");
-    assert!(vehicles.iter().all(|v| v.year > 2019), "All vehicles should have year > 2019");
+    assert!(
+        vehicles.iter().all(|v| v.year > 2019),
+        "All vehicles should have year > 2019"
+    );
 }
 
 #[tokio::test]
 async fn test_filtering_comparison_operator_gte_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -174,13 +186,22 @@ async fn test_filtering_comparison_operator_gte_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Should return 2019 and 2020 (both >= 2019)
-    assert_eq!(vehicles.len(), 2, "Should return vehicles with year >= 2019");
-    assert!(vehicles.iter().all(|v| v.year >= 2019), "All vehicles should have year >= 2019");
+    assert_eq!(
+        vehicles.len(),
+        2,
+        "Should return vehicles with year >= 2019"
+    );
+    assert!(
+        vehicles.iter().all(|v| v.year >= 2019),
+        "All vehicles should have year >= 2019"
+    );
 }
 
 #[tokio::test]
 async fn test_filtering_comparison_operator_lt_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -229,12 +250,17 @@ async fn test_filtering_comparison_operator_lt_as_documented() {
 
     // Should return 2020 and 2021 (both < 2022)
     assert_eq!(vehicles.len(), 2, "Should return vehicles with year < 2022");
-    assert!(vehicles.iter().all(|v| v.year < 2022), "All vehicles should have year < 2022");
+    assert!(
+        vehicles.iter().all(|v| v.year < 2022),
+        "All vehicles should have year < 2022"
+    );
 }
 
 #[tokio::test]
 async fn test_filtering_comparison_operator_lte_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -282,8 +308,15 @@ async fn test_filtering_comparison_operator_lte_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Should return 2020 and 2021 (both <= 2021)
-    assert_eq!(vehicles.len(), 2, "Should return vehicles with year <= 2021");
-    assert!(vehicles.iter().all(|v| v.year <= 2021), "All vehicles should have year <= 2021");
+    assert_eq!(
+        vehicles.len(),
+        2,
+        "Should return vehicles with year <= 2021"
+    );
+    assert!(
+        vehicles.iter().all(|v| v.year <= 2021),
+        "All vehicles should have year <= 2021"
+    );
 }
 
 // =============================================================================
@@ -292,7 +325,9 @@ async fn test_filtering_comparison_operator_lte_as_documented() {
 
 #[tokio::test]
 async fn test_filtering_number_exact_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -340,13 +375,22 @@ async fn test_filtering_number_exact_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 2 vehicles with year 2020
-    assert_eq!(vehicles.len(), 2, "Should return exactly 2 vehicles with year 2020");
-    assert!(vehicles.iter().all(|v| v.year == 2020), "All vehicles should have year 2020");
+    assert_eq!(
+        vehicles.len(),
+        2,
+        "Should return exactly 2 vehicles with year 2020"
+    );
+    assert!(
+        vehicles.iter().all(|v| v.year == 2020),
+        "All vehicles should have year 2020"
+    );
 }
 
 #[tokio::test]
 async fn test_filtering_number_range_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -394,9 +438,15 @@ async fn test_filtering_number_range_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Should return 2018, 2020, 2022 (3 vehicles)
-    assert_eq!(vehicles.len(), 3, "Should return 3 vehicles in range 2018-2022");
-    assert!(vehicles.iter().all(|v| v.year >= 2018 && v.year <= 2022),
-        "All vehicles should be in range 2018-2022");
+    assert_eq!(
+        vehicles.len(),
+        3,
+        "Should return 3 vehicles in range 2018-2022"
+    );
+    assert!(
+        vehicles.iter().all(|v| v.year >= 2018 && v.year <= 2022),
+        "All vehicles should be in range 2018-2022"
+    );
 }
 
 // =============================================================================
@@ -405,7 +455,9 @@ async fn test_filtering_number_range_as_documented() {
 
 #[tokio::test]
 async fn test_filtering_string_exact_match_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create test customers
@@ -449,12 +501,17 @@ async fn test_filtering_string_exact_match_as_documented() {
 
     // Should return exactly 1 customer: "John Doe"
     assert_eq!(customers.len(), 1, "Should return exactly 1 customer");
-    assert_eq!(customers[0].name, "John Doe", "Should match 'John Doe' exactly");
+    assert_eq!(
+        customers[0].name, "John Doe",
+        "Should match 'John Doe' exactly"
+    );
 }
 
 #[tokio::test]
 async fn test_filtering_string_array_in_query_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -503,9 +560,17 @@ async fn test_filtering_string_array_in_query_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Should return 2 vehicles: Toyota and Honda
-    assert_eq!(vehicles.len(), 2, "Should return 2 vehicles (Toyota and Honda)");
-    assert!(vehicles.iter().all(|v| v.make == "Toyota" || v.make == "Honda"),
-        "All vehicles should be either Toyota or Honda");
+    assert_eq!(
+        vehicles.len(),
+        2,
+        "Should return 2 vehicles (Toyota and Honda)"
+    );
+    assert!(
+        vehicles
+            .iter()
+            .all(|v| v.make == "Toyota" || v.make == "Honda"),
+        "All vehicles should be either Toyota or Honda"
+    );
 }
 
 // =============================================================================
@@ -514,7 +579,9 @@ async fn test_filtering_string_array_in_query_as_documented() {
 
 #[tokio::test]
 async fn test_filtering_uuid_exact_match_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create test customer
@@ -566,7 +633,11 @@ async fn test_filtering_uuid_exact_match_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 1 customer with matching UUID
-    assert_eq!(customers.len(), 1, "Should return exactly 1 customer with matching UUID");
+    assert_eq!(
+        customers.len(),
+        1,
+        "Should return exactly 1 customer with matching UUID"
+    );
     assert_eq!(customers[0].id.to_string(), created_id, "UUID should match");
 }
 
@@ -584,7 +655,9 @@ async fn test_filtering_uuid_exact_match_as_documented() {
 
 #[tokio::test]
 async fn test_filtering_multiple_and_conditions_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -631,7 +704,11 @@ async fn test_filtering_multiple_and_conditions_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Should return only 1 vehicle: Toyota with year >= 2021 (the Corolla 2021)
-    assert_eq!(vehicles.len(), 1, "Should return 1 vehicle matching both conditions");
+    assert_eq!(
+        vehicles.len(),
+        1,
+        "Should return 1 vehicle matching both conditions"
+    );
     assert_eq!(vehicles[0].make, "Toyota", "Make should be Toyota");
     assert!(vehicles[0].year >= 2021, "Year should be >= 2021");
 }
@@ -642,7 +719,9 @@ async fn test_filtering_multiple_and_conditions_as_documented() {
 
 #[tokio::test]
 async fn test_filtering_date_range_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // We can't control created_at directly (it's set by on_create), so we'll
@@ -676,7 +755,11 @@ async fn test_filtering_date_range_as_documented() {
         .unwrap();
 
     // Should not error and should return customers created within the range
-    assert_eq!(response.status(), StatusCode::OK, "Date range filtering should work");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Date range filtering should work"
+    );
 }
 
 // =============================================================================
@@ -685,7 +768,9 @@ async fn test_filtering_date_range_as_documented() {
 
 #[tokio::test]
 async fn test_filtering_sql_injection_prevention_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Test: SQL injection attempt (docs example: {"name": "'; DROP TABLE users; --"})
@@ -702,7 +787,11 @@ async fn test_filtering_sql_injection_prevention_as_documented() {
         .unwrap();
 
     // Should NOT crash, should return OK (even if no results)
-    assert_eq!(response.status(), StatusCode::OK, "SQL injection attempt should be safely handled");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "SQL injection attempt should be safely handled"
+    );
 
     // Verify table still exists by querying customers
     let response = app
@@ -717,5 +806,9 @@ async fn test_filtering_sql_injection_prevention_as_documented() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK, "Customers table should still exist after injection attempt");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Customers table should still exist after injection attempt"
+    );
 }

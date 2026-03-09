@@ -322,7 +322,7 @@ async fn test_batch_update_partial_success() {
 
     let request = Request::builder()
         .method("PATCH")
-        .uri("/customers/batch?partial=true")  // Enable partial success mode
+        .uri("/customers/batch?partial=true") // Enable partial success mode
         .header("content-type", "application/json")
         .body(Body::from(updates.to_string()))
         .unwrap();
@@ -342,13 +342,21 @@ async fn test_batch_update_partial_success() {
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // Check succeeded items
-    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    let succeeded = result["succeeded"]
+        .as_array()
+        .expect("Should have succeeded array");
     assert_eq!(succeeded.len(), 2, "Should have 2 successful updates");
 
     // Check failed items
-    let failed = result["failed"].as_array().expect("Should have failed array");
+    let failed = result["failed"]
+        .as_array()
+        .expect("Should have failed array");
     assert_eq!(failed.len(), 1, "Should have 1 failed update");
-    assert_eq!(failed[0]["index"].as_u64().unwrap(), 1, "Failed item should be at index 1");
+    assert_eq!(
+        failed[0]["index"].as_u64().unwrap(),
+        1,
+        "Failed item should be at index 1"
+    );
 
     // Verify successful updates were applied
     let request = Request::builder()
@@ -412,18 +420,22 @@ async fn test_batch_create_validation_partial_success() {
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // Check succeeded items
-    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    let succeeded = result["succeeded"]
+        .as_array()
+        .expect("Should have succeeded array");
     assert_eq!(succeeded.len(), 2, "Should have 2 successful creates");
 
     // Check failed items
-    let failed = result["failed"].as_array().expect("Should have failed array");
+    let failed = result["failed"]
+        .as_array()
+        .expect("Should have failed array");
     assert_eq!(failed.len(), 2, "Should have 2 failed creates");
 
     // Verify error messages
     for failure in failed {
         assert!(
-            failure["error"].as_str().unwrap().contains("validation") ||
-            failure["error"].as_str().unwrap().contains("name"),
+            failure["error"].as_str().unwrap().contains("validation")
+                || failure["error"].as_str().unwrap().contains("name"),
             "Error should mention validation issue"
         );
     }
@@ -463,7 +475,7 @@ async fn test_batch_delete_partial_success() {
     // Try to delete: 2 existing + 1 non-existing
     let delete_ids = json!([
         customer_ids[0],
-        "00000000-0000-0000-0000-000000000000",  // Non-existent
+        "00000000-0000-0000-0000-000000000000", // Non-existent
         customer_ids[1]
     ]);
 
@@ -488,10 +500,14 @@ async fn test_batch_delete_partial_success() {
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // 2 should succeed, 1 should fail
-    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    let succeeded = result["succeeded"]
+        .as_array()
+        .expect("Should have succeeded array");
     assert_eq!(succeeded.len(), 2, "Should have 2 successful deletes");
 
-    let failed = result["failed"].as_array().expect("Should have failed array");
+    let failed = result["failed"]
+        .as_array()
+        .expect("Should have failed array");
     assert_eq!(failed.len(), 1, "Should have 1 failed delete");
 
     // Verify deleted customers are gone
@@ -765,10 +781,14 @@ async fn test_batch_delete_partial_all_fail() {
         .unwrap();
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    let succeeded = result["succeeded"]
+        .as_array()
+        .expect("Should have succeeded array");
     assert!(succeeded.is_empty(), "No items should succeed");
 
-    let failed = result["failed"].as_array().expect("Should have failed array");
+    let failed = result["failed"]
+        .as_array()
+        .expect("Should have failed array");
     assert_eq!(failed.len(), 2, "Both items should fail");
 }
 
@@ -837,10 +857,14 @@ async fn test_batch_update_partial_all_succeed() {
     let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // Response should be BatchResult shape even when all succeed
-    let succeeded = result["succeeded"].as_array().expect("Should have succeeded array");
+    let succeeded = result["succeeded"]
+        .as_array()
+        .expect("Should have succeeded array");
     assert_eq!(succeeded.len(), 3, "All 3 items should succeed");
 
-    let failed = result["failed"].as_array().expect("Should have failed array");
+    let failed = result["failed"]
+        .as_array()
+        .expect("Should have failed array");
     assert!(failed.is_empty(), "No items should fail");
 
     // Verify names were actually updated
@@ -860,7 +884,8 @@ async fn test_batch_update_partial_all_succeed() {
         assert_eq!(
             customer["name"].as_str().unwrap(),
             format!("All Succeed Updated {}", i),
-            "Customer {} should be updated", id
+            "Customer {} should be updated",
+            id
         );
     }
 }

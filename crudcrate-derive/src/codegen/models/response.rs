@@ -7,7 +7,7 @@
 use crate::attribute_parser::get_crudcrate_bool;
 use crate::codegen::joins::config::get_join_config;
 use crate::codegen::models::shared::resolve_dtwtz;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 
 /// Generate field assignment expressions for converting API struct to Response.
 ///
@@ -52,7 +52,9 @@ pub(crate) fn generate_response_struct_fields(
             let attrs: Vec<_> = field
                 .attrs
                 .iter()
-                .filter(|attr| !attr.path().is_ident("crudcrate") && !attr.path().is_ident("sea_orm"))
+                .filter(|attr| {
+                    !attr.path().is_ident("crudcrate") && !attr.path().is_ident("sea_orm")
+                })
                 .collect();
 
             // Check if this is a self-referencing or join field

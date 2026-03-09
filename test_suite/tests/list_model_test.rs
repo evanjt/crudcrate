@@ -1,12 +1,12 @@
 // List Model Optimization Test
 // Tests list_model=false attribute for selective field visibility in list vs detail views
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
-use axum::Router;
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
-use sea_orm::{entity::prelude::*, Database, DatabaseConnection};
+use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use serde_json::json;
 use tower::ServiceExt;
 use uuid::Uuid;

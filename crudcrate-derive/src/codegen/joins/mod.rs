@@ -3,5 +3,5 @@
 pub mod config;
 pub mod loading;
 
-pub(crate) use config::get_join_config;
 pub use config::JoinConfig;
+pub(crate) use config::get_join_config;

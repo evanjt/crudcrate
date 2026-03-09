@@ -1,8 +1,8 @@
 // Category model tests - verifies self-referencing relationship loading
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
-use axum::Router;
 use serde_json::json;
 use tower::ServiceExt;
 

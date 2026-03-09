@@ -8,8 +8,8 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_app, setup_test_db};
 use crate::common::customer::CustomerList;
+use common::{setup_test_app, setup_test_db};
 
 // ============================================================================
 // Filtering Conditions Tests (filtering/conditions.rs - currently 27% coverage)
@@ -17,7 +17,9 @@ use crate::common::customer::CustomerList;
 
 #[tokio::test]
 async fn test_complex_filtering_conditions() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create diverse test data
@@ -53,7 +55,9 @@ async fn test_complex_filtering_conditions() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
     assert_eq!(customers[0].name, "Alice Anderson");
@@ -71,7 +75,9 @@ async fn test_complex_filtering_conditions() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(!customers.is_empty());
     assert!(customers.iter().any(|c| c.name.contains("Bob")));
@@ -89,7 +95,9 @@ async fn test_complex_filtering_conditions() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
     assert!(customers[0].email.contains("alpha"));
@@ -107,7 +115,9 @@ async fn test_complex_filtering_conditions() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
     assert_eq!(customers[0].name, "Charlie Cooper");
@@ -125,7 +135,9 @@ async fn test_complex_filtering_conditions() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 0);
 }
@@ -137,7 +149,9 @@ async fn test_complex_filtering_conditions() {
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
 async fn test_fulltext_search_comprehensive() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with varied searchable content
@@ -171,7 +185,9 @@ async fn test_fulltext_search_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 2);
     assert!(customers.iter().all(|c| c.name.contains("Developer")));
@@ -189,7 +205,9 @@ async fn test_fulltext_search_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
     assert!(customers[0].name.contains("Rust") || customers[0].email.contains("rust"));
@@ -207,7 +225,9 @@ async fn test_fulltext_search_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(customers.len() >= 2); // Should match "Developer", "DevOps"
 
@@ -224,11 +244,15 @@ async fn test_fulltext_search_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1);
-    assert!(customers[0].name.to_lowercase().contains("python") ||
-            customers[0].email.to_lowercase().contains("python"));
+    assert!(
+        customers[0].name.to_lowercase().contains("python")
+            || customers[0].email.to_lowercase().contains("python")
+    );
 
     // Test 5: Empty search query
     let response = app
@@ -243,7 +267,9 @@ async fn test_fulltext_search_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     // Empty search should return all or none, but not crash
     assert!(customers.len() <= 4);
@@ -271,7 +297,9 @@ async fn test_fulltext_search_comprehensive() {
 
 #[tokio::test]
 async fn test_sorting_comprehensive() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with predictable sort order
@@ -305,12 +333,14 @@ async fn test_sorting_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(customers.len() >= 4);
     // Should be: Alice, Bob, Mike, Zoe
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name <= customers[i+1].name);
+    for i in 0..customers.len() - 1 {
+        assert!(customers[i].name <= customers[i + 1].name);
     }
 
     // Test 2: Sort descending by name
@@ -326,7 +356,9 @@ async fn test_sorting_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let desc_customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(desc_customers.len() >= 4);
 
@@ -347,7 +379,9 @@ async fn test_sorting_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(!customers.is_empty()); // Verify results returned
 
@@ -364,7 +398,9 @@ async fn test_sorting_comprehensive() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert!(customers.len() >= 4); // Verify all results returned
 }
@@ -375,7 +411,9 @@ async fn test_sorting_comprehensive() {
 
 #[tokio::test]
 async fn test_pagination_edge_cases() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 10 customers
@@ -384,10 +422,13 @@ async fn test_pagination_edge_cases() {
             .method("POST")
             .uri("/customers")
             .header("content-type", "application/json")
-            .body(Body::from(json!({
-                "name": format!("Customer {}", i),
-                "email": format!("customer{}@example.com", i)
-            }).to_string()))
+            .body(Body::from(
+                json!({
+                    "name": format!("Customer {}", i),
+                    "email": format!("customer{}@example.com", i)
+                })
+                .to_string(),
+            ))
             .unwrap();
         app.clone().oneshot(request).await.unwrap();
     }
@@ -405,7 +446,9 @@ async fn test_pagination_edge_cases() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 3);
 
@@ -422,7 +465,9 @@ async fn test_pagination_edge_cases() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 3);
 
@@ -439,7 +484,9 @@ async fn test_pagination_edge_cases() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 1); // Only 1 item on last page (10 total / 3 per page)
 
@@ -456,7 +503,9 @@ async fn test_pagination_edge_cases() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 0); // No items on page 10
 
@@ -473,7 +522,9 @@ async fn test_pagination_edge_cases() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
     assert_eq!(customers.len(), 10); // All 10 items fit on one page
 }
@@ -484,7 +535,9 @@ async fn test_pagination_edge_cases() {
 
 #[tokio::test]
 async fn test_filter_sort_paginate_combined() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 20 customers with varied names
@@ -499,10 +552,13 @@ async fn test_filter_sort_paginate_combined() {
             .method("POST")
             .uri("/customers")
             .header("content-type", "application/json")
-            .body(Body::from(json!({
-                "name": name,
-                "email": format!("user{}@example.com", i)
-            }).to_string()))
+            .body(Body::from(
+                json!({
+                    "name": name,
+                    "email": format!("user{}@example.com", i)
+                })
+                .to_string(),
+            ))
             .unwrap();
         app.clone().oneshot(request).await.unwrap();
     }
@@ -520,7 +576,9 @@ async fn test_filter_sort_paginate_combined() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should have 5 "Developer" entries
@@ -539,7 +597,9 @@ async fn test_filter_sort_paginate_combined() {
         .await
         .unwrap();
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(customers.len(), 3);

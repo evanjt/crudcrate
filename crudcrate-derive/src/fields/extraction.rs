@@ -7,7 +7,9 @@ use crate::attribute_parser;
 use heck::ToPascalCase;
 use proc_macro::TokenStream;
 use quote::format_ident;
-use syn::{Data, DeriveInput, Fields, Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma};
+use syn::{
+    Data, DeriveInput, Fields, Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma,
+};
 
 /// Extract named fields from a struct, returning proper compile error if not valid
 pub fn extract_named_fields(
@@ -23,12 +25,11 @@ pub fn extract_named_fields(
             .to_compile_error()
             .into()),
         },
-        _ => Err(syn::Error::new_spanned(
-            input,
-            "This derive macro only supports structs"
-        )
-        .to_compile_error()
-        .into()),
+        _ => Err(
+            syn::Error::new_spanned(input, "This derive macro only supports structs")
+                .to_compile_error()
+                .into(),
+        ),
     }
 }
 
@@ -55,7 +56,10 @@ pub fn extract_entity_fields(
 }
 
 /// Parse entity-level attributes (`api_struct`, `active_model`)
-pub fn parse_entity_attributes(input: &DeriveInput, struct_name: &syn::Ident) -> (syn::Ident, String) {
+pub fn parse_entity_attributes(
+    input: &DeriveInput,
+    struct_name: &syn::Ident,
+) -> (syn::Ident, String) {
     let mut api_struct_name = None;
     let mut active_model_path = None;
 

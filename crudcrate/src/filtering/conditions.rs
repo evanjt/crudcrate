@@ -15,9 +15,10 @@ const MAX_OFFSET: u64 = 1_000_000;
 /// Escape LIKE wildcards to prevent wildcard injection attacks
 /// Escapes: % (match any) and _ (match single char)
 fn escape_like_wildcards(input: &str) -> String {
-    input.replace('\\', "\\\\")  // Escape backslash first
-        .replace('%', "\\%")      // Escape %
-        .replace('_', "\\_")      // Escape _
+    input
+        .replace('\\', "\\\\") // Escape backslash first
+        .replace('%', "\\%") // Escape %
+        .replace('_', "\\_") // Escape _
 }
 
 /// Basic field name validation
@@ -98,12 +99,13 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
     backend: DatabaseBackend,
 ) -> Option<Condition> {
     if let Some(q_value) = filters.get("q")
-        && let Some(q_value_str) = q_value.as_str() {
+        && let Some(q_value_str) = q_value.as_str()
+    {
         // Try fulltext search first
         if let Some(fulltext_expr) = build_fulltext_condition::<T>(q_value_str, backend) {
             return Some(Condition::all().add(fulltext_expr));
         }
-        
+
         // Fallback to original LIKE search on regular searchable columns
         // Escape LIKE wildcards to prevent wildcard injection
         let escaped_query = escape_like_wildcards(q_value_str);
@@ -124,9 +126,9 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     _ => {
                         // For SQLite/MySQL, treat enum as string
                         or_conditions = or_conditions.add(
-                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                Expr::col(*col),
-                            ))
+                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
+                                *col,
+                            )))
                             .like(format!("%{}%", escaped_query.to_uppercase())),
                         );
                     }
@@ -134,10 +136,8 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
             } else {
                 // Regular string columns
                 or_conditions = or_conditions.add(
-                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                        Expr::col(*col),
-                    ))
-                    .like(format!("%{}%", escaped_query.to_uppercase())),
+                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
+                        .like(format!("%{}%", escaped_query.to_uppercase())),
                 );
             }
         }
@@ -165,27 +165,29 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     if T::like_filterable_columns().contains(&key) {
         return Some(build_like_condition(key, trimmed_value));
     }
-    
+
     if T::is_enum_field(key) {
         // Handle enum fields with case-insensitive matching
         let col_expr = match backend {
             DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
             _ => Expr::col(column).into(),
         };
-        return Some(SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr))
-            .eq(trimmed_value.to_uppercase()));
+        return Some(
+            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr))
+                .eq(trimmed_value.to_uppercase()),
+        );
     }
-    
+
     // Try to parse as UUID first
     if let Ok(uuid_value) = Uuid::parse_str(trimmed_value) {
         return Some(Expr::col(column).eq(uuid_value));
     }
-    
+
     // Case-insensitive string equality
-    Some(SimpleExpr::FunctionCall(
-        sea_orm::sea_query::Func::upper(Expr::col(column)),
+    Some(
+        SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)))
+            .eq(trimmed_value.to_uppercase()),
     )
-    .eq(trimmed_value.to_uppercase()))
 }
 
 fn process_number_filter(
@@ -244,7 +246,8 @@ fn process_array_filter(
     }
 
     // Fall back to string-based IN for non-UUID values
-    let in_values: Vec<String> = array_values.iter()
+    let in_values: Vec<String> = array_values
+        .iter()
         .filter_map(|v| match v {
             serde_json::Value::String(s) => Some(s.clone()),
             serde_json::Value::Number(n) => Some(n.to_string()),
@@ -266,9 +269,11 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 ) -> Condition {
     let filters = parse_filter_json(filter_str);
     let mut condition = Condition::all();
-    
+
     // Handle fulltext search
-    if let Some(fulltext_condition) = handle_fulltext_search::<T>(&filters, searchable_columns, backend) {
+    if let Some(fulltext_condition) =
+        handle_fulltext_search::<T>(&filters, searchable_columns, backend)
+    {
         condition = condition.add(fulltext_condition);
     }
 
@@ -302,18 +307,14 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 serde_json::Value::Number(number) => {
                     process_number_filter(key, number, *column, searchable_columns)
                 }
-                serde_json::Value::Bool(bool_value) => {
-                    Some(Expr::col(*column).eq(*bool_value))
-                }
+                serde_json::Value::Bool(bool_value) => Some(Expr::col(*column).eq(*bool_value)),
                 serde_json::Value::Array(array_values) => {
                     process_array_filter(array_values, *column)
                 }
-                serde_json::Value::Null => {
-                    Some(Expr::col(*column).is_null())
-                }
+                serde_json::Value::Null => Some(Expr::col(*column).is_null()),
                 serde_json::Value::Object(_) => None, // Skip unsupported value types
             };
-            
+
             if let Some(filter_expr) = filter_condition {
                 condition = condition.add(filter_expr);
             }
@@ -323,7 +324,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     condition
 }
 
-#[must_use] pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
+#[must_use]
+pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
     range_str.map_or((0, 9), |r| {
         serde_json::from_str::<[u64; 2]>(&r)
             .map(|range| (range[0], range[1]))
@@ -331,7 +333,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     })
 }
 
-#[must_use] pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
+#[must_use]
+pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
         // Enforce maximum page size to prevent DoS
@@ -383,7 +386,9 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
     let joined_filterable = T::joined_filterable_columns();
 
     // Handle fulltext search (always goes to main condition)
-    if let Some(fulltext_condition) = handle_fulltext_search::<T>(&filters, searchable_columns, backend) {
+    if let Some(fulltext_condition) =
+        handle_fulltext_search::<T>(&filters, searchable_columns, backend)
+    {
         result.main_condition = result.main_condition.add(fulltext_condition);
     }
 
@@ -397,7 +402,9 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
         if let Some((join_field, column, operator)) = parse_dot_notation(key) {
             // Validate against allowed joined columns
             let full_path_for_check = format!("{}.{}", join_field, column);
-            let is_allowed = joined_filterable.iter().any(|c| c.full_path == full_path_for_check);
+            let is_allowed = joined_filterable
+                .iter()
+                .any(|c| c.full_path == full_path_for_check);
 
             if is_allowed {
                 result.joined_filters.push(JoinedFilter {
@@ -435,15 +442,11 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
                 serde_json::Value::Number(number) => {
                     process_number_filter(key, number, *column, searchable_columns)
                 }
-                serde_json::Value::Bool(bool_value) => {
-                    Some(Expr::col(*column).eq(*bool_value))
-                }
+                serde_json::Value::Bool(bool_value) => Some(Expr::col(*column).eq(*bool_value)),
                 serde_json::Value::Array(array_values) => {
                     process_array_filter(array_values, *column)
                 }
-                serde_json::Value::Null => {
-                    Some(Expr::col(*column).is_null())
-                }
+                serde_json::Value::Null => Some(Expr::col(*column).is_null()),
                 serde_json::Value::Object(_) => None,
             };
 
@@ -465,43 +468,45 @@ mod tests {
     fn test_field_name_validation_rejects_sql_injection() {
         // These are currently rejected by the basic validation
         let rejected_names = vec![
-            "../../../etc/passwd",  // Path traversal (contains ..)
-            "id..name",  // Double dots
-            "_internal",  // Starts with underscore
-            "",  // Empty
+            "../../../etc/passwd", // Path traversal (contains ..)
+            "id..name",            // Double dots
+            "_internal",           // Starts with underscore
+            "",                    // Empty
         ];
 
         for malicious_name in rejected_names {
-            assert!(!is_valid_field_name(malicious_name),
-                "Should reject malicious field name: {malicious_name}");
+            assert!(
+                !is_valid_field_name(malicious_name),
+                "Should reject malicious field name: {malicious_name}"
+            );
         }
 
         // Test too long separately
         let too_long = "a".repeat(101);
-        assert!(!is_valid_field_name(&too_long),
-            "Should reject field names longer than 100 chars");
+        assert!(
+            !is_valid_field_name(&too_long),
+            "Should reject field names longer than 100 chars"
+        );
     }
-
 
     /// Test that valid field names are accepted
     #[test]
     fn test_field_name_validation_accepts_valid_names() {
-        let valid_names = vec![
-            "id",
-            "user_name",
-            "created_at",
-            "field123",
-        ];
+        let valid_names = vec!["id", "user_name", "created_at", "field123"];
 
         for valid_name in valid_names {
-            assert!(is_valid_field_name(valid_name),
-                "Should accept valid field name: {valid_name}");
+            assert!(
+                is_valid_field_name(valid_name),
+                "Should accept valid field name: {valid_name}"
+            );
         }
 
         // Test max length separately
         let max_length_name = "a".repeat(100);
-        assert!(is_valid_field_name(&max_length_name),
-            "Should accept 100-char field name");
+        assert!(
+            is_valid_field_name(&max_length_name),
+            "Should accept 100-char field name"
+        );
     }
 
     /// Test that excessively long field values are rejected
@@ -511,9 +516,18 @@ mod tests {
         let max_value = "a".repeat(MAX_FIELD_VALUE_LENGTH);
         let too_long_value = "a".repeat(MAX_FIELD_VALUE_LENGTH + 1);
 
-        assert!(validate_field_value(&short_value), "Short values should be valid");
-        assert!(validate_field_value(&max_value), "Max length values should be valid");
-        assert!(!validate_field_value(&too_long_value), "Overly long values should be invalid");
+        assert!(
+            validate_field_value(&short_value),
+            "Short values should be valid"
+        );
+        assert!(
+            validate_field_value(&max_value),
+            "Max length values should be valid"
+        );
+        assert!(
+            !validate_field_value(&too_long_value),
+            "Overly long values should be invalid"
+        );
     }
 
     /// TDD: Pagination should enforce maximum page size
@@ -524,7 +538,7 @@ mod tests {
 
         let params = crate::models::FilterOptions {
             page: Some(1),
-            per_page: Some(999_999),  // Requesting huge page size
+            per_page: Some(999_999), // Requesting huge page size
             ..Default::default()
         };
 
@@ -544,7 +558,7 @@ mod tests {
         const MAX_OFFSET: u64 = 1_000_000;
 
         let params = crate::models::FilterOptions {
-            page: Some(1_000_000),  // Huge page number
+            page: Some(1_000_000), // Huge page number
             per_page: Some(100),
             ..Default::default()
         };
@@ -668,16 +682,19 @@ mod tests {
         assert_eq!(parse_comparison_operator("_gte"), Some(("", ">=")));
 
         // Multiple suffixes (should match the longest/last one)
-        assert_eq!(parse_comparison_operator("field_gte_lte"), Some(("field_gte", "<=")));
+        assert_eq!(
+            parse_comparison_operator("field_gte_lte"),
+            Some(("field_gte", "<="))
+        );
     }
 
     /// Test field name validation edge cases
     #[test]
     fn test_field_name_validation_edge_cases() {
         // Boundary cases
-        assert!(is_valid_field_name("a"));  // Single char
-        assert!(is_valid_field_name("a".repeat(100).as_str()));  // Exactly 100
-        assert!(!is_valid_field_name("a".repeat(101).as_str()));  // 101
+        assert!(is_valid_field_name("a")); // Single char
+        assert!(is_valid_field_name("a".repeat(100).as_str())); // Exactly 100
+        assert!(!is_valid_field_name("a".repeat(101).as_str())); // 101
 
         // Special chars that should be allowed
         assert!(is_valid_field_name("field_123"));
@@ -809,7 +826,11 @@ mod tests {
             ..Default::default()
         };
         let (_offset, limit) = parse_pagination(&params);
-        assert!(limit <= MAX_PAGE_SIZE, "Range limit should be capped at {}", MAX_PAGE_SIZE);
+        assert!(
+            limit <= MAX_PAGE_SIZE,
+            "Range limit should be capped at {}",
+            MAX_PAGE_SIZE
+        );
 
         // Test max offset enforcement
         let params = crate::models::FilterOptions {
@@ -817,6 +838,10 @@ mod tests {
             ..Default::default()
         };
         let (offset, _limit) = parse_pagination(&params);
-        assert!(offset <= MAX_OFFSET, "Range offset should be capped at {}", MAX_OFFSET);
+        assert!(
+            offset <= MAX_OFFSET,
+            "Range offset should be capped at {}",
+            MAX_OFFSET
+        );
     }
 }

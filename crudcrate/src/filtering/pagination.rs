@@ -2,7 +2,9 @@ use axum::http::header::HeaderMap;
 
 /// Sanitize resource name by removing control characters for HTTP headers
 fn sanitize_resource_name(name: &str) -> String {
-    name.chars().filter(|c| c.is_ascii() && !c.is_ascii_control()).collect()
+    name.chars()
+        .filter(|c| c.is_ascii() && !c.is_ascii_control())
+        .collect()
 }
 
 /// Function to calculate the total count and generate the Content-Range header.
@@ -33,7 +35,10 @@ pub fn calculate_content_range(
 ) -> HeaderMap {
     // Calculate max offset limit for the content range
     // Use saturating arithmetic to prevent integer overflow
-    let max_offset_limit = offset.saturating_add(limit).saturating_sub(1).min(total_count);
+    let max_offset_limit = offset
+        .saturating_add(limit)
+        .saturating_sub(1)
+        .min(total_count);
 
     // Sanitize resource name to prevent header injection
     let safe_name = sanitize_resource_name(resource_name);
@@ -81,7 +86,10 @@ mod tests {
 
         // After fix: Should sanitize and return a valid header
         let value = headers.get("Content-Range");
-        assert!(value.is_some(), "Should return a valid header even with bad input");
+        assert!(
+            value.is_some(),
+            "Should return a valid header even with bad input"
+        );
 
         // The value should NOT contain control characters (newlines)
         // This prevents header injection attacks
@@ -115,12 +123,7 @@ mod tests {
     /// Test very large numbers
     #[test]
     fn test_content_range_large_numbers() {
-        let headers = calculate_content_range(
-            u64::MAX - 100,
-            10,
-            u64::MAX,
-            "users"
-        );
+        let headers = calculate_content_range(u64::MAX - 100, 10, u64::MAX, "users");
         let value = headers.get("Content-Range").unwrap().to_str().unwrap();
         assert!(value.contains("users"));
     }

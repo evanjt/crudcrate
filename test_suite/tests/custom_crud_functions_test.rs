@@ -2,12 +2,12 @@
 // Tests fn_delete and fn_delete_many custom delete handlers with side effects
 // Based on production pattern from s3_cleanup_on_delete.rs example
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
-use axum::Router;
 use chrono::{DateTime, Utc};
 use crudcrate::{ApiError, CRUDResource, EntityToModels};
-use sea_orm::{entity::prelude::*, Database, DatabaseConnection, EntityTrait};
+use sea_orm::{Database, DatabaseConnection, EntityTrait, entity::prelude::*};
 use serde_json::json;
 use serial_test::serial;
 use std::sync::{Arc, Mutex};
@@ -110,7 +110,7 @@ async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<
     // 1. Fetch asset to get external key
     let asset = Entity::find_by_id(id)
         .one(db)
-        .await?  // ← Automatic DbErr → ApiError conversion
+        .await? // ← Automatic DbErr → ApiError conversion
         .ok_or_else(|| ApiError::not_found("Asset", Some(id.to_string())))?;
 
     // 2. Delete from external service (fail fast)
@@ -119,7 +119,7 @@ async fn delete_asset_with_cleanup(db: &DatabaseConnection, id: Uuid) -> Result<
         .map_err(|e| ApiError::internal(format!("External service error: {e}"), None))?;
 
     // 3. Delete from database
-    Entity::delete_by_id(id).exec(db).await?;  // ← Automatic conversion
+    Entity::delete_by_id(id).exec(db).await?; // ← Automatic conversion
 
     // 4. Return the deleted ID
     Ok(id)
@@ -139,7 +139,10 @@ async fn delete_many_assets_with_cleanup(
         };
 
         // Try to delete from external service
-        if get_mock_service().delete_object(&asset.external_key).is_ok() {
+        if get_mock_service()
+            .delete_object(&asset.external_key)
+            .is_ok()
+        {
             external_keys.push(asset.external_key.clone());
 
             // Delete from database
@@ -279,7 +282,10 @@ async fn test_custom_delete_single_external_failure() {
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        response.status(),
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    );
 
     // Verify asset was NOT deleted from database (transaction rolled back)
     get_mock_service().set_should_fail(false);

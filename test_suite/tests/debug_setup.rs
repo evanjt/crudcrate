@@ -69,6 +69,16 @@ async fn test_self_referencing_join_via_direct_api() {
         .expect("Failed to get parent");
 
     assert_eq!(parent_with_children.children.len(), 2);
-    assert!(parent_with_children.children.iter().any(|c| c.name == "Child 1"));
-    assert!(parent_with_children.children.iter().any(|c| c.name == "Child 2"));
+    assert!(
+        parent_with_children
+            .children
+            .iter()
+            .any(|c| c.name == "Child 1")
+    );
+    assert!(
+        parent_with_children
+            .children
+            .iter()
+            .any(|c| c.name == "Child 2")
+    );
 }

@@ -11,17 +11,14 @@ use crate::attribute_parser;
 use crate::codegen::joins::get_join_config;
 use crate::codegen::models::shared::resolve_dtwtz;
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 
 /// Generates API struct fields and From<Model> conversion assignments
 /// Returns (`field_definitions`, `from_model_assignments`)
 pub(crate) fn generate_api_struct_content(
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
-) -> (
-    Vec<proc_macro2::TokenStream>,
-    Vec<proc_macro2::TokenStream>,
-) {
+) -> (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) {
     let mut api_struct_fields = Vec::new();
     let mut from_model_assignments = Vec::new();
 
@@ -161,7 +158,10 @@ pub(crate) fn generate_api_struct(
         (true, quote!(crudcrate::ToCreateModel)),
         (true, quote!(crudcrate::ToUpdateModel)),
         (true, quote!(utoipa::ToSchema)),
-        (has_fields_needing_default && !has_join_fields, quote!(Default)),
+        (
+            has_fields_needing_default && !has_join_fields,
+            quote!(Default),
+        ),
         (crud_meta.derive_partial_eq, quote!(PartialEq)),
         (crud_meta.derive_eq, quote!(Eq)),
     ]

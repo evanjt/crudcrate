@@ -62,8 +62,8 @@ use async_trait::async_trait;
 use sea_orm::{Condition, DatabaseConnection, Order};
 use uuid::Uuid;
 
-use crate::core::CRUDResource;
 use crate::ApiError;
+use crate::core::CRUDResource;
 
 /// Trait for defining CRUD operations with customizable behavior
 ///
@@ -135,7 +135,7 @@ pub trait CRUDOperations: Send + Sync {
     /// }
     /// ```
     async fn before_get_one(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
-        Ok(())  // Default: no-op
+        Ok(()) // Default: no-op
     }
 
     /// Hook called after fetching a single entity
@@ -144,8 +144,12 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     /// Return `ApiError` to abort the operation
-    async fn after_get_one(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), ApiError> {
-        Ok(())  // Default: no-op
+    async fn after_get_one(
+        &self,
+        _db: &DatabaseConnection,
+        _entity: &mut Self::Resource,
+    ) -> Result<(), ApiError> {
+        Ok(()) // Default: no-op
     }
 
     /// Core database fetch logic for a single entity
@@ -154,17 +158,23 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     /// Returns `ApiError::NotFound` if entity doesn't exist
-    async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError> {
+    async fn fetch_one(
+        &self,
+        db: &DatabaseConnection,
+        id: Uuid,
+    ) -> Result<Self::Resource, ApiError> {
         use sea_orm::EntityTrait;
 
         let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
             .await
             .map_err(ApiError::database)?
-            .ok_or_else(|| ApiError::not_found(
-                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
-                Some(id.to_string()),
-            ))?;
+            .ok_or_else(|| {
+                ApiError::not_found(
+                    <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
+                    Some(id.to_string()),
+                )
+            })?;
         Ok(Self::Resource::from(model))
     }
 
@@ -216,7 +226,12 @@ pub trait CRUDOperations: Send + Sync {
             .all(db)
             .await
             .map_err(ApiError::database)?;
-        Ok(models.into_iter().map(|model| <Self::Resource as CRUDResource>::ListModel::from(Self::Resource::from(model))).collect())
+        Ok(models
+            .into_iter()
+            .map(|model| {
+                <Self::Resource as CRUDResource>::ListModel::from(Self::Resource::from(model))
+            })
+            .collect())
     }
 
     // ==========================================
@@ -236,19 +251,31 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn before_create(&self, _db: &DatabaseConnection, _data: &<Self::Resource as CRUDResource>::CreateModel) -> Result<(), ApiError> {
+    async fn before_create(
+        &self,
+        _db: &DatabaseConnection,
+        _data: &<Self::Resource as CRUDResource>::CreateModel,
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after creating an entity
     ///
     /// Use for: sending notifications, logging, cache invalidation
-    async fn after_create(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), ApiError> {
+    async fn after_create(
+        &self,
+        _db: &DatabaseConnection,
+        _entity: &mut Self::Resource,
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database insert logic
-    async fn perform_create(&self, db: &DatabaseConnection, data: <Self::Resource as CRUDResource>::CreateModel) -> Result<Self::Resource, ApiError> {
+    async fn perform_create(
+        &self,
+        db: &DatabaseConnection,
+        data: <Self::Resource as CRUDResource>::CreateModel,
+    ) -> Result<Self::Resource, ApiError> {
         use sea_orm::ActiveModelTrait;
 
         let active_model: <Self::Resource as CRUDResource>::ActiveModelType = data.into();
@@ -261,28 +288,44 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before updating an entity
-    async fn before_update(&self, _db: &DatabaseConnection, _id: Uuid, _data: &<Self::Resource as CRUDResource>::UpdateModel) -> Result<(), ApiError> {
+    async fn before_update(
+        &self,
+        _db: &DatabaseConnection,
+        _id: Uuid,
+        _data: &<Self::Resource as CRUDResource>::UpdateModel,
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after updating an entity
-    async fn after_update(&self, _db: &DatabaseConnection, _entity: &mut Self::Resource) -> Result<(), ApiError> {
+    async fn after_update(
+        &self,
+        _db: &DatabaseConnection,
+        _entity: &mut Self::Resource,
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database update logic
-    async fn perform_update(&self, db: &DatabaseConnection, id: Uuid, data: <Self::Resource as CRUDResource>::UpdateModel) -> Result<Self::Resource, ApiError> {
-        use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
+    async fn perform_update(
+        &self,
+        db: &DatabaseConnection,
+        id: Uuid,
+        data: <Self::Resource as CRUDResource>::UpdateModel,
+    ) -> Result<Self::Resource, ApiError> {
         use crate::core::MergeIntoActiveModel;
+        use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
 
         let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
             .await
             .map_err(ApiError::database)?
-            .ok_or_else(|| ApiError::not_found(
-                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
-                Some(id.to_string()),
-            ))?;
+            .ok_or_else(|| {
+                ApiError::not_found(
+                    <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
+                    Some(id.to_string()),
+                )
+            })?;
         let existing: <Self::Resource as CRUDResource>::ActiveModelType = model.into_active_model();
         let updated_model = data.merge_into_activemodel(existing)?;
         let updated = updated_model.update(db).await.map_err(ApiError::database)?;
@@ -339,19 +382,31 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before batch deleting entities
-    async fn before_delete_many(&self, _db: &DatabaseConnection, _ids: &[Uuid]) -> Result<(), ApiError> {
+    async fn before_delete_many(
+        &self,
+        _db: &DatabaseConnection,
+        _ids: &[Uuid],
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after batch deleting entities
-    async fn after_delete_many(&self, _db: &DatabaseConnection, _ids: &[Uuid]) -> Result<(), ApiError> {
+    async fn after_delete_many(
+        &self,
+        _db: &DatabaseConnection,
+        _ids: &[Uuid],
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database batch delete logic
-    async fn perform_delete_many(&self, db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
-        use sea_orm::{EntityTrait, QueryFilter, QuerySelect, ColumnTrait};
+    async fn perform_delete_many(
+        &self,
+        db: &DatabaseConnection,
+        ids: Vec<Uuid>,
+    ) -> Result<Vec<Uuid>, ApiError> {
         use crate::core::UuidIdResult;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
         // Security: Limit batch size to prevent DoS attacks (uses resource's configured limit)
         let batch_limit = <Self::Resource as CRUDResource>::batch_limit();
@@ -376,19 +431,26 @@ pub trait CRUDOperations: Send + Sync {
             .all(db)
             .await
             .map_err(ApiError::database)?;
-        let existing_set: std::collections::HashSet<Uuid> = existing.into_iter().map(|r| r.id).collect();
+        let existing_set: std::collections::HashSet<Uuid> =
+            existing.into_iter().map(|r| r.id).collect();
 
         // Delete only existing IDs
         if !existing_set.is_empty() {
             <Self::Resource as CRUDResource>::EntityType::delete_many()
-                .filter(<Self::Resource as CRUDResource>::ID_COLUMN.is_in(existing_set.iter().copied().collect::<Vec<_>>()))
+                .filter(
+                    <Self::Resource as CRUDResource>::ID_COLUMN
+                        .is_in(existing_set.iter().copied().collect::<Vec<_>>()),
+                )
                 .exec(db)
                 .await
                 .map_err(ApiError::database)?;
         }
 
         // Return only IDs that actually existed (preserving input order)
-        Ok(ids.into_iter().filter(|id| existing_set.contains(id)).collect())
+        Ok(ids
+            .into_iter()
+            .filter(|id| existing_set.contains(id))
+            .collect())
     }
 
     // ==========================================
@@ -448,10 +510,13 @@ pub trait CRUDOperations: Send + Sync {
         limit: u64,
     ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
         // 1. Before hook
-        self.before_get_all(db, condition, order_column, &order_direction, offset, limit).await?;
+        self.before_get_all(db, condition, order_column, &order_direction, offset, limit)
+            .await?;
 
         // 2. Core logic (fetch)
-        let mut entities = self.fetch_all(db, condition, order_column, order_direction, offset, limit).await?;
+        let mut entities = self
+            .fetch_all(db, condition, order_column, order_direction, offset, limit)
+            .await?;
 
         // 3. After hook
         self.after_get_all(db, &mut entities).await?;
@@ -658,4 +723,3 @@ impl<T: CRUDResource> CRUDOperations for DefaultCRUDOperations<T> {
     // All methods use default implementations from the trait
     // No overrides needed - delegates to T::method() automatically
 }
-

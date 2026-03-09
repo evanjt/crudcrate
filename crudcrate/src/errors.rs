@@ -49,9 +49,9 @@
 //! ```
 
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
@@ -385,13 +385,20 @@ impl ApiError {
                     "Database error occurred"
                 );
             }
-            Self::Internal { internal: Some(details), .. } => {
+            Self::Internal {
+                internal: Some(details),
+                ..
+            } => {
                 tracing::error!(
                     details = %details,
                     "Internal error occurred"
                 );
             }
-            Self::Custom { internal: Some(details), status, .. } => {
+            Self::Custom {
+                internal: Some(details),
+                status,
+                ..
+            } => {
                 tracing::error!(
                     status = %status,
                     details = %details,
@@ -706,14 +713,8 @@ mod tests {
     fn test_all_status_codes() {
         let test_cases = vec![
             (ApiError::not_found("Test", None), StatusCode::NOT_FOUND),
-            (
-                ApiError::bad_request("Test"),
-                StatusCode::BAD_REQUEST,
-            ),
-            (
-                ApiError::unauthorized("Test"),
-                StatusCode::UNAUTHORIZED,
-            ),
+            (ApiError::bad_request("Test"), StatusCode::BAD_REQUEST),
+            (ApiError::unauthorized("Test"), StatusCode::UNAUTHORIZED),
             (ApiError::forbidden("Test"), StatusCode::FORBIDDEN),
             (ApiError::conflict("Test"), StatusCode::CONFLICT),
             (
@@ -721,7 +722,9 @@ mod tests {
                 StatusCode::UNPROCESSABLE_ENTITY,
             ),
             (
-                ApiError::database(DbErr::Conn(sea_orm::RuntimeErr::Internal("Test".to_string()))),
+                ApiError::database(DbErr::Conn(sea_orm::RuntimeErr::Internal(
+                    "Test".to_string(),
+                ))),
                 StatusCode::INTERNAL_SERVER_ERROR,
             ),
             (

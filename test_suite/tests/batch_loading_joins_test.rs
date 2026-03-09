@@ -49,9 +49,17 @@ async fn test_get_all_loads_related_entities_for_multiple_parents() {
 
     // Create 3 customers, each with different numbers of vehicles
     let customers_data = vec![
-        ("Customer A", "a@test.com", vec!["Toyota Camry", "Honda Accord"]),
+        (
+            "Customer A",
+            "a@test.com",
+            vec!["Toyota Camry", "Honda Accord"],
+        ),
         ("Customer B", "b@test.com", vec!["Ford F-150"]),
-        ("Customer C", "c@test.com", vec!["Tesla Model 3", "BMW 3 Series", "Audi A4"]),
+        (
+            "Customer C",
+            "c@test.com",
+            vec!["Tesla Model 3", "BMW 3 Series", "Audi A4"],
+        ),
     ];
 
     let mut created_customers = Vec::new();
@@ -569,11 +577,7 @@ async fn test_batch_loading_with_filtering() {
     let filtered_customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should only get the Jones customer
-    assert_eq!(
-        filtered_customers.len(),
-        1,
-        "Should have 1 Jones customer"
-    );
+    assert_eq!(filtered_customers.len(), 1, "Should have 1 Jones customer");
 
     // Should have their vehicles loaded
     let customer = &filtered_customers[0];
@@ -941,7 +945,9 @@ async fn test_get_one_unaffected_by_batch_loading() {
     let customer_response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // Verify vehicles are loaded in get_one response
-    let vehicles = customer_response["vehicles"].as_array().expect("vehicles should be an array");
+    let vehicles = customer_response["vehicles"]
+        .as_array()
+        .expect("vehicles should be an array");
     assert_eq!(
         vehicles.len(),
         2,

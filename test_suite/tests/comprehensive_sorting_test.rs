@@ -8,9 +8,9 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{create_test_customer, setup_test_app, setup_test_db};
 use crate::common::customer::CustomerList;
 use crate::common::vehicle::VehicleList;
+use common::{create_test_customer, setup_test_app, setup_test_db};
 
 // =============================================================================
 // JSON ARRAY FORMAT TESTS (sorting.md lines 28-36)
@@ -18,13 +18,16 @@ use crate::common::vehicle::VehicleList;
 
 #[tokio::test]
 async fn test_sorting_json_array_with_direction_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with specific names for sorting
     let names = ["Zara", "Alice", "Mike", "Bob"];
     for name in &names {
-        let customer_data = json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
+        let customer_data =
+            json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -60,22 +63,28 @@ async fn test_sorting_json_array_with_direction_as_documented() {
     assert!(customers.len() >= 4, "Should return at least 4 customers");
 
     // Verify descending order (Z to A)
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name >= customers[i+1].name,
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name >= customers[i + 1].name,
             "Customers should be in descending order: {} should be >= {}",
-            customers[i].name, customers[i+1].name);
+            customers[i].name,
+            customers[i + 1].name
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_json_array_default_asc_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
     let names = ["Zara", "Alice", "Mike"];
     for name in &names {
-        let customer_data = json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
+        let customer_data =
+            json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -111,10 +120,13 @@ async fn test_sorting_json_array_default_asc_as_documented() {
     assert!(customers.len() >= 3, "Should return at least 3 customers");
 
     // Verify ascending order (A to Z) - default when direction omitted
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name <= customers[i+1].name,
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name <= customers[i + 1].name,
             "Customers should be in ascending order (default): {} should be <= {}",
-            customers[i].name, customers[i+1].name);
+            customers[i].name,
+            customers[i + 1].name
+        );
     }
 }
 
@@ -124,7 +136,9 @@ async fn test_sorting_json_array_default_asc_as_documented() {
 
 #[tokio::test]
 async fn test_sorting_rest_sort_by_and_order_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -174,15 +188,19 @@ async fn test_sorting_rest_sort_by_and_order_as_documented() {
     assert!(vehicles.len() >= 4, "Should return at least 4 vehicles");
 
     // Verify descending order
-    for i in 0..vehicles.len()-1 {
-        assert!(vehicles[i].year >= vehicles[i+1].year,
-            "Vehicles should be sorted by year descending");
+    for i in 0..vehicles.len() - 1 {
+        assert!(
+            vehicles[i].year >= vehicles[i + 1].year,
+            "Vehicles should be sorted by year descending"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_rest_sort_and_order_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -232,21 +250,26 @@ async fn test_sorting_rest_sort_and_order_as_documented() {
     assert!(vehicles.len() >= 4, "Should return at least 4 vehicles");
 
     // Verify ascending order
-    for i in 0..vehicles.len()-1 {
-        assert!(vehicles[i].year <= vehicles[i+1].year,
-            "Vehicles should be sorted by year ascending");
+    for i in 0..vehicles.len() - 1 {
+        assert!(
+            vehicles[i].year <= vehicles[i + 1].year,
+            "Vehicles should be sorted by year ascending"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_rest_default_asc_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
     let names = ["Delta", "Alpha", "Charlie", "Bravo"];
     for name in &names {
-        let customer_data = json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
+        let customer_data =
+            json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -282,9 +305,11 @@ async fn test_sorting_rest_default_asc_as_documented() {
     assert!(customers.len() >= 4, "Should return at least 4 customers");
 
     // Verify ascending order (default when order omitted)
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name <= customers[i+1].name,
-            "Customers should be in ascending order (default)");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name <= customers[i + 1].name,
+            "Customers should be in ascending order (default)"
+        );
     }
 }
 
@@ -294,7 +319,9 @@ async fn test_sorting_rest_default_asc_as_documented() {
 
 #[tokio::test]
 async fn test_sorting_case_insensitive_asc_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -343,15 +370,19 @@ async fn test_sorting_case_insensitive_asc_as_documented() {
     assert!(vehicles.len() >= 3, "Should return at least 3 vehicles");
 
     // Verify ascending order works with lowercase "asc"
-    for i in 0..vehicles.len()-1 {
-        assert!(vehicles[i].year <= vehicles[i+1].year,
-            "Lowercase 'asc' should work for ascending sort");
+    for i in 0..vehicles.len() - 1 {
+        assert!(
+            vehicles[i].year <= vehicles[i + 1].year,
+            "Lowercase 'asc' should work for ascending sort"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_case_insensitive_desc_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -400,21 +431,26 @@ async fn test_sorting_case_insensitive_desc_as_documented() {
     assert!(vehicles.len() >= 3, "Should return at least 3 vehicles");
 
     // Verify descending order works with lowercase "desc"
-    for i in 0..vehicles.len()-1 {
-        assert!(vehicles[i].year >= vehicles[i+1].year,
-            "Lowercase 'desc' should work for descending sort");
+    for i in 0..vehicles.len() - 1 {
+        assert!(
+            vehicles[i].year >= vehicles[i + 1].year,
+            "Lowercase 'desc' should work for descending sort"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_mixed_case_direction_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
     let names = ["Yankee", "Alpha", "Mike"];
     for name in &names {
-        let customer_data = json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
+        let customer_data =
+            json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -449,9 +485,11 @@ async fn test_sorting_mixed_case_direction_as_documented() {
     assert!(customers.len() >= 3, "Should return at least 3 customers");
 
     // Verify ascending order works with mixed case "Asc"
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name <= customers[i+1].name,
-            "Mixed case 'Asc' should work for ascending sort");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name <= customers[i + 1].name,
+            "Mixed case 'Asc' should work for ascending sort"
+        );
     }
 }
 
@@ -461,13 +499,16 @@ async fn test_sorting_mixed_case_direction_as_documented() {
 
 #[tokio::test]
 async fn test_sorting_strings_asc_and_desc_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with names for A-Z and Z-A testing
     let names = ["Alice", "Bob", "Charlie", "Diana"];
     for name in &names {
-        let customer_data = json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
+        let customer_data =
+            json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -501,8 +542,11 @@ async fn test_sorting_strings_asc_and_desc_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Verify A to Z order
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name <= customers[i+1].name, "Should be A to Z");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name <= customers[i + 1].name,
+            "Should be A to Z"
+        );
     }
 
     // Test: Strings Z to A (docs example: sort=["name","DESC"])
@@ -524,14 +568,19 @@ async fn test_sorting_strings_asc_and_desc_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Verify Z to A order
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name >= customers[i+1].name, "Should be Z to A");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name >= customers[i + 1].name,
+            "Should be Z to A"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_numbers_asc_and_desc_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a valid customer first (required for foreign key constraint)
@@ -580,8 +629,11 @@ async fn test_sorting_numbers_asc_and_desc_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Verify lowest to highest
-    for i in 0..vehicles.len()-1 {
-        assert!(vehicles[i].year <= vehicles[i+1].year, "Should be lowest to highest");
+    for i in 0..vehicles.len() - 1 {
+        assert!(
+            vehicles[i].year <= vehicles[i + 1].year,
+            "Should be lowest to highest"
+        );
     }
 
     // Test: Numbers highest to lowest (docs example: sort=["priority","DESC"])
@@ -604,14 +656,19 @@ async fn test_sorting_numbers_asc_and_desc_as_documented() {
     let vehicles: Vec<VehicleList> = serde_json::from_slice(&body).unwrap();
 
     // Verify highest to lowest
-    for i in 0..vehicles.len()-1 {
-        assert!(vehicles[i].year >= vehicles[i+1].year, "Should be highest to lowest");
+    for i in 0..vehicles.len() - 1 {
+        assert!(
+            vehicles[i].year >= vehicles[i + 1].year,
+            "Should be highest to lowest"
+        );
     }
 }
 
 #[tokio::test]
 async fn test_sorting_dates_oldest_and_newest_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers (created_at will be auto-set)
@@ -652,8 +709,11 @@ async fn test_sorting_dates_oldest_and_newest_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Verify oldest first
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].created_at <= customers[i+1].created_at, "Should be oldest first");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].created_at <= customers[i + 1].created_at,
+            "Should be oldest first"
+        );
     }
 
     // Test: Dates newest first (docs example: sort=["created_at","DESC"])
@@ -675,8 +735,11 @@ async fn test_sorting_dates_oldest_and_newest_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Verify newest first
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].created_at >= customers[i+1].created_at, "Should be newest first");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].created_at >= customers[i + 1].created_at,
+            "Should be newest first"
+        );
     }
 }
 
@@ -686,12 +749,15 @@ async fn test_sorting_dates_oldest_and_newest_as_documented() {
 
 #[tokio::test]
 async fn test_sorting_default_behavior_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
     for i in 0..3 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -718,13 +784,20 @@ async fn test_sorting_default_behavior_as_documented() {
         .unwrap();
 
     // Should not error, should return results
-    assert_eq!(response.status(), StatusCode::OK, "Default sort should work without errors");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Default sort should work without errors"
+    );
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
-    assert!(customers.len() >= 3, "Should return customers with default sort");
+    assert!(
+        customers.len() >= 3,
+        "Should return customers with default sort"
+    );
 }
 
 // =============================================================================
@@ -733,7 +806,9 @@ async fn test_sorting_default_behavior_as_documented() {
 
 #[tokio::test]
 async fn test_sorting_invalid_field_fallback_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers
@@ -765,7 +840,11 @@ async fn test_sorting_invalid_field_fallback_as_documented() {
         .unwrap();
 
     // Should not error, should fall back to default
-    assert_eq!(response.status(), StatusCode::OK, "Invalid sort field should fall back to default");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Invalid sort field should fall back to default"
+    );
 
     // Test: Invalid format (docs example: sort=not-an-array)
     let response = app
@@ -780,5 +859,9 @@ async fn test_sorting_invalid_field_fallback_as_documented() {
         .unwrap();
 
     // Should not error, should fall back to default
-    assert_eq!(response.status(), StatusCode::OK, "Invalid sort format should fall back to default");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Invalid sort format should fall back to default"
+    );
 }

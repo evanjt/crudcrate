@@ -6,9 +6,10 @@ const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 /// Escape LIKE wildcards to prevent wildcard injection attacks
 /// Escapes: % (match any) and _ (match single char)
 fn escape_like_wildcards(input: &str) -> String {
-    input.replace('\\', "\\\\")  // Escape backslash first
-        .replace('%', "\\%")      // Escape %
-        .replace('_', "\\_")      // Escape _
+    input
+        .replace('\\', "\\\\") // Escape backslash first
+        .replace('%', "\\%") // Escape %
+        .replace('_', "\\_") // Escape _
 }
 
 /// Build fulltext search condition with database-specific optimizations
@@ -53,9 +54,7 @@ fn build_postgres_fulltext_condition(
 
     // Use ILIKE for case-insensitive substring matching (no pg_trgm extension required)
     // Note: LIKE wildcards are escaped, ESCAPE '\' tells PostgreSQL to respect our escaping
-    let search_sql = format!(
-        "({concat_sql}) ILIKE '%{escaped_query}%' ESCAPE '\\'"
-    );
+    let search_sql = format!("({concat_sql}) ILIKE '%{escaped_query}%' ESCAPE '\\'");
 
     // Use custom SQL expression
     Some(SimpleExpr::Custom(search_sql))
@@ -91,9 +90,7 @@ fn build_mysql_fulltext_condition(
 
     // MySQL LIKE is case-insensitive by default for non-binary columns
     // Use ESCAPE '\\' for wildcard escaping (MySQL uses double backslash in string literals)
-    let search_sql = format!(
-        "UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\\\'"
-    );
+    let search_sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\\\'");
 
     Some(SimpleExpr::Custom(search_sql))
 }
@@ -122,9 +119,7 @@ fn build_fallback_fulltext_condition(
     // Escape both LIKE wildcards and SQL quotes
     let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
 
-    let like_sql = format!(
-        "UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\'",
-    );
+    let like_sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\'",);
 
     // Use custom SQL expression
     Some(SimpleExpr::Custom(like_sql))
@@ -184,10 +179,7 @@ mod tests {
     /// Test that search query values cannot inject SQL
     #[test]
     fn test_search_query_value_safe() {
-        let malicious_values = vec![
-            "'; DROP TABLE users; --",
-            "' OR '1'='1",
-        ];
+        let malicious_values = vec!["'; DROP TABLE users; --", "' OR '1'='1"];
 
         for malicious_value in malicious_values {
             let result = build_like_condition("title", malicious_value);
@@ -195,7 +187,10 @@ mod tests {
 
             // Values are wrapped in Value() which sea-query parameterizes safely
             // The pattern is uppercased and wrapped, so SQL injection is prevented
-            assert!(sql.contains("Value(String"), "Values should be wrapped safely: {sql}");
+            assert!(
+                sql.contains("Value(String"),
+                "Values should be wrapped safely: {sql}"
+            );
         }
     }
 
@@ -206,20 +201,50 @@ mod tests {
         // Test the inlined sanitization logic
         let sanitized = &very_long_query[..very_long_query.len().min(MAX_SEARCH_QUERY_LENGTH)];
 
-        assert!(sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
-            "Query should be truncated to max length");
+        assert!(
+            sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
+            "Query should be truncated to max length"
+        );
     }
 
     /// Security test: LIKE wildcards should be escaped
     #[test]
     fn test_wildcard_escaping() {
-        assert_eq!(escape_like_wildcards("test"), "test", "Normal text should pass through");
-        assert_eq!(escape_like_wildcards("test%"), "test\\%", "% should be escaped");
-        assert_eq!(escape_like_wildcards("test_value"), "test\\_value", "_ should be escaped");
-        assert_eq!(escape_like_wildcards("100%"), "100\\%", "% in middle should be escaped");
-        assert_eq!(escape_like_wildcards("%_"), "\\%\\_", "Both wildcards should be escaped");
-        assert_eq!(escape_like_wildcards("\\"), "\\\\", "Backslash should be escaped");
-        assert_eq!(escape_like_wildcards("\\%"), "\\\\\\%", "Backslash and % should both be escaped");
+        assert_eq!(
+            escape_like_wildcards("test"),
+            "test",
+            "Normal text should pass through"
+        );
+        assert_eq!(
+            escape_like_wildcards("test%"),
+            "test\\%",
+            "% should be escaped"
+        );
+        assert_eq!(
+            escape_like_wildcards("test_value"),
+            "test\\_value",
+            "_ should be escaped"
+        );
+        assert_eq!(
+            escape_like_wildcards("100%"),
+            "100\\%",
+            "% in middle should be escaped"
+        );
+        assert_eq!(
+            escape_like_wildcards("%_"),
+            "\\%\\_",
+            "Both wildcards should be escaped"
+        );
+        assert_eq!(
+            escape_like_wildcards("\\"),
+            "\\\\",
+            "Backslash should be escaped"
+        );
+        assert_eq!(
+            escape_like_wildcards("\\%"),
+            "\\\\\\%",
+            "Backslash and % should both be escaped"
+        );
     }
 
     /// Security test: Wildcard injection should be prevented in LIKE conditions
@@ -229,19 +254,25 @@ mod tests {
         let result_percent = build_like_condition("title", "test%");
         let sql_percent = format!("{result_percent:?}");
         // Debug repr will show \\% (escaped backslash), actual SQL has \%
-        assert!(sql_percent.contains("\\\\%"),
-            "% should be escaped in SQL: {sql_percent}");
+        assert!(
+            sql_percent.contains("\\\\%"),
+            "% should be escaped in SQL: {sql_percent}"
+        );
 
         let result_underscore = build_like_condition("title", "test_value");
         let sql_underscore = format!("{result_underscore:?}");
-        assert!(sql_underscore.contains("\\\\_"),
-            "_ should be escaped in SQL: {sql_underscore}");
+        assert!(
+            sql_underscore.contains("\\\\_"),
+            "_ should be escaped in SQL: {sql_underscore}"
+        );
 
         // Test just wildcards
         let result_just_percent = build_like_condition("title", "%");
         let sql_just_percent = format!("{result_just_percent:?}");
-        assert!(sql_just_percent.contains("\\\\%"),
-            "Single % should be escaped: {sql_just_percent}");
+        assert!(
+            sql_just_percent.contains("\\\\%"),
+            "Single % should be escaped: {sql_just_percent}"
+        );
     }
 
     /// Test build_like_condition with empty value
@@ -258,8 +289,10 @@ mod tests {
         let result = build_like_condition("title", "TeSt");
         let sql = format!("{result:?}");
         // Should use UPPER() for case-insensitive matching
-        assert!(sql.contains("Upper") || sql.contains("UPPER"),
-            "Should use UPPER for case insensitivity: {sql}");
+        assert!(
+            sql.contains("Upper") || sql.contains("UPPER"),
+            "Should use UPPER for case insensitivity: {sql}"
+        );
     }
 
     /// Test build_like_condition with special characters
@@ -281,7 +314,10 @@ mod tests {
         let result = build_like_condition("field", "");
         let sql = format!("{result:?}");
         // Empty query produces LIKE '%%' which matches everything
-        assert!(sql.contains("%%") || sql.contains("%\""), "Empty query should produce match-all pattern");
+        assert!(
+            sql.contains("%%") || sql.contains("%\""),
+            "Empty query should produce match-all pattern"
+        );
     }
 
     /// Test that whitespace-only query produces match-all pattern
@@ -313,12 +349,19 @@ mod tests {
     /// Test query length limiting constant
     #[test]
     fn test_max_search_query_length_constant() {
-        assert_eq!(MAX_SEARCH_QUERY_LENGTH, 10_000, "Max query length should be 10,000");
+        assert_eq!(
+            MAX_SEARCH_QUERY_LENGTH, 10_000,
+            "Max query length should be 10,000"
+        );
     }
 
     /// Test escape function handles empty string
     #[test]
     fn test_escape_like_wildcards_empty() {
-        assert_eq!(escape_like_wildcards(""), "", "Empty string should pass through");
+        assert_eq!(
+            escape_like_wildcards(""),
+            "",
+            "Empty string should pass through"
+        );
     }
 }

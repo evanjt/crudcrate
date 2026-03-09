@@ -126,10 +126,7 @@ async fn cleanup_before_delete(
 }
 
 /// Post-delete hook: notification after deleting
-async fn notify_after_delete(
-    _db: &sea_orm::DatabaseConnection,
-    _id: Uuid,
-) -> Result<(), ApiError> {
+async fn notify_after_delete(_db: &sea_orm::DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
     DELETE_POST_CALLED.store(true, Ordering::SeqCst);
     Ok(())
 }
@@ -300,7 +297,10 @@ fn test_hook_syntax_compiles() {
 fn test_hook_functions_defined() {
     // If these functions didn't exist or had wrong signatures,
     // the macro expansion would fail to compile
-    assert!(true, "Hook functions are defined - macro compilation succeeded");
+    assert!(
+        true,
+        "Hook functions are defined - macro compilation succeeded"
+    );
 }
 
 /// Test that the CRUDResource trait is implemented
@@ -628,9 +628,15 @@ mod integration {
 
         // Create multiple items in a batch
         let items = vec![
-            HookTestItemCreate { name: "item1".to_string() },
-            HookTestItemCreate { name: "item2".to_string() },
-            HookTestItemCreate { name: "item3".to_string() },
+            HookTestItemCreate {
+                name: "item1".to_string(),
+            },
+            HookTestItemCreate {
+                name: "item2".to_string(),
+            },
+            HookTestItemCreate {
+                name: "item3".to_string(),
+            },
         ];
 
         let result = HookTestItem::create_many(&db, items).await;
@@ -651,8 +657,12 @@ mod integration {
 
         // First create items
         let items = vec![
-            HookTestItemCreate { name: "original1".to_string() },
-            HookTestItemCreate { name: "original2".to_string() },
+            HookTestItemCreate {
+                name: "original1".to_string(),
+            },
+            HookTestItemCreate {
+                name: "original2".to_string(),
+            },
         ];
         let created = HookTestItem::create_many(&db, items)
             .await
@@ -720,8 +730,15 @@ mod integration {
         // Empty batch should succeed with empty result
         let items: Vec<HookTestItemCreate> = vec![];
         let result = HookTestItem::create_many(&db, items).await;
-        assert!(result.is_ok(), "create_many with empty batch should succeed");
-        assert_eq!(result.unwrap().len(), 0, "Empty batch should return empty result");
+        assert!(
+            result.is_ok(),
+            "create_many with empty batch should succeed"
+        );
+        assert_eq!(
+            result.unwrap().len(),
+            0,
+            "Empty batch should return empty result"
+        );
     }
 
     #[tokio::test]
@@ -733,8 +750,15 @@ mod integration {
         // Empty batch should succeed with empty result
         let updates: Vec<(Uuid, HookTestItemUpdate)> = vec![];
         let result = HookTestItem::update_many(&db, updates).await;
-        assert!(result.is_ok(), "update_many with empty batch should succeed");
-        assert_eq!(result.unwrap().len(), 0, "Empty batch should return empty result");
+        assert!(
+            result.is_ok(),
+            "update_many with empty batch should succeed"
+        );
+        assert_eq!(
+            result.unwrap().len(),
+            0,
+            "Empty batch should return empty result"
+        );
     }
 
     #[tokio::test]
@@ -745,7 +769,14 @@ mod integration {
 
         // Try to update more than 100 items (should fail due to security limit)
         let updates: Vec<(Uuid, HookTestItemUpdate)> = (0..101)
-            .map(|_| (Uuid::new_v4(), HookTestItemUpdate { name: Some(Some("test".to_string())) }))
+            .map(|_| {
+                (
+                    Uuid::new_v4(),
+                    HookTestItemUpdate {
+                        name: Some(Some("test".to_string())),
+                    },
+                )
+            })
             .collect();
 
         let result = HookTestItem::update_many(&db, updates).await;
@@ -768,11 +799,16 @@ mod integration {
         // Try to update a non-existent item
         let updates = vec![(
             Uuid::new_v4(), // Random ID that doesn't exist
-            HookTestItemUpdate { name: Some(Some("updated".to_string())) },
+            HookTestItemUpdate {
+                name: Some(Some("updated".to_string())),
+            },
         )];
 
         let result = HookTestItem::update_many(&db, updates).await;
-        assert!(result.is_err(), "update_many with non-existent ID should fail");
+        assert!(
+            result.is_err(),
+            "update_many with non-existent ID should fail"
+        );
     }
 
     #[tokio::test]
@@ -789,8 +825,15 @@ mod integration {
             .collect();
 
         let result = HookTestItem::create_many(&db, items).await;
-        assert!(result.is_ok(), "create_many with exactly 100 items should succeed");
-        assert_eq!(result.unwrap().len(), 100, "Should create exactly 100 items");
+        assert!(
+            result.is_ok(),
+            "create_many with exactly 100 items should succeed"
+        );
+        assert_eq!(
+            result.unwrap().len(),
+            100,
+            "Should create exactly 100 items"
+        );
     }
 
     #[tokio::test]
@@ -801,9 +844,15 @@ mod integration {
 
         // Create items first
         let items = vec![
-            HookTestItemCreate { name: "delete1".to_string() },
-            HookTestItemCreate { name: "delete2".to_string() },
-            HookTestItemCreate { name: "delete3".to_string() },
+            HookTestItemCreate {
+                name: "delete1".to_string(),
+            },
+            HookTestItemCreate {
+                name: "delete2".to_string(),
+            },
+            HookTestItemCreate {
+                name: "delete3".to_string(),
+            },
         ];
         let created = HookTestItem::create_many(&db, items)
             .await
@@ -836,12 +885,23 @@ mod integration {
         let db = setup_db().await.expect("Failed to setup database");
 
         // Create with empty name - pre hook validation should fail
-        let create_data = HookTestItemCreate { name: "".to_string() };
+        let create_data = HookTestItemCreate {
+            name: "".to_string(),
+        };
         let result = HookTestItem::create(&db, create_data).await;
 
-        assert!(result.is_err(), "Create should fail due to pre-hook validation");
-        assert!(CREATE_PRE_CALLED.load(Ordering::SeqCst), "Pre-hook should be called");
-        assert!(!CREATE_POST_CALLED.load(Ordering::SeqCst), "Post-hook should NOT be called after pre-hook failure");
+        assert!(
+            result.is_err(),
+            "Create should fail due to pre-hook validation"
+        );
+        assert!(
+            CREATE_PRE_CALLED.load(Ordering::SeqCst),
+            "Pre-hook should be called"
+        );
+        assert!(
+            !CREATE_POST_CALLED.load(Ordering::SeqCst),
+            "Post-hook should NOT be called after pre-hook failure"
+        );
     }
 
     #[tokio::test]
@@ -851,7 +911,9 @@ mod integration {
         let db = setup_db().await.expect("Failed to setup database");
 
         // First create a valid item
-        let create_data = HookTestItemCreate { name: "valid".to_string() };
+        let create_data = HookTestItemCreate {
+            name: "valid".to_string(),
+        };
         let created = HookTestItem::create(&db, create_data)
             .await
             .expect("Create should succeed");
@@ -859,16 +921,32 @@ mod integration {
         reset_hook_flags();
 
         // Update with empty name - pre hook validation should fail
-        let update_data = HookTestItemUpdate { name: Some(Some("".to_string())) };
+        let update_data = HookTestItemUpdate {
+            name: Some(Some("".to_string())),
+        };
         let result = HookTestItem::update(&db, created.id, update_data).await;
 
-        assert!(result.is_err(), "Update should fail due to pre-hook validation");
-        assert!(UPDATE_PRE_CALLED.load(Ordering::SeqCst), "Pre-hook should be called");
-        assert!(!UPDATE_POST_CALLED.load(Ordering::SeqCst), "Post-hook should NOT be called after pre-hook failure");
+        assert!(
+            result.is_err(),
+            "Update should fail due to pre-hook validation"
+        );
+        assert!(
+            UPDATE_PRE_CALLED.load(Ordering::SeqCst),
+            "Pre-hook should be called"
+        );
+        assert!(
+            !UPDATE_POST_CALLED.load(Ordering::SeqCst),
+            "Post-hook should NOT be called after pre-hook failure"
+        );
 
         // Verify item was not modified
-        let fetched = HookTestItem::get_one(&db, created.id).await.expect("Should fetch item");
-        assert_eq!(fetched.name, "valid", "Item should not be modified after failed update");
+        let fetched = HookTestItem::get_one(&db, created.id)
+            .await
+            .expect("Should fetch item");
+        assert_eq!(
+            fetched.name, "valid",
+            "Item should not be modified after failed update"
+        );
     }
 
     #[tokio::test]
@@ -881,7 +959,10 @@ mod integration {
         assert!(result.is_err(), "Reading non-existent item should fail");
 
         // Pre-hook should still be called
-        assert!(READ_PRE_CALLED.load(Ordering::SeqCst), "read pre-hook should be called even for not found");
+        assert!(
+            READ_PRE_CALLED.load(Ordering::SeqCst),
+            "read pre-hook should be called even for not found"
+        );
     }
 
     #[tokio::test]
@@ -894,7 +975,10 @@ mod integration {
         assert!(result.is_err(), "Deleting non-existent item should fail");
 
         // Pre-hook should still be called
-        assert!(DELETE_PRE_CALLED.load(Ordering::SeqCst), "delete pre-hook should be called even for not found");
+        assert!(
+            DELETE_PRE_CALLED.load(Ordering::SeqCst),
+            "delete pre-hook should be called even for not found"
+        );
     }
 
     // ========================================================================
@@ -909,9 +993,15 @@ mod integration {
 
         // Create multiple items
         let items = vec![
-            HookTestItemCreate { name: "alpha".to_string() },
-            HookTestItemCreate { name: "beta".to_string() },
-            HookTestItemCreate { name: "gamma".to_string() },
+            HookTestItemCreate {
+                name: "alpha".to_string(),
+            },
+            HookTestItemCreate {
+                name: "beta".to_string(),
+            },
+            HookTestItemCreate {
+                name: "gamma".to_string(),
+            },
         ];
         let _ = HookTestItem::create_many(&db, items)
             .await
@@ -942,7 +1032,9 @@ mod integration {
 
         // Create 5 items
         let items: Vec<HookTestItemCreate> = (0..5)
-            .map(|i| HookTestItemCreate { name: format!("item{}", i) })
+            .map(|i| HookTestItemCreate {
+                name: format!("item{}", i),
+            })
             .collect();
         let _ = HookTestItem::create_many(&db, items)
             .await
@@ -961,7 +1053,11 @@ mod integration {
         .await;
 
         assert!(result.is_ok(), "get_all should succeed");
-        assert_eq!(result.unwrap().len(), 3, "Should return 3 items on first page");
+        assert_eq!(
+            result.unwrap().len(),
+            3,
+            "Should return 3 items on first page"
+        );
 
         // Get second page (2 items)
         let result = HookTestItem::get_all(
@@ -975,7 +1071,11 @@ mod integration {
         .await;
 
         assert!(result.is_ok(), "get_all should succeed");
-        assert_eq!(result.unwrap().len(), 2, "Should return 2 items on second page");
+        assert_eq!(
+            result.unwrap().len(),
+            2,
+            "Should return 2 items on second page"
+        );
     }
 
     #[tokio::test]
@@ -986,7 +1086,9 @@ mod integration {
 
         // Create 4 items
         let items: Vec<HookTestItemCreate> = (0..4)
-            .map(|i| HookTestItemCreate { name: format!("count_item{}", i) })
+            .map(|i| HookTestItemCreate {
+                name: format!("count_item{}", i),
+            })
             .collect();
         let _ = HookTestItem::create_many(&db, items)
             .await
@@ -1059,8 +1161,14 @@ mod integration {
     #[test]
     fn test_is_enum_field() {
         // Default implementation returns false
-        assert!(!HookTestItem::is_enum_field("name"), "name should not be an enum field");
-        assert!(!HookTestItem::is_enum_field("nonexistent"), "nonexistent should not be an enum field");
+        assert!(
+            !HookTestItem::is_enum_field("name"),
+            "name should not be an enum field"
+        );
+        assert!(
+            !HookTestItem::is_enum_field("nonexistent"),
+            "nonexistent should not be an enum field"
+        );
     }
 
     #[test]
@@ -1077,7 +1185,10 @@ mod integration {
         assert_eq!(HookTestItem::RESOURCE_NAME_PLURAL, "hook_test_items");
         assert_eq!(HookTestItem::TABLE_NAME, "hook_test_items");
         // Description is auto-generated when not specified
-        assert!(!HookTestItem::RESOURCE_DESCRIPTION.is_empty(), "Description should be set");
+        assert!(
+            !HookTestItem::RESOURCE_DESCRIPTION.is_empty(),
+            "Description should be set"
+        );
         // Fulltext language defaults to "english"
         assert_eq!(HookTestItem::FULLTEXT_LANGUAGE, "english");
     }
@@ -1107,7 +1218,9 @@ mod integration {
     #[serial]
     async fn test_create_transform_hook_modifies_result() {
         reset_hook_flags();
-        let db = setup_transform_db().await.expect("Failed to setup database");
+        let db = setup_transform_db()
+            .await
+            .expect("Failed to setup database");
 
         // Verify transform hook not called yet
         assert!(!CREATE_TRANSFORM_CALLED.load(Ordering::SeqCst));
@@ -1143,7 +1256,9 @@ mod integration {
     #[serial]
     async fn test_read_transform_hook_modifies_result() {
         reset_hook_flags();
-        let db = setup_transform_db().await.expect("Failed to setup database");
+        let db = setup_transform_db()
+            .await
+            .expect("Failed to setup database");
 
         // First create an item (this will also transform it)
         let create_data = TransformTestItemCreate {
@@ -1182,7 +1297,9 @@ mod integration {
     #[serial]
     async fn test_update_transform_hook_modifies_result() {
         reset_hook_flags();
-        let db = setup_transform_db().await.expect("Failed to setup database");
+        let db = setup_transform_db()
+            .await
+            .expect("Failed to setup database");
 
         // First create an item
         let create_data = TransformTestItemCreate {
@@ -1222,7 +1339,9 @@ mod integration {
     #[serial]
     async fn test_delete_transform_hook_called() {
         reset_hook_flags();
-        let db = setup_transform_db().await.expect("Failed to setup database");
+        let db = setup_transform_db()
+            .await
+            .expect("Failed to setup database");
 
         // First create an item
         let create_data = TransformTestItemCreate {
@@ -1260,7 +1379,9 @@ mod integration {
         // that is returned to the caller, which only works if it runs after body
         // but before the return statement.
         reset_hook_flags();
-        let db = setup_transform_db().await.expect("Failed to setup database");
+        let db = setup_transform_db()
+            .await
+            .expect("Failed to setup database");
 
         let create_data = TransformTestItemCreate {
             name: "order_test".to_string(),
@@ -1294,7 +1415,13 @@ mod integration {
         assert!(update_model.name.is_some());
 
         // Verify trait constants
-        assert_eq!(TransformTestItem::RESOURCE_NAME_SINGULAR, "transform_test_item");
-        assert_eq!(TransformTestItem::RESOURCE_NAME_PLURAL, "transform_test_items");
+        assert_eq!(
+            TransformTestItem::RESOURCE_NAME_SINGULAR,
+            "transform_test_item"
+        );
+        assert_eq!(
+            TransformTestItem::RESOURCE_NAME_PLURAL,
+            "transform_test_items"
+        );
     }
 }

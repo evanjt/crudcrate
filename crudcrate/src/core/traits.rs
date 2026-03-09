@@ -20,7 +20,8 @@ pub trait MergeIntoActiveModel<ActiveModelType> {
     /// # Errors
     ///
     /// Returns an `ApiError` if the merge operation fails due to data conversion issues.
-    fn merge_into_activemodel(self, existing: ActiveModelType) -> Result<ActiveModelType, ApiError>;
+    fn merge_into_activemodel(self, existing: ActiveModelType)
+    -> Result<ActiveModelType, ApiError>;
 }
 
 #[async_trait]
@@ -51,12 +52,16 @@ where
     /// Maximum number of items allowed in batch create/update/delete operations.
     /// Override with `#[crudcrate(batch_limit = 500)]` on your struct, or implement
     /// manually for runtime logic (env vars, config, etc.).
-    fn batch_limit() -> usize { 100 }
+    fn batch_limit() -> usize {
+        100
+    }
 
     /// Maximum page size for pagination.
     /// Override with `#[crudcrate(max_page_size = 500)]` on your struct, or implement
     /// manually for runtime logic (env vars, config, etc.).
-    fn max_page_size() -> u64 { 1000 }
+    fn max_page_size() -> u64 {
+        1000
+    }
 
     async fn get_all(
         db: &DatabaseConnection,
@@ -74,20 +79,20 @@ where
             .all(db)
             .await
             .map_err(ApiError::database)?;
-        Ok(models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect())
+        Ok(models
+            .into_iter()
+            .map(|model| Self::ListModel::from(Self::from(model)))
+            .collect())
     }
 
-
     async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {
-        let model =
-            Self::EntityType::find_by_id(id)
-                .one(db)
-                .await
-                .map_err(ApiError::database)?
-                .ok_or_else(|| ApiError::not_found(
-                    Self::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
-                ))?;
+        let model = Self::EntityType::find_by_id(id)
+            .one(db)
+            .await
+            .map_err(ApiError::database)?
+            .ok_or_else(|| {
+                ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+            })?;
         Ok(Self::from(model))
     }
 
@@ -112,15 +117,13 @@ where
         id: Uuid,
         update_model: Self::UpdateModel,
     ) -> Result<Self, ApiError> {
-        let model =
-            Self::EntityType::find_by_id(id)
-                .one(db)
-                .await
-                .map_err(ApiError::database)?
-                .ok_or_else(|| ApiError::not_found(
-                    Self::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
-                ))?;
+        let model = Self::EntityType::find_by_id(id)
+            .one(db)
+            .await
+            .map_err(ApiError::database)?
+            .ok_or_else(|| {
+                ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+            })?;
         let existing: Self::ActiveModelType = model.into_active_model();
         let updated_model = update_model.merge_into_activemodel(existing)?;
         let updated = updated_model.update(db).await.map_err(ApiError::database)?;
@@ -128,7 +131,10 @@ where
     }
 
     async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
-        let res = Self::EntityType::delete_by_id(id).exec(db).await.map_err(ApiError::database)?;
+        let res = Self::EntityType::delete_by_id(id)
+            .exec(db)
+            .await
+            .map_err(ApiError::database)?;
         match res.rows_affected {
             0 => Err(ApiError::not_found(
                 Self::RESOURCE_NAME_SINGULAR,
@@ -140,9 +146,11 @@ where
 
     async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
         if ids.len() > Self::batch_limit() {
-            return Err(ApiError::bad_request(
-                format!("Batch delete limited to {} items. Received {} items.", Self::batch_limit(), ids.len())
-            ));
+            return Err(ApiError::bad_request(format!(
+                "Batch delete limited to {} items. Received {} items.",
+                Self::batch_limit(),
+                ids.len()
+            )));
         }
 
         if ids.is_empty() {
@@ -158,7 +166,8 @@ where
             .all(db)
             .await
             .map_err(ApiError::database)?;
-        let existing_set: std::collections::HashSet<Uuid> = existing.into_iter().map(|r| r.id).collect();
+        let existing_set: std::collections::HashSet<Uuid> =
+            existing.into_iter().map(|r| r.id).collect();
 
         // Delete only existing IDs
         if !existing_set.is_empty() {
@@ -170,7 +179,10 @@ where
         }
 
         // Return only IDs that actually existed (preserving input order)
-        Ok(ids.into_iter().filter(|id| existing_set.contains(id)).collect())
+        Ok(ids
+            .into_iter()
+            .filter(|id| existing_set.contains(id))
+            .collect())
     }
 
     /// Create multiple entities in a batch.
@@ -195,9 +207,11 @@ where
 
         // Security: Limit batch size to prevent DoS attacks
         if create_models.len() > Self::batch_limit() {
-            return Err(ApiError::bad_request(
-                format!("Batch create limited to {} items. Received {} items.", Self::batch_limit(), create_models.len())
-            ));
+            return Err(ApiError::bad_request(format!(
+                "Batch create limited to {} items. Received {} items.",
+                Self::batch_limit(),
+                create_models.len()
+            )));
         }
 
         // Use a transaction for all-or-nothing semantics
@@ -242,9 +256,11 @@ where
 
         // Security: Limit batch size to prevent DoS attacks
         if updates.len() > Self::batch_limit() {
-            return Err(ApiError::bad_request(
-                format!("Batch update limited to {} items. Received {} items.", Self::batch_limit(), updates.len())
-            ));
+            return Err(ApiError::bad_request(format!(
+                "Batch update limited to {} items. Received {} items.",
+                Self::batch_limit(),
+                updates.len()
+            )));
         }
 
         // Use a transaction for atomicity
@@ -256,13 +272,15 @@ where
                 .one(&txn)
                 .await
                 .map_err(ApiError::database)?
-                .ok_or_else(|| ApiError::not_found(
-                    Self::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
-                ))?;
+                .ok_or_else(|| {
+                    ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+                })?;
             let existing: Self::ActiveModelType = model.into_active_model();
             let updated_model = update_model.merge_into_activemodel(existing)?;
-            let updated = updated_model.update(&txn).await.map_err(ApiError::database)?;
+            let updated = updated_model
+                .update(&txn)
+                .await
+                .map_err(ApiError::database)?;
             results.push(Self::from(updated));
         }
 
@@ -302,16 +320,15 @@ where
         vec![("id", Self::ID_COLUMN)]
     }
 
-    
     /// Check if a specific field is an enum type at runtime.
     /// This is used to determine which fields need special enum handling.
     /// Default implementation returns false.
-    #[must_use]  
+    #[must_use]
     fn is_enum_field(field_name: &str) -> bool {
         let _ = field_name;
         false
     }
-    
+
     /// Normalizes an enum value for case-insensitive matching.
     /// This is used for enum types that don't support case-insensitive operations.
     /// Default implementation returns None, indicating no enum normalization is available.

@@ -434,7 +434,9 @@ fn get_database_url() -> String {
 }
 
 // Helper function to set up benchmark database with various data sizes
-async fn setup_benchmark_db(record_count: usize) -> Result<DatabaseConnection, Box<dyn std::error::Error>> {
+async fn setup_benchmark_db(
+    record_count: usize,
+) -> Result<DatabaseConnection, Box<dyn std::error::Error>> {
     let database_url = get_database_url();
     let db = Database::connect(&database_url).await?;
 

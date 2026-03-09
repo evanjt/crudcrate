@@ -90,7 +90,7 @@ impl CRUDOperations for ProductOperations {
         // Simulate permission check
         if id.to_string().starts_with('a') {
             return Err(ApiError::forbidden(
-                "You don't have permission to delete this product"
+                "You don't have permission to delete this product",
             ));
         }
 
@@ -107,7 +107,9 @@ impl CRUDOperations for ProductOperations {
     ) -> Result<(), ApiError> {
         // Simulate authentication check
         if id.to_string().starts_with('b') {
-            return Err(ApiError::unauthorized("Authentication required to update products"));
+            return Err(ApiError::unauthorized(
+                "Authentication required to update products",
+            ));
         }
 
         Ok(())
@@ -122,9 +124,10 @@ impl CRUDOperations for ProductOperations {
     ) -> Result<(), ApiError> {
         // Simulate duplicate check (normally done in before_create)
         if entity.name == "DuplicateTest" {
-            return Err(ApiError::conflict(
-                format!("Product with name '{}' already exists", entity.name)
-            ));
+            return Err(ApiError::conflict(format!(
+                "Product with name '{}' already exists",
+                entity.name
+            )));
         }
 
         Ok(())
@@ -132,17 +135,17 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 5: ApiError::custom() - Any HTTP status code
     /// Used for custom status codes with internal/external message separation
-    async fn before_get_one(
-        &self,
-        _db: &DatabaseConnection,
-        id: Uuid,
-    ) -> Result<(), ApiError> {
+    async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
         // Example: Custom 429 Too Many Requests with internal logging
         if id.to_string().starts_with('c') {
             return Err(ApiError::custom(
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
-                "Rate limit exceeded. Please try again in 60 seconds",  // User sees this
-                Some(format!("Product {} hit rate limit at {}", id, chrono::Utc::now()))  // Logged internally
+                "Rate limit exceeded. Please try again in 60 seconds", // User sees this
+                Some(format!(
+                    "Product {} hit rate limit at {}",
+                    id,
+                    chrono::Utc::now()
+                )), // Logged internally
             ));
         }
 
@@ -151,7 +154,7 @@ impl CRUDOperations for ProductOperations {
             return Err(ApiError::custom(
                 axum::http::StatusCode::SERVICE_UNAVAILABLE,
                 "Service temporarily unavailable",
-                Some("Database connection pool exhausted".to_string())
+                Some("Database connection pool exhausted".to_string()),
             ));
         }
 
@@ -160,11 +163,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 6: Automatic DbErr → ApiError conversion
     /// The ? operator automatically converts DbErr to ApiError!
-    async fn fetch_one(
-        &self,
-        db: &DatabaseConnection,
-        id: Uuid,
-    ) -> Result<Product, ApiError> {
+    async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Product, ApiError> {
         use sea_orm::EntityTrait;
 
         // This returns Result<Model, DbErr>
@@ -173,7 +172,7 @@ impl CRUDOperations for ProductOperations {
         // - Other DbErr → ApiError::Database (500, sanitized)
         let model = <Product as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
-            .await?  // ← Automatic conversion! No manual handling needed
+            .await? // ← Automatic conversion! No manual handling needed
             .ok_or_else(|| ApiError::not_found("Product", Some(id.to_string())))?;
 
         Ok(Product::from(model))
@@ -189,8 +188,11 @@ impl CRUDOperations for ProductOperations {
         // Simulate an unexpected error
         if entity.name == "ErrorTest" {
             return Err(ApiError::internal(
-                "An unexpected error occurred",  // User sees this generic message
-                Some(format!("Cache service returned invalid data for product {}", entity.id))  // Logged internally
+                "An unexpected error occurred", // User sees this generic message
+                Some(format!(
+                    "Cache service returned invalid data for product {}",
+                    entity.id
+                )), // Logged internally
             ));
         }
 
@@ -244,7 +246,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🔴 2. Not Found Error (404)");
     println!("   Try getting a non-existent product:");
-    println!("   curl -s http://localhost:3000/products/00000000-0000-0000-0000-000000000000 | jq .");
+    println!(
+        "   curl -s http://localhost:3000/products/00000000-0000-0000-0000-000000000000 | jq ."
+    );
     println!("   ❌ User sees: \"Product not found\"");
     println!("   📋 Console logs: Debug-level error\n");
 
@@ -279,9 +283,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • You can disable logging by not calling tracing_subscriber::init()");
     println!("  • Design: sanitized public API responses, detailed server-side logs\n");
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 
     Ok(())

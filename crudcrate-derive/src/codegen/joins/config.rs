@@ -118,7 +118,9 @@ fn parse_string_list(meta_list: &syn::MetaList) -> Vec<String> {
     let mut result = Vec::new();
 
     // Try to parse the tokens as a list of expressions (string literals)
-    if let Ok(exprs) = Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+    if let Ok(exprs) =
+        Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
         for expr in exprs {
             if let syn::Expr::Lit(expr_lit) = expr {
                 if let Lit::Str(lit_str) = expr_lit.lit {

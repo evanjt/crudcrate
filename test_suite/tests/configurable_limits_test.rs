@@ -101,7 +101,9 @@ async fn test_default_batch_limit() {
 
 #[tokio::test]
 async fn test_batch_create_within_limit_succeeds() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
 
     // Create 5 items (at the limit)
     let items: Vec<limited_item::LimitedItemCreate> = (0..5)
@@ -117,7 +119,9 @@ async fn test_batch_create_within_limit_succeeds() {
 
 #[tokio::test]
 async fn test_batch_create_exceeds_limit_fails() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
 
     // Create 6 items (exceeds limit of 5)
     let items: Vec<limited_item::LimitedItemCreate> = (0..6)
@@ -140,7 +144,9 @@ async fn test_batch_create_exceeds_limit_fails() {
 
 #[tokio::test]
 async fn test_default_model_allows_more_items() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
 
     // Create 50 items (well under default limit of 100)
     let items: Vec<default_item::DefaultItemCreate> = (0..50)
@@ -150,13 +156,18 @@ async fn test_default_model_allows_more_items() {
         .collect();
 
     let result = default_item::DefaultItem::create_many(&db, items).await;
-    assert!(result.is_ok(), "Creating 50 items should succeed with default limit");
+    assert!(
+        result.is_ok(),
+        "Creating 50 items should succeed with default limit"
+    );
     assert_eq!(result.unwrap().len(), 50);
 }
 
 #[tokio::test]
 async fn test_batch_update_within_limit_succeeds() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
 
     // First create 5 items
     let items: Vec<limited_item::LimitedItemCreate> = (0..5)
@@ -188,7 +199,9 @@ async fn test_batch_update_within_limit_succeeds() {
 
 #[tokio::test]
 async fn test_batch_update_exceeds_limit_fails() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
 
     // Create fake UUIDs for the update (we don't need real items for this test)
     let updates: Vec<(Uuid, limited_item::LimitedItemUpdate)> = (0..6)
@@ -216,7 +229,9 @@ async fn test_batch_update_exceeds_limit_fails() {
 
 #[tokio::test]
 async fn test_max_page_size_enforced_at_handler_level() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
 
     // Create 60 items (more than max_page_size=50 for LimitedItem)
     let items: Vec<limited_item::LimitedItemCreate> = (0..60)
@@ -233,11 +248,10 @@ async fn test_max_page_size_enforced_at_handler_level() {
     }
 
     // Set up router
-    let app: axum::Router = axum::Router::new()
-        .nest(
-            "/limited_items",
-            limited_item::LimitedItem::router(&db).into(),
-        );
+    let app: axum::Router = axum::Router::new().nest(
+        "/limited_items",
+        limited_item::LimitedItem::router(&db).into(),
+    );
 
     // Request with per_page=1000 (exceeds max_page_size=50)
     let request = Request::builder()

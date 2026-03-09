@@ -8,8 +8,8 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_app, setup_test_db};
 use crate::common::customer::CustomerList;
+use common::{setup_test_app, setup_test_db};
 
 // =============================================================================
 // RANGE FORMAT TESTS (pagination.md lines 8-18)
@@ -17,12 +17,15 @@ use crate::common::customer::CustomerList;
 
 #[tokio::test]
 async fn test_pagination_range_format_first_10_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 15 customers
     for i in 0..15 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -60,12 +63,15 @@ async fn test_pagination_range_format_first_10_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_range_format_items_10_19_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 25 customers
     for i in 0..25 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -103,12 +109,15 @@ async fn test_pagination_range_format_items_10_19_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_range_format_25_items_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 80 customers
     for i in 0..80 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -150,12 +159,15 @@ async fn test_pagination_range_format_25_items_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_page_format_page_1_20_per_page_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 50 customers
     for i in 0..50 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -188,17 +200,24 @@ async fn test_pagination_page_format_page_1_20_per_page_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 20 items
-    assert_eq!(customers.len(), 20, "Page 1 with per_page=20 should return 20 items");
+    assert_eq!(
+        customers.len(),
+        20,
+        "Page 1 with per_page=20 should return 20 items"
+    );
 }
 
 #[tokio::test]
 async fn test_pagination_page_format_page_3_10_per_page_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 50 customers
     for i in 0..50 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -231,7 +250,11 @@ async fn test_pagination_page_format_page_3_10_per_page_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 10 items (items 20-29, since page 3 with 10 per page starts at offset 20)
-    assert_eq!(customers.len(), 10, "Page 3 with per_page=10 should return 10 items");
+    assert_eq!(
+        customers.len(),
+        10,
+        "Page 3 with per_page=10 should return 10 items"
+    );
 }
 
 // =============================================================================
@@ -240,12 +263,15 @@ async fn test_pagination_page_format_page_3_10_per_page_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_content_range_header_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 42 customers (matches docs example)
     for i in 0..42 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -275,17 +301,30 @@ async fn test_pagination_content_range_header_as_documented() {
 
     // Get Content-Range header BEFORE consuming the body
     let content_range = response.headers().get("Content-Range").cloned();
-    assert!(content_range.is_some(), "Content-Range header should be present");
+    assert!(
+        content_range.is_some(),
+        "Content-Range header should be present"
+    );
 
     let content_range_header = content_range.unwrap();
     let content_range_str = content_range_header.to_str().unwrap();
     // Should match pattern: "customers 0-9/42" or similar
-    assert!(content_range_str.contains("0-9"), "Content-Range should contain '0-9'");
-    assert!(content_range_str.contains("/"), "Content-Range should contain '/' separator");
+    assert!(
+        content_range_str.contains("0-9"),
+        "Content-Range should contain '0-9'"
+    );
+    assert!(
+        content_range_str.contains("/"),
+        "Content-Range should contain '/' separator"
+    );
 
     // Verify it contains total count
     let parts: Vec<&str> = content_range_str.split('/').collect();
-    assert_eq!(parts.len(), 2, "Content-Range should have format: resource start-end/total");
+    assert_eq!(
+        parts.len(),
+        2,
+        "Content-Range should have format: resource start-end/total"
+    );
 
     let total: u64 = parts[1].parse().expect("Total should be a number");
     assert!(total >= 42, "Total count should be at least 42");
@@ -297,12 +336,15 @@ async fn test_pagination_content_range_header_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_max_page_size_limit_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create some customers
     for i in 0..10 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -338,17 +380,23 @@ async fn test_pagination_max_page_size_limit_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should be capped at available items (10 in this case) or 1000 max
-    assert!(customers.len() <= 1000, "Page size should be capped at 1000");
+    assert!(
+        customers.len() <= 1000,
+        "Page size should be capped at 1000"
+    );
 }
 
 #[tokio::test]
 async fn test_pagination_max_offset_limit_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create a few customers
     for i in 0..5 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -376,7 +424,11 @@ async fn test_pagination_max_offset_limit_as_documented() {
         .unwrap();
 
     // Should not crash, should return OK (even if empty results due to capped offset)
-    assert_eq!(response.status(), StatusCode::OK, "Should handle excessive offset gracefully");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Should handle excessive offset gracefully"
+    );
 }
 
 // =============================================================================
@@ -385,12 +437,15 @@ async fn test_pagination_max_offset_limit_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_first_page_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 150 customers (matches docs example)
     for i in 0..150 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -431,17 +486,23 @@ async fn test_pagination_first_page_as_documented() {
 
     // Verify Content-Range header
     let content_range = content_range;
-    assert!(content_range.is_some(), "Content-Range header should be present for first page");
+    assert!(
+        content_range.is_some(),
+        "Content-Range header should be present for first page"
+    );
 }
 
 #[tokio::test]
 async fn test_pagination_second_page_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 150 customers
     for i in 0..150 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -478,12 +539,15 @@ async fn test_pagination_second_page_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_last_page_partial_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create 150 customers
     for i in 0..150 {
-        let customer_data = json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
+        let customer_data =
+            json!({"name": format!("Customer {}", i), "email": format!("c{}@example.com", i)});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -517,7 +581,11 @@ async fn test_pagination_last_page_partial_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return only 10 items (140-149), not full 20
-    assert_eq!(customers.len(), 10, "Last page should return partial results (10 items)");
+    assert_eq!(
+        customers.len(),
+        10,
+        "Last page should return partial results (10 items)"
+    );
 }
 
 // =============================================================================
@@ -526,7 +594,9 @@ async fn test_pagination_last_page_partial_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_with_filtering_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create mix of customers with different names
@@ -572,19 +642,31 @@ async fn test_pagination_with_filtering_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 1 item matching email user0@example.com
-    assert_eq!(customers.len(), 1, "Filtered pagination should return 1 matching customer");
-    assert_eq!(customers[0].email, "user0@example.com", "Result should match exact filter");
+    assert_eq!(
+        customers.len(),
+        1,
+        "Filtered pagination should return 1 matching customer"
+    );
+    assert_eq!(
+        customers[0].email, "user0@example.com",
+        "Result should match exact filter"
+    );
 }
 
 #[tokio::test]
 async fn test_pagination_with_sorting_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Create customers with random names
-    let names = ["Zara", "Alice", "Mike", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry"];
+    let names = [
+        "Zara", "Alice", "Mike", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry",
+    ];
     for name in &names {
-        let customer_data = json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
+        let customer_data =
+            json!({"name": name, "email": format!("{}@example.com", name.to_lowercase())});
         app.clone()
             .oneshot(
                 Request::builder()
@@ -618,12 +700,18 @@ async fn test_pagination_with_sorting_as_documented() {
     let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Should return exactly 5 items (range [0,4]) in descending order
-    assert_eq!(customers.len(), 5, "Sorted pagination should return requested range");
+    assert_eq!(
+        customers.len(),
+        5,
+        "Sorted pagination should return requested range"
+    );
 
     // Verify descending sort
-    for i in 0..customers.len()-1 {
-        assert!(customers[i].name >= customers[i+1].name,
-            "Results should be sorted descending");
+    for i in 0..customers.len() - 1 {
+        assert!(
+            customers[i].name >= customers[i + 1].name,
+            "Results should be sorted descending"
+        );
     }
 }
 
@@ -633,7 +721,9 @@ async fn test_pagination_with_sorting_as_documented() {
 
 #[tokio::test]
 async fn test_pagination_empty_results_as_documented() {
-    let db = setup_test_db().await.expect("Failed to setup test database");
+    let db = setup_test_db()
+        .await
+        .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
     // Don't create any customers, or create with different status
@@ -666,5 +756,8 @@ async fn test_pagination_empty_results_as_documented() {
 
     // Verify Content-Range header for empty results
     let content_range = content_range;
-    assert!(content_range.is_some(), "Content-Range should be present even for empty results");
+    assert!(
+        content_range.is_some(),
+        "Content-Range should be present even for empty results"
+    );
 }

@@ -99,11 +99,7 @@ impl ValidationErrors {
 
     /// Convert to Result
     pub fn result(self) -> Result<(), Self> {
-        if self.is_empty() {
-            Ok(())
-        } else {
-            Err(self)
-        }
+        if self.is_empty() { Ok(()) } else { Err(self) }
     }
 }
 

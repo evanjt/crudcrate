@@ -70,8 +70,16 @@ pub fn generate_get_one_join_loading(
     let mut seen_fields = std::collections::HashSet::new();
     let mut join_fields: Vec<&syn::Field> = Vec::new();
 
-    for field in analysis.join_on_one_fields.iter().chain(analysis.join_on_all_fields.iter()) {
-        if field.ident.as_ref().is_none_or(|name| seen_fields.insert(name.to_string())) {
+    for field in analysis
+        .join_on_one_fields
+        .iter()
+        .chain(analysis.join_on_all_fields.iter())
+    {
+        if field
+            .ident
+            .as_ref()
+            .is_none_or(|name| seen_fields.insert(name.to_string()))
+        {
             join_fields.push(field);
         }
     }
@@ -97,7 +105,8 @@ pub fn generate_get_all_batch_loading(
     }
 
     // Extract PK field ident (fallback to `id` for backward compat)
-    let pk_ident = analysis.primary_key_field
+    let pk_ident = analysis
+        .primary_key_field
         .and_then(|f| f.ident.as_ref())
         .cloned()
         .unwrap_or_else(|| quote::format_ident!("id"));
@@ -105,7 +114,6 @@ pub fn generate_get_all_batch_loading(
     let join_fields: Vec<&syn::Field> = analysis.join_on_all_fields.clone();
     generate_batch_loading_impl(&join_fields, api_struct_name, &pk_ident)
 }
-
 
 /// Generate optimized batch loading code for get_all()
 ///
@@ -146,7 +154,10 @@ fn generate_batch_loading_impl(
             }
             1
         } else {
-            join_config.depth.unwrap_or(MAX_JOIN_DEPTH).min(MAX_JOIN_DEPTH)
+            join_config
+                .depth
+                .unwrap_or(MAX_JOIN_DEPTH)
+                .min(MAX_JOIN_DEPTH)
         };
 
         let depth_limited = effective_depth == 1;
@@ -179,7 +190,8 @@ fn generate_batch_loading_impl(
         // Derive FK column name from parent struct name
         // Convention: Customer -> Column::CustomerId (PascalCase) and field.customer_id (snake_case)
         let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
-        let fk_field_snake = quote::format_ident!("{}_id", to_snake_case(&api_struct_name.to_string()));
+        let fk_field_snake =
+            quote::format_ident!("{}_id", to_snake_case(&api_struct_name.to_string()));
 
         // HashMap variable for storing batch-loaded data
         let map_var = quote::format_ident!("{}_by_parent", field_name);
@@ -404,9 +416,12 @@ fn generate_join_loading_impl(
                 );
                 return quote! { compile_error!(#error_msg); };
             }
-            1  // Always use depth=1 for self-referencing (no recursive loading)
+            1 // Always use depth=1 for self-referencing (no recursive loading)
         } else {
-            join_config.depth.unwrap_or(MAX_JOIN_DEPTH).min(MAX_JOIN_DEPTH)
+            join_config
+                .depth
+                .unwrap_or(MAX_JOIN_DEPTH)
+                .min(MAX_JOIN_DEPTH)
         };
 
         // For self-referencing fields, we use Entity::find().filter() instead of find_related()
