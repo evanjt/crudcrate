@@ -1,6 +1,6 @@
 use sea_orm::{
     Condition, DatabaseBackend,
-    sea_query::{Alias, Expr, SimpleExpr},
+    sea_query::{Alias, Expr, ExprTrait, SimpleExpr},
 };
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -101,14 +101,20 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
     if let Some(q_value) = filters.get("q")
         && let Some(q_value_str) = q_value.as_str()
     {
+        // Trim and skip empty/whitespace-only queries
+        let trimmed_q = q_value_str.trim();
+        if trimmed_q.is_empty() {
+            return None;
+        }
+
         // Try fulltext search first
-        if let Some(fulltext_expr) = build_fulltext_condition::<T>(q_value_str, backend) {
+        if let Some(fulltext_expr) = build_fulltext_condition::<T>(trimmed_q, backend) {
             return Some(Condition::all().add(fulltext_expr));
         }
 
         // Fallback to original LIKE search on regular searchable columns
         // Escape LIKE wildcards to prevent wildcard injection
-        let escaped_query = escape_like_wildcards(q_value_str);
+        let escaped_query = escape_like_wildcards(trimmed_q);
 
         let mut or_conditions = Condition::any();
         for (col_name, col) in searchable_columns {
@@ -146,8 +152,27 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
     None
 }
 
+/// Apply a string comparison using the given operator.
+fn apply_string_comparison(
+    column: impl sea_orm::ColumnTrait + Copy,
+    operator: &str,
+    trimmed_value: &str,
+) -> SimpleExpr {
+    let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)));
+    let val_upper = trimmed_value.to_uppercase();
+    match operator {
+        "!=" => col_upper.ne(val_upper),
+        ">=" => col_upper.gte(val_upper),
+        "<=" => col_upper.lte(val_upper),
+        ">" => col_upper.gt(val_upper),
+        "<" => col_upper.lt(val_upper),
+        _ => col_upper.eq(val_upper),
+    }
+}
+
 fn process_string_filter<T: crate::traits::CRUDResource>(
-    key: &str,
+    base_field: &str,
+    operator: &str,
     string_value: &str,
     column: impl sea_orm::ColumnTrait + Copy,
     backend: DatabaseBackend,
@@ -161,33 +186,39 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
         return None;
     }
 
-    // Check if this field should use LIKE queries
-    if T::like_filterable_columns().contains(&key) {
-        return Some(build_like_condition(key, trimmed_value));
+    // Check if this field should use LIKE queries (use base_field, not operator-suffixed key)
+    if T::like_filterable_columns().contains(&base_field) {
+        return Some(build_like_condition(base_field, trimmed_value));
     }
 
-    if T::is_enum_field(key) {
+    if T::is_enum_field(base_field) {
         // Handle enum fields with case-insensitive matching
         let col_expr = match backend {
             DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
             _ => Expr::col(column).into(),
         };
-        return Some(
-            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr))
-                .eq(trimmed_value.to_uppercase()),
-        );
+        let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+        let val_upper = trimmed_value.to_uppercase();
+        return Some(match operator {
+            "!=" => col_upper.ne(val_upper),
+            ">=" => col_upper.gte(val_upper),
+            "<=" => col_upper.lte(val_upper),
+            ">" => col_upper.gt(val_upper),
+            "<" => col_upper.lt(val_upper),
+            _ => col_upper.eq(val_upper),
+        });
     }
 
-    // Try to parse as UUID first
+    // Try to parse as UUID first (only for equality/inequality)
     if let Ok(uuid_value) = Uuid::parse_str(trimmed_value) {
-        return Some(Expr::col(column).eq(uuid_value));
+        return Some(match operator {
+            "!=" => Expr::col(column).ne(uuid_value),
+            _ => Expr::col(column).eq(uuid_value),
+        });
     }
 
-    // Case-insensitive string equality
-    Some(
-        SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)))
-            .eq(trimmed_value.to_uppercase()),
-    )
+    // Case-insensitive string comparison with operator
+    Some(apply_string_comparison(column, operator, trimmed_value))
 }
 
 fn process_number_filter(
@@ -290,7 +321,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 
         // Parse comparison operator to get base field name
         // For "year_neq", this extracts "year" and stores the operator
-        let (base_field, _operator) = parse_comparison_operator(key).unwrap_or((key, "="));
+        let (base_field, operator) = parse_comparison_operator(key).unwrap_or((key, "="));
 
         // Find the column in searchable columns using the BASE field name
         let column_opt = searchable_columns
@@ -302,7 +333,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             // Handle different value types
             let filter_condition = match value {
                 serde_json::Value::String(string_value) => {
-                    process_string_filter::<T>(key, string_value, *column, backend)
+                    process_string_filter::<T>(base_field, operator, string_value, *column, backend)
                 }
                 serde_json::Value::Number(number) => {
                     process_number_filter(key, number, *column, searchable_columns)
@@ -425,7 +456,7 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
         }
 
         // Parse comparison operator to get base field name
-        let (base_field, _operator) = parse_comparison_operator(key).unwrap_or((key, "="));
+        let (base_field, operator) = parse_comparison_operator(key).unwrap_or((key, "="));
 
         // Find the column in searchable columns using the BASE field name
         let column_opt = searchable_columns
@@ -437,7 +468,7 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
             // Handle different value types (same as apply_filters)
             let filter_condition = match value {
                 serde_json::Value::String(string_value) => {
-                    process_string_filter::<T>(key, string_value, *column, backend)
+                    process_string_filter::<T>(base_field, operator, string_value, *column, backend)
                 }
                 serde_json::Value::Number(number) => {
                     process_number_filter(key, number, *column, searchable_columns)

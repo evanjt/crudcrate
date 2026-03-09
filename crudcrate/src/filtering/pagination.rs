@@ -35,10 +35,15 @@ pub fn calculate_content_range(
 ) -> HeaderMap {
     // Calculate max offset limit for the content range
     // Use saturating arithmetic to prevent integer overflow
-    let max_offset_limit = offset
-        .saturating_add(limit)
-        .saturating_sub(1)
-        .min(total_count);
+    // When offset >= total_count (past the end), produce a valid range with start=end
+    let max_offset_limit = if total_count == 0 || offset >= total_count {
+        offset // start == end for empty/out-of-range
+    } else {
+        offset
+            .saturating_add(limit)
+            .saturating_sub(1)
+            .min(total_count.saturating_sub(1))
+    };
 
     // Sanitize resource name to prevent header injection
     let safe_name = sanitize_resource_name(resource_name);
@@ -101,14 +106,37 @@ mod tests {
         }
     }
 
-    /// Test that resource names with unicode might cause issues
+    /// Test that resource names with non-ASCII unicode are sanitized
     #[test]
     fn test_content_range_unicode() {
-        // Some unicode might work, but control characters won't
+        // Non-ASCII characters are stripped by sanitize_resource_name
         let headers = calculate_content_range(0, 10, 100, "用户");
         let value = headers.get("Content-Range");
-        // Should either work or panic - documents the behavior
-        assert!(value.is_some() || value.is_none());
+        // After sanitization, non-ASCII chars are removed, leaving empty name
+        // The header should still be valid
+        assert!(
+            value.is_some(),
+            "Should produce a valid header even with non-ASCII input"
+        );
+    }
+
+    /// Test Content-Range with offset exceeding total count
+    #[test]
+    fn test_content_range_offset_exceeds_total() {
+        let headers = calculate_content_range(100, 10, 50, "items");
+        let value = headers.get("Content-Range").unwrap().to_str().unwrap();
+        // Start should not exceed end in the range
+        // Parse "items START-END/TOTAL"
+        let parts: Vec<&str> = value.split(' ').collect();
+        let range_part = parts[1].split('/').next().unwrap();
+        let range_nums: Vec<u64> = range_part.split('-').map(|s| s.parse().unwrap()).collect();
+        assert!(
+            range_nums[0] <= range_nums[1] || range_nums[0] == range_nums[1],
+            "Range start ({}) should not exceed end ({}) in: {}",
+            range_nums[0],
+            range_nums[1],
+            value
+        );
     }
 
     /// Test edge case with zero items

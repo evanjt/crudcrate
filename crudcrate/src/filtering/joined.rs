@@ -153,6 +153,11 @@ pub fn parse_dot_notation(field: &str) -> Option<(String, String, FilterOperator
     let join_field = &field[..dot_pos];
     let rest = &field[dot_pos + 1..];
 
+    // Reject empty parts
+    if join_field.is_empty() || rest.is_empty() {
+        return None;
+    }
+
     // Check for operator suffix
     for suffix in ["_gte", "_lte", "_gt", "_lt", "_neq", "_like"] {
         if let Some(column) = rest.strip_suffix(suffix) {
@@ -209,6 +214,16 @@ mod tests {
     fn test_parse_dot_notation_no_dot() {
         let result = parse_dot_notation("name");
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_dot_notation_empty_parts() {
+        // ".make" has empty join_field
+        assert_eq!(parse_dot_notation(".make"), None);
+        // "vehicles." has empty column
+        assert_eq!(parse_dot_notation("vehicles."), None);
+        // "." has both empty
+        assert_eq!(parse_dot_notation("."), None);
     }
 
     #[test]

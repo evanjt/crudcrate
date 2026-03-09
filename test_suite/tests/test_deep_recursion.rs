@@ -693,6 +693,104 @@ async fn test_self_referencing_no_children() {
     );
 }
 
+/// Test self-referencing join via direct Rust API (not HTTP)
+#[tokio::test]
+async fn test_self_referencing_join_via_direct_api() {
+    use common::category::{Category, CategoryCreate};
+    use crudcrate::traits::CRUDResource;
+
+    let db = setup_test_db().await.expect("Database setup failed");
+
+    // Create parent category
+    let parent = Category::create(
+        &db,
+        CategoryCreate {
+            name: "Parent".to_string(),
+            parent_id: None,
+        },
+    )
+    .await
+    .expect("Failed to create parent");
+    let parent_id = parent.id;
+
+    // Create child categories
+    for name in ["Child 1", "Child 2"] {
+        Category::create(
+            &db,
+            CategoryCreate {
+                name: name.to_string(),
+                parent_id: Some(parent_id),
+            },
+        )
+        .await
+        .expect("Failed to create child");
+    }
+
+    // Fetch parent - children should be loaded
+    let parent_with_children = Category::get_one(&db, parent_id)
+        .await
+        .expect("Failed to get parent");
+
+    assert_eq!(parent_with_children.children.len(), 2);
+    assert!(parent_with_children
+        .children
+        .iter()
+        .any(|c| c.name == "Child 1"));
+    assert!(parent_with_children
+        .children
+        .iter()
+        .any(|c| c.name == "Child 2"));
+}
+
+/// Test join(one) fields are NOT loaded in get_all (list) responses
+#[tokio::test]
+async fn test_join_one_excluded_from_get_all() {
+    let db = setup_test_db().await.expect("Database setup failed");
+    let app = setup_test_app(&db);
+
+    // Category has join(one) only (not join(all)) on children
+    let (_, root) = post_json(
+        &app,
+        "/categories",
+        json!({ "name": "List Test Category", "parent_id": null }),
+    )
+    .await;
+    let root_id = root["id"].as_str().unwrap();
+
+    post_json(
+        &app,
+        "/categories",
+        json!({ "name": "Child Category", "parent_id": root_id }),
+    )
+    .await;
+
+    // Get list - children should NOT be loaded (join(one) only)
+    let (status, all) = get_json(&app, "/categories").await;
+    assert_eq!(status, StatusCode::OK);
+
+    let categories: Vec<Value> = serde_json::from_value(all).unwrap();
+    let root_in_list = categories
+        .iter()
+        .find(|c| c["id"].as_str() == Some(root_id))
+        .expect("Root should be in list");
+
+    assert!(
+        root_in_list.get("children").is_none()
+            || root_in_list["children"].is_null()
+            || root_in_list["children"]
+                .as_array()
+                .map_or(true, |a| a.is_empty()),
+        "join(one) should not load in get_all - children should be empty"
+    );
+
+    // But get_one SHOULD load children
+    let (_, one) = get_json(&app, &format!("/categories/{}", root_id)).await;
+    assert!(
+        one["children"].is_array() && !one["children"].as_array().unwrap().is_empty(),
+        "join(one) SHOULD load children in get_one"
+    );
+}
+
 /// Test complete hierarchy structure
 #[tokio::test]
 async fn test_hierarchy_structure() {
