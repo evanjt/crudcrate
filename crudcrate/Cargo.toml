@@ -16,7 +16,6 @@ mysql = ["sea-orm/sqlx-mysql"]
 postgresql = ["sea-orm/sqlx-postgres"]
 sqlite = ["sea-orm/sqlx-sqlite"]
 spring-rs = ["spring", "spring-web", "derive"]
-aggregation = ["dep:sea-orm-timescale", "dep:chrono", "sea-orm/with-chrono", "sea-orm/with-json"]
 
 [dependencies]
 # Proc macro dependency (optional)
@@ -33,10 +32,6 @@ serde_with = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 tracing = { workspace = true }
-
-# Aggregation dependencies (behind feature flag)
-sea-orm-timescale = { version = "0.1.0", path = "../../../sea-orm-timescale", optional = true }
-chrono = { workspace = true, features = ["serde"], optional = true }
 
 # Spring-RS dependencies (only for examples, behind feature flag)
 spring = { version = "0.4.3", optional = true }
