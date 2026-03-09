@@ -25,6 +25,9 @@ pub fn generate_aggregate_code(
     let handler = generate_aggregate_handler(agg_config, api_struct_name, crud_meta);
 
     quote! {
+        // Emit a compile error if the `aggregation` feature is not enabled on crudcrate
+        crudcrate::_require_aggregation_feature!();
+
         #query_method
         #handler
     }

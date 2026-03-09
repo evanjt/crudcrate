@@ -719,6 +719,7 @@ dependencies = [
  "rust_decimal",
  "sea-orm",
  "sea-orm-migration",
+ "sea-orm-timescale",
  "serde",
  "serde_json",
  "serde_with",
@@ -2761,6 +2762,17 @@ dependencies = [
  "sea-schema",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "sea-orm-timescale"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "313b6ef52b2c58f90204d75a64cc9187929aa8af5a8117ef6a9bda21a7b25138"
+dependencies = [
+ "chrono",
+ "sea-orm",
+ "sea-query",
 ]
 
 [[package]]
