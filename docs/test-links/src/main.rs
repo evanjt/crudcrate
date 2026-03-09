@@ -5,7 +5,7 @@
 //!   {{#test_link filtering::null_field}}
 //!
 //! Generates a link like:
-//!   [📋 See test](https://github.com/evanjt/crudcrate/blob/v0.7.0/test_suite/tests/comprehensive_filtering_test.rs#L45-L67)
+//!   [📋 See test](https://github.com/evanjt/crudcrate/blob/v0.7.1/test_suite/tests/comprehensive_filtering_test.rs#L45-L67)
 
 use mdbook_core::book::{Book, BookItem};
 use mdbook_core::errors::Error;
@@ -369,9 +369,9 @@ mod tests {
     fn test_link_generation() {
         let preprocessor = TestLinksPreprocessor::new();
 
-        let result = preprocessor.generate_link("filtering", "v0.7.0", "https://github.com/evanjt/crudcrate");
+        let result = preprocessor.generate_link("filtering", "v0.7.1", "https://github.com/evanjt/crudcrate");
         assert!(result.contains("comprehensive_filtering_test.rs"));
-        assert!(result.contains("v0.7.0"));
+        assert!(result.contains("v0.7.1"));
     }
 
     #[test]
