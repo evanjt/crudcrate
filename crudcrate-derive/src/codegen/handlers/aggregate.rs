@@ -21,7 +21,8 @@ pub fn generate_aggregate_code(
         return quote! {};
     };
 
-    let query_method = generate_aggregate_query_method(agg_config, api_struct_name, filterable_columns, crud_meta);
+    let query_method =
+        generate_aggregate_query_method(agg_config, api_struct_name, filterable_columns, crud_meta);
     let handler = generate_aggregate_handler(agg_config, api_struct_name, crud_meta);
 
     quote! {

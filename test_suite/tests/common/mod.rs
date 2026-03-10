@@ -6,7 +6,9 @@ use sea_orm_migration::prelude::*;
 pub mod models;
 
 // Re-export local test models for easy access
-pub use self::models::{category, customer, maintenance_record, reading, sensor_reading, vehicle, vehicle_part};
+pub use self::models::{
+    category, customer, maintenance_record, reading, sensor_reading, vehicle, vehicle_part,
+};
 
 // Helper function to get database URL from environment or default to SQLite
 fn get_test_database_url() -> String {
@@ -511,16 +513,8 @@ impl MigrationTrait for CreateReadingsTable {
                     .timestamp_with_time_zone()
                     .not_null(),
             )
-            .col(
-                ColumnDef::new(reading::Column::Value)
-                    .double()
-                    .not_null(),
-            )
-            .col(
-                ColumnDef::new(reading::Column::Logged)
-                    .boolean()
-                    .null(),
-            )
+            .col(ColumnDef::new(reading::Column::Value).double().not_null())
+            .col(ColumnDef::new(reading::Column::Logged).boolean().null())
             .primary_key(
                 sea_query::Index::create()
                     .col(reading::Column::ParameterId)

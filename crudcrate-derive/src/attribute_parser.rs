@@ -158,7 +158,8 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
 fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
     let mut config = AggregateConfig::default();
 
-    if let Ok(nested) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+    if let Ok(nested) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
         for item in nested {
             match item {
                 Meta::NameValue(nv) => {
@@ -197,7 +198,9 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
 /// Parse a list of string literals like `["a", "b", "c"]` from a MetaList
 fn parse_string_array(meta_list: &syn::MetaList) -> Vec<String> {
     let mut values = Vec::new();
-    if let Ok(nested) = Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone()) {
+    if let Ok(nested) =
+        Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
         for expr in nested {
             if let syn::Expr::Lit(expr_lit) = expr {
                 if let Lit::Str(s) = &expr_lit.lit {
@@ -222,7 +225,10 @@ fn parse_hook_path(path: &syn::Path) -> Option<(String, String, String)> {
     let phase = &segments[2];
 
     // Validate operation
-    if !matches!(operation.as_str(), "create" | "read" | "update" | "delete" | "aggregate") {
+    if !matches!(
+        operation.as_str(),
+        "create" | "read" | "update" | "delete" | "aggregate"
+    ) {
         return None;
     }
 

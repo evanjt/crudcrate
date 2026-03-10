@@ -224,9 +224,9 @@ pub mod validation;
 #[cfg(feature = "aggregation")]
 pub mod aggregation;
 #[cfg(feature = "aggregation")]
-pub use sea_orm_timescale;
-#[cfg(feature = "aggregation")]
 pub use chrono;
+#[cfg(feature = "aggregation")]
+pub use sea_orm_timescale;
 
 /// Compile-time check emitted by the derive macro when `#[crudcrate(aggregate(...))]` is used.
 /// Produces a clear error if the `aggregation` feature is not enabled.

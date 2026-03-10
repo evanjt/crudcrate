@@ -98,11 +98,10 @@ fn test_parse_datetime_invalid() {
 // --- Integration tests: aggregate route is mounted ---
 
 fn setup_aggregate_test_app(db: &sea_orm::DatabaseConnection) -> Router {
-    Router::new()
-        .nest(
-            "/sensor_readings",
-            sensor_reading::SensorReading::router(db).into(),
-        )
+    Router::new().nest(
+        "/sensor_readings",
+        sensor_reading::SensorReading::router(db).into(),
+    )
 }
 
 #[tokio::test]

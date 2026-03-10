@@ -208,8 +208,7 @@ async fn test_sensor_reading_aggregate_query_callable() {
         filter: None,
     };
 
-    let result =
-        common::sensor_reading::SensorReading::aggregate_query(&db, &params).await;
+    let result = common::sensor_reading::SensorReading::aggregate_query(&db, &params).await;
 
     // SQLite doesn't support time_bucket, but the method should exist
     assert!(result.is_err(), "Expected error on SQLite");

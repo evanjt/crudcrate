@@ -70,7 +70,10 @@ async fn test_sensor_reading_crud_create_and_get() {
     let created: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(created["site_id"].as_str().unwrap(), site_id.to_string());
     assert_eq!(created["value"].as_f64().unwrap(), 23.5);
-    assert!(created["id"].as_str().is_some(), "Should have auto-generated id");
+    assert!(
+        created["id"].as_str().is_some(),
+        "Should have auto-generated id"
+    );
 
     let reading_id = created["id"].as_str().unwrap();
 
@@ -456,8 +459,7 @@ fn test_aggregate_filter_uuid_equality() {
     let columns: Vec<(&str, sensor_reading::Column)> =
         vec![("site_id", sensor_reading::Column::SiteId)];
 
-    let condition =
-        apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
+    let condition = apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
 
     // Condition should not be empty (Condition::all() with no additions)
     let condition_str = format!("{condition:?}");
@@ -477,8 +479,7 @@ fn test_aggregate_filter_ignores_unknown_columns() {
     let columns: Vec<(&str, sensor_reading::Column)> =
         vec![("site_id", sensor_reading::Column::SiteId)];
 
-    let condition =
-        apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
+    let condition = apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
 
     // Should be an empty Condition::all() (no filters applied)
     let condition_str = format!("{condition:?}");
@@ -501,8 +502,7 @@ fn test_aggregate_filter_array_in() {
     let columns: Vec<(&str, sensor_reading::Column)> =
         vec![("site_id", sensor_reading::Column::SiteId)];
 
-    let condition =
-        apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
+    let condition = apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
 
     let condition_str = format!("{condition:?}");
     assert!(
@@ -521,8 +521,7 @@ fn test_aggregate_filter_null() {
     let columns: Vec<(&str, sensor_reading::Column)> =
         vec![("value", sensor_reading::Column::Value)];
 
-    let condition =
-        apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
+    let condition = apply_aggregate_filters(Some(filter), &columns, DatabaseBackend::Sqlite);
 
     let condition_str = format!("{condition:?}");
     assert!(
