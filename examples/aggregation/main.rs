@@ -88,6 +88,10 @@ mod reading {
             intervals("1h", "1d", "1w", "1M"),
             metrics("value"),
             group_by("parameter_id"),
+            continuous_aggregates(
+                view("1h", "readings_hourly"),
+                view("1d", "readings_daily"),
+            ),
         )
     )]
     pub struct Model {
@@ -230,6 +234,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = Database::connect(&database_url).await?;
     setup_database(&db).await?;
     seed_sample_data(&db).await?;
+
+    // Ensure continuous aggregate views exist (fast skip if already created)
+    println!("=== Ensuring Continuous Aggregates ===\n");
+    reading::ReadingApi::ensure_continuous_aggregates(&db).await?;
+    println!();
 
     // ----------------------------------------------------------
     // Demonstrate pivot_to_columnar() with hardcoded data

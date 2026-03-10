@@ -45,6 +45,10 @@ pub(crate) struct AggregateConfig {
     pub(crate) group_by_spans: Vec<proc_macro2::Span>,
     /// Aggregate functions to apply per metric (defaults to ["avg", "min", "max"])
     pub(crate) aggregates: Vec<String>,
+    /// Continuous aggregate view mappings: (interval, view_name)
+    pub(crate) continuous_aggregates: Vec<(String, String)>,
+    /// Spans for each continuous_aggregate view entry (for compile error pointing)
+    pub(crate) continuous_aggregate_spans: Vec<proc_macro2::Span>,
 }
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes

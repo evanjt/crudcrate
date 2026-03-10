@@ -382,6 +382,151 @@ pub fn pivot_to_columnar(
     }
 }
 
+/// Check if a continuous aggregate view exists in the TimescaleDB catalog.
+///
+/// Queries `timescaledb_information.continuous_aggregates` for the given view name.
+/// Returns `true` if found, `false` if not. Returns an error if the catalog query fails.
+pub async fn check_continuous_aggregate_exists(
+    db: &sea_orm::DatabaseConnection,
+    view_name: &str,
+) -> Result<bool, crate::ApiError> {
+    use sea_orm::ConnectionTrait;
+
+    sea_orm_timescale::migration::validate_ident(view_name)
+        .map_err(|e| crate::ApiError::bad_request(e.to_string()))?;
+
+    let result = db
+        .query_one(sea_orm::Statement::from_string(
+            db.get_database_backend(),
+            format!(
+                "SELECT 1 FROM timescaledb_information.continuous_aggregates WHERE view_name = '{view_name}'"
+            ),
+        ))
+        .await
+        .map_err(crate::ApiError::from)?;
+
+    Ok(result.is_some())
+}
+
+/// Query a continuous aggregate view and return flat JSON rows.
+///
+/// Builds a `SELECT` against the pre-computed view, filtering on the `bucket` column
+/// for time range and applying additional column filters.
+pub async fn query_continuous_aggregate_view(
+    db: &sea_orm::DatabaseConnection,
+    view_name: &str,
+    params: &AggregateParams,
+    group_by_cols: &[&str],
+    metric_cols: &[&str],
+) -> Result<Vec<serde_json::Value>, crate::ApiError> {
+    use sea_orm::ConnectionTrait;
+    use sea_orm::sea_query::{Alias, PostgresQueryBuilder, Query};
+
+    sea_orm_timescale::migration::validate_ident(view_name)
+        .map_err(|e| crate::ApiError::bad_request(e.to_string()))?;
+
+    let mut select = Query::select();
+    let view_alias = Alias::new(view_name);
+    select.from(view_alias);
+
+    // Select bucket + group_by columns + metric columns + count
+    select.column(Alias::new("bucket"));
+    for col in group_by_cols {
+        select.column(Alias::new(*col));
+    }
+    for col in metric_cols {
+        select.column(Alias::new(*col));
+    }
+    select.column(Alias::new("count"));
+
+    // Apply time range filters on the bucket column
+    let mut where_clauses = Vec::new();
+    if let Some(ref start) = params.start {
+        let start_dt = parse_datetime(start)?;
+        where_clauses.push(format!("\"bucket\" >= '{}'", start_dt.to_rfc3339()));
+    }
+    if let Some(ref end) = params.end {
+        let end_dt = parse_datetime(end)?;
+        where_clauses.push(format!("\"bucket\" < '{}'", end_dt.to_rfc3339()));
+    }
+
+    // Order by bucket
+    select.order_by(Alias::new("bucket"), sea_orm::sea_query::Order::Asc);
+
+    // Build the full SQL
+    let mut sql = select.to_string(PostgresQueryBuilder);
+
+    // Append WHERE clauses (sea-query doesn't support custom WHERE with Alias-based tables well)
+    if !where_clauses.is_empty() {
+        // Find if there's already a WHERE, otherwise add one
+        if sql.contains("WHERE") {
+            sql = format!("{sql} AND {}", where_clauses.join(" AND "));
+        } else {
+            sql = format!("{sql} WHERE {}", where_clauses.join(" AND "));
+        }
+    }
+
+    let results = db
+        .query_all(sea_orm::Statement::from_string(
+            db.get_database_backend(),
+            sql,
+        ))
+        .await
+        .map_err(crate::ApiError::from)?;
+
+    let mut json_rows = Vec::with_capacity(results.len());
+    for row in &results {
+        let mut obj = serde_json::Map::new();
+
+        // Extract all expected columns by name
+        // bucket column (timestamptz → string)
+        if let Ok(val) = row.try_get::<String>("", "bucket") {
+            obj.insert("bucket".into(), serde_json::Value::String(val));
+        } else if let Ok(val) = row.try_get::<chrono::DateTime<chrono::Utc>>("", "bucket") {
+            obj.insert(
+                "bucket".into(),
+                serde_json::Value::String(val.to_rfc3339()),
+            );
+        }
+
+        // group_by columns
+        for col in group_by_cols {
+            if let Ok(val) = row.try_get::<String>("", col) {
+                obj.insert(col.to_string(), serde_json::Value::String(val));
+            } else if let Ok(val) = row.try_get::<uuid::Uuid>("", col) {
+                obj.insert(
+                    col.to_string(),
+                    serde_json::Value::String(val.to_string()),
+                );
+            }
+        }
+
+        // metric columns (f64)
+        for col in metric_cols {
+            if let Ok(val) = row.try_get::<Option<f64>>("", col) {
+                obj.insert(
+                    col.to_string(),
+                    val.map_or(serde_json::Value::Null, |v| {
+                        serde_json::Value::Number(
+                            serde_json::Number::from_f64(v)
+                                .unwrap_or_else(|| serde_json::Number::from(0)),
+                        )
+                    }),
+                );
+            }
+        }
+
+        // count column
+        if let Ok(val) = row.try_get::<i64>("", "count") {
+            obj.insert("count".into(), serde_json::Value::Number(val.into()));
+        }
+
+        json_rows.push(serde_json::Value::Object(obj));
+    }
+
+    Ok(json_rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -143,7 +143,10 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                     }
                     Meta::List(list) => {
                         if list.path.is_ident("aggregate") {
-                            meta.aggregate = Some(parse_aggregate_config(&list));
+                            match parse_aggregate_config(&list) {
+                                Ok(config) => meta.aggregate = Some(config),
+                                Err(e) => meta.deprecation_errors.push(e),
+                            }
                         }
                     }
                 }
@@ -154,8 +157,25 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
     meta
 }
 
-/// Parse `aggregate(time_column = "time", intervals("1h", ...), metrics("value"), group_by("site_id"))`
-fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
+/// Validates that a string is a safe SQL identifier (alphanumeric + underscore only).
+/// Returns `Ok(())` if valid, or `Err(syn::Error)` with the given span if invalid.
+fn validate_sql_ident(value: &str, span: proc_macro2::Span) -> Result<(), syn::Error> {
+    if value.is_empty() {
+        return Err(syn::Error::new(span, "identifier cannot be empty"));
+    }
+    if !value.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err(syn::Error::new(
+            span,
+            format!(
+                "invalid SQL identifier '{value}': only alphanumeric characters and underscores are allowed"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Parse `aggregate(time_column = "time", intervals("1h", ...), metrics("value"), group_by("site_id"), continuous_aggregates(view("1h", "name"), ...))`
+fn parse_aggregate_config(meta_list: &syn::MetaList) -> Result<AggregateConfig, syn::Error> {
     let mut config = AggregateConfig::default();
 
     if let Ok(nested) = Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
@@ -198,6 +218,9 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
                             "aggregates" => {
                                 config.aggregates = parse_ident_list(&list);
                             }
+                            "continuous_aggregates" => {
+                                parse_continuous_aggregates(&list, &mut config);
+                            }
                             _ => {}
                         }
                     }
@@ -212,7 +235,67 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
         config.aggregates = vec!["avg".to_string(), "min".to_string(), "max".to_string()];
     }
 
-    config
+    // Validate all identifiers that will be interpolated into SQL
+    let fallback_span = proc_macro2::Span::call_site();
+
+    if !config.time_column.is_empty() {
+        validate_sql_ident(
+            &config.time_column,
+            config.time_column_span.unwrap_or(fallback_span),
+        )?;
+    }
+
+    for (i, metric) in config.metrics.iter().enumerate() {
+        let span = config.metrics_spans.get(i).copied().unwrap_or(fallback_span);
+        validate_sql_ident(metric, span)?;
+    }
+
+    for (i, col) in config.group_by.iter().enumerate() {
+        let span = config.group_by_spans.get(i).copied().unwrap_or(fallback_span);
+        validate_sql_ident(col, span)?;
+    }
+
+    for (i, (_interval, view_name)) in config.continuous_aggregates.iter().enumerate() {
+        validate_sql_ident(view_name, config.continuous_aggregate_spans[i])?;
+    }
+
+    Ok(config)
+}
+
+/// Parse `continuous_aggregates(view("1h", "readings_hourly"), view("1d", "readings_daily"))`
+fn parse_continuous_aggregates(meta_list: &syn::MetaList, config: &mut AggregateConfig) {
+    if let Ok(nested) =
+        Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
+        for item in nested {
+            if let Meta::List(list) = item
+                && list.path.is_ident("view")
+            {
+                if let Ok(args) =
+                    Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(list.tokens.clone())
+                {
+                    let strings: Vec<_> = args
+                        .iter()
+                        .filter_map(|e| {
+                            if let syn::Expr::Lit(expr_lit) = e
+                                && let Lit::Str(s) = &expr_lit.lit
+                            {
+                                Some(s)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    if strings.len() == 2 {
+                        config
+                            .continuous_aggregates
+                            .push((strings[0].value(), strings[1].value()));
+                        config.continuous_aggregate_spans.push(strings[1].span());
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Parse a list of string literals and capture their spans
@@ -892,5 +975,36 @@ mod tests {
         assert!(parse_hook_path(&make_path(quote!(create::one::pre))).is_some());
         assert!(parse_hook_path(&make_path(quote!(create::one::body))).is_some());
         assert!(parse_hook_path(&make_path(quote!(create::one::post))).is_some());
+    }
+
+    // ============== validate_sql_ident tests ==============
+
+    #[test]
+    fn test_validate_sql_ident_accepts_valid() {
+        let span = proc_macro2::Span::call_site();
+        assert!(validate_sql_ident("time", span).is_ok());
+        assert!(validate_sql_ident("sensor_value", span).is_ok());
+        assert!(validate_sql_ident("col123", span).is_ok());
+        assert!(validate_sql_ident("Site_ID", span).is_ok());
+    }
+
+    #[test]
+    fn test_validate_sql_ident_rejects_injection() {
+        let span = proc_macro2::Span::call_site();
+        let payloads = [
+            "time; DROP TABLE",
+            "value\"; SELECT 1",
+            "col' OR '1'='1",
+            "a b",
+            "",
+            "col-name",
+            "col.name",
+        ];
+        for payload in payloads {
+            assert!(
+                validate_sql_ident(payload, span).is_err(),
+                "validate_sql_ident should reject '{payload}'",
+            );
+        }
     }
 }

@@ -25,6 +25,7 @@ pub fn generate_aggregate_code(
         generate_aggregate_query_method(agg_config, api_struct_name, filterable_columns, crud_meta);
     let pivot_config_method = generate_pivot_config_method(agg_config, api_struct_name);
     let handler = generate_aggregate_handler(agg_config, api_struct_name, crud_meta);
+    let ensure_ca_method = generate_ensure_ca_method(agg_config, api_struct_name);
 
     quote! {
         // Emit a compile error if the `aggregation` feature is not enabled on crudcrate
@@ -33,6 +34,7 @@ pub fn generate_aggregate_code(
         #query_method
         #pivot_config_method
         #handler
+        #ensure_ca_method
     }
 }
 
@@ -102,12 +104,57 @@ fn generate_aggregate_query_method(
         quote! {}
     };
 
+    // Generate CA routing code if continuous aggregates are configured
+    let ca_routing = if !agg_config.continuous_aggregates.is_empty() {
+        let ca_interval_strs: Vec<&str> = agg_config
+            .continuous_aggregates
+            .iter()
+            .map(|(interval, _)| interval.as_str())
+            .collect();
+        let ca_view_strs: Vec<&str> = agg_config
+            .continuous_aggregates
+            .iter()
+            .map(|(_, view)| view.as_str())
+            .collect();
+        let group_by_strs: Vec<&str> = agg_config.group_by.iter().map(String::as_str).collect();
+
+        // Build metric column names: "{agg}_{metric}" for each combination
+        let metric_col_names: Vec<String> = agg_config
+            .metrics
+            .iter()
+            .flat_map(|metric| {
+                agg_config
+                    .aggregates
+                    .iter()
+                    .map(move |agg| format!("{agg}_{metric}"))
+            })
+            .collect();
+        let metric_col_strs: Vec<&str> = metric_col_names.iter().map(String::as_str).collect();
+
+        quote! {
+            // Check if requested interval matches a continuous aggregate view
+            let ca_views: &[(&str, &str)] = &[#((#ca_interval_strs, #ca_view_strs)),*];
+            if let Some((_, view_name)) = ca_views.iter().find(|(i, _)| *i == matched) {
+                let group_by_cols: &[&str] = &[#(#group_by_strs),*];
+                let metric_cols: &[&str] = &[#(#metric_col_strs),*];
+                return crudcrate::aggregation::query_continuous_aggregate_view(
+                    db, view_name, params, group_by_cols, metric_cols,
+                ).await;
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         impl #api_struct_name {
             /// Execute the aggregate query and return flat JSON rows.
             ///
             /// Each row contains: `bucket`, group-by columns, `avg_X`/`min_X`/`max_X` per metric, `count`.
             /// Call this programmatically from custom handlers to reshape results.
+            ///
+            /// If the requested interval matches a configured continuous aggregate view,
+            /// the query is routed to the pre-computed view for faster results.
             pub async fn aggregate_query(
                 db: &sea_orm::DatabaseConnection,
                 params: &crudcrate::aggregation::AggregateParams,
@@ -117,6 +164,9 @@ fn generate_aggregate_query_method(
                 // Validate interval against allowlist
                 let allowed_intervals: &[&str] = &[#(#intervals),*];
                 let matched = crudcrate::aggregation::validate_interval(&params.interval, allowed_intervals)?;
+
+                // Route to continuous aggregate view if interval matches
+                #ca_routing
 
                 // Parse the validated interval
                 let interval = crudcrate::sea_orm_timescale::types::Interval::parse(matched)
@@ -255,6 +305,113 @@ fn generate_aggregate_handler(
             #transform_hook
 
             Ok(axum::Json(result))
+        }
+    }
+}
+
+/// Generate the `ensure_continuous_aggregates()` method on the API struct.
+///
+/// Creates continuous aggregate views at startup if they don't already exist.
+fn generate_ensure_ca_method(
+    agg_config: &AggregateConfig,
+    api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    if agg_config.continuous_aggregates.is_empty() {
+        return quote! {};
+    }
+
+    // Build the CA creation blocks
+    let ca_blocks: Vec<_> = agg_config
+        .continuous_aggregates
+        .iter()
+        .map(|(interval, view_name)| {
+            // Build the SELECT SQL for the continuous aggregate
+            let time_col = &agg_config.time_column;
+            let group_by_cols: Vec<&str> = agg_config.group_by.iter().map(String::as_str).collect();
+
+            // Build metric select clauses
+            let mut metric_selects = Vec::new();
+            for metric in &agg_config.metrics {
+                for agg_fn in &agg_config.aggregates {
+                    let alias = format!("{agg_fn}_{metric}");
+                    let sql_fn = match agg_fn.as_str() {
+                        "avg" => format!("AVG(\"{metric}\")"),
+                        "min" => format!("MIN(\"{metric}\")"),
+                        "max" => format!("MAX(\"{metric}\")"),
+                        "first" => format!("first(\"{metric}\", \"{time_col}\")"),
+                        "last" => format!("last(\"{metric}\", \"{time_col}\")"),
+                        _ => continue,
+                    };
+                    metric_selects.push(format!("{sql_fn} AS \"{alias}\""));
+                }
+            }
+
+            let group_by_select = group_by_cols
+                .iter()
+                .map(|c| format!("\"{c}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let group_by_clause = if group_by_cols.is_empty() {
+                String::new()
+            } else {
+                format!(", {group_by_select}")
+            };
+
+            let metric_select_str = metric_selects.join(", ");
+
+            quote! {
+                {
+                    let view_name = #view_name;
+                    let exists = crudcrate::aggregation::check_continuous_aggregate_exists(db, view_name).await?;
+                    if !exists {
+                        let table_name = Entity::default().table_name().to_string();
+                        let select_sql = format!(
+                            "SELECT time_bucket('{}', \"{}\") AS bucket{}, {}, COUNT(*) AS count FROM \"{}\" GROUP BY bucket{}",
+                            #interval,
+                            #time_col,
+                            #group_by_clause,
+                            #metric_select_str,
+                            table_name,
+                            #group_by_clause,
+                        );
+                        crudcrate::sea_orm_timescale::migration::create_continuous_aggregate(
+                            db,
+                            &select_sql,
+                            &crudcrate::sea_orm_timescale::types::ContinuousAggregateConfig {
+                                view_name: view_name.to_string(),
+                                bucket_interval: crudcrate::sea_orm_timescale::types::Interval::parse(#interval)
+                                    .map_err(|e| crudcrate::ApiError::bad_request(e.to_string()))?,
+                                refresh_policy: None,
+                                if_not_exists: true,
+                            },
+                        )
+                        .await
+                        .map_err(crudcrate::ApiError::from)?;
+
+                        tracing::info!(view = view_name, interval = #interval, "Created continuous aggregate view");
+                    } else {
+                        tracing::trace!(view = view_name, "Continuous aggregate view already exists, skipping");
+                    }
+                }
+            }
+        })
+        .collect();
+
+    quote! {
+        impl #api_struct_name {
+            /// Ensure continuous aggregate views exist. Call at startup.
+            ///
+            /// Checks the TimescaleDB catalog first (fast, read-only).
+            /// Creates missing views with `IF NOT EXISTS` (belt + suspenders).
+            pub async fn ensure_continuous_aggregates(
+                db: &sea_orm::DatabaseConnection,
+            ) -> Result<(), crudcrate::ApiError> {
+                use sea_orm::EntityName;
+
+                #(#ca_blocks)*
+
+                Ok(())
+            }
         }
     }
 }

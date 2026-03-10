@@ -200,6 +200,42 @@ pub fn validate_aggregate_config(
         }
     }
 
+    // Validate continuous aggregate config
+    for (i, (interval, view_name)) in agg_config.continuous_aggregates.iter().enumerate() {
+        let span = agg_config
+            .continuous_aggregate_spans
+            .get(i)
+            .copied()
+            .unwrap_or_else(Span::call_site);
+
+        // Check interval exists in allowed list
+        if !agg_config.intervals.iter().any(|a| a == interval) {
+            let allowed = agg_config.intervals.join(", ");
+            let msg = format!(
+                "continuous_aggregates: interval '{interval}' not in allowed intervals [{allowed}]"
+            );
+            return Err(quote_spanned! { span =>
+                compile_error!(#msg);
+            }
+            .into());
+        }
+
+        // Check view name is a valid SQL identifier
+        if view_name.is_empty()
+            || !view_name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            let msg = format!(
+                "continuous_aggregates: view name '{view_name}' is not a valid SQL identifier (use only a-zA-Z0-9_)"
+            );
+            return Err(quote_spanned! { span =>
+                compile_error!(#msg);
+            }
+            .into());
+        }
+    }
+
     Ok(())
 }
 
