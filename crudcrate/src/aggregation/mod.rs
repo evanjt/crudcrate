@@ -16,6 +16,8 @@ pub struct AggregateParams {
     pub end: Option<String>,
     /// Filter expression for additional columns (same format as standard CRUD filter)
     pub filter: Option<String>,
+    /// IANA timezone for timezone-aware bucketing (e.g., "US/Eastern", "Europe/Berlin")
+    pub timezone: Option<String>,
 }
 
 /// Validates that the requested interval is in the allowed list.

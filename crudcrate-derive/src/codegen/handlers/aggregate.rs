@@ -121,10 +121,19 @@ fn generate_aggregate_query_method(
                     .map_err(|e| crudcrate::ApiError::bad_request(e.to_string()))?;
 
                 // Build time_bucket expression (using bare Column ident)
-                let bucket = crudcrate::sea_orm_timescale::functions::time_bucket(
-                    &interval,
-                    Column::#time_col_ident,
-                );
+                // Use timezone-aware bucketing when timezone param is provided
+                let bucket = if let Some(ref tz) = params.timezone {
+                    crudcrate::sea_orm_timescale::functions::time_bucket_tz(
+                        &interval,
+                        Column::#time_col_ident,
+                        tz,
+                    )
+                } else {
+                    crudcrate::sea_orm_timescale::functions::time_bucket(
+                        &interval,
+                        Column::#time_col_ident,
+                    )
+                };
 
                 // Build aggregate query (using bare Entity ident)
                 let mut query = Entity::find()
@@ -217,30 +226,55 @@ fn generate_aggregate_handler(
     }
 }
 
-/// Generate metric SELECT expressions using `SimpleExpr::Custom` for AVG/MIN/MAX.
+/// Generate metric SELECT expressions based on configured aggregate functions.
 fn generate_metric_selects(config: &AggregateConfig) -> Vec<proc_macro2::TokenStream> {
     let mut selects = Vec::new();
+    let time_col_name = config.time_column.as_str();
 
     for metric in &config.metrics {
         let metric_name = metric.as_str();
-        let avg_alias = format!("avg_{metric}");
-        let min_alias = format!("min_{metric}");
-        let max_alias = format!("max_{metric}");
 
-        selects.push(quote! {
-            .column_as(
-                sea_orm::sea_query::SimpleExpr::Custom(format!("AVG(\"{}\")", #metric_name)),
-                #avg_alias
-            )
-            .column_as(
-                sea_orm::sea_query::SimpleExpr::Custom(format!("MIN(\"{}\")", #metric_name)),
-                #min_alias
-            )
-            .column_as(
-                sea_orm::sea_query::SimpleExpr::Custom(format!("MAX(\"{}\")", #metric_name)),
-                #max_alias
-            )
-        });
+        for agg in &config.aggregates {
+            let alias = format!("{agg}_{metric}");
+            let select = match agg.as_str() {
+                "avg" => quote! {
+                    .column_as(
+                        sea_orm::sea_query::SimpleExpr::Custom(format!("AVG(\"{}\")", #metric_name)),
+                        #alias
+                    )
+                },
+                "min" => quote! {
+                    .column_as(
+                        sea_orm::sea_query::SimpleExpr::Custom(format!("MIN(\"{}\")", #metric_name)),
+                        #alias
+                    )
+                },
+                "max" => quote! {
+                    .column_as(
+                        sea_orm::sea_query::SimpleExpr::Custom(format!("MAX(\"{}\")", #metric_name)),
+                        #alias
+                    )
+                },
+                "first" => quote! {
+                    .column_as(
+                        sea_orm::sea_query::SimpleExpr::Custom(
+                            format!("first(\"{}\", \"{}\")", #metric_name, #time_col_name)
+                        ),
+                        #alias
+                    )
+                },
+                "last" => quote! {
+                    .column_as(
+                        sea_orm::sea_query::SimpleExpr::Custom(
+                            format!("last(\"{}\", \"{}\")", #metric_name, #time_col_name)
+                        ),
+                        #alias
+                    )
+                },
+                _ => continue,
+            };
+            selects.push(select);
+        }
     }
 
     selects

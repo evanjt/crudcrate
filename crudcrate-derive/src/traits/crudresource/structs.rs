@@ -37,6 +37,8 @@ pub(crate) struct AggregateConfig {
     pub(crate) metrics: Vec<String>,
     /// Additional grouping columns beyond time
     pub(crate) group_by: Vec<String>,
+    /// Aggregate functions to apply per metric (defaults to ["avg", "min", "max"])
+    pub(crate) aggregates: Vec<String>,
 }
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes

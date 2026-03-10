@@ -7,7 +7,8 @@ pub mod models;
 
 // Re-export local test models for easy access
 pub use self::models::{
-    category, customer, maintenance_record, reading, sensor_reading, vehicle, vehicle_part,
+    category, customer, maintenance_record, reading, sensor_reading, sensor_reading_extended,
+    vehicle, vehicle_part,
 };
 
 // Helper function to get database URL from environment or default to SQLite
@@ -532,6 +533,89 @@ impl MigrationTrait for CreateReadingsTable {
             .await?;
         Ok(())
     }
+}
+
+// Extended sensor readings migrator for aggregates(first, last) tests
+pub struct SensorReadingExtMigrator;
+
+#[async_trait::async_trait]
+impl MigratorTrait for SensorReadingExtMigrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![Box::new(CreateSensorReadingExtTable)]
+    }
+}
+
+pub struct CreateSensorReadingExtTable;
+
+#[async_trait::async_trait]
+impl MigrationName for CreateSensorReadingExtTable {
+    fn name(&self) -> &'static str {
+        "m20240101_000012_create_sensor_reading_ext_table"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for CreateSensorReadingExtTable {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = Table::create()
+            .table(sensor_reading_extended::Entity)
+            .if_not_exists()
+            .col(
+                ColumnDef::new(sensor_reading_extended::Column::SiteId)
+                    .uuid()
+                    .not_null(),
+            )
+            .col(
+                ColumnDef::new(sensor_reading_extended::Column::RecordedAt)
+                    .timestamp_with_time_zone()
+                    .not_null(),
+            )
+            .col(
+                ColumnDef::new(sensor_reading_extended::Column::Value)
+                    .double()
+                    .not_null(),
+            )
+            .col(
+                ColumnDef::new(sensor_reading_extended::Column::Temperature)
+                    .double()
+                    .not_null(),
+            )
+            .primary_key(
+                sea_query::Index::create()
+                    .col(sensor_reading_extended::Column::SiteId)
+                    .col(sensor_reading_extended::Column::RecordedAt),
+            )
+            .to_owned();
+
+        manager.create_table(table).await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(sensor_reading_extended::Entity)
+                    .to_owned(),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+#[allow(dead_code)]
+pub async fn setup_sensor_ext_db() -> Result<DatabaseConnection, DbErr> {
+    let database_url = get_test_database_url();
+    let db = Database::connect(&database_url).await?;
+    SensorReadingExtMigrator::up(&db, None).await?;
+
+    if !database_url.starts_with("sqlite::memory:") {
+        let _ = db
+            .execute_unprepared("DELETE FROM sensor_readings_ext")
+            .await;
+    }
+
+    Ok(db)
 }
 
 #[allow(dead_code)]

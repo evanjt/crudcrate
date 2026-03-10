@@ -178,11 +178,19 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
                 Meta::List(list) => {
                     let ident = list.path.get_ident().map(std::string::ToString::to_string);
                     if let Some(key) = ident {
-                        let values = parse_string_array(&list);
                         match key.as_str() {
-                            "intervals" => config.intervals = values,
-                            "metrics" => config.metrics = values,
-                            "group_by" => config.group_by = values,
+                            "intervals" | "metrics" | "group_by" => {
+                                let values = parse_string_array(&list);
+                                match key.as_str() {
+                                    "intervals" => config.intervals = values,
+                                    "metrics" => config.metrics = values,
+                                    "group_by" => config.group_by = values,
+                                    _ => {}
+                                }
+                            }
+                            "aggregates" => {
+                                config.aggregates = parse_ident_list(&list);
+                            }
                             _ => {}
                         }
                     }
@@ -192,7 +200,29 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
         }
     }
 
+    // Default aggregates if not specified
+    if config.aggregates.is_empty() {
+        config.aggregates = vec!["avg".to_string(), "min".to_string(), "max".to_string()];
+    }
+
     config
+}
+
+/// Parse a list of bare identifiers like `(avg, min, max, first, last)` from a MetaList
+fn parse_ident_list(meta_list: &syn::MetaList) -> Vec<String> {
+    let mut values = Vec::new();
+    if let Ok(nested) =
+        Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
+        for meta in nested {
+            if let Meta::Path(path) = meta {
+                if let Some(ident) = path.get_ident() {
+                    values.push(ident.to_string());
+                }
+            }
+        }
+    }
+    values
 }
 
 /// Parse a list of string literals like `["a", "b", "c"]` from a MetaList

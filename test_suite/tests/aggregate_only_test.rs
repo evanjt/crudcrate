@@ -46,6 +46,7 @@ async fn test_aggregate_query_callable_directly() {
         start: None,
         end: None,
         filter: None,
+        timezone: None,
     };
 
     // This tests that aggregate_query() is a callable method on ReadingApi.
@@ -70,6 +71,7 @@ async fn test_aggregate_query_rejects_invalid_interval() {
         start: None,
         end: None,
         filter: None,
+        timezone: None,
     };
 
     let result = reading::ReadingApi::aggregate_query(&db, &params).await;
@@ -206,6 +208,7 @@ async fn test_sensor_reading_aggregate_query_callable() {
         start: Some("2024-01-01".to_string()),
         end: Some("2024-12-31".to_string()),
         filter: None,
+        timezone: None,
     };
 
     let result = common::sensor_reading::SensorReading::aggregate_query(&db, &params).await;
