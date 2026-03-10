@@ -16,7 +16,7 @@ mysql = ["sea-orm/sqlx-mysql"]
 postgresql = ["sea-orm/sqlx-postgres"]
 sqlite = ["sea-orm/sqlx-sqlite"]
 spring-rs = ["spring", "spring-web", "derive"]
-aggregation = ["dep:sea-orm-timescale", "dep:chrono", "sea-orm/with-chrono", "sea-orm/with-json"]
+aggregation = ["dep:sea-orm-timescale", "dep:chrono", "sea-orm/with-chrono", "sea-orm/with-json", "postgresql"]
 
 [dependencies]
 # Proc macro dependency (optional)
@@ -91,6 +91,11 @@ name = "recursive_join_5_levels"
 path = "../examples/recursive_join_5_levels/main.rs"
 required-features = ["derive", "sqlite"]
 
+
+[[example]]
+name = "aggregation"
+path = "../examples/aggregation/main.rs"
+required-features = ["derive", "aggregation"]
 
 [[bench]]
 name = "crud_benchmarks"
