@@ -11,7 +11,7 @@ fn test_pivot_null_fill_for_sparse_groups() {
         metrics: vec!["value".into()],
         aggregates: vec!["avg".into()],
         group_by: vec!["parameter_id".into()],
-        resolution: "1 hour".into(),
+        resolution: "1h".into(),
     };
 
     let rows = vec![
@@ -52,7 +52,7 @@ fn test_pivot_multiple_metrics_multiple_aggregates() {
         metrics: vec!["value".into(), "temperature".into()],
         aggregates: vec!["avg".into(), "min".into(), "max".into()],
         group_by: vec!["site_id".into()],
-        resolution: "1 day".into(),
+        resolution: "1d".into(),
     };
 
     let rows = vec![
@@ -91,7 +91,7 @@ fn test_pivot_preserves_time_order_with_mixed_groups() {
         metrics: vec!["value".into()],
         aggregates: vec!["avg".into()],
         group_by: vec!["parameter_id".into()],
-        resolution: "1 hour".into(),
+        resolution: "1h".into(),
     };
 
     // Rows arrive in non-chronological order, interleaved groups
@@ -130,7 +130,7 @@ fn test_pivot_empty_group_by() {
         metrics: vec!["value".into()],
         aggregates: vec!["avg".into(), "max".into()],
         group_by: vec![],
-        resolution: "1 hour".into(),
+        resolution: "1h".into(),
     };
 
     let rows = vec![
@@ -144,7 +144,7 @@ fn test_pivot_empty_group_by() {
     assert!(result.groups[0].key.is_empty(), "Group key should be empty");
     assert_eq!(result.start.as_deref(), Some("2024-01-01T00:00:00Z"));
     assert_eq!(result.end.as_deref(), Some("2024-01-01T02:00:00Z"));
-    assert_eq!(result.resolution, "1 hour");
+    assert_eq!(result.resolution, "1h");
 
     assert_eq!(result.groups[0].metrics["value"]["avg"], vec![Some(10.0), Some(20.0)]);
     assert_eq!(result.groups[0].metrics["value"]["max"], vec![Some(15.0), Some(25.0)]);
@@ -157,7 +157,7 @@ fn test_pivot_count_handles_integer_types() {
         metrics: vec!["value".into()],
         aggregates: vec!["avg".into()],
         group_by: vec![],
-        resolution: "1 hour".into(),
+        resolution: "1h".into(),
     };
 
     // serde_json::json! produces Number(10) which is i64, but
@@ -193,7 +193,7 @@ async fn test_pivoted_endpoint_returns_object_not_array() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/readings/aggregate?interval=1%20hour")
+                .uri("/readings/aggregate?interval=1h")
                 .body(Body::empty())
                 .unwrap(),
         )

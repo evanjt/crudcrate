@@ -31,35 +31,35 @@ fn test_aggregate_model_compiles() {
 
 #[test]
 fn test_validate_interval_exact_match() {
-    let allowed = &["1 hour", "1 day", "1 week"];
-    assert!(aggregation::validate_interval("1 hour", allowed).is_ok());
+    let allowed = &["1h", "1d", "1w"];
+    assert!(aggregation::validate_interval("1h", allowed).is_ok());
     assert_eq!(
-        aggregation::validate_interval("1 hour", allowed).unwrap(),
-        "1 hour"
+        aggregation::validate_interval("1h", allowed).unwrap(),
+        "1h"
     );
 }
 
 #[test]
 fn test_validate_interval_short_format_match() {
-    let allowed = &["1 hour", "1 day", "1 week"];
-    // "1h" should match "1 hour" by parsing both
+    let allowed = &["1h", "1d", "1w"];
+    // "1h" should match "1h" by parsing both
     assert!(aggregation::validate_interval("1h", allowed).is_ok());
     assert_eq!(
         aggregation::validate_interval("1h", allowed).unwrap(),
-        "1 hour"
+        "1h"
     );
 }
 
 #[test]
 fn test_validate_interval_rejects_unlisted() {
-    let allowed = &["1 hour", "1 day"];
-    let result = aggregation::validate_interval("5 minutes", allowed);
+    let allowed = &["1h", "1d"];
+    let result = aggregation::validate_interval("5m", allowed);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_validate_interval_rejects_garbage() {
-    let allowed = &["1 hour", "1 day"];
+    let allowed = &["1h", "1d"];
     let result = aggregation::validate_interval("foobar", allowed);
     assert!(result.is_err());
 }
@@ -114,7 +114,7 @@ async fn test_aggregate_route_exists() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/sensor_readings/aggregate?interval=1%20hour")
+                .uri("/sensor_readings/aggregate?interval=1h")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -139,14 +139,14 @@ async fn test_aggregate_rejects_invalid_interval() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/sensor_readings/aggregate?interval=5%20minutes")
+                .uri("/sensor_readings/aggregate?interval=5m")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    // 5 minutes is not in the allowed intervals list, should get 400
+    // 5m is not in the allowed intervals list, should get 400
     assert_eq!(
         response.status().as_u16(),
         400,

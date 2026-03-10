@@ -10,7 +10,7 @@ use uuid::Uuid;
     generate_router,
     aggregate(
         time_column = "recorded_at",
-        intervals("1 hour", "1 day", "1 week", "1 month"),
+        intervals("1h", "1d", "1w", "1M"),
         metrics("value"),
         group_by("site_id"),
     )

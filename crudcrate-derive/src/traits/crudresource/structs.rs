@@ -31,7 +31,7 @@ pub(crate) struct CrudHooks {
 pub(crate) struct AggregateConfig {
     /// The time column name (snake_case, e.g., "time")
     pub(crate) time_column: String,
-    /// Allowed interval strings (e.g., ["1 hour", "1 day", "1 week"])
+    /// Allowed interval strings in short form (e.g., ["1h", "1d", "1w"])
     pub(crate) intervals: Vec<String>,
     /// Metric column names to compute AVG/MIN/MAX/COUNT over
     pub(crate) metrics: Vec<String>,

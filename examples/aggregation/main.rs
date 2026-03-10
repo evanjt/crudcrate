@@ -42,7 +42,7 @@ mod sensor_reading {
         generate_router,
         aggregate(
             time_column = "recorded_at",
-            intervals("1 hour", "1 day", "1 week"),
+            intervals("1h", "1d", "1w"),
             metrics("value"),
             group_by("site_id"),
             aggregates(avg, min, max),
@@ -85,7 +85,7 @@ mod reading {
         api_struct = "ReadingApi",
         aggregate(
             time_column = "time",
-            intervals("1 hour", "1 day", "1 week", "1 month"),
+            intervals("1h", "1d", "1w", "1M"),
             metrics("value"),
             group_by("parameter_id"),
         )
@@ -259,7 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         metrics: vec!["value".to_string()],
         aggregates: vec!["avg".to_string(), "min".to_string(), "max".to_string()],
         group_by: vec!["parameter_id".to_string()],
-        resolution: "1 hour".to_string(),
+        resolution: "1h".to_string(),
     };
 
     let pivoted = pivot_to_columnar(
@@ -278,7 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== aggregate_query() against TimescaleDB ===\n");
 
     let params = crudcrate::aggregation::AggregateParams {
-        interval: "1 day".to_string(),
+        interval: "1d".to_string(),
         start: Some("2024-06-01".to_string()),
         end: Some("2024-06-03".to_string()),
         filter: None,
@@ -331,11 +331,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  POST   {base}/sensor_readings");
     println!("  PUT    {base}/sensor_readings/{{id}}");
     println!("  DELETE {base}/sensor_readings/{{id}}");
-    println!("  GET    {base}/sensor_readings/aggregate?interval=1%20hour");
+    println!("  GET    {base}/sensor_readings/aggregate?interval=1h");
     println!();
     println!("Aggregate-only (Reading):");
-    println!("  GET    {base}/readings/aggregate?interval=1%20hour");
-    println!("  GET    {base}/readings/aggregate?interval=1%20day&start=2024-06-01&end=2024-06-03");
+    println!("  GET    {base}/readings/aggregate?interval=1h");
+    println!("  GET    {base}/readings/aggregate?interval=1d&start=2024-06-01&end=2024-06-03");
     println!();
 
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;

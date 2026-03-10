@@ -42,7 +42,7 @@ async fn test_aggregate_query_callable_directly() {
     let db = common::setup_readings_db().await.unwrap();
 
     let params = AggregateParams {
-        interval: "1 hour".to_string(),
+        interval: "1h".to_string(),
         start: None,
         end: None,
         filter: None,
@@ -67,7 +67,7 @@ async fn test_aggregate_query_rejects_invalid_interval() {
     let db = common::setup_readings_db().await.unwrap();
 
     let params = AggregateParams {
-        interval: "5 minutes".to_string(),
+        interval: "5m".to_string(),
         start: None,
         end: None,
         filter: None,
@@ -103,7 +103,7 @@ async fn test_aggregate_only_route_exists() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/readings/aggregate?interval=1%20hour")
+                .uri("/readings/aggregate?interval=1h")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -127,7 +127,7 @@ async fn test_aggregate_only_rejects_invalid_interval() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/readings/aggregate?interval=5%20minutes")
+                .uri("/readings/aggregate?interval=5m")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -204,7 +204,7 @@ async fn test_sensor_reading_aggregate_query_callable() {
     let db = common::setup_sensor_db().await.unwrap();
 
     let params = AggregateParams {
-        interval: "1 day".to_string(),
+        interval: "1d".to_string(),
         start: Some("2024-01-01".to_string()),
         end: Some("2024-12-31".to_string()),
         filter: None,

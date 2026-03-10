@@ -375,7 +375,7 @@ async fn test_aggregate_with_data_in_db() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/sensor_readings/aggregate?interval=1%20hour")
+                .uri("/sensor_readings/aggregate?interval=1h")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -404,7 +404,7 @@ async fn test_aggregate_with_time_range_filter() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/sensor_readings/aggregate?interval=1%20day&start=2024-01-01&end=2024-12-31")
+                .uri("/sensor_readings/aggregate?interval=1d&start=2024-01-01&end=2024-12-31")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -431,7 +431,7 @@ async fn test_aggregate_with_filter_param() {
             Request::builder()
                 .method("GET")
                 .uri(format!(
-                    "/sensor_readings/aggregate?interval=1%20hour&filter={filter_encoded}"
+                    "/sensor_readings/aggregate?interval=1h&filter={filter_encoded}"
                 ))
                 .body(Body::empty())
                 .unwrap(),

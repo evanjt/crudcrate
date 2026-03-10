@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, HashMap};
 /// Query parameters for the aggregate endpoint.
 #[derive(Debug, Clone, serde::Deserialize, utoipa::IntoParams)]
 pub struct AggregateParams {
-    /// The time bucket interval (e.g., "1 hour", "1h", "1 day", "1d")
+    /// The time bucket interval in short form (e.g., "1h", "1d", "30s", "1w")
     pub interval: String,
     /// Start time filter (ISO 8601 datetime, inclusive)
     pub start: Option<String>,
@@ -22,17 +22,42 @@ pub struct AggregateParams {
     pub timezone: Option<String>,
 }
 
+/// Check that a string matches the strict short interval format: digits followed by a known unit suffix.
+///
+/// Valid: `1h`, `30s`, `7d`, `1w`, `3M`, `500ms`, `100us`
+/// Invalid: `1 hour`, `foo`, `1h; DROP TABLE`, empty string
+fn is_valid_short_interval(s: &str) -> bool {
+    let s = s.trim();
+    if s.is_empty() {
+        return false;
+    }
+    let boundary = match s.find(|c: char| !c.is_ascii_digit()) {
+        Some(b) if b > 0 => b,
+        _ => return false,
+    };
+    let unit = &s[boundary..];
+    matches!(unit, "us" | "ms" | "s" | "m" | "h" | "d" | "w" | "M")
+}
+
 /// Validates that the requested interval is in the allowed list.
 ///
+/// Only accepts the short format (`1h`, `1d`, `30s`, etc.) to prevent injection.
 /// Returns the matched interval string from the allowed list, or an `ApiError`.
 ///
 /// # Errors
 ///
-/// Returns `ApiError::bad_request` if the requested interval is not in the allowed list.
+/// Returns `ApiError::bad_request` if the format is invalid or the interval is not allowed.
 pub fn validate_interval<'a>(
     requested: &str,
     allowed: &'a [&str],
 ) -> Result<&'a str, crate::ApiError> {
+    if !is_valid_short_interval(requested) {
+        return Err(crate::ApiError::bad_request(format!(
+            "Invalid interval format '{}'. Use short form: 1h, 1d, 30s, 1w, etc.",
+            requested
+        )));
+    }
+
     // Try exact match first
     if let Some(matched) = allowed.iter().find(|&&a| a == requested) {
         return Ok(matched);

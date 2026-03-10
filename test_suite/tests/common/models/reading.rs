@@ -15,7 +15,7 @@ use uuid::Uuid;
     // No generate_router → aggregate-only mode
     aggregate(
         time_column = "time",
-        intervals("1 hour", "1 day", "1 week", "1 month"),
+        intervals("1h", "1d", "1w", "1M"),
         metrics("value"),
         group_by("parameter_id"),
     )

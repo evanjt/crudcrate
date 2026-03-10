@@ -154,7 +154,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
     meta
 }
 
-/// Parse `aggregate(time_column = "time", intervals = ["1 hour", ...], metrics = ["value"], group_by = ["site_id"])`
+/// Parse `aggregate(time_column = "time", intervals("1h", ...), metrics("value"), group_by("site_id"))`
 fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
     let mut config = AggregateConfig::default();
 
