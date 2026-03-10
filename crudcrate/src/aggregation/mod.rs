@@ -229,9 +229,19 @@ pub struct AggregateGroup {
     #[serde(flatten)]
     pub key: HashMap<String, serde_json::Value>,
     /// Per-metric aggregate arrays, each aligned with times
-    pub metrics: HashMap<String, HashMap<String, Vec<Option<f64>>>>,
+    pub metrics: Vec<MetricData>,
     /// Row count per bucket, aligned with times
     pub count: Vec<Option<i64>>,
+}
+
+/// Per-metric aggregate data with a shared time axis.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct MetricData {
+    /// The metric column name (e.g., "value", "temperature")
+    pub column: String,
+    /// Aggregate function → value arrays (e.g., {"avg": [1.0, 2.0], "min": [0.5, 1.5]})
+    #[serde(flatten)]
+    pub aggregates: HashMap<String, Vec<Option<f64>>>,
 }
 
 /// Pivot flat aggregate rows into columnar format with a shared time axis.
@@ -301,14 +311,15 @@ pub fn pivot_to_columnar(
                 }
             }
 
-            // Pre-allocate metric arrays
-            let mut metrics: HashMap<String, HashMap<String, Vec<Option<f64>>>> = HashMap::new();
+            // Pre-allocate metric arrays using internal HashMap for efficient filling
+            let mut metrics_map: HashMap<String, HashMap<String, Vec<Option<f64>>>> =
+                HashMap::new();
             for metric in &config.metrics {
                 let mut agg_map = HashMap::new();
                 for agg in &config.aggregates {
                     agg_map.insert(agg.clone(), vec![None; n]);
                 }
-                metrics.insert(metric.clone(), agg_map);
+                metrics_map.insert(metric.clone(), agg_map);
             }
             let mut count = vec![None; n];
 
@@ -327,7 +338,7 @@ pub fn pivot_to_columnar(
                         let col_name = format!("{agg}_{metric}");
                         if let Some(val) = row.get(&col_name) {
                             let f = val.as_f64();
-                            if let Some(agg_map) = metrics.get_mut(metric) {
+                            if let Some(agg_map) = metrics_map.get_mut(metric) {
                                 if let Some(arr) = agg_map.get_mut(agg) {
                                     arr[idx] = f;
                                 }
@@ -341,6 +352,18 @@ pub fn pivot_to_columnar(
                     count[idx] = c.as_i64().or_else(|| c.as_f64().map(|f| f as i64));
                 }
             }
+
+            // Convert internal HashMap to Vec<MetricData> (preserves metric ordering)
+            let metrics: Vec<MetricData> = config
+                .metrics
+                .iter()
+                .filter_map(|metric| {
+                    metrics_map.remove(metric).map(|aggregates| MetricData {
+                        column: metric.clone(),
+                        aggregates,
+                    })
+                })
+                .collect();
 
             AggregateGroup {
                 key,
@@ -356,5 +379,64 @@ pub fn pivot_to_columnar(
         end: end.map(String::from),
         times,
         groups,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: validate_interval must reject SQL injection payloads
+    #[test]
+    fn test_validate_interval_rejects_injection() {
+        let allowed = &["1h", "1d", "1w"];
+        let payloads = [
+            "1h; DROP TABLE sensors",
+            "'; SELECT 1; --",
+            "1h\n; DROP TABLE",
+            "1 hour",
+            "",
+            "   ",
+        ];
+        for payload in payloads {
+            assert!(
+                validate_interval(payload, allowed).is_err(),
+                "validate_interval should reject '{payload}'",
+            );
+        }
+    }
+
+    /// Regression: validate_timezone must reject SQL injection payloads
+    #[test]
+    fn test_validate_timezone_rejects_injection() {
+        let payloads = [
+            "'; DROP TABLE users; --",
+            "UTC' OR '1'='1",
+            "US/Eastern; SELECT 1",
+            "",
+        ];
+        for payload in payloads {
+            assert!(
+                validate_timezone(payload).is_err(),
+                "validate_timezone should reject '{payload}'",
+            );
+        }
+    }
+
+    /// Sanity: valid intervals pass
+    #[test]
+    fn test_validate_interval_accepts_valid() {
+        let allowed = &["1h", "1d", "30s"];
+        assert!(validate_interval("1h", allowed).is_ok());
+        assert!(validate_interval("1d", allowed).is_ok());
+        assert!(validate_interval("30s", allowed).is_ok());
+    }
+
+    /// Sanity: valid timezones pass
+    #[test]
+    fn test_validate_timezone_accepts_valid() {
+        assert!(validate_timezone("UTC").is_ok());
+        assert!(validate_timezone("US/Eastern").is_ok());
+        assert!(validate_timezone("Europe/Berlin").is_ok());
     }
 }

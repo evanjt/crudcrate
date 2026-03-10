@@ -1,7 +1,21 @@
 mod common;
 
-use crudcrate::aggregation::{PivotConfig, pivot_to_columnar};
+use crudcrate::aggregation::{AggregateGroup, PivotConfig, pivot_to_columnar};
 use serde_json::json;
+use std::collections::HashMap;
+
+/// Find a MetricData entry by column name in a group's metrics list.
+fn find_metric<'a>(
+    group: &'a AggregateGroup,
+    column: &str,
+) -> &'a HashMap<String, Vec<Option<f64>>> {
+    &group
+        .metrics
+        .iter()
+        .find(|m| m.column == column)
+        .unwrap_or_else(|| panic!("metric '{column}' not found"))
+        .aggregates
+}
 
 /// Two groups where group A has data at T1 but not T2, group B has data at T2 but not T1.
 /// Verifies null-fill at missing positions.
@@ -29,12 +43,12 @@ fn test_pivot_null_fill_for_sparse_groups() {
     let group_b = result.groups.iter().find(|g| g.key.get("parameter_id").and_then(|v| v.as_str()) == Some("b")).expect("group B not found");
 
     // Group A: has data at T1, null at T2
-    let avg_a = &group_a.metrics["value"]["avg"];
+    let avg_a = &find_metric(group_a, "value")["avg"];
     assert_eq!(avg_a[0], Some(10.0));
     assert_eq!(avg_a[1], None, "Group A should have null at T2");
 
     // Group B: null at T1, has data at T2
-    let avg_b = &group_b.metrics["value"]["avg"];
+    let avg_b = &find_metric(group_b, "value")["avg"];
     assert_eq!(avg_b[0], None, "Group B should have null at T1");
     assert_eq!(avg_b[1], Some(20.0));
 
@@ -71,17 +85,23 @@ fn test_pivot_multiple_metrics_multiple_aggregates() {
     let group = &result.groups[0];
 
     // Check value metric
-    assert_eq!(group.metrics["value"]["avg"], vec![Some(42.5)]);
-    assert_eq!(group.metrics["value"]["min"], vec![Some(40.0)]);
-    assert_eq!(group.metrics["value"]["max"], vec![Some(45.0)]);
+    let value = find_metric(group, "value");
+    assert_eq!(value["avg"], vec![Some(42.5)]);
+    assert_eq!(value["min"], vec![Some(40.0)]);
+    assert_eq!(value["max"], vec![Some(45.0)]);
 
     // Check temperature metric
-    assert_eq!(group.metrics["temperature"]["avg"], vec![Some(22.0)]);
-    assert_eq!(group.metrics["temperature"]["min"], vec![Some(20.0)]);
-    assert_eq!(group.metrics["temperature"]["max"], vec![Some(24.0)]);
+    let temp = find_metric(group, "temperature");
+    assert_eq!(temp["avg"], vec![Some(22.0)]);
+    assert_eq!(temp["min"], vec![Some(20.0)]);
+    assert_eq!(temp["max"], vec![Some(24.0)]);
 
     // Count is at group level, not per-metric
     assert_eq!(group.count, vec![Some(10)]);
+
+    // Verify metrics ordering matches config
+    assert_eq!(group.metrics[0].column, "value");
+    assert_eq!(group.metrics[1].column, "temperature");
 }
 
 /// Rows arrive interleaved. Verify times sorted and arrays correctly aligned.
@@ -114,13 +134,13 @@ fn test_pivot_preserves_time_order_with_mixed_groups() {
     let group_a = result.groups.iter().find(|g| g.key.get("parameter_id").and_then(|v| v.as_str()) == Some("a")).unwrap();
 
     // Group A has data at all 3 times
-    assert_eq!(group_a.metrics["value"]["avg"], vec![Some(10.0), Some(20.0), Some(30.0)]);
+    assert_eq!(find_metric(group_a, "value")["avg"], vec![Some(10.0), Some(20.0), Some(30.0)]);
     assert_eq!(group_a.count, vec![Some(5), Some(4), Some(3)]);
 
     let group_b = result.groups.iter().find(|g| g.key.get("parameter_id").and_then(|v| v.as_str()) == Some("b")).unwrap();
 
     // Group B only has data at T1, null at T2 and T3
-    assert_eq!(group_b.metrics["value"]["avg"], vec![Some(100.0), None, None]);
+    assert_eq!(find_metric(group_b, "value")["avg"], vec![Some(100.0), None, None]);
 }
 
 /// No group_by columns -- all rows go to a single group with empty key.
@@ -146,8 +166,9 @@ fn test_pivot_empty_group_by() {
     assert_eq!(result.end.as_deref(), Some("2024-01-01T02:00:00Z"));
     assert_eq!(result.resolution, "1h");
 
-    assert_eq!(result.groups[0].metrics["value"]["avg"], vec![Some(10.0), Some(20.0)]);
-    assert_eq!(result.groups[0].metrics["value"]["max"], vec![Some(15.0), Some(25.0)]);
+    let value = find_metric(&result.groups[0], "value");
+    assert_eq!(value["avg"], vec![Some(10.0), Some(20.0)]);
+    assert_eq!(value["max"], vec![Some(15.0), Some(25.0)]);
 }
 
 /// Count can be i64 or f64 in JSON -- verify both are handled.
