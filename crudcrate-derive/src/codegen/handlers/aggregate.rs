@@ -125,6 +125,7 @@ fn generate_aggregate_query_method(
                 // Build time_bucket expression (using bare Column ident)
                 // Use timezone-aware bucketing when timezone param is provided
                 let bucket = if let Some(ref tz) = params.timezone {
+                    crudcrate::aggregation::validate_timezone(tz)?;
                     crudcrate::sea_orm_timescale::functions::time_bucket_tz(
                         &interval,
                         Column::#time_col_ident,

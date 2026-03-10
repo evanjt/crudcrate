@@ -2766,9 +2766,7 @@ dependencies = [
 
 [[package]]
 name = "sea-orm-timescale"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2448d5f9549a26adafe570c984653ddb23a6a2c3ce5d525306595201e68b60e9"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "sea-orm",

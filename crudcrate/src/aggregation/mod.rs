@@ -111,6 +111,19 @@ pub fn parse_datetime(s: &str) -> Result<chrono::DateTime<chrono::Utc>, crate::A
     )))
 }
 
+/// Validates an IANA timezone string for use in aggregate queries.
+///
+/// Ensures the timezone is non-empty, at most 64 characters, and contains only
+/// characters valid in IANA timezone names: `a-zA-Z0-9/_+-`.
+///
+/// # Errors
+///
+/// Returns `ApiError::bad_request` if the timezone is invalid.
+pub fn validate_timezone(tz: &str) -> Result<&str, crate::ApiError> {
+    crate::sea_orm_timescale::functions::validate_timezone(tz)
+        .map_err(|e| crate::ApiError::bad_request(format!("Invalid timezone: {e}")))
+}
+
 /// Apply basic filters for aggregate queries without requiring `CRUDResource`.
 ///
 /// Handles equality, UUID, numeric comparisons, booleans, arrays (IN), and nulls.

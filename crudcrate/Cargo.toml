@@ -35,7 +35,7 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 tracing = { workspace = true }
 
 # Aggregation dependencies (behind feature flag)
-sea-orm-timescale = { version = "0.2.0", optional = true }
+sea-orm-timescale = { version = "0.2.1", path = "/home/ejthomas/projects/personal/sea-orm-timescale", optional = true }
 chrono = { workspace = true, features = ["serde"], optional = true }
 
 # Spring-RS dependencies (only for examples, behind feature flag)
