@@ -23,6 +23,7 @@ pub fn generate_aggregate_code(
 
     let query_method =
         generate_aggregate_query_method(agg_config, api_struct_name, filterable_columns, crud_meta);
+    let pivot_config_method = generate_pivot_config_method(agg_config, api_struct_name);
     let handler = generate_aggregate_handler(agg_config, api_struct_name, crud_meta);
 
     quote! {
@@ -30,6 +31,7 @@ pub fn generate_aggregate_code(
         crudcrate::_require_aggregation_feature!();
 
         #query_method
+        #pivot_config_method
         #handler
     }
 }
@@ -173,6 +175,30 @@ fn generate_aggregate_query_method(
     }
 }
 
+/// Generate the `pivot_config()` method on the API struct.
+fn generate_pivot_config_method(
+    agg_config: &AggregateConfig,
+    api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    let metrics: Vec<&str> = agg_config.metrics.iter().map(String::as_str).collect();
+    let aggregates: Vec<&str> = agg_config.aggregates.iter().map(String::as_str).collect();
+    let group_by: Vec<&str> = agg_config.group_by.iter().map(String::as_str).collect();
+
+    quote! {
+        impl #api_struct_name {
+            /// Build a PivotConfig for the given interval.
+            pub fn pivot_config(interval: &str) -> crudcrate::aggregation::PivotConfig {
+                crudcrate::aggregation::PivotConfig {
+                    metrics: vec![#(#metrics.to_string()),*],
+                    aggregates: vec![#(#aggregates.to_string()),*],
+                    group_by: vec![#(#group_by.to_string()),*],
+                    resolution: interval.to_string(),
+                }
+            }
+        }
+    }
+}
+
 /// Generate the thin `aggregate_handler` function that wraps `aggregate_query()`.
 fn generate_aggregate_handler(
     agg_config: &AggregateConfig,
@@ -190,7 +216,7 @@ fn generate_aggregate_handler(
     });
 
     let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let results = #fn_path(&db, results).await?; }
+        quote! { let result = #fn_path(&db, result).await?; }
     });
 
     quote! {
@@ -199,7 +225,7 @@ fn generate_aggregate_handler(
             path = "/aggregate",
             params(crudcrate::aggregation::AggregateParams),
             responses(
-                (status = axum::http::StatusCode::OK, description = "Aggregated time-series data", body = Vec<serde_json::Value>),
+                (status = axum::http::StatusCode::OK, description = "Aggregated time-series data", body = crudcrate::aggregation::AggregateResponse),
                 (status = axum::http::StatusCode::BAD_REQUEST, description = "Invalid interval or parameters"),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
@@ -214,14 +240,20 @@ fn generate_aggregate_handler(
         pub async fn aggregate_handler(
             axum::extract::Query(params): axum::extract::Query<crudcrate::aggregation::AggregateParams>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
-        ) -> Result<axum::Json<Vec<serde_json::Value>>, crudcrate::ApiError> {
+        ) -> Result<axum::Json<serde_json::Value>, crudcrate::ApiError> {
             #pre_hook
 
-            let results = #api_struct_name::aggregate_query(&db, &params).await?;
+            let flat_results = #api_struct_name::aggregate_query(&db, &params).await?;
+            let config = #api_struct_name::pivot_config(&params.interval);
+            let pivoted = crudcrate::aggregation::pivot_to_columnar(
+                &flat_results, &config, params.start.as_deref(), params.end.as_deref(),
+            );
+            let mut result = serde_json::to_value(pivoted)
+                .map_err(|e| crudcrate::ApiError::internal(e.to_string(), None))?;
 
             #transform_hook
 
-            Ok(axum::Json(results))
+            Ok(axum::Json(result))
         }
     }
 }
