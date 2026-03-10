@@ -205,26 +205,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             reading::ReadingApi::aggregate_router(&db).into(),
         );
 
+    let bind_addr = "127.0.0.1:3000";
+    let base = format!("http://{bind_addr}");
+
     println!("=== Available Endpoints ===\n");
     println!("CRUD + Aggregate (SensorReading):");
-    println!("  GET    /sensor_readings              - List all");
-    println!("  GET    /sensor_readings/{{id}}          - Get one");
-    println!("  POST   /sensor_readings              - Create");
-    println!("  PUT    /sensor_readings/{{id}}          - Update");
-    println!("  DELETE /sensor_readings/{{id}}          - Delete");
-    println!("  GET    /sensor_readings/aggregate     - Aggregate (requires TimescaleDB)");
+    println!("  GET    {base}/sensor_readings              - List all");
+    println!("  GET    {base}/sensor_readings/{{id}}          - Get one");
+    println!("  POST   {base}/sensor_readings              - Create");
+    println!("  PUT    {base}/sensor_readings/{{id}}          - Update");
+    println!("  DELETE {base}/sensor_readings/{{id}}          - Delete");
+    println!("  GET    {base}/sensor_readings/aggregate     - Aggregate (requires TimescaleDB)");
     println!();
     println!("Aggregate-only (Reading):");
-    println!("  GET    /readings/aggregate            - Aggregate (requires TimescaleDB)");
+    println!("  GET    {base}/readings/aggregate            - Aggregate (requires TimescaleDB)");
     println!();
     println!("Example aggregate query:");
-    println!("  GET /readings/aggregate?interval=1%20hour&start=2024-01-01&end=2024-02-01");
+    println!("  {base}/readings/aggregate?interval=1%20hour&start=2024-01-01&end=2024-02-01");
     println!();
     println!("Note: aggregate endpoints require TimescaleDB. On SQLite they return 500.");
     println!();
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
-    println!("Listening on http://127.0.0.1:3000");
+    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+    println!("Listening on {base}");
 
     axum::serve(listener, app).await?;
 
