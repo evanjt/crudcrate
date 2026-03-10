@@ -38,3 +38,4 @@ runnable = false
 
 [preprocessor.test-links]
 command = "mdbook-test-links"
+optional = true
