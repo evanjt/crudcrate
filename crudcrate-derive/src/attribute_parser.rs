@@ -168,7 +168,10 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
                         if let syn::Expr::Lit(expr_lit) = &nv.value {
                             if let Lit::Str(s) = &expr_lit.lit {
                                 match key.as_str() {
-                                    "time_column" => config.time_column = s.value(),
+                                    "time_column" => {
+                                        config.time_column = s.value();
+                                        config.time_column_span = Some(s.span());
+                                    }
                                     _ => {}
                                 }
                             }
@@ -179,14 +182,18 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
                     let ident = list.path.get_ident().map(std::string::ToString::to_string);
                     if let Some(key) = ident {
                         match key.as_str() {
-                            "intervals" | "metrics" | "group_by" => {
-                                let values = parse_string_array(&list);
-                                match key.as_str() {
-                                    "intervals" => config.intervals = values,
-                                    "metrics" => config.metrics = values,
-                                    "group_by" => config.group_by = values,
-                                    _ => {}
-                                }
+                            "intervals" => {
+                                config.intervals = parse_string_array(&list);
+                            }
+                            "metrics" => {
+                                let (values, spans) = parse_string_array_with_spans(&list);
+                                config.metrics = values;
+                                config.metrics_spans = spans;
+                            }
+                            "group_by" => {
+                                let (values, spans) = parse_string_array_with_spans(&list);
+                                config.group_by = values;
+                                config.group_by_spans = spans;
                             }
                             "aggregates" => {
                                 config.aggregates = parse_ident_list(&list);
@@ -206,6 +213,27 @@ fn parse_aggregate_config(meta_list: &syn::MetaList) -> AggregateConfig {
     }
 
     config
+}
+
+/// Parse a list of string literals and capture their spans
+fn parse_string_array_with_spans(
+    meta_list: &syn::MetaList,
+) -> (Vec<String>, Vec<proc_macro2::Span>) {
+    let mut values = Vec::new();
+    let mut spans = Vec::new();
+    if let Ok(nested) =
+        Punctuated::<syn::Expr, Comma>::parse_terminated.parse2(meta_list.tokens.clone())
+    {
+        for expr in nested {
+            if let syn::Expr::Lit(expr_lit) = expr {
+                if let Lit::Str(s) = &expr_lit.lit {
+                    values.push(s.value());
+                    spans.push(s.span());
+                }
+            }
+        }
+    }
+    (values, spans)
 }
 
 /// Parse a list of bare identifiers like `(avg, min, max, first, last)` from a MetaList

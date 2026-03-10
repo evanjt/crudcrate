@@ -31,12 +31,18 @@ pub(crate) struct CrudHooks {
 pub(crate) struct AggregateConfig {
     /// The time column name (snake_case, e.g., "time")
     pub(crate) time_column: String,
+    /// Span of the `time_column = "..."` value for compile error pointing
+    pub(crate) time_column_span: Option<proc_macro2::Span>,
     /// Allowed interval strings in short form (e.g., ["1h", "1d", "1w"])
     pub(crate) intervals: Vec<String>,
     /// Metric column names to compute AVG/MIN/MAX/COUNT over
     pub(crate) metrics: Vec<String>,
+    /// Spans for each metric string literal
+    pub(crate) metrics_spans: Vec<proc_macro2::Span>,
     /// Additional grouping columns beyond time
     pub(crate) group_by: Vec<String>,
+    /// Spans for each group_by string literal
+    pub(crate) group_by_spans: Vec<proc_macro2::Span>,
     /// Aggregate functions to apply per metric (defaults to ["avg", "min", "max"])
     pub(crate) aggregates: Vec<String>,
 }

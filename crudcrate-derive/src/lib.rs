@@ -315,6 +315,13 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return e;
     }
 
+    // Validate aggregate config against actual entity fields
+    if let Some(ref agg_config) = crud_meta.aggregate {
+        if let Err(e) = fields::validate_aggregate_config(agg_config, &field_analysis) {
+            return e;
+        }
+    }
+
     // Setup join validation - check for cyclic dependencies
     let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
         &field_analysis,
