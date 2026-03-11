@@ -160,50 +160,6 @@ pub struct Model { }
 
 ---
 
-### `aggregate(...)`
-
-Configure time-series aggregation endpoints (requires `aggregation` feature + TimescaleDB).
-
-```rust
-#[crudcrate(aggregate(
-    time_column = "recorded_at",
-    intervals("1h", "1d", "1w"),
-    metrics("value", "temperature"),
-    group_by("site_id"),
-    aggregates(avg, min, max, first, last),
-    continuous_aggregates(
-        view("1h", "readings_hourly"),
-        view("1d", "readings_daily"),
-    ),
-))]
-```
-
-| Sub-attribute | Required | Default | Description |
-|---|---|---|---|
-| `time_column = "col"` | Yes | — | The `TIMESTAMPTZ` column for time bucketing |
-| `intervals("1h", "1d")` | Yes | — | Allowed interval values (short form) |
-| `metrics("value")` | Yes | — | Numeric columns to aggregate |
-| `group_by("site_id")` | No | `[]` | Additional grouping columns |
-| `aggregates(avg, min)` | No | `avg, min, max` | Aggregate functions per metric |
-| `continuous_aggregates(...)` | No | `[]` | Pre-computed view mappings |
-
-#### `continuous_aggregates(...)` sub-attributes
-
-| Sub-attribute | Description |
-|---|---|
-| `view("interval", "view_name")` | Map an interval to a TimescaleDB continuous aggregate view |
-
-**Compile-time checks:**
-- `time_column` must reference an existing `DateTime` field
-- `metrics` must reference existing numeric fields
-- `group_by` must reference existing fields
-- CA intervals must be in the `intervals` list
-- CA view names must be valid SQL identifiers
-
-See [Time-Series Aggregation](../advanced/aggregation.md) for the full guide.
-
----
-
 ## Lifecycle Hook Attributes
 
 ### `create::one::pre`

@@ -196,7 +196,6 @@
 //! - **`sqlite`**: `SQLite` database support (default)
 //! - **`postgresql`**: `PostgreSQL` database support
 //! - **`mysql`**: `MySQL` database support
-//! - **`aggregation`**: Time-series aggregation via `sea-orm-timescale` (requires PostgreSQL + TimescaleDB)
 //! - **`spring-rs`**: Spring-rs framework integration
 //!
 //! ## Database Support
@@ -219,35 +218,6 @@ pub mod filtering;
 pub mod operations;
 pub mod relationships;
 pub mod validation;
-
-// Aggregation (behind feature flag)
-#[cfg(feature = "aggregation")]
-pub mod aggregation;
-#[cfg(feature = "aggregation")]
-pub use chrono;
-#[cfg(feature = "aggregation")]
-pub use sea_orm_timescale;
-
-/// Compile-time check emitted by the derive macro when `#[crudcrate(aggregate(...))]` is used.
-/// Produces a clear error if the `aggregation` feature is not enabled.
-#[doc(hidden)]
-#[cfg(feature = "aggregation")]
-#[macro_export]
-macro_rules! _require_aggregation_feature {
-    () => {};
-}
-
-#[doc(hidden)]
-#[cfg(not(feature = "aggregation"))]
-#[macro_export]
-macro_rules! _require_aggregation_feature {
-    () => {
-        compile_error!(
-            "The `aggregate()` attribute requires the `aggregation` feature. \
-             Add `features = [\"aggregation\"]` to your crudcrate dependency in Cargo.toml."
-        );
-    };
-}
 
 // Legacy modules for backward compatibility (re-export from new structure)
 pub mod filter {

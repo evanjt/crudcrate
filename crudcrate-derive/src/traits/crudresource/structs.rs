@@ -23,32 +23,6 @@ pub(crate) struct CrudHooks {
     pub(crate) read: CrudOperationHooks,
     pub(crate) update: CrudOperationHooks,
     pub(crate) delete: CrudOperationHooks,
-    pub(crate) aggregate: CrudOperationHooks,
-}
-
-/// Configuration for aggregate endpoint generation
-#[derive(Default, Clone)]
-pub(crate) struct AggregateConfig {
-    /// The time column name (snake_case, e.g., "time")
-    pub(crate) time_column: String,
-    /// Span of the `time_column = "..."` value for compile error pointing
-    pub(crate) time_column_span: Option<proc_macro2::Span>,
-    /// Allowed interval strings in short form (e.g., ["1h", "1d", "1w"])
-    pub(crate) intervals: Vec<String>,
-    /// Metric column names to compute AVG/MIN/MAX/COUNT over
-    pub(crate) metrics: Vec<String>,
-    /// Spans for each metric string literal
-    pub(crate) metrics_spans: Vec<proc_macro2::Span>,
-    /// Additional grouping columns beyond time
-    pub(crate) group_by: Vec<String>,
-    /// Spans for each group_by string literal
-    pub(crate) group_by_spans: Vec<proc_macro2::Span>,
-    /// Aggregate functions to apply per metric (defaults to ["avg", "min", "max"])
-    pub(crate) aggregates: Vec<String>,
-    /// Continuous aggregate view mappings: (interval, view_name)
-    pub(crate) continuous_aggregates: Vec<(String, String)>,
-    /// Spans for each continuous_aggregate view entry (for compile error pointing)
-    pub(crate) continuous_aggregate_spans: Vec<proc_macro2::Span>,
 }
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
@@ -68,8 +42,6 @@ pub(crate) struct CRUDResourceMeta {
     // Configurable limits
     pub(crate) batch_limit: Option<usize>,
     pub(crate) max_page_size: Option<u64>,
-    // Aggregation configuration
-    pub(crate) aggregate: Option<AggregateConfig>,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

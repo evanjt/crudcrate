@@ -719,7 +719,6 @@ dependencies = [
  "rust_decimal",
  "sea-orm",
  "sea-orm-migration",
- "sea-orm-timescale",
  "serde",
  "serde_json",
  "serde_with",
@@ -2762,15 +2761,6 @@ dependencies = [
  "sea-schema",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "sea-orm-timescale"
-version = "0.2.1"
-dependencies = [
- "chrono",
- "sea-orm",
- "sea-query",
 ]
 
 [[package]]

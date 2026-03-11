@@ -25,7 +25,6 @@ Build a task manager from scratch, adding features as you need them.
 - [Security Best Practices](./advanced/security.md)
 - [Performance](./advanced/performance.md)
 - [Custom Operations](./advanced/custom-operations.md)
-- [Time-Series Aggregation](./advanced/aggregation.md)
 
 ---
 

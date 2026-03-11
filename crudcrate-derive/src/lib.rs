@@ -315,13 +315,6 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         return e;
     }
 
-    // Validate aggregate config against actual entity fields
-    if let Some(ref agg_config) = crud_meta.aggregate {
-        if let Err(e) = fields::validate_aggregate_config(agg_config, &field_analysis) {
-            return e;
-        }
-    }
-
     // Setup join validation - check for cyclic dependencies
     let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
         &field_analysis,
@@ -329,40 +322,6 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     );
     if !cyclic_dependency_check.is_empty() {
         return cyclic_dependency_check.into();
-    }
-
-    // Build filterable column info for aggregate codegen
-    use convert_case::{Case, Casing};
-    let filterable_columns: codegen::handlers::aggregate::FilterableColumnInfo = field_analysis
-        .filterable_fields
-        .iter()
-        .map(|f| {
-            let name = f.ident.as_ref().unwrap().to_string();
-            let pascal = name.to_case(Case::Pascal);
-            (name, pascal)
-        })
-        .collect();
-
-    // Detect aggregate-only mode: has aggregate config but no generate_router
-    let aggregate_only = crud_meta.aggregate.is_some() && !crud_meta.generate_router;
-
-    if aggregate_only {
-        // Aggregate-only: generate a unit struct with aggregate_query + aggregate_router
-        // NO CRUDResource impl, NO Create/Update/List models, NO CRUD handlers
-        let aggregate_router = crate::codegen::router::axum::generate_aggregate_router_impl(
-            &api_struct_name,
-            &crud_meta,
-            &filterable_columns,
-        );
-
-        let expanded = quote! {
-            /// Aggregate-only API struct (no CRUD endpoints).
-            pub struct #api_struct_name;
-
-            #aggregate_router
-        };
-
-        return TokenStream::from(expanded);
     }
 
     // Full mode: generate API struct, CRUDResource impl, models, router
@@ -404,11 +363,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     };
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        crate::codegen::router::axum::generate_router_impl(
-            &api_struct_name,
-            &crud_meta,
-            &filterable_columns,
-        )
+        crate::codegen::router::axum::generate_router_impl(&api_struct_name, &crud_meta)
     } else {
         quote! {}
     };
