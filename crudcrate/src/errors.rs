@@ -1,52 +1,24 @@
-//! # Error Handling for CRUD APIs
+//! Error types for CRUD handlers.
 //!
-//! This module provides a comprehensive error handling system that:
-//! - Returns appropriate HTTP status codes
-//! - Sends sanitized, user-friendly error messages
-//! - Logs detailed internal errors for debugging
-//! - Prevents leaking sensitive database/system information
-//!
-//! ## Philosophy
-//!
-//! **Never expose internal errors to users**. Database errors, stack traces, and internal
-//! implementation details should be logged server-side but never sent to clients.
-//!
-//! ## Usage
+//! [`ApiError`] maps to HTTP status codes and implements [`IntoResponse`].
+//! Internal details (database errors, stack traces) are logged via `tracing` but never
+//! sent to clients.
 //!
 //! ```rust,ignore
 //! use crudcrate::ApiError;
 //!
 //! async fn my_handler() -> Result<Json<MyData>, ApiError> {
-//!     // Database errors are automatically converted and logged
 //!     let data = MyEntity::find_by_id(id)
 //!         .one(db)
 //!         .await
 //!         .map_err(ApiError::database)?
 //!         .ok_or_else(|| ApiError::not_found("User", Some(id.to_string())))?;
-//!
 //!     Ok(Json(data))
 //! }
 //! ```
 //!
-//! ## Logging
-//!
-//! Internal errors are logged using the `tracing` crate. To enable logging, set up
-//! tracing in your application:
-//!
-//! ```rust,ignore
-//! use tracing_subscriber;
-//!
-//! #[tokio::main]
-//! async fn main() {
-//!     // Enable tracing (optional - only if you want error logging)
-//!     tracing_subscriber::fmt()
-//!         .with_target(false)
-//!         .compact()
-//!         .init();
-//!
-//!     // Your app...
-//! }
-//! ```
+//! `DbErr` converts automatically: `RecordNotFound` becomes 404,
+//! everything else becomes 500.
 
 use axum::{
     Json,

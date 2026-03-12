@@ -1,106 +1,62 @@
-//! # Advanced Filtering & Search
+//! Filtering, sorting, pagination, and fulltext search.
 //!
-//! This module provides comprehensive query parameter to SQL condition translation with fulltext search support. It enables rich filtering APIs without writing SQL manually.
+//! This module translates query parameters into Sea-ORM conditions. When you mark fields
+//! with `#[crudcrate(filterable)]`, `#[crudcrate(sortable)]`, or `#[crudcrate(fulltext)]`,
+//! the generated handlers use these utilities to parse incoming requests.
 //!
-//! ## Key Features
+//! # Query parameter reference
 //!
-//! - **Query Parameter Parsing**: Automatically converts URL parameters to SQL conditions
-//! - **Fulltext Search**: Database-optimized search with `PostgreSQL` GIN indexes and `MySQL` FULLTEXT
-//! - **Type Safety**: Automatic type validation and conversion
-//! - **Multi-Database**: Optimized queries for `SQLite`, `PostgreSQL`, and `MySQL`
+//! ## Filtering
 //!
-//! ## Main Components
+//! Filters are passed as a JSON object in the `filter` query parameter. Operator suffixes
+//! on field names control the comparison:
 //!
-//! - **[`FilterOptions`](@/query_parser/struct.FilterOptions.html)**: Main filtering configuration
-//! - **[`apply_filters`](@/conditions/fn.apply_filters.html)**: Core filtering application
-//! - **[`parse_sorting`](@/sort/fn.parse_sorting.html)**: Sorting parameter parsing
-//! - **[`parse_pagination`](@/pagination/fn.parse_pagination.html)**: Pagination support
+//! | Suffix | SQL equivalent | Example |
+//! |--------|---------------|---------|
+//! | *(none)* | `= value` | `{"completed": false}` |
+//! | `_neq` | `!= value` | `{"status_neq": "archived"}` |
+//! | `_gt` | `> value` | `{"priority_gt": 3}` |
+//! | `_gte` | `>= value` | `{"priority_gte": 3}` |
+//! | `_lt` | `< value` | `{"priority_lt": 10}` |
+//! | `_lte` | `<= value` | `{"priority_lte": 10}` |
+//! | `_like` | `LIKE %value%` | `{"name_like": "john"}` |
 //!
-//! ## Query Parameter Examples
+//! Multiple values for the same field (comma-separated) produce an `IN` clause.
 //!
-//! ### Basic Filtering
-//! ```rust,ignore
-//! // Simple equality
-//! GET /todos?completed=true
+//! ## Fulltext search
 //!
-//! // String contains (LIKE query)
-//! GET /todos?title_like=example
+//! The `q` parameter searches across all fields marked `fulltext`:
 //!
-//! // Numeric comparisons
-//! GET /todos?priority_gte=5
-//! GET /todos?priority_lte=10
-//! GET /todos?priority_gt=3
-//!
-//! // List operations (IN query)
-//! GET /todos?id=uuid1,uuid2,uuid3
+//! ```text
+//! GET /todos?q=urgent review
 //! ```
 //!
-//! ### Advanced Queries
-//! ```rust,ignore
-//! // Multiple filters combined with AND
-//! GET /todos?completed=false&priority_gte=3&title_like=urgent
+//! On PostgreSQL this uses `to_tsvector`/`to_tsquery` with GIN indexes.
+//! On MySQL it uses `MATCH ... AGAINST`. On SQLite it falls back to `LIKE`.
 //!
-//! // Date range filtering
-//! GET /todos?created_at_gte=2024-01-01T00:00:00Z
-//! GET /todos?created_at_lte=2024-12-31T23:59:59Z
+//! ## Sorting
 //!
-//! // Sorting (comma-separated)
-//! GET /todos?sort=created_at_desc,priority_asc,title
-//!
-//! // Fulltext search (database-optimized)
-//! GET /todos?q=search terms
-//!
-//! // Pagination with Range headers
-//! GET /todos
-//! Range: items=0-24
+//! ```text
+//! GET /todos?sort=["created_at","DESC"]
+//! GET /todos?sort=created_at&order=DESC
 //! ```
 //!
-//! ## Database Optimizations
+//! ## Pagination
 //!
-//! ### `PostgreSQL`
-//! - GIN indexes for fulltext search
-//! - tsvector columns for optimized search
-//! - JSON operations for complex filters
-//!
-//! ### `MySQL`
-//! - FULLTEXT indexes for search optimization
-//! - Spatial data support
-//! - Optimized LIKE queries
-//!
-//! ### `SQLite`
-//! - LIKE-based fallback for search
-//! - Best for development and testing
-//! - Fast in-memory operations
-//!
-//! ## Usage in Generated APIs
-//!
-//! When you use `#[derive(EntityToModels)]`, filtering is automatically integrated into your CRUD endpoints:
-//!
-//! ```rust,ignore
-//! # use crudcrate::EntityToModels;
-//! # use sea_orm::entity::prelude::*;
-//! #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-//! #[sea_orm(table_name = "todos")]
-//! #[crudcrate(api_struct = "Todo", generate_router)]
-//! pub struct Model {
-//!     #[sea_orm(primary_key)]
-//!     pub id: i32,
-//!
-//!     #[crudcrate(filterable, sortable, fulltext)]
-//!     pub title: String,
-//!
-//!     #[crudcrate(filterable, sortable)]
-//!     pub completed: bool,
-//!
-//!     #[crudcrate(filterable, sortable)]
-//!     pub priority: i32,
-//! }
-//!
-//! // This automatically enables:
-//! // GET /todos?title_like=urgent&completed=false&priority_gte=3&sort=priority_desc
-//! // GET /todos?q=search terms&completed=true
-//! // GET /todos?priority_gte=5&sort=created_at_desc
+//! ```text
+//! GET /todos?range=[0,24]              # React Admin style
+//! GET /todos?page=1&per_page=25        # page-based
 //! ```
+//!
+//! Responses include `Content-Range` and `X-Total-Count` headers.
+//!
+//! # Key types
+//!
+//! - [`FilterOptions`] — parsed query parameters for a list request
+//! - [`BatchOptions`] — options for batch endpoints (e.g. `?partial=true`)
+//! - [`apply_filters`] — builds a Sea-ORM `Condition` from filter params
+//! - [`parse_sorting`] — resolves sort parameters to column + direction
+//! - [`parse_pagination`] — extracts offset/limit from query params
 
 pub mod conditions;
 pub mod joined;

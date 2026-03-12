@@ -2,7 +2,7 @@
 //!
 //! This module handles generation of:
 //! - API struct field definitions
-//! - From<Model> conversion assignments
+//! - `From<Model>` conversion assignments
 //! - `DateTime` timezone conversion
 //! - Join field initialization
 //! - Derive clause generation based on requirements

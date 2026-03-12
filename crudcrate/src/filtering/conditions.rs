@@ -397,11 +397,11 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
 /// - Joined entity filters (applied after joining related tables)
 ///
 /// # Example
-/// ```ignore
-/// // Input: filter={"name":"John","vehicles.make":"BMW","vehicles.year_gte":2020}
-/// // Output:
-/// //   main_condition: name = 'John'
-/// //   joined_filters: [vehicles.make = 'BMW', vehicles.year >= 2020]
+///
+/// ```text
+/// Input:  filter={"name":"John","vehicles.make":"BMW","vehicles.year_gte":2020}
+/// Output: main_condition: name = 'John'
+///         joined_filters: [vehicles.make = 'BMW', vehicles.year >= 2020]
 /// ```
 pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,

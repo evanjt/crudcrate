@@ -2,11 +2,12 @@
 name = "crudcrate"
 version = "0.7.1"
 edition = "2024"
-description = "Rust traits and functions to aid in building CRUD APIs with Axum and Sea-ORM"
+description = "Derive complete REST APIs from Sea-ORM entities — endpoints, filtering, pagination, batch ops, and OpenAPI on Axum"
 license = "MIT"
 readme = "../README.md"
 repository = "https://github.com/evanjt/crudcrate"
-keywords = ["crud", "api", "axum", "sea-orm"]
+documentation = "https://crudcrate.evanjt.com"
+keywords = ["crud", "api", "axum", "sea-orm", "rest"]
 categories = ["web-programming", "database"]
 
 [features]

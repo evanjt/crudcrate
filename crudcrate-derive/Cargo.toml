@@ -2,11 +2,12 @@
 name = "crudcrate-derive"
 version = "0.7.1"
 edition = "2024"
-description = "Procedural macros to help with CRUD API design using Axum and Sea-ORM in Rust"
+description = "Derive macros for crudcrate — generate CRUD endpoints from Sea-ORM entities"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/evanjt/crudcrate"
-keywords = ["crud", "api", "axum", "sea-orm"]
+documentation = "https://docs.rs/crudcrate"
+keywords = ["crud", "api", "axum", "sea-orm", "derive"]
 categories = ["web-programming", "database"]
 
 [dependencies]

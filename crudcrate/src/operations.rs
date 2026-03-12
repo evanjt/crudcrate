@@ -1,61 +1,27 @@
-//! # CRUD Operations Trait
+//! Trait-based CRUD customization.
 //!
-//! This module provides the `CRUDOperations` trait that allows users to customize CRUD behavior
-//! by implementing a trait with sensible defaults, rather than overriding individual functions
-//! via attributes.
-//!
-//! ## Philosophy
-//!
-//! - **`CRUDResource`**: Low-level trait implemented by entities (generated automatically)
-//! - **`CRUDOperations`**: High-level trait for customizing CRUD behavior (user-implemented)
-//! - **Default Implementations**: Each operation has a sensible default that delegates to `CRUDResource`
-//! - **Selective Overrides**: Users only override the methods they need to customize
-//! - **Composition**: Operations can call other operations (e.g., `update` calling `self.get_one()`)
-//!
-//! ## Usage
+//! [`CRUDOperations`] provides an alternative to per-attribute hooks: implement the trait
+//! on a unit struct, override only the methods you need, and wire it in with
+//! `#[crudcrate(operations = MyOps)]`.
 //!
 //! ```rust,ignore
-//! use crudcrate::{CRUDOperations, CRUDResource, ApiError};
-//! use async_trait::async_trait;
-//!
-//! // Define your operations with custom behavior
-//! pub struct AssetOperations;
+//! pub struct AssetOps;
 //!
 //! #[async_trait]
-//! impl CRUDOperations for AssetOperations {
+//! impl CRUDOperations for AssetOps {
 //!     type Resource = Asset;
 //!
-//!     // Override before_delete hook for authorization
-//!     async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
-//!         if !user_has_permission(id) {
-//!             return Err(ApiError::forbidden("You don't have permission to delete this asset"));
-//!         }
-//!         Ok(())
-//!     }
-//!
-//!     // Override delete to add S3 cleanup
 //!     async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
-//!         // Fetch the asset first
 //!         let asset = Asset::get_one(db, id).await?;
-//!
-//!         // Delete from S3
 //!         delete_from_s3(&asset.s3_key).await
-//!             .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {}", e), None))?;
-//!
-//!         // Then delete from database
+//!             .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {e}"), None))?;
 //!         Asset::delete(db, id).await
 //!     }
-//!
-//!     // get_one, get_all, create, update, delete_many all use defaults!
 //! }
 //!
-//! // Use in your entity definition
 //! #[derive(EntityToModels)]
-//! #[crudcrate(generate_router, operations = AssetOperations)]
-//! pub struct Asset {
-//!     pub id: Uuid,
-//!     pub s3_key: String,
-//! }
+//! #[crudcrate(generate_router, operations = AssetOps)]
+//! pub struct Model { /* ... */ }
 //! ```
 
 use async_trait::async_trait;

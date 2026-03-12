@@ -1,12 +1,15 @@
-//! # `CrudCrate` - Transform Sea-ORM entities into complete REST APIs with zero boilerplate
+//! Derive complete REST APIs from Sea-ORM entities.
 //!
-//! **`CrudCrate`** is a Rust ecosystem that eliminates the repetitive work of building CRUD APIs by automatically generating complete REST endpoints from Sea-ORM entities through powerful procedural macros.
+//! `crudcrate` generates CRUD endpoints, request/response models, filtering, sorting,
+//! pagination, batch operations, relationship loading, and OpenAPI schemas from a single
+//! `#[derive(EntityToModels)]` on your Sea-ORM model. It targets [Axum](https://github.com/tokio-rs/axum)
+//! and uses [utoipa](https://docs.rs/utoipa) for schema generation.
 //!
-//! ## Quick Start
+//! For tutorials, walkthroughs, and guides see **<https://crudcrate.evanjt.com>**.
 //!
-//! Add the main derive macro to your Sea-ORM entity:
+//! # Quick start
 //!
-//! ```rust,ignore,ignore
+//! ```rust,ignore
 //! use chrono::{DateTime, Utc};
 //! use crudcrate::EntityToModels;
 //! use sea_orm::entity::prelude::*;
@@ -28,189 +31,96 @@
 //! }
 //! ```
 //!
-//! This single `#[derive(EntityToModels)]` generates everything automatically:
-//! - `Todo` struct (for API responses)
-//! - `TodoCreate` struct (for POST requests, excludes `id`)
-//! - `TodoUpdate` struct (for PUT requests, excludes `id`)
-//! - Complete `CRUDResource` implementation
-//! - Router function with all CRUD endpoints
+//! This generates:
 //!
-//! Then use it in your application:
+//! - `Todo`, `TodoCreate`, `TodoUpdate`, `TodoList` structs
+//! - A [`CRUDResource`] implementation with default get/create/update/delete logic
+//! - `Todo::router(&db)` returning an Axum [`Router`](axum::Router) with all endpoints
 //!
-//! ```rust,ignore,ignore
-//! use axum::Router;
-//! use sea_orm::DatabaseConnection;
-//!
-//! let app = Router::new()
-//!     .merge(Todo::router(&db));
-//!
-//! // Available endpoints:
-//! // GET    /todos        - List all todos with filtering/sorting
-//! // GET    /todos/{id}   - Get specific todo
-//! // POST   /todos        - Create new todo
-//! // PUT    /todos/{id}   - Update todo
-//! // DELETE /todos/{id}   - Delete todo
-//! ```
-//!
-//! ## Core Features
-//!
-//! ### 🚀 Auto-Generated CRUD Operations
-//! Transform Sea-ORM entities into complete REST APIs with zero boilerplate. Write one `#[derive(EntityToModels)]` and get 6 HTTP endpoints automatically.
-//!
-//! ### 🏗️ Smart Model Generation
-//! Automatically creates Create/Update/List structs from your database model. No more writing 90% identical structs - one entity becomes 4 specialized models.
-//!
-//! ### 🔍 Advanced Filtering & Search
-//! Query parameter → SQL condition translation with fulltext search. Rich filtering APIs without writing SQL - supports comparisons, lists, text search.
-//!
-//! ### 🔗 Relationship Loading
-//! Populate related data in API responses automatically. Include nested data (Customer → Vehicles) without N+1 queries or manual joins.
-//!
-//! ### ⚡ Multi-Database Optimization
-//! Database-specific query optimizations and index recommendations. Production-ready performance across SQLite/PostgreSQL/MySQL without config.
-//!
-//! ### 🛠️ Development Experience
-//! Rich attribute system, `OpenAPI` docs, debug output, IDE support. Fast development cycle with great tooling and clear generated APIs.
-//!
-//! ## Module Organization
-//!
-//! The library is organized into feature groups for better maintainability:
-//!
-//! - **[`core`](@/core/index.html)**: Core CRUD operations and traits
-//! - **[`filtering`](@/filtering/index.html)**: Query parameter parsing and filtering
-//! - **[`relationships`](@/relationships/index.html)**: Join loading and relationship handling
-//! - **[`database`](@/database/index.html)**: Database optimization and index analysis
-//! - **[`dev_experience`](@/dev_experience/index.html)**: Debug features and developer tools
-//!
-//! ## Examples
-//!
-//! ### Basic CRUD with Filtering
+//! Mount it:
 //!
 //! ```rust,ignore
-//! # use crudcrate::EntityToModels;
-//! # use sea_orm::entity::prelude::*;
-//! #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-//! #[sea_orm(table_name = "customers")]
-//! #[crudcrate(api_struct = "Customer", generate_router)]
-//! pub struct Model {
-//!     #[sea_orm(primary_key, auto_increment = false)]
-//!     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-//!     pub id: Uuid,
-//!
-//!     #[crudcrate(filterable, sortable)]
-//!     pub name: String,
-//!
-//!     #[crudcrate(filterable)]
-//!     pub email: String,
-//! }
+//! let app = Router::new().nest("/todos", Todo::router(&db));
 //! ```
 //!
-//! ### Relationship Loading
+//! # Generated endpoints
 //!
-//! ```rust,ignore
-//! # use crudcrate::EntityToModels;
-//! # use sea_orm::entity::prelude::*;
-//! #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-//! #[sea_orm(table_name = "customers")]
-//! #[crudcrate(api_struct = "Customer", generate_router)]
-//! pub struct Model {
-//!     #[sea_orm(primary_key, auto_increment = false)]
-//!     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-//!     pub id: Uuid,
+//! | Method | Path | Description |
+//! |--------|------|-------------|
+//! | GET | `/{resource}` | List with filtering, sorting, fulltext search, pagination |
+//! | GET | `/{resource}/{id}` | Single item with optional relationship loading |
+//! | POST | `/{resource}` | Create |
+//! | PUT | `/{resource}/{id}` | Partial update |
+//! | DELETE | `/{resource}/{id}` | Delete |
+//! | POST | `/{resource}/batch` | Batch create |
+//! | PATCH | `/{resource}/batch` | Batch update |
+//! | DELETE | `/{resource}/batch` | Batch delete |
 //!
-//!     #[crudcrate(filterable, sortable)]
-//!     pub name: String,
+//! # Filtering and search
 //!
-//!     #[sea_orm(ignore)]
-//!     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all))]
-//!     pub vehicles: Vec<Vehicle>,
-//! }
+//! Fields marked `filterable` accept query parameters with operator suffixes:
+//!
+//! ```text
+//! GET /todos?filter={"completed":false,"priority_gte":3}
+//! GET /todos?q=urgent review           # fulltext search
+//! GET /todos?sort=["created_at","DESC"]
+//! GET /todos?range=[0,24]              # pagination (React Admin compatible)
 //! ```
 //!
-//! ## Advanced Attributes
+//! See the [`filtering`] module for the full operator reference.
 //!
-//! `CrudCrate` provides comprehensive attribute customization:
+//! # Relationship loading
 //!
-//! ### Primary Keys
-//! ```rust,ignore
-//! #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
-//! pub id: Uuid,
-//! ```
+//! Non-database fields annotated with `join(...)` are populated automatically:
 //!
-//! ### Searchable Fields
-//! ```rust,ignore
-//! #[crudcrate(sortable, filterable, fulltext)]
-//! pub title: String,
-//! ```
-//!
-//! ### Auto-Managed Timestamps
-//! ```rust,ignore
-//! // Created timestamp
-//! #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
-//! pub created_at: DateTime<Utc>,
-//!
-//! // Updated timestamp
-//! #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
-//! pub updated_at: DateTime<Utc>,
-//! ```
-//!
-//! ### Relationship Loading
 //! ```rust,ignore
 //! #[sea_orm(ignore)]
-//! #[crudcrate(non_db_attr = true, join(one, all))]
+//! #[crudcrate(non_db_attr, join(one, all, depth = 2))]
 //! pub vehicles: Vec<Vehicle>,
 //! ```
 //!
-//! ## Filtering & Querying
+//! At depth 1, list endpoints use batch loading (2 queries, not N+1).
+//! Recursive loading supports up to depth 5. Self-referencing fields are
+//! constrained to depth 1 at compile time.
 //!
-//! Once your API is running, you get powerful filtering capabilities automatically:
+//! # Hooks
 //!
-//! ### Basic Filtering
-//! ```bash
-//! # Simple equality
-//! GET /todos?completed=true
+//! Override any phase of any operation with attribute-based hooks:
 //!
-//! # String contains
-//! GET /todos?title_like=example
-//!
-//! # Numeric comparisons
-//! GET /todos?priority_gte=5
+//! ```rust,ignore
+//! #[crudcrate(
+//!     generate_router,
+//!     create::one::pre = validate_input,
+//!     read::one::transform = enrich_with_metadata,
+//!     delete::one::post = cleanup_s3_assets,
+//! )]
 //! ```
 //!
-//! ### Advanced Queries
-//! ```bash
-//! # Multiple filters
-//! GET /todos?completed=false&priority_gte=3&title_like=urgent
+//! Hook phases run in order: **pre** → **body** → **transform** → **post**.
 //!
-//! # Sorting
-//! GET /todos?sort=created_at_desc,priority_asc
+//! See the [`EntityToModels`] derive macro docs for the full attribute reference,
+//! and the [`operations`] module for the [`CRUDOperations`] trait (an alternative
+//! to per-attribute hooks).
 //!
-//! # Fulltext search
-//! GET /todos?q=search terms
-//! ```
+//! # Modules
 //!
-//! ## Feature Flags
+//! - [`core`] — [`CRUDResource`] trait, default CRUD implementations
+//! - [`filtering`] — Query parameter parsing, filter conditions, pagination, sorting, fulltext search
+//! - [`operations`] — [`CRUDOperations`] trait for struct-based customization
+//! - [`errors`] — [`ApiError`] type with automatic HTTP status codes and internal logging
+//! - [`database`] — Index analysis utilities
+//! - [`validation`] — Input validation helpers
 //!
-//! - **`derive`**: Enables procedural macros (default)
-//! - **`debug`**: Shows generated code during compilation
-//! - **`sqlite`**: `SQLite` database support (default)
-//! - **`postgresql`**: `PostgreSQL` database support
-//! - **`mysql`**: `MySQL` database support
-//! - **`spring-rs`**: Spring-rs framework integration
+//! # Feature flags
 //!
-//! ## Database Support
-//!
-//! `CrudCrate` works with multiple databases, providing optimizations for each:
-//!
-//! - **`SQLite`**: Default, fastest for development and testing
-//! - **`PostgreSQL`**: Production-ready with advanced fulltext search via tsvector/GIN indexes
-//! - **`MySQL`**: FULLTEXT index support for search optimization
-//!
-//! ## License
-//!
-//! Licensed under MIT License. See [LICENSE](https://github.com/evanjt/crudcrate/blob/main/LICENSE) for details.
+//! | Flag | Default | Description |
+//! |------|---------|-------------|
+//! | `derive` | yes | Enables procedural macros (`EntityToModels`, etc.) |
+//! | `sqlite` | yes | SQLite support via sqlx |
+//! | `postgresql` | no | PostgreSQL support (enables GIN/tsvector fulltext) |
+//! | `mysql` | no | MySQL support (enables FULLTEXT indexes) |
+//! | `spring-rs` | no | [Spring-RS](https://spring-rs.github.io/docs/introduction) framework integration |
 
-// Core Feature Groups
 pub mod core;
 pub mod database;
 pub mod errors;
@@ -219,49 +129,38 @@ pub mod operations;
 pub mod relationships;
 pub mod validation;
 
-// Legacy modules for backward compatibility (re-export from new structure)
+// Deprecated module aliases — use the canonical paths above instead.
+#[doc(hidden)]
 pub mod filter {
     pub use crate::filtering::conditions::*;
 }
+#[doc(hidden)]
 pub mod models {
     pub use crate::filtering::query_parser::*;
 }
+#[doc(hidden)]
 pub mod pagination {
     pub use crate::filtering::pagination::*;
 }
-pub mod routes {
-    // Legacy module for backward compatibility - CRUD handlers are now generated automatically
-}
+#[doc(hidden)]
+pub mod routes {}
+#[doc(hidden)]
 pub mod sort {
     pub use crate::filtering::sort::*;
 }
+#[doc(hidden)]
 pub mod traits {
     pub use crate::core::traits::*;
 }
 
-// Export procedural macros
 pub use crudcrate_derive::*;
 
-// Export commonly used items from feature groups
 pub use core::{CRUDResource, MergeIntoActiveModel, UuidIdResult};
 pub use errors::{ApiError, BatchFailure, BatchResult};
 pub use filtering::{
-    BatchOptions,
-    FilterOperator,
-    FilterOptions,
-    // Join filtering/sorting support
-    JoinedColumnDef,
-    JoinedFilter,
-    ParsedFilters,
-    SortConfig,
-    apply_filters,
-    apply_filters_with_joins,
-    calculate_content_range,
-    parse_dot_notation,
-    parse_pagination,
-    parse_range,
-    parse_sorting,
-    parse_sorting_with_joins,
+    BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,
+    SortConfig, apply_filters, apply_filters_with_joins, calculate_content_range,
+    parse_dot_notation, parse_pagination, parse_range, parse_sorting, parse_sorting_with_joins,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
 
