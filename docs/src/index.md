@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="CRUDCrate" width="80">
+</p>
+
 # CRUDCrate
 
 **REST APIs from your database models. One derive macro. That's it.**

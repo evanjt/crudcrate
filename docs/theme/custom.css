@@ -1,5 +1,13 @@
 /* CRUDCrate Documentation - Custom Theme */
 
+/* Logo */
+.content img[alt="CRUDCrate"] {
+    display: block;
+    margin: 0 auto 0.5rem;
+    border: none;
+    box-shadow: none;
+}
+
 /* Version Selector */
 .version-selector {
     display: inline-flex;

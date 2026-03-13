@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="crudcrate" width="80">
+</p>
+
 # crudcrate
 
 [![Tests](https://github.com/evanjt/crudcrate/actions/workflows/test.yml/badge.svg)](https://github.com/evanjt/crudcrate/actions/workflows/test.yml)
