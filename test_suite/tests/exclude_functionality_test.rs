@@ -1,3 +1,4 @@
+// @doc-link-file exclude
 // Exclude Functionality Test
 // Tests exclude(one), exclude(create), exclude(update), exclude(list), and mixed combinations
 
@@ -11,6 +12,7 @@ use common::{setup_test_app, setup_test_db};
 
 use crate::common::customer::{CustomerList, CustomerResponse};
 
+// @doc-link exclude::one
 #[tokio::test]
 async fn test_exclude_one_get_customer() {
     // Test that exclude(one) removes fields from get_one responses
@@ -68,6 +70,7 @@ async fn test_exclude_one_get_customer() {
     // Since they have on_create/on_update expressions, they're included in struct but excluded from get_one response logic
 }
 
+// @doc-link exclude::create
 #[tokio::test]
 async fn test_exclude_create_customer() {
     // Test that exclude(create) removes fields from create operations
@@ -109,6 +112,7 @@ async fn test_exclude_create_customer() {
     assert_eq!(created_customer.email, "bob@example.com");
 }
 
+// @doc-link exclude::update
 #[tokio::test]
 async fn test_exclude_update_customer() {
     // Test that exclude(update) removes fields from update operations
@@ -174,6 +178,7 @@ async fn test_exclude_update_customer() {
     assert_eq!(updated_customer.email, "charlie.updated@example.com");
 }
 
+// @doc-link exclude::list
 #[tokio::test]
 async fn test_exclude_list_customers() {
     // Test that exclude(list) removes fields from list operations
@@ -286,6 +291,7 @@ async fn test_exclude_mixed_combinations() {
     assert_eq!(updated_customer.email, "eve.updated@example.com");
 }
 
+// @doc-link on_create
 #[tokio::test]
 async fn test_exclude_with_auto_generated_values() {
     // Test that exclude(one) with on_create works correctly

@@ -31,6 +31,17 @@ jobs:
         with:
           tool: mdbook
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build test-links preprocessor
+        run: |
+          cargo build --release --manifest-path docs/test-links/Cargo.toml
+          cp docs/test-links/target/release/mdbook-test-links "$HOME/.cargo/bin/"
+
+      - name: Validate test-doc links
+        run: mdbook-test-links validate
+
       - name: Install jq
         run: sudo apt-get install -y jq
 
@@ -68,8 +79,8 @@ jobs:
             # Copy CHANGELOG into docs
             cp CHANGELOG.md docs/src/changelog.md 2>/dev/null || true
 
-            # Build
-            mdbook build docs -d "$OUTPUT_DIR/$VERSION"
+            # Build (lenient mode: old tags predate @doc-link annotations)
+            TEST_LINKS_MODE=lenient mdbook build docs -d "$OUTPUT_DIR/$VERSION"
 
             # Add to versions.json
             jq --arg v "$VERSION" '. += [{"version": $v, "url": ("/" + $v + "/")}]' /tmp/versions.json > /tmp/versions_new.json

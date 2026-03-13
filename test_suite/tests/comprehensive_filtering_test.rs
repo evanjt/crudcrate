@@ -1,3 +1,4 @@
+// @doc-link-file filtering
 // Comprehensive Filtering Tests
 // Tests EVERY example from docs/src/features/filtering.md
 // Goal: 100% documentation-test alignment
@@ -12,6 +13,7 @@ use crate::common::customer::CustomerList;
 use crate::common::vehicle::VehicleList;
 use common::{create_test_customer, setup_test_app, setup_test_db};
 
+// @doc-link filtering::comparison {start}
 // =============================================================================
 // COMPARISON OPERATORS TESTS (filtering.md lines 46-65)
 // =============================================================================
@@ -318,6 +320,7 @@ async fn test_filtering_comparison_operator_lte_as_documented() {
         "All vehicles should have year <= 2021"
     );
 }
+// @doc-link filtering::comparison {end}
 
 // =============================================================================
 // NUMBER FILTERING TESTS (filtering.md lines 92-102)

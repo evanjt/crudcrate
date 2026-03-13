@@ -1,3 +1,4 @@
+// @doc-link-file fulltext
 // Comprehensive Fulltext Search Tests
 // Tests remaining examples from docs/src/features/fulltext-search.md
 // Goal: 100% documentation-test alignment (currently at 71%)

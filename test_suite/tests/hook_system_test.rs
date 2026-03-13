@@ -1,3 +1,4 @@
+// @doc-link-file hooks
 //! Tests for the hook system
 //!
 //! Tests the hook syntax: `{operation}::{cardinality}::{phase}`
@@ -387,6 +388,7 @@ mod integration {
         Ok(db)
     }
 
+    // @doc-link hooks::create
     #[tokio::test]
     #[serial]
     async fn test_create_hooks_called() {
@@ -472,6 +474,7 @@ mod integration {
         );
     }
 
+    // @doc-link hooks::update
     #[tokio::test]
     #[serial]
     async fn test_update_hooks_called() {
@@ -543,6 +546,7 @@ mod integration {
         );
     }
 
+    // @doc-link hooks::delete
     #[tokio::test]
     #[serial]
     async fn test_delete_hooks_called() {

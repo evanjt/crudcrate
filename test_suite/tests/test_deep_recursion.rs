@@ -76,6 +76,7 @@ async fn put_json(app: &axum::Router, uri: &str, data: Value) -> (StatusCode, Va
     (status, json)
 }
 
+// @doc-link relationships::recursive {start}
 // ============================================================================
 // SELF-REFERENCING TESTS (depth=1 only)
 // ============================================================================
@@ -178,6 +179,9 @@ async fn test_self_referencing_multiple_children() {
     }
 }
 
+// @doc-link relationships::recursive {end}
+
+// @doc-link relationships::depth {start}
 // ============================================================================
 // CROSS-MODEL DEPTH TESTS (depth 1-5)
 // ============================================================================
@@ -354,6 +358,7 @@ async fn test_cross_model_depth_2_multiple_relations() {
     assert_eq!(parts.len(), 1, "Should load parts");
     assert_eq!(records.len(), 1, "Should load maintenance records");
 }
+// @doc-link relationships::depth {end}
 
 // ============================================================================
 // FIELD EXCLUSION TESTS
@@ -460,6 +465,7 @@ async fn test_exclude_update_prevents_id_change() {
 }
 
 /// Test exclude(update) - timestamps are auto-updated
+// @doc-link on_update
 #[tokio::test]
 async fn test_exclude_update_auto_updates_timestamps() {
     let db = setup_test_db().await.expect("Database setup failed");

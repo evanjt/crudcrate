@@ -9,6 +9,7 @@ use tower::ServiceExt;
 mod common;
 use common::{models::customer::CustomerList, setup_test_app, setup_test_db};
 
+// @doc-link crud
 #[tokio::test]
 async fn test_basic_crud_multi_database() {
     let db = setup_test_db()

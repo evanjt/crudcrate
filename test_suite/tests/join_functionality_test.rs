@@ -1,3 +1,4 @@
+// @doc-link-file relationships
 // Join Functionality Test
 // Tests join(one), join(all), and join(one, all) combinations
 

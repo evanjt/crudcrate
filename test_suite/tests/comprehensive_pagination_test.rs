@@ -1,3 +1,4 @@
+// @doc-link-file pagination
 // Comprehensive Pagination Tests
 // Tests EVERY example from docs/src/features/pagination.md
 // Goal: 100% documentation-test alignment
@@ -11,6 +12,7 @@ mod common;
 use crate::common::customer::CustomerList;
 use common::{setup_test_app, setup_test_db};
 
+// @doc-link pagination::range {start}
 // =============================================================================
 // RANGE FORMAT TESTS (pagination.md lines 8-18)
 // =============================================================================
@@ -152,6 +154,7 @@ async fn test_pagination_range_format_25_items_as_documented() {
     // Should return exactly 25 items (items 50-74)
     assert_eq!(customers.len(), 25, "Range [50,74] should return 25 items");
 }
+// @doc-link pagination::range {end}
 
 // =============================================================================
 // PAGE FORMAT TESTS (pagination.md lines 21-28)

@@ -1,3 +1,4 @@
+// @doc-link-file sorting
 // Comprehensive Sorting Tests
 // Tests EVERY example from docs/src/features/sorting.md
 // Goal: 100% documentation-test alignment
