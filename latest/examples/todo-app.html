@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Todo Application - CRUDCrate Documentation</title>
+        <title>Todo App - CRUDCrate Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -12,8 +12,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="icon" href="../favicon-30a6d5ba.svg">
+        <link rel="shortcut icon" href="../favicon-d66b1601.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
         <link rel="stylesheet" href="../css/general-2459343d.css">
         <link rel="stylesheet" href="../css/chrome-ae938929.css">
@@ -28,7 +28,7 @@
         <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="../theme/custom-255ba322.css">
+        <link rel="stylesheet" href="../theme/custom-c2061739.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-5bea4c1b.js";
+            window.path_to_searchindex_js = "../searchindex-ffca4e36.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ccff9747.js"></script>
+        <script src="../toc-05241513.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,6 +180,18 @@
                     <main>
                         <h1 id="todo-application-example"><a class="header" href="#todo-application-example">Todo Application Example</a></h1>
 <p>A practical todo app with filtering, sorting, and search.</p>
+<h2 id="run-it-now"><a class="header" href="#run-it-now">Run It Now</a></h2>
+<p>The minimal example includes a todo entity:</p>
+<pre><code class="language-bash">git clone https://github.com/evanjt/crudcrate
+cd crudcrate/crudcrate
+cargo run --example minimal
+</code></pre>
+<p>Then visit:</p>
+<ul>
+<li><strong>API</strong>: http://localhost:3000/todo</li>
+<li><strong>Docs</strong>: http://localhost:3000/docs</li>
+</ul>
+<hr>
 <h2 id="entity-definition"><a class="header" href="#entity-definition">Entity Definition</a></h2>
 <pre><code class="language-rust">use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
@@ -313,6 +325,8 @@ export const dataProvider = {
   // ... other methods
 };
 </code></pre>
+<hr>
+<p><strong>Next:</strong> See the <a href="./blog.html">Blog Example</a> for handling relationships between entities.</p>
 
                     </main>
 

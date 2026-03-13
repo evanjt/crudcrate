@@ -12,8 +12,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="icon" href="../favicon-30a6d5ba.svg">
+        <link rel="shortcut icon" href="../favicon-d66b1601.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
         <link rel="stylesheet" href="../css/general-2459343d.css">
         <link rel="stylesheet" href="../css/chrome-ae938929.css">
@@ -28,7 +28,7 @@
         <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="../theme/custom-255ba322.css">
+        <link rel="stylesheet" href="../theme/custom-c2061739.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-5bea4c1b.js";
+            window.path_to_searchindex_js = "../searchindex-ffca4e36.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ccff9747.js"></script>
+        <script src="../toc-05241513.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -240,13 +240,41 @@ fn sanitize_resource_name(name: &amp;str) -&gt; String {
 // _ → \_
 // Result: Literal search for "%admin%" string</code></pre>
 <h3 id="batch-operation-limits"><a class="header" href="#batch-operation-limits">Batch Operation Limits</a></h3>
-<pre><code class="language-rust">// Bulk delete limited to 100 items
-async fn delete_many(ids: Vec&lt;Uuid&gt;) -&gt; Result&lt;u64, ApiError&gt; {
-    if ids.len() &gt; 100 {
-        return Err(ApiError::BadRequest("Cannot delete more than 100 items".into()));
+<p>All batch operations (create, update, delete) enforce a configurable size limit to prevent resource exhaustion:</p>
+<pre><code class="language-rust">// Default: 100 items per batch
+#[crudcrate(batch_limit = 500)]  // Override per-resource
+pub struct Model { }</code></pre>
+<p>For runtime-configurable limits (e.g., from environment variables), override the trait method:</p>
+<pre><code class="language-rust">impl CRUDResource for MyResource {
+    fn batch_limit() -&gt; usize {
+        std::env::var("MY_BATCH_LIMIT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100)
     }
     // ...
 }</code></pre>
+<h3 id="partial-success-mode"><a class="header" href="#partial-success-mode">Partial Success Mode</a></h3>
+<p>Batch endpoints support a <code>?partial=true</code> query parameter that changes behavior:</p>
+<p><strong>Response shape</strong>: With <code>?partial=true</code>, the response wraps results in a <code>BatchResult&lt;T&gt;</code> instead of <code>Vec&lt;T&gt;</code>:</p>
+<pre><code class="language-json">{
+  "succeeded": [{ "id": "...", "name": "..." }],
+  "failed": [{ "index": 2, "error": "..." }]
+}
+</code></pre>
+<p><strong>Hook behavior</strong>: Partial mode processes each item individually via single-item methods (<code>create</code>, <code>update</code>, <code>delete</code>). This means:</p>
+<ul>
+<li><code>create::many::*</code>, <code>update::many::*</code>, and <code>delete::many::*</code> hooks are <strong>not called</strong></li>
+<li>Single-item hooks (<code>create::one::*</code>, etc.) are called for each item instead</li>
+<li>There is no shared transaction — each item commits independently</li>
+</ul>
+<p><strong>Error sanitization</strong>: Error messages in the <code>failed</code> array use sanitized <code>ApiError::Display</code> output. Database errors show “A database error occurred” rather than internal details.</p>
+<p><strong>HTTP status codes</strong>:</p>
+<ul>
+<li><code>200</code> — All items succeeded</li>
+<li><code>207 Multi-Status</code> — Some items succeeded, some failed</li>
+<li><code>400 Bad Request</code> — All items failed</li>
+</ul>
 <h3 id="error-sanitization"><a class="header" href="#error-sanitization">Error Sanitization</a></h3>
 <p>Internal errors are logged but not exposed:</p>
 <pre><code class="language-rust">// Internal: "SQLSTATE[42P01]: Undefined table: 7 ERROR: relation \"users\" does not exist"
@@ -593,7 +621,7 @@ impl CRUDOperations for ArticleOperations {
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/validation.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/hooks.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -607,7 +635,7 @@ impl CRUDOperations for ArticleOperations {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/validation.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/hooks.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

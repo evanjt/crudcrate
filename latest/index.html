@@ -12,8 +12,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="icon" href="favicon-30a6d5ba.svg">
+        <link rel="shortcut icon" href="favicon-d66b1601.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
         <link rel="stylesheet" href="css/general-2459343d.css">
         <link rel="stylesheet" href="css/chrome-ae938929.css">
@@ -28,7 +28,7 @@
         <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="theme/custom-255ba322.css">
+        <link rel="stylesheet" href="theme/custom-c2061739.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-5bea4c1b.js";
+            window.path_to_searchindex_js = "searchindex-ffca4e36.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-ccff9747.js"></script>
+        <script src="toc-05241513.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,79 +178,172 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="crudcrate"><a class="header" href="#crudcrate">CRUDCrate</a></h1>
-<p><strong>Transform Sea-ORM entities into Axum-based REST APIs with a single derive
-macro.</strong></p>
-<p>CRUDCrate eliminates unnecessary boilerplate in creating REST APIs. Its focus
-is to autogenerate the repetitive code needed for basic CRUD operations but
-leave open the opportunity to customise and extend wherever needed.</p>
-<p>With a Sea-ORM entity definition, adding <code>#[derive(EntityToModels)]</code> to your
-model and then <code>#[crudcrate(generate_router)]</code> is all that is needed for the
-default behaviour that includes:</p>
-<ul>
-<li>CRUD endpoints</li>
-<li>Utoipa OpenAPI documentation</li>
-<li>Request/response models</li>
-<li>Error handling</li>
-<li>Filtering</li>
-<li>Sorting</li>
-<li>Pagination</li>
-<li>Relationship loading</li>
-</ul>
-<!-- 
-## Quick Example
+                        <p align="center">
+  <img src="assets/logo.svg" alt="CRUDCrate" width="80">
+</p>
 
-```rust
-use axum::{Router, Extension};
-use sea_orm::DatabaseConnection;
-use crudcrate::EntityToModels;
+<h1 id="crudcrate"><a class="header" href="#crudcrate">CRUDCrate</a></h1>
+<p><strong>REST APIs from your database models. One derive macro. That’s it.</strong></p>
+<pre><code class="language-rust">use crudcrate::EntityToModels;
+use sea_orm::entity::prelude::*;
 
-// Your Sea-ORM entity
 #[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
 #[crudcrate(generate_router)]
 #[sea_orm(table_name = "todos")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    #[crudcrate(primary_key, exclude(create, update))]
+    #[crudcrate(primary_key)]
     pub id: i32,
 
     #[crudcrate(filterable, sortable)]
-    pub email: String,
+    pub title: String,
 
-    #[crudcrate(exclude(one, list))]  
-    pub password_hash: String,
+    pub completed: bool,
+}</code></pre>
+<p><strong>That’s it.</strong> You now have:</p>
+<pre><code class="language-bash">GET    /todos           # List with filtering, sorting, pagination
+GET    /todos/:id       # Get one
+POST   /todos           # Create
+PUT    /todos/:id       # Update
+DELETE /todos/:id       # Delete
+DELETE /todos           # Bulk delete
+</code></pre>
+<hr>
+<h2 id="try-it-now"><a class="header" href="#try-it-now">Try It Now</a></h2>
+<pre><code class="language-bash">git clone https://github.com/evanjt/crudcrate
+cd crudcrate/crudcrate
+cargo run --example minimal
+</code></pre>
+<p>Then visit:</p>
+<ul>
+<li><strong>API</strong>: http://localhost:3000/todo</li>
+<li><strong>Docs</strong>: http://localhost:3000/docs (interactive OpenAPI)</li>
+</ul>
+<hr>
+<h2 id="install"><a class="header" href="#install">Install</a></h2>
+<pre><code class="language-bash">cargo add crudcrate
+</code></pre>
+<p>Or add to <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+crudcrate = "0.1"
+</code></pre>
+<hr>
+<h2 id="quick-example"><a class="header" href="#quick-example">Quick Example</a></h2>
+<pre><code class="language-rust">use axum::Router;
+use crudcrate::EntityToModels;
+use sea_orm::{entity::prelude::*, Database};
 
-    #[crudcrate(exclude(create, update), on_create = chrono::Utc::now())]
-    pub created_at: DateTime,
+#[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
+#[crudcrate(generate_router)]
+#[sea_orm(table_name = "items")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    #[crudcrate(primary_key)]
+    pub id: i32,
+
+    #[crudcrate(filterable, sortable)]
+    pub name: String,
 }
 
-// In your main.rs
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {}
+
+impl ActiveModelBehavior for ActiveModel {}
+
+#[tokio::main]
 async fn main() {
-    let db: DatabaseConnection = /* ... */;
+    let db = Database::connect("sqlite::memory:").await.unwrap();
 
     let app = Router::new()
-        .merge(user::user_router())
-        .layer(Extension(db));
+        .merge(item_router())
+        .layer(axum::Extension(db));
 
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-```
+}</code></pre>
+<p>Run it:</p>
+<pre><code class="language-bash">cargo run
+</code></pre>
+<p>Test it:</p>
+<pre><code class="language-bash"># Create
+curl -X POST http://localhost:3000/items \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Item"}'
 
+# List all
+curl http://localhost:3000/items
 
-## Installation
+# Filter
+curl 'http://localhost:3000/items?filter={"name":"My Item"}'
 
-Add this to your `Cargo.toml`:
+# Sort
+curl 'http://localhost:3000/items?sort=["name","DESC"]'
+</code></pre>
+<hr>
+<h2 id="features"><a class="header" href="#features">Features</a></h2>
+<p>Mark fields to enable capabilities:</p>
+<pre><code class="language-rust">#[crudcrate(filterable)]     // Enable filtering on this field
+#[crudcrate(sortable)]       // Enable sorting on this field
+#[crudcrate(fulltext)]       // Include in fulltext search
+#[crudcrate(exclude(create))] // Don't include in create requests</code></pre>
+<p>Auto-generate values:</p>
+<pre><code class="language-rust">#[crudcrate(on_create = Uuid::new_v4())]      // Generate ID
+#[crudcrate(on_create = chrono::Utc::now())]  // Set timestamp
+#[crudcrate(on_update = chrono::Utc::now())]  // Update timestamp</code></pre>
+<p>Load relationships:</p>
+<pre><code class="language-rust">#[sea_orm(ignore)]
+#[crudcrate(non_db_attr, join(one, all))]
+pub comments: Vec&lt;Comment&gt;,</code></pre>
+<hr>
+<h2 id="what-gets-generated"><a class="header" href="#what-gets-generated">What Gets Generated</a></h2>
+<p>From your entity, CRUDCrate generates:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Generated</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Item</code></td><td>Response model</td></tr>
+<tr><td><code>ItemCreate</code></td><td>Create request body</td></tr>
+<tr><td><code>ItemUpdate</code></td><td>Update request body (all fields optional)</td></tr>
+<tr><td><code>ItemList</code></td><td>List response model</td></tr>
+<tr><td><code>item_router()</code></td><td>Axum router with all endpoints</td></tr>
+<tr><td><code>CRUDResource</code> impl</td><td>Database operations</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="learn"><a class="header" href="#learn">Learn</a></h2>
+<div class="grid cards">
+<p><strong>Tutorial</strong>
+Start here. Learn CRUDCrate step by step.
+<a href="./tutorial/first-steps.html">First Steps</a></p>
+<p><strong>Examples</strong>
+See complete, working code.
+<a href="./examples/minimal.html">Minimal Example</a></p>
+<p><strong>Reference</strong>
+All attributes and options.
+<a href="./reference/field-attributes.html">Field Attributes</a></p>
+</div>
 
-```bash
-cargo add crudcrate
-``` 
--->
+<hr>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<ul>
+<li>Rust 1.70+</li>
+<li>Sea-ORM 1.0+</li>
+<li>Axum 0.7+</li>
+</ul>
+<p>CRUDCrate works with PostgreSQL, MySQL, and SQLite.</p>
+<hr>
+<h2 id="license"><a class="header" href="#license">License</a></h2>
+<p>MIT License - use it however you want.</p>
+
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
 
-                            <a rel="next prefetch" href="tutorial/quickstart.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="tutorial/first-steps.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -261,7 +354,7 @@ cargo add crudcrate
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
 
-                    <a rel="next prefetch" href="tutorial/quickstart.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="tutorial/first-steps.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

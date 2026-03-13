@@ -12,8 +12,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="icon" href="favicon-30a6d5ba.svg">
+        <link rel="shortcut icon" href="favicon-d66b1601.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
         <link rel="stylesheet" href="css/general-2459343d.css">
         <link rel="stylesheet" href="css/chrome-ae938929.css">
@@ -28,7 +28,7 @@
         <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="theme/custom-255ba322.css">
+        <link rel="stylesheet" href="theme/custom-c2061739.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-5bea4c1b.js";
+            window.path_to_searchindex_js = "searchindex-ffca4e36.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-ccff9747.js"></script>
+        <script src="toc-05241513.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -293,7 +293,7 @@ pub comments: Vec&lt;Comment&gt;,</code></pre>
 <li>Limit join depth</li>
 </ol>
 <h3 id="does-loading-relationships-cause-n1-queries"><a class="header" href="#does-loading-relationships-cause-n1-queries">Does loading relationships cause N+1 queries?</a></h3>
-<p>Currently, yes. Relationships are loaded with additional queries. For performance-critical paths, consider custom handlers with batch loading.</p>
+<p>No — <code>get_all()</code> with <code>join(all)</code> uses <strong>batch loading</strong> that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using <code>WHERE parent_id IN (...)</code>. This applies to depth=1 joins; deeper joins (depth &gt; 1) may issue additional queries for nested relations. Single-item <code>get_one()</code> uses per-item queries, which is acceptable for individual lookups.</p>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="compilation-error-cannot-find-derive-macro"><a class="header" href="#compilation-error-cannot-find-derive-macro">Compilation error: “cannot find derive macro”</a></h3>
 <p>Import it:</p>
@@ -341,6 +341,13 @@ pub updated_at: DateTimeUtc,</code></pre>
 <li>OpenAPI generation</li>
 <li>More database optimizations</li>
 <li>Cursor-based pagination option</li>
+</ul>
+<hr>
+<h2 id="learn-more"><a class="header" href="#learn-more">Learn More</a></h2>
+<ul>
+<li><strong>Getting Started</strong>: <a href="./tutorial/first-steps.html">First Steps Tutorial</a></li>
+<li><strong>Examples</strong>: <a href="./examples/minimal.html">Minimal Example</a></li>
+<li><strong>Reference</strong>: <a href="./reference/field-attributes.html">Field Attributes</a></li>
 </ul>
 
                     </main>

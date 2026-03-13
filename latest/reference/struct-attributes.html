@@ -12,8 +12,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="icon" href="../favicon-30a6d5ba.svg">
+        <link rel="shortcut icon" href="../favicon-d66b1601.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
         <link rel="stylesheet" href="../css/general-2459343d.css">
         <link rel="stylesheet" href="../css/chrome-ae938929.css">
@@ -28,7 +28,7 @@
         <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="../theme/custom-255ba322.css">
+        <link rel="stylesheet" href="../theme/custom-c2061739.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-5bea4c1b.js";
+            window.path_to_searchindex_js = "../searchindex-ffca4e36.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ccff9747.js"></script>
+        <script src="../toc-05241513.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -252,6 +252,22 @@ pub struct Model { }</code></pre>
 <strong>Default:</strong> <code>"english"</code>
 <strong>Options:</strong> <code>"english"</code>, <code>"spanish"</code>, <code>"german"</code>, <code>"french"</code>, <code>"simple"</code>, etc.</p>
 <hr>
+<h3 id="batch_limit"><a class="header" href="#batch_limit"><code>batch_limit</code></a></h3>
+<p>Set the maximum number of items for batch create/update/delete operations.</p>
+<pre><code class="language-rust">#[crudcrate(batch_limit = 500)]
+pub struct Model { }</code></pre>
+<p><strong>Type:</strong> Integer
+<strong>Default:</strong> <code>100</code>
+<strong>Runtime override:</strong> Implement <code>fn batch_limit() -&gt; usize</code> on your <code>CRUDResource</code> impl for dynamic values (env vars, config).</p>
+<hr>
+<h3 id="max_page_size"><a class="header" href="#max_page_size"><code>max_page_size</code></a></h3>
+<p>Set the maximum items per page for pagination.</p>
+<pre><code class="language-rust">#[crudcrate(max_page_size = 500)]
+pub struct Model { }</code></pre>
+<p><strong>Type:</strong> Integer
+<strong>Default:</strong> <code>1000</code>
+<strong>Runtime override:</strong> Implement <code>fn max_page_size() -&gt; u64</code> on your <code>CRUDResource</code> impl for dynamic values.</p>
+<hr>
 <h2 id="lifecycle-hook-attributes"><a class="header" href="#lifecycle-hook-attributes">Lifecycle Hook Attributes</a></h2>
 <h3 id="createonepre"><a class="header" href="#createonepre"><code>create::one::pre</code></a></h3>
 <p>Function called before create operation.</p>
@@ -374,18 +390,39 @@ async fn filter_by_tenant(
 pub struct Model {
     // ...
 }</code></pre>
+<h2 id="foreign-key-naming-convention"><a class="header" href="#foreign-key-naming-convention">Foreign Key Naming Convention</a></h2>
+<p>When using <code>join()</code> for batch loading in <code>get_all()</code>, CRUDCrate derives the foreign key column name from the parent struct name using PascalCase convention:</p>
+<ul>
+<li><strong>Parent struct</strong> <code>Customer</code> → <strong>FK column</strong> <code>CustomerId</code> (SeaORM Column enum) / <code>customer_id</code> (field name)</li>
+<li><strong>Parent struct</strong> <code>VehiclePart</code> → <strong>FK column</strong> <code>VehiclePartId</code> / <code>vehicle_part_id</code></li>
+</ul>
+<p>Your related entity’s SeaORM model must have a matching foreign key field. For example, if <code>Customer</code> has <code>vehicles: Vec&lt;Vehicle&gt;</code>, the <code>Vehicle</code> model must have a <code>customer_id: Uuid</code> field and a <code>Column::CustomerId</code> variant.</p>
+<blockquote>
+<p><strong>Note</strong>: Custom FK names (e.g., <code>owner_id</code> instead of <code>customer_id</code>) are not yet supported via attributes. If your FK name doesn’t follow the convention, use a custom <code>read::many::body</code> hook to implement the loading logic.</p>
+</blockquote>
+<h3 id="batch-loading-query-behavior"><a class="header" href="#batch-loading-query-behavior">Batch Loading Query Behavior</a></h3>
+<p>For <code>get_all()</code> with <code>join(all)</code> or <code>join(one, all)</code>, CRUDCrate uses batch loading:</p>
+<ul>
+<li><strong>Depth=1 joins</strong>: 2 queries total (1 for parents + 1 per join field using <code>WHERE fk IN (...)</code>)</li>
+<li><strong>Depth &gt; 1 joins</strong>: Additional per-item queries for nested children (falls back to <code>get_one()</code> calls)</li>
+<li><strong><code>get_one()</code> with <code>join(one)</code></strong>: Per-item queries (single entity, no batching needed)</li>
+</ul>
+<blockquote>
+<p><strong>Note</strong>: Batch loading currently requires UUID primary keys, consistent with the <code>CRUDResource</code> trait contract.</p>
+</blockquote>
+<p>See <a href="../advanced/security.html">Security</a> for partial success and batch limit configuration.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
 <ul>
 <li><a href="./field-attributes.html">Field Attributes Reference</a></li>
-<li><a href="./crudresource-api.html">CRUDResource API</a></li>
-<li><a href="./crudoperations-api.html">CRUDOperations API</a></li>
+<li><a href="../tutorial/hooks.html">Custom Logic with Hooks</a></li>
+<li><a href="../advanced/custom-operations.html">Custom Operations</a></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/multi-database.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../concepts/generated-models.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -399,7 +436,7 @@ pub struct Model {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/multi-database.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../concepts/generated-models.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
