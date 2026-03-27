@@ -7,7 +7,17 @@ use uuid::Uuid;
 use super::maintenance_record::MaintenanceRecord;
 use super::vehicle_part::VehiclePart;
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+    utoipa::ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "Text")]
 pub enum FuelType {
     #[sea_orm(string_value = "Gasoline")]
@@ -18,7 +28,17 @@ pub enum FuelType {
     Electric,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    EnumIter,
+    DeriveActiveEnum,
+    Serialize,
+    Deserialize,
+    utoipa::ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "Text")]
 pub enum Transmission {
     #[sea_orm(string_value = "Manual")]
