@@ -1,10 +1,33 @@
 use chrono::{DateTime, Utc};
 use crudcrate::{EntityToModels, traits::CRUDResource};
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::maintenance_record::MaintenanceRecord;
 use super::vehicle_part::VehiclePart;
+
+#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, utoipa::ToSchema)]
+#[sea_orm(rs_type = "String", db_type = "Text")]
+pub enum FuelType {
+    #[sea_orm(string_value = "Gasoline")]
+    Gasoline,
+    #[sea_orm(string_value = "Diesel")]
+    Diesel,
+    #[sea_orm(string_value = "Electric")]
+    Electric,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, utoipa::ToSchema)]
+#[sea_orm(rs_type = "String", db_type = "Text")]
+pub enum Transmission {
+    #[sea_orm(string_value = "Manual")]
+    Manual,
+    #[sea_orm(string_value = "Automatic")]
+    Automatic,
+    #[sea_orm(string_value = "CVT")]
+    Cvt,
+}
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
 #[sea_orm(table_name = "vehicles")]
@@ -24,6 +47,10 @@ pub struct Model {
     pub year: i32,
     #[crudcrate(filterable)]
     pub vin: String,
+    #[crudcrate(filterable, sortable)]
+    pub fuel_type: Option<FuelType>,
+    #[crudcrate(filterable, sortable)]
+    pub transmission: Option<Transmission>,
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now())]
     pub created_at: DateTime<Utc>,
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]

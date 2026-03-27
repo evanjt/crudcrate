@@ -201,6 +201,8 @@ impl MigrationTrait for CreateVehicleTable {
             .col(ColumnDef::new(vehicle::Column::Model).text().not_null())
             .col(ColumnDef::new(vehicle::Column::Year).integer().not_null())
             .col(ColumnDef::new(vehicle::Column::Vin).text().not_null())
+            .col(ColumnDef::new(vehicle::Column::FuelType).text().null())
+            .col(ColumnDef::new(vehicle::Column::Transmission).text().null())
             .col(
                 ColumnDef::new(vehicle::Column::CreatedAt)
                     .timestamp_with_time_zone()

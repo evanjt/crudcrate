@@ -253,6 +253,8 @@ fn process_number_filter(
 fn process_array_filter(
     array_values: &[serde_json::Value],
     column: impl sea_orm::ColumnTrait + Copy,
+    is_enum: bool,
+    backend: DatabaseBackend,
 ) -> Option<SimpleExpr> {
     if array_values.is_empty() {
         return None;
@@ -288,6 +290,19 @@ fn process_array_filter(
         .collect();
 
     if !in_values.is_empty() {
+        if is_enum {
+            // For enum fields, cast column to TEXT and uppercase both sides
+            // so that native PostgreSQL ENUMs work with string bind parameters
+            let col_expr = match backend {
+                DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
+                _ => Expr::col(column).into(),
+            };
+            let col_upper =
+                SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+            let upper_values: Vec<String> =
+                in_values.iter().map(|v| v.to_uppercase()).collect();
+            return Some(col_upper.is_in(upper_values));
+        }
         return Some(Expr::col(column).is_in(in_values));
     }
     None
@@ -340,7 +355,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                 }
                 serde_json::Value::Bool(bool_value) => Some(Expr::col(*column).eq(*bool_value)),
                 serde_json::Value::Array(array_values) => {
-                    process_array_filter(array_values, *column)
+                    process_array_filter(array_values, *column, T::is_enum_field(base_field), backend)
                 }
                 serde_json::Value::Null => Some(Expr::col(*column).is_null()),
                 serde_json::Value::Object(_) => None, // Skip unsupported value types
@@ -475,7 +490,7 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
                 }
                 serde_json::Value::Bool(bool_value) => Some(Expr::col(*column).eq(*bool_value)),
                 serde_json::Value::Array(array_values) => {
-                    process_array_filter(array_values, *column)
+                    process_array_filter(array_values, *column, T::is_enum_field(base_field), backend)
                 }
                 serde_json::Value::Null => Some(Expr::col(*column).is_null()),
                 serde_json::Value::Object(_) => None,

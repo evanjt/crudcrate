@@ -205,18 +205,40 @@ pub fn generate_like_filterable_entries(fields: &[&syn::Field]) -> Vec<proc_macr
         .collect()
 }
 
-/// Generate enum field checker using explicit annotations only
-/// Users must mark enum fields with `#[crudcrate(enum_field)]` for enum filtering to work
+/// Generate enum field checker using compile-time trait detection.
+/// Automatically detects fields whose type implements `sea_orm::ActiveEnum`
+/// using the inherent impl trick — no explicit annotation needed.
+/// The `#[crudcrate(enum_field)]` attribute is still supported as an explicit override.
 pub fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::TokenStream {
     let field_checks: Vec<proc_macro2::TokenStream> = all_fields
         .iter()
         .filter_map(|field| {
             if let Some(field_name) = &field.ident {
                 let field_name_str = ident_to_string(field_name);
-                let is_enum = get_crudcrate_bool(field, "enum_field").unwrap_or(false);
+
+                // Allow explicit override via attribute (backward compat)
+                let explicit = get_crudcrate_bool(field, "enum_field").unwrap_or(false);
+                if explicit {
+                    return Some(quote! { #field_name_str => true, });
+                }
+
+                // Auto-detect: unwrap Option<T> to get the inner type, then check
+                // at compile time whether it implements sea_orm::ActiveEnum.
+                // Uses the "inherent impl trick": inherent methods on a generic wrapper
+                // shadow trait methods, so if T: ActiveEnum the inherent const wins.
+                let inner_ty = extract_option_inner_type_ref(&field.ty);
 
                 Some(quote! {
-                    #field_name_str => #is_enum,
+                    #field_name_str => {
+                        trait __Fallback { const V: bool = false; }
+                        impl<T> __Fallback for __Probe<T> {}
+                        struct __Probe<T>(::core::marker::PhantomData<T>);
+                        #[allow(dead_code)]
+                        impl<T: ::sea_orm::ActiveEnum> __Probe<T> {
+                            const V: bool = true;
+                        }
+                        <__Probe<#inner_ty>>::V
+                    },
                 })
             } else {
                 None
