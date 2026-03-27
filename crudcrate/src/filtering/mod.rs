@@ -31,8 +31,8 @@
 //! GET /todos?q=urgent review
 //! ```
 //!
-//! On PostgreSQL this uses `to_tsvector`/`to_tsquery` with GIN indexes.
-//! On MySQL it uses `MATCH ... AGAINST`. On SQLite it falls back to `LIKE`.
+//! On `PostgreSQL` this uses `to_tsvector`/`to_tsquery` with GIN indexes.
+//! On `MySQL` it uses `MATCH ... AGAINST`. On `SQLite` it falls back to `LIKE`.
 //!
 //! ## Sorting
 //!

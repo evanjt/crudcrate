@@ -1,7 +1,7 @@
 //! Derive complete REST APIs from Sea-ORM entities.
 //!
 //! `crudcrate` generates CRUD endpoints, request/response models, filtering, sorting,
-//! pagination, batch operations, relationship loading, and OpenAPI schemas from a single
+//! pagination, batch operations, relationship loading, and `OpenAPI` schemas from a single
 //! `#[derive(EntityToModels)]` on your Sea-ORM model. It targets [Axum](https://github.com/tokio-rs/axum)
 //! and uses [utoipa](https://docs.rs/utoipa) for schema generation.
 //!
