@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-ffca4e36.js";
+            window.path_to_searchindex_js = "searchindex-41cb6191.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-05241513.js"></script>
@@ -4873,8 +4873,22 @@ pub updated_at: DateTimeUtc,</code></pre>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
 <h2 id="unreleased"><a class="header" href="#unreleased"><a href="https://github.com/evanjt/crudcrate/compare/0.7.1...HEAD">Unreleased</a></a></h2>
-<h2 id="071---2026-03-09"><a class="header" href="#071---2026-03-09"><a href="https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1">0.7.1</a> - 2026-03-09</a></h2>
+<h2 id="072---2026-03-27"><a class="header" href="#072---2026-03-27">[0.7.2] - 2026-03-27</a></h2>
 <h3 id="added"><a class="header" href="#added">Added</a></h3>
+<ul>
+<li><strong>Automatic enum field detection</strong>: Fields with types implementing <code>sea_orm::ActiveEnum</code> are now detected at compile time — no <code>#[crudcrate(enum_field)]</code> annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field’s type.</li>
+<li><strong>Case-insensitive enum array filtering</strong>: Array/IN filters on enum fields now apply <code>UPPER(CAST(col AS TEXT))</code> on Postgres, matching the case-insensitive behavior already used for single-value enum filters.</li>
+</ul>
+<h3 id="deprecated"><a class="header" href="#deprecated">Deprecated</a></h3>
+<ul>
+<li><strong><code>#[crudcrate(enum_field)]</code></strong>: No longer required. Enum fields are auto-detected from the <code>ActiveEnum</code> trait implementation. The attribute still works for backward compatibility but can be safely removed.</li>
+</ul>
+<h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<ul>
+<li><strong>Array/IN filtering on enum fields</strong>: <code>process_array_filter()</code> now handles enum fields by casting to TEXT and uppercasing on Postgres. Previously, array filters on enum columns could fail on native Postgres ENUM types or produce case-sensitive results.</li>
+</ul>
+<h2 id="071---2026-03-09"><a class="header" href="#071---2026-03-09"><a href="https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1">0.7.1</a> - 2026-03-09</a></h2>
+<h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
 <ul>
 <li><strong>Transform Hooks</strong>: New <code>transform</code> phase in hook system for result modification
 <ul>
@@ -4939,7 +4953,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li><code>BATCH_LIMIT</code> and <code>MAX_PAGE_SIZE</code> changed from associated constants to trait methods for runtime overridability</li>
 <li>Batch loading uses <code>.remove()</code> from HashMap instead of <code>.get().cloned()</code> — moves data instead of copying</li>
 </ul>
-<h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
 <ul>
 <li>UUID array filtering now passes native <code>Uuid</code> values to <code>is_in()</code> instead of stringified values, fixing incorrect query generation for UUID column arrays</li>
 <li><code>max_page_size()</code> trait method now enforced in HTTP pagination handler</li>
@@ -4967,7 +4981,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li>Improve input sanitization in filtering and pagination</li>
 <li>Add pagination limits to prevent excessive queries</li>
 </ul>
-<h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
+<h3 id="added-2"><a class="header" href="#added-2">Added</a></h3>
 <ul>
 <li><strong>Join Filtering</strong>: Filter by related entity columns using dot-notation syntax
 <ul>
@@ -5018,7 +5032,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li>Replace <code>eprintln!</code> with <code>tracing</code> for logging</li>
 <li>Legacy <code>fn_*</code> attributes auto-map to new hook syntax</li>
 </ul>
-<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
+<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
 <ul>
 <li>Improved error handling in join path parsing</li>
 <li>Fixed flaky tests with serial execution</li>
@@ -5040,13 +5054,13 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li>Added <code>tracing</code> for structured logging</li>
 </ul>
 <h2 id="061---2025-11-03"><a class="header" href="#061---2025-11-03"><a href="https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1">0.6.1</a> - 2025-11-03</a></h2>
-<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
+<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
 <ul>
 <li>Global path resolution of joined structs</li>
 <li>Restructuring of crudcrate-derive into smaller modules, bit by bit.</li>
 </ul>
 <h2 id="060---2025-10-31"><a class="header" href="#060---2025-10-31"><a href="https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0">0.6.0</a> - 2025-10-31</a></h2>
-<h3 id="added-2"><a class="header" href="#added-2">Added</a></h3>
+<h3 id="added-3"><a class="header" href="#added-3">Added</a></h3>
 <ul>
 <li><strong>Recursive Join Loading</strong>: Multi-level relationship loading with <code>#[crudcrate(join(one, all))]</code> attribute</li>
 <li>Cyclic dependency detection at compile-time with actionable error messages</li>
@@ -5061,7 +5075,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li><strong>derive</strong>: Removed requirement for <code>Eq</code> and <code>PartialEq</code> derives on generated API structs</li>
 <li><strong>derive</strong>: Improved multi-pass code generation to handle cyclic dependencies</li>
 </ul>
-<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
+<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
 <ul>
 <li>Database test cleanup logic for PostgreSQL and MySQL backends</li>
 <li>Relationship loading in <code>get_one()</code> and <code>get_all()</code> endpoints</li>
@@ -5071,7 +5085,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li><strong>derive</strong>: Updated with recursive join support, cyclic dependency detection, and enhanced attribute parsing</li>
 </ul>
 <h2 id="050---2025-08-28"><a class="header" href="#050---2025-08-28"><a href="https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0">0.5.0</a> - 2025-08-28</a></h2>
-<h3 id="added-3"><a class="header" href="#added-3">Added</a></h3>
+<h3 id="added-4"><a class="header" href="#added-4">Added</a></h3>
 <ul>
 <li>Spring-RS framework support with minimal example in <code>/examples</code></li>
 <li>Restored CRUD benchmarks from 0.4.5</li>
@@ -5087,12 +5101,12 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li>BREAKING: Case-sensitive enum filtering functionality</li>
 </ul>
 <h2 id="045---2025-08-25"><a class="header" href="#045---2025-08-25"><a href="https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5">0.4.5</a> - 2025-08-25</a></h2>
-<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
+<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
 <ul>
 <li>Batch delete endpoints now returns the array of successfully deleted resource UUIDs, suitable for a react-admin batch delete response.</li>
 </ul>
 <h2 id="044---2025-08-20"><a class="header" href="#044---2025-08-20"><a href="https://github.com/evanjt/crudcrate/compare/0.4.3...0.4.4">0.4.4</a> - 2025-08-20</a></h2>
-<h3 id="added-4"><a class="header" href="#added-4">Added</a></h3>
+<h3 id="added-5"><a class="header" href="#added-5">Added</a></h3>
 <ul>
 <li>Index analysis system for database optimization recommendations</li>
 <li><code>analyse_indexes_for_resource</code> and <code>analyse_all_registered_models</code> functions</li>
@@ -5105,19 +5119,19 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Made <code>validate_field_value</code> function const</li>
 <li>Improved code organization with extracted helper functions</li>
 </ul>
-<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
+<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
 <ul>
 <li>All clippy warnings (pessimistic and pedantic)</li>
 <li>Test compilation errors and naming inconsistencies</li>
 <li>Documentation examples and missing trait implementations</li>
 </ul>
 <h2 id="043---2025-08-19"><a class="header" href="#043---2025-08-19"><a href="https://github.com/evanjt/crudcrate/compare/0.4.2...0.4.3">0.4.3</a> - 2025-08-19</a></h2>
-<h3 id="added-5"><a class="header" href="#added-5">Added</a></h3>
+<h3 id="added-6"><a class="header" href="#added-6">Added</a></h3>
 <ul>
 <li><strong>Testing</strong>: Integration tests for <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
 <li><strong>Testing</strong>: Comprehensive test suite for <code>use_target_models</code> functionality with cross-model referencing</li>
 </ul>
-<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
+<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Resolved lingering compilation errors from List model update</li>
 <li><strong>derive</strong>: Fixed test compatibility issues following List model integration</li>
@@ -5128,7 +5142,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to latest version with enhanced List model support and improved compatibility</li>
 </ul>
 <h2 id="042---2025-08-18"><a class="header" href="#042---2025-08-18"><a href="https://github.com/evanjt/crudcrate/compare/0.4.1...0.4.2">0.4.2</a> - 2025-08-18</a></h2>
-<h3 id="added-6"><a class="header" href="#added-6">Added</a></h3>
+<h3 id="added-7"><a class="header" href="#added-7">Added</a></h3>
 <ul>
 <li><strong>List Model Support</strong>: New <code>List</code> model generation capability for customizing fields returned in list/getAll endpoints, similar to Create and Update models</li>
 <li>Generated List model behavior with field deselection support</li>
@@ -5143,7 +5157,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Route generation now uses root-level paths instead of prefixed routes for better user control</li>
 <li><strong>derive</strong>: Enhanced <code>use_target_models</code> functionality for better cross-model integration</li>
 </ul>
-<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
+<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Fixed ActiveModel generation when create model excludes keys</li>
 <li><strong>derive</strong>: Fixed <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
@@ -5156,7 +5170,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.2.6 with List model support, reserved field handling, and enhanced model generation capabilities</li>
 </ul>
 <h2 id="041---2025-08-05"><a class="header" href="#041---2025-08-05"><a href="https://github.com/evanjt/crudcrate/compare/0.4.0...0.4.1">0.4.1</a> - 2025-08-05</a></h2>
-<h3 id="added-7"><a class="header" href="#added-7">Added</a></h3>
+<h3 id="added-8"><a class="header" href="#added-8">Added</a></h3>
 <ul>
 <li>Index analysis functionality with <code>analyze_indexes_for_resource()</code> and <code>analyze_and_display_indexes()</code> methods</li>
 <li>Full-text search support in filtering system with <code>fulltext_searchable_columns()</code> method</li>
@@ -5179,7 +5193,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Sea-ORM dependency now uses <code>default-features = false</code> with selective feature enabling</li>
 <li>Enhanced README with database feature selection examples</li>
 </ul>
-<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
+<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
 <ul>
 <li>Enum filtering now supports case-insensitive matching</li>
 <li>Filter edge cases handle malformed JSON gracefully</li>
@@ -5193,7 +5207,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Removed Clone derives from generated structs to reduce memory overhead</li>
 </ul>
 <h2 id="040---2025-07-17"><a class="header" href="#040---2025-07-17"><a href="https://github.com/evanjt/crudcrate/compare/0.3.3...0.4.0">0.4.0</a> - 2025-07-17</a></h2>
-<h3 id="added-8"><a class="header" href="#added-8">Added</a></h3>
+<h3 id="added-9"><a class="header" href="#added-9">Added</a></h3>
 <ul>
 <li><strong>Enhanced Router Generation</strong>: Automatic router generation via <code>generate_router</code> attribute in <code>EntityToModels</code> macro</li>
 <li><strong>Non-Database Field Support</strong>: Complete support for non-DB fields using <code>#[sea_orm(ignore)]</code> + <code>#[crudcrate(non_db_attr = true)]</code> pattern</li>
@@ -5212,12 +5226,12 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced <code>ToCreateModel</code> and <code>ToUpdateModel</code> with new trait system</li>
 <li><strong>derive</strong>: Added <code>MergeIntoActiveModel</code> trait implementation</li>
 </ul>
-<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
+<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Test infrastructure improvements and better error handling in macro generation</li>
 </ul>
 <h2 id="033---2025-06-23"><a class="header" href="#033---2025-06-23"><a href="https://github.com/evanjt/crudcrate/compare/0.3.2...0.3.3">0.3.3</a> - 2025-06-23</a></h2>
-<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
+<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
 <ul>
 <li>Fix newline formatting in auto-generated OpenAPI documentation</li>
 <li>Remove debug messages from production builds</li>
@@ -5242,7 +5256,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Update lockfile and enhance filtering capabilities for enum and integer columns</li>
 </ul>
 <h2 id="030---2025-04-05"><a class="header" href="#030---2025-04-05"><a href="https://github.com/evanjt/crudcrate/compare/0.2.5...0.3.0">0.3.0</a> - 2025-04-05</a></h2>
-<h3 id="added-9"><a class="header" href="#added-9">Added</a></h3>
+<h3 id="added-10"><a class="header" href="#added-10">Added</a></h3>
 <ul>
 <li><strong>Major</strong>: Default implementations for <code>get_one</code>, <code>get_all</code>, and <code>update_one</code> in <code>CRUDResource</code> trait</li>
 <li>New <code>MergeIntoActiveModel</code> trait for improved update model handling</li>
@@ -5258,7 +5272,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.5 with <code>IntoActiveModel</code> trait for <code>UpdateModel</code> and improved trait derivations</li>
 </ul>
 <h2 id="025---2025-04-04"><a class="header" href="#025---2025-04-04"><a href="https://github.com/evanjt/crudcrate/compare/0.2.4...0.2.5">0.2.5</a> - 2025-04-04</a></h2>
-<h3 id="added-10"><a class="header" href="#added-10">Added</a></h3>
+<h3 id="added-11"><a class="header" href="#added-11">Added</a></h3>
 <ul>
 <li>Export <code>serde_with</code> for better serialization support</li>
 <li>Enhanced error responses in API endpoints</li>
@@ -5270,7 +5284,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Updated dependencies</li>
 </ul>
 <h2 id="024---2025-03-11"><a class="header" href="#024---2025-03-11"><a href="https://github.com/evanjt/crudcrate/compare/0.2.3...0.2.4">0.2.4</a> - 2025-03-11</a></h2>
-<h3 id="added-11"><a class="header" href="#added-11">Added</a></h3>
+<h3 id="added-12"><a class="header" href="#added-12">Added</a></h3>
 <ul>
 <li>Description string support in CRUDResource</li>
 <li>Auto-populated summary and description for macro-generated endpoints</li>
@@ -5281,22 +5295,22 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.4 with improved serialization support using exported <code>serde_with</code></li>
 </ul>
 <h2 id="023---2025-03-07"><a class="header" href="#023---2025-03-07"><a href="https://github.com/evanjt/crudcrate/compare/0.2.2...0.2.3">0.2.3</a> - 2025-03-07</a></h2>
-<h3 id="added-12"><a class="header" href="#added-12">Added</a></h3>
+<h3 id="added-13"><a class="header" href="#added-13">Added</a></h3>
 <ul>
 <li>Comprehensive OpenAPI macro support</li>
 <li>Better API documentation generation</li>
 </ul>
-<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
+<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
 <ul>
 <li>Improved error responses in endpoints</li>
 </ul>
 <h2 id="022---2025-03-06"><a class="header" href="#022---2025-03-06"><a href="https://github.com/evanjt/crudcrate/compare/0.2.1...0.2.2">0.2.2</a> - 2025-03-06</a></h2>
-<h3 id="added-13"><a class="header" href="#added-13">Added</a></h3>
+<h3 id="added-14"><a class="header" href="#added-14">Added</a></h3>
 <ul>
 <li>Documentation for query parameters</li>
 </ul>
 <h2 id="021---2025-03-05"><a class="header" href="#021---2025-03-05"><a href="https://github.com/evanjt/crudcrate/compare/0.2.0...0.2.1">0.2.1</a> - 2025-03-05</a></h2>
-<h3 id="added-14"><a class="header" href="#added-14">Added</a></h3>
+<h3 id="added-15"><a class="header" href="#added-15">Added</a></h3>
 <ul>
 <li>Description string support in CRUDResource</li>
 <li>Auto-populated summary and description for macro-generated endpoints</li>
@@ -5313,7 +5327,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Legacy route-based implementation</li>
 </ul>
 <h2 id="014---2025-03-03"><a class="header" href="#014---2025-03-03"><a href="https://github.com/evanjt/crudcrate/compare/0.1.3...0.1.4">0.1.4</a> - 2025-03-03</a></h2>
-<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
+<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
 <ul>
 <li>Fixed return type of <code>delete_one</code> handler</li>
 <li>Applied clippy suggestions for performance improvements</li>
@@ -5337,7 +5351,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.2 with improved trait derivations (Clone instead of Copy where appropriate)</li>
 </ul>
 <h2 id="010---2025-02-18"><a class="header" href="#010---2025-02-18"><a href="https://github.com/evanjt/crudcrate/releases/tag/0.1.0">0.1.0</a> - 2025-02-18</a></h2>
-<h3 id="added-15"><a class="header" href="#added-15">Added</a></h3>
+<h3 id="added-16"><a class="header" href="#added-16">Added</a></h3>
 <ul>
 <li>Initial release of crudcrate</li>
 <li>Basic CRUD operation framework</li>
