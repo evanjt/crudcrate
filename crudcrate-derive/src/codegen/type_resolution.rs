@@ -216,7 +216,8 @@ pub fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::T
             if let Some(field_name) = &field.ident {
                 let field_name_str = ident_to_string(field_name);
 
-                // Allow explicit override via attribute (backward compat)
+                // Backward compat: explicit enum_field still works but is no longer required.
+                // Deprecated in 0.7.2 — enum fields are now auto-detected.
                 let explicit = get_crudcrate_bool(field, "enum_field").unwrap_or(false);
                 if explicit {
                     return Some(quote! { #field_name_str => true, });

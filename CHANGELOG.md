@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-03-27
+
+### Added
+
+- **Automatic enum field detection**: Fields with types implementing `sea_orm::ActiveEnum` are now detected at compile time — no `#[crudcrate(enum_field)]` annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field's type.
+- **Case-insensitive enum array filtering**: Array/IN filters on enum fields now apply `UPPER(CAST(col AS TEXT))` on Postgres, matching the case-insensitive behavior already used for single-value enum filters.
+
+### Deprecated
+
+- **`#[crudcrate(enum_field)]`**: No longer required. Enum fields are auto-detected from the `ActiveEnum` trait implementation. The attribute still works for backward compatibility but can be safely removed.
+
+### Fixed
+
+- **Array/IN filtering on enum fields**: `process_array_filter()` now handles enum fields by casting to TEXT and uppercasing on Postgres. Previously, array filters on enum columns could fail on native Postgres ENUM types or produce case-sensitive results.
+
 ## [0.7.1] - 2026-03-09
 
 ### Added
