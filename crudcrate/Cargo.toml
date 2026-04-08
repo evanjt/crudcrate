@@ -87,6 +87,11 @@ name = "recursive_join_5_levels"
 path = "../examples/recursive_join_5_levels/main.rs"
 required-features = ["derive", "sqlite"]
 
+[[example]]
+name = "scoped_access"
+path = "../examples/scoped_access/main.rs"
+required-features = ["derive", "sqlite"]
+
 
 [[bench]]
 name = "crud_benchmarks"

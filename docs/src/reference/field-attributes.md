@@ -43,6 +43,7 @@ pub password_hash: String,
 - `create` - Create model (POST /items)
 - `update` - Update model (PUT /items/:id)
 - `list` - List model (GET /items)
+- `scoped` - Scoped response models (when `ScopeCondition` is active). Also strips the field from filterable/sortable lists in scoped context. See [Public & Private Endpoints](../tutorial/scoping.md).
 
 ---
 

@@ -4,11 +4,13 @@ use crate::codegen::models::shared::{
     generate_target_model_conversion, resolve_dtwtz, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
+use crate::codegen::type_resolution::{is_vec_type, transform_type_to_list_variant};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
 pub(crate) fn generate_list_struct_fields(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    api_struct_name: &syn::Ident,
 ) -> Vec<proc_macro2::TokenStream> {
     fields
         .iter()
@@ -17,9 +19,16 @@ pub(crate) fn generate_list_struct_fields(
             let ident = &field.ident;
             let ty = &field.ty;
 
-            // Resolve type with target models (list model)
-            let final_ty =
-                resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone());
+            // For join(all) fields, use the List variant of the inner type
+            // so that exclude(list) on child fields is respected
+            let is_join_all = get_join_config(field).is_some_and(|c| c.on_all);
+            let final_ty = if is_join_all {
+                let list_ty = transform_type_to_list_variant(ty, api_struct_name);
+                list_ty
+            } else {
+                // Resolve type with target models (list model)
+                resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone())
+            };
 
             let resolved_ty = resolve_dtwtz(&final_ty);
             quote! { pub #ident: #resolved_ty }
@@ -35,6 +44,14 @@ pub(crate) fn generate_list_from_assignments(
         .filter(|field| should_include_in_model(field, "list_model"))
         .map(|field| {
             let ident = &field.ident;
+
+            // For join(all) Vec fields, convert each element to its List variant
+            let is_join_all = get_join_config(field).is_some_and(|c| c.on_all);
+            if is_join_all && is_vec_type(&field.ty) {
+                return quote! {
+                    #ident: model.#ident.into_iter().map(Into::into).collect()
+                };
+            }
 
             // Try to generate target model conversion, fallback to direct assignment
             generate_target_model_conversion(field, ident.as_ref()).unwrap_or_else(|| {

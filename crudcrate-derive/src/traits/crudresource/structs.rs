@@ -25,6 +25,21 @@ pub(crate) struct CrudHooks {
     pub(crate) delete: CrudOperationHooks,
 }
 
+/// A join field defined at the struct level rather than as a field on the Model.
+/// This keeps the SeaORM Model lightweight — the field only exists on the generated API struct.
+#[derive(Clone)]
+pub(crate) struct StructLevelJoin {
+    pub(crate) name: String,
+    pub(crate) result_type: String,
+    pub(crate) on_one: bool,
+    pub(crate) on_all: bool,
+    pub(crate) depth: Option<u8>,
+    pub(crate) relation: Option<String>,
+    pub(crate) path: Option<String>,
+    pub(crate) filterable_columns: Vec<String>,
+    pub(crate) sortable_columns: Vec<String>,
+}
+
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
 #[derive(Default)]
 pub(crate) struct CRUDResourceMeta {
@@ -42,6 +57,8 @@ pub(crate) struct CRUDResourceMeta {
     // Configurable limits
     pub(crate) batch_limit: Option<usize>,
     pub(crate) max_page_size: Option<u64>,
+    // Struct-level join definitions (fields only on the API struct, not the Model)
+    pub(crate) struct_level_joins: Vec<StructLevelJoin>,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

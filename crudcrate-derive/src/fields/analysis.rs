@@ -9,12 +9,15 @@ use crate::fields::extraction::has_sea_orm_ignore;
 use crate::traits::crudresource::structs::{EntityFieldAnalysis, JoinFilterSortConfig};
 use proc_macro::TokenStream;
 
-/// Analyze entity fields and categorize them by attributes
+/// Analyze entity fields and categorize them by attributes.
+/// `struct_level_joins` are synthetic fields from struct-level `join(...)` attributes
+/// that exist only on the generated API struct, not on the SeaORM Model.
 ///
 /// Returns an error if deprecated syntax (like `join_filterable`/`join_sortable`) is used.
-pub fn analyze_entity_fields(
-    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Result<EntityFieldAnalysis<'_>, TokenStream> {
+pub fn analyze_entity_fields<'a>(
+    fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    struct_level_joins: &'a [syn::Field],
+) -> Result<EntityFieldAnalysis<'a>, TokenStream> {
     let mut analysis = EntityFieldAnalysis {
         db_fields: Vec::new(),
         non_db_fields: Vec::new(),
@@ -29,7 +32,7 @@ pub fn analyze_entity_fields(
 
     let mut deprecation_errors: Vec<syn::Error> = Vec::new();
 
-    for field in fields {
+    for field in fields.iter().chain(struct_level_joins.iter()) {
         let is_non_db = attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false);
 
         // Check for join attributes regardless of db/non_db status

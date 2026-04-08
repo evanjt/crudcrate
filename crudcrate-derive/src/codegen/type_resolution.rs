@@ -2,7 +2,7 @@ use convert_case::{Case, Casing};
 use heck::ToPascalCase;
 use quote::{format_ident, quote};
 
-use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool};
+use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool, codegen::models::should_include_in_model};
 
 /// Map field types to their corresponding entity or model paths
 /// This function replaces both `get_entity_path_from_field_type` and `get_model_path_from_field_type`
@@ -83,6 +83,143 @@ pub fn extract_api_struct_type_for_recursive_call(
     quote! { #current_type }
 }
 
+/// Transform a field type to use the List variant of its inner API struct.
+///
+/// Appends "List" to the last path segment of the inner type, preserving the full
+/// module path and any Vec/Option wrapper.
+///
+/// Examples:
+/// - `Vec<VehiclePart>` → `Vec<VehiclePartList>`
+/// - `Vec<crate::isolates::db::Isolate>` → `Vec<crate::isolates::db::IsolateList>`
+/// - `Option<Site>` → `Option<SiteList>`
+///
+/// For self-referencing joins (where the inner type matches `self_api_struct_name`),
+/// returns the original type unchanged.
+pub fn transform_type_to_list_variant(
+    ty: &syn::Type,
+    self_api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    // Check for self-referencing
+    let inner_type = extract_api_struct_type_for_recursive_call(ty);
+    let inner_str = inner_type.to_string();
+    let self_str = self_api_struct_name.to_string();
+    if inner_str.trim() == self_str.trim() {
+        return quote! { #ty };
+    }
+
+    // Unwrap Vec/Option to get the inner type, transform it, and re-wrap
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            if (segment.ident == "Vec" || segment.ident == "Option")
+                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+                && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+            {
+                let list_inner = append_list_to_type(inner_ty);
+                let wrapper = &segment.ident;
+                return quote! { #wrapper<#list_inner> };
+            }
+        }
+    }
+
+    // Not wrapped - transform directly
+    append_list_to_type(ty)
+}
+
+/// Derive the List type path for a given type, using module path resolution
+/// to ensure the List type is always reachable.
+///
+/// For fully qualified paths (e.g., `crate::isolates::db::Isolate`), appends "List"
+/// to the last segment: `crate::isolates::db::IsolateList`.
+///
+/// For short names (e.g., `VehiclePart`), uses `get_path_from_field_type` to resolve
+/// the module path: `super::vehicle_part::VehiclePartList`.
+fn append_list_to_type(ty: &syn::Type) -> proc_macro2::TokenStream {
+    if let syn::Type::Path(type_path) = ty {
+        if type_path.path.segments.len() > 1 {
+            // Fully qualified path - just append "List" to last segment
+            let mut new_path = type_path.clone();
+            if let Some(last_segment) = new_path.path.segments.last_mut() {
+                let new_name = format!("{}List", last_segment.ident);
+                last_segment.ident = syn::Ident::new(&new_name, last_segment.ident.span());
+            }
+            quote! { #new_path }
+        } else if let Some(segment) = type_path.path.segments.last() {
+            // Short name - resolve via get_path_from_field_type for a proper module path
+            let list_name = format!("{}List", segment.ident);
+            get_path_from_field_type(ty, &list_name)
+        } else {
+            quote! { #ty }
+        }
+    } else {
+        quote! { #ty }
+    }
+}
+
+/// Transform a field type to use the ScopedList variant of its inner API struct.
+///
+/// Like `transform_type_to_list_variant`, but appends "ScopedList" instead of "List".
+/// Used in scoped models so that joined children also have their scoped fields excluded.
+///
+/// Examples:
+/// - `Vec<Sample>` → `Vec<SampleScopedList>`
+/// - `Vec<crate::isolates::db::Isolate>` → `Vec<crate::isolates::db::IsolateScopedList>`
+pub fn transform_type_to_scoped_list_variant(
+    ty: &syn::Type,
+    self_api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    // Check for self-referencing
+    let inner_type = extract_api_struct_type_for_recursive_call(ty);
+    let inner_str = inner_type.to_string();
+    let self_str = self_api_struct_name.to_string();
+    if inner_str.trim() == self_str.trim() {
+        return quote! { #ty };
+    }
+
+    // Unwrap Vec/Option to get the inner type, transform it, and re-wrap
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            if (segment.ident == "Vec" || segment.ident == "Option")
+                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+                && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+            {
+                let scoped_inner = append_suffix_to_type(inner_ty, "ScopedList");
+                let wrapper = &segment.ident;
+                return quote! { #wrapper<#scoped_inner> };
+            }
+        }
+    }
+
+    append_suffix_to_type(ty, "ScopedList")
+}
+
+/// Append an arbitrary suffix to the last segment of a type path.
+fn append_suffix_to_type(ty: &syn::Type, suffix: &str) -> proc_macro2::TokenStream {
+    if let syn::Type::Path(type_path) = ty {
+        if type_path.path.segments.len() > 1 {
+            let mut new_path = type_path.clone();
+            if let Some(last_segment) = new_path.path.segments.last_mut() {
+                let new_name = format!("{}{suffix}", last_segment.ident);
+                last_segment.ident = syn::Ident::new(&new_name, last_segment.ident.span());
+            }
+            quote! { #new_path }
+        } else if let Some(segment) = type_path.path.segments.last() {
+            let name = format!("{}{suffix}", segment.ident);
+            get_path_from_field_type(ty, &name)
+        } else {
+            quote! { #ty }
+        }
+    } else {
+        quote! { #ty }
+    }
+}
+
+/// For a Vec<T> type, return the "TList" inner type token (not wrapped in Vec).
+/// Used when generating chained conversions for scoped response join fields.
+pub fn inner_list_type_of_vec(ty: &syn::Type) -> proc_macro2::TokenStream {
+    let inner = extract_vec_inner_type_ref(ty);
+    append_suffix_to_type(inner, "List")
+}
+
 pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
@@ -102,6 +239,22 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
         return true;
     }
     false
+}
+
+pub fn is_option_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Option"
+    {
+        return true;
+    }
+    false
+}
+
+/// For an Option<T> type, return the "TList" inner type token (not wrapped in Option).
+pub fn inner_list_type_of_option(ty: &syn::Type) -> proc_macro2::TokenStream {
+    let inner = extract_option_inner_type_ref(ty);
+    append_suffix_to_type(inner, "List")
 }
 
 /// Extract inner type from Vec<T>, or return the type itself if not a Vec
@@ -201,6 +354,23 @@ pub fn generate_like_filterable_entries(fields: &[&syn::Field]) -> Vec<proc_macr
             } else {
                 None
             }
+        })
+        .collect()
+}
+
+/// Generate string entries for columns excluded from scoped (public) requests.
+///
+/// Collects field names that have `exclude(scoped)` — these are stripped from
+/// filterable/sortable lists when a `ScopeCondition` is active, preventing
+/// schema probing by unauthenticated users.
+pub fn generate_scoped_excluded_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
+    fields
+        .iter()
+        .filter(|field| !should_include_in_model(field, "scoped_model"))
+        .map(|field| {
+            let field_name = field.ident.as_ref().unwrap();
+            let field_str = ident_to_string(field_name);
+            quote! { #field_str }
         })
         .collect()
 }

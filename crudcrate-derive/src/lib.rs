@@ -230,7 +230,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(e) => return e,
     };
-    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields);
+    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields, name);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&fields);
 
@@ -307,7 +307,50 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(e) => return e,
     };
-    let field_analysis = match fields::analyze_entity_fields(fields) {
+
+    // Create synthetic fields from struct-level join definitions.
+    // These exist ONLY on the generated API struct, not on the SeaORM Model.
+    let mut synthetic_join_fields: Vec<syn::Field> = Vec::new();
+    for j in &crud_meta.struct_level_joins {
+        let mut parts = Vec::new();
+        if j.on_one { parts.push("one".to_string()); }
+        if j.on_all { parts.push("all".to_string()); }
+        if let Some(d) = j.depth { parts.push(format!("depth = {d}")); }
+        if let Some(ref r) = j.relation { parts.push(format!("relation = \"{r}\"")); }
+        if let Some(ref p) = j.path { parts.push(format!("path = \"{p}\"")); }
+        if !j.filterable_columns.is_empty() {
+            let cols = j.filterable_columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+            parts.push(format!("filterable({cols})"));
+        }
+        if !j.sortable_columns.is_empty() {
+            let cols = j.sortable_columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+            parts.push(format!("sortable({cols})"));
+        }
+        let join_attr = parts.join(", ");
+        let struct_str = format!(
+            "struct S {{ #[sea_orm(ignore)] #[crudcrate(non_db_attr, exclude(create, update), join({join_attr}))] pub {}: {} }}",
+            j.name, j.result_type
+        );
+        match syn::parse_str::<syn::ItemStruct>(&struct_str) {
+            Ok(s) => {
+                if let syn::Fields::Named(named) = s.fields {
+                    if let Some(field) = named.named.into_iter().next() {
+                        synthetic_join_fields.push(field);
+                    }
+                }
+            }
+            Err(e) => {
+                return syn::Error::new_spanned(
+                    &input,
+                    format!("Invalid struct-level join '{}': {e}", j.name),
+                )
+                .to_compile_error()
+                .into();
+            }
+        }
+    }
+
+    let field_analysis = match fields::analyze_entity_fields(fields, &synthetic_join_fields) {
         Ok(a) => a,
         Err(e) => return e,
     };
@@ -362,8 +405,14 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         quote! {}
     };
 
+    // Detect if any fields have exclude(scoped) for scoped model generation
+    let has_scoped_fields = field_analysis.db_fields.iter().any(|f| {
+        use crate::codegen::models::should_include_in_model;
+        !should_include_in_model(f, "scoped_model")
+    });
+
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        crate::codegen::router::axum::generate_router_impl(&api_struct_name)
+        crate::codegen::router::axum::generate_router_impl(&api_struct_name, has_scoped_fields)
     } else {
         quote! {}
     };
@@ -380,6 +429,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
             &api_struct_name,
             struct_name,
             &field_analysis,
+            &synthetic_join_fields,
         );
 
     // Generate final output

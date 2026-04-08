@@ -1,5 +1,6 @@
-use axum::Router;
-use sea_orm::{Database, DatabaseConnection, DbErr};
+use axum::{extract::Request, middleware::Next, response::Response, Router};
+use crudcrate::ScopeCondition;
+use sea_orm::{ColumnTrait, Condition, Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;
 
 // Import local test models
@@ -52,6 +53,52 @@ pub fn setup_test_app(db: &DatabaseConnection) -> Router {
             "/maintenance_records",
             maintenance_record::MaintenanceRecord::router(db).into(),
         )
+}
+
+/// Build app with ScopeCondition middleware applied to every request.
+/// Simulates unauthenticated/public access: scoped endpoints filter by is_private = false,
+/// and write operations are blocked by crudcrate's built-in scope guard (403).
+#[allow(dead_code)]
+pub fn setup_scoped_app(db: &DatabaseConnection) -> Router {
+    Router::new()
+        .nest(
+            "/customers",
+            customer::Customer::router(db)
+                .split_for_parts()
+                .0
+                .layer(axum::middleware::from_fn(scope_customers)),
+        )
+        .nest(
+            "/vehicles",
+            vehicle::Vehicle::router(db)
+                .split_for_parts()
+                .0
+                .layer(axum::middleware::from_fn(scope_vehicles)),
+        )
+        .nest(
+            "/vehicle_parts",
+            vehicle_part::VehiclePart::router(db).into(),
+        )
+        .nest(
+            "/maintenance_records",
+            maintenance_record::MaintenanceRecord::router(db).into(),
+        )
+}
+
+/// Scope middleware for customers: filter is_private = false
+async fn scope_customers(mut req: Request, next: Next) -> Response {
+    req.extensions_mut().insert(ScopeCondition::new(
+        Condition::all().add(customer::Column::IsPrivate.eq(false)),
+    ));
+    next.run(req).await
+}
+
+/// Scope middleware for vehicles: filter is_private = false
+async fn scope_vehicles(mut req: Request, next: Next) -> Response {
+    req.extensions_mut().insert(ScopeCondition::new(
+        Condition::all().add(vehicle::Column::IsPrivate.eq(false)),
+    ));
+    next.run(req).await
 }
 
 // Customer-Vehicle-Parts Migrator for testing
@@ -157,6 +204,12 @@ impl MigrationTrait for CreateCustomerTable {
                     .timestamp_with_time_zone()
                     .not_null(),
             )
+            .col(
+                ColumnDef::new(customer::Column::IsPrivate)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
             .to_owned();
 
         manager.create_table(table).await?;
@@ -212,6 +265,12 @@ impl MigrationTrait for CreateVehicleTable {
                 ColumnDef::new(vehicle::Column::UpdatedAt)
                     .timestamp_with_time_zone()
                     .not_null(),
+            )
+            .col(
+                ColumnDef::new(vehicle::Column::IsPrivate)
+                    .boolean()
+                    .not_null()
+                    .default(false),
             )
             .foreign_key(
                 ForeignKey::create()

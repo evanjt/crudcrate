@@ -1,8 +1,72 @@
 use crate::codegen::joins::loading::{
     generate_get_all_batch_loading, generate_get_one_join_loading,
 };
+use crate::codegen::models::should_include_in_model;
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use quote::quote;
+use convert_case::{Case, Casing};
+use quote::{format_ident, quote};
+
+/// Check if a type is `Option<T>`
+fn is_option_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty {
+        type_path
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident == "Option")
+            .unwrap_or(false)
+    } else {
+        false
+    }
+}
+
+/// Generate `select_only()` column selection for list queries.
+/// Included columns are selected normally. Excluded Option<T> columns are replaced
+/// with NULL to avoid fetching heavy data (photos, blobs) while keeping FromQueryResult happy.
+/// Returns `Some(token_stream)` if there are skippable columns, `None` otherwise.
+fn generate_select_only_columns(
+    analysis: &EntityFieldAnalysis,
+) -> Option<proc_macro2::TokenStream> {
+    // Check if any DB columns are excluded from list AND are Option<T>
+    let has_skippable = analysis.db_fields.iter().any(|f| {
+        !should_include_in_model(f, "list_model") && is_option_type(&f.ty)
+    });
+
+    if !has_skippable {
+        return None;
+    }
+
+    // Build column selections: real columns for included, NULL for excluded Option<T>
+    let mut selections = Vec::new();
+    for field in &analysis.db_fields {
+        let col_ident = {
+            let name = field.ident.as_ref().unwrap().to_string();
+            format_ident!("{}", name.to_case(Case::Pascal))
+        };
+        let included = should_include_in_model(field, "list_model");
+
+        if included || !is_option_type(&field.ty) {
+            // Include this column (real data)
+            selections.push(quote! {
+                .column(<Self as crudcrate::traits::CRUDResource>::ColumnType::#col_ident)
+            });
+        } else {
+            // Excluded Option<T> column — replace with NULL to skip data transfer
+            // Use column_as with IdenStatic::as_str() to get the correct DB column name
+            selections.push(quote! {
+                .column_as(
+                    sea_orm::sea_query::Expr::cust("NULL"),
+                    sea_orm::IdenStatic::as_str(&<Self as crudcrate::traits::CRUDResource>::ColumnType::#col_ident)
+                )
+            });
+        }
+    }
+
+    Some(quote! {
+        .select_only()
+        #( #selections )*
+    })
+}
 
 /// Generate `get_all` method implementation with hook support.
 ///
@@ -50,6 +114,10 @@ pub fn generate_get_all_impl(
     // Check if there are join(all) fields that need loading
     let has_join_all_fields = !analysis.join_on_all_fields.is_empty();
 
+    // Generate select_only() optimization for skipping heavy Option columns excluded from ListModel
+    let select_only_columns = generate_select_only_columns(analysis);
+    let select_clause = select_only_columns.unwrap_or_default();
+
     // Generate body - either custom or default
     let body = if let Some(fn_path) = &hooks.body {
         quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
@@ -61,6 +129,7 @@ pub fn generate_get_all_impl(
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
 
             let models = Self::EntityType::find()
+                #select_clause
                 .filter(condition.clone())
                 .order_by(order_column, order_direction)
                 .offset(offset)
@@ -86,6 +155,7 @@ pub fn generate_get_all_impl(
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
 
             let models = Self::EntityType::find()
+                #select_clause
                 .filter(condition.clone())
                 .order_by(order_column, order_direction)
                 .offset(offset)

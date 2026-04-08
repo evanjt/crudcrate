@@ -1,11 +1,26 @@
 #[macro_export]
 macro_rules! crud_handlers {
-    // New version with ListModel and ResponseModel
+    // Version with scoped models for auth-aware field visibility
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty, $scoped_list:ty, $scoped_response:ty) => {
+        crudcrate::crud_handlers_impl!(
+            $resource,
+            $update_model,
+            $create_model,
+            $list_model,
+            $response_model,
+            $scoped_list,
+            $scoped_response
+        );
+    };
+
+    // Standard version with ListModel and ResponseModel (scoped = same as regular)
     ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty) => {
         crudcrate::crud_handlers_impl!(
             $resource,
             $update_model,
             $create_model,
+            $list_model,
+            $response_model,
             $list_model,
             $response_model
         );
@@ -18,6 +33,8 @@ macro_rules! crud_handlers {
             $update_model,
             $create_model,
             $list_model,
+            $resource,
+            $list_model,
             $resource
         );
     };
@@ -29,6 +46,8 @@ macro_rules! crud_handlers {
             $update_model,
             $create_model,
             $resource,
+            $resource,
+            $resource,
             $resource
         );
     };
@@ -36,7 +55,7 @@ macro_rules! crud_handlers {
 
 #[macro_export]
 macro_rules! crud_handlers_impl {
-    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty) => {
+    ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty, $scoped_list:ty, $scoped_response:ty) => {
         use crudcrate::filter::{apply_filters, parse_pagination};
         use crudcrate::models::FilterOptions;
         use crudcrate::pagination::calculate_content_range;
@@ -68,11 +87,42 @@ macro_rules! crud_handlers_impl {
         pub async fn get_one_handler(
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
             axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
-        ) -> Result<axum::Json<$response_model>, crudcrate::ApiError> {
-            <$resource as crudcrate::traits::CRUDResource>::get_one(&db, id)
-                .await
-                .map(|item| axum::Json(item.into()))
-                .map_err(crudcrate::ApiError::from)
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
+        ) -> Result<axum::response::Response, crudcrate::ApiError> {
+            use axum::response::IntoResponse;
+
+            if let Some(axum::Extension(crudcrate::ScopeCondition { condition: extra })) = scope {
+                // Scoped request: load entity (preserving hooks/joins), then verify scope.
+                // Data is discarded if scope check fails — never reaches serialization.
+                let result = <$resource as crudcrate::traits::CRUDResource>::get_one(&db, id)
+                    .await
+                    .map_err(|_| crudcrate::ApiError::not_found(
+                        <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                        Some(id.to_string()),
+                    ))?;
+
+                // Verify the loaded entity passes the scope condition
+                use sea_orm::ColumnTrait;
+                let scope_check = sea_orm::Condition::all()
+                    .add(<$resource as crudcrate::traits::CRUDResource>::ID_COLUMN.eq(id))
+                    .add(extra);
+                if <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &scope_check).await == 0 {
+                    return Err(crudcrate::ApiError::not_found(
+                        <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                        Some(id.to_string()),
+                    ));
+                }
+
+                let response: $response_model = result.into();
+                let scoped: $scoped_response = response.into();
+                Ok(axum::Json(scoped).into_response())
+            } else {
+                let result = <$resource as crudcrate::traits::CRUDResource>::get_one(&db, id)
+                    .await
+                    .map_err(crudcrate::ApiError::from)?;
+                let response: $response_model = result.into();
+                Ok(axum::Json(response).into_response())
+            }
         }
 
         #[utoipa::path(
@@ -104,33 +154,49 @@ macro_rules! crud_handlers_impl {
         pub async fn get_all_handler(
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
-        ) -> Result<(hyper::HeaderMap, axum::Json<Vec<$list_model>>), crudcrate::ApiError> {
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
+        ) -> Result<axum::response::Response, crudcrate::ApiError> {
+            use axum::response::IntoResponse;
+
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
             let limit = limit.min(<$resource as crudcrate::traits::CRUDResource>::max_page_size());
 
-            // Use join-aware filter parsing to detect dot-notation filters
+            let is_scoped = scope.is_some();
+
+            // When scoped, strip excluded columns from filterable/sortable lists
+            // to prevent schema probing by unauthenticated users
+            let filterable_columns = <$resource as CRUDResource>::filterable_columns();
+            let sortable_columns = <$resource as crudcrate::traits::CRUDResource>::sortable_columns();
+            let (filterable_columns, sortable_columns) = if is_scoped {
+                let excluded = <$resource as crudcrate::traits::CRUDResource>::scoped_excluded_columns();
+                let f: Vec<_> = filterable_columns.into_iter().filter(|(name, _)| !excluded.contains(name)).collect();
+                let s: Vec<_> = sortable_columns.into_iter().filter(|(name, _)| !excluded.contains(name)).collect();
+                (f, s)
+            } else {
+                (filterable_columns, sortable_columns)
+            };
+
             let parsed_filters = crudcrate::apply_filters_with_joins::<$resource>(
                 params.filter.clone(),
-                &<$resource as CRUDResource>::filterable_columns(),
+                &filterable_columns,
                 db.get_database_backend()
             );
 
-            // Use join-aware sort parsing to detect dot-notation sorts
             let sort_config = crudcrate::parse_sorting_with_joins::<$resource, _>(
                 &params,
-                &<$resource as crudcrate::traits::CRUDResource>::sortable_columns(),
+                &sortable_columns,
                 <$resource as crudcrate::traits::CRUDResource>::default_index_column(),
             );
 
-            // For now, use the main condition and regular sorting
-            // Joined filters/sorts are validated but require a custom read::many::body hook to execute
-            // TODO: Add built-in join query support in a future version
-            let condition = parsed_filters.main_condition;
+            let mut condition = parsed_filters.main_condition;
+
+            if let Some(axum::Extension(crudcrate::ScopeCondition { condition: extra })) = scope {
+                condition = condition.add(extra);
+            };
 
             let (order_column, order_direction) = match &sort_config {
                 crudcrate::SortConfig::Column { column, direction } => (*column, direction.clone()),
                 crudcrate::SortConfig::Joined { direction, .. } => {
-                    // Fall back to default column for joined sorts (requires hook for actual implementation)
                     (<$resource as crudcrate::traits::CRUDResource>::default_index_column(), direction.clone())
                 }
             };
@@ -140,7 +206,13 @@ macro_rules! crud_handlers_impl {
                 .map_err(crudcrate::ApiError::from)?;
             let total_count = <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
             let headers = crudcrate::pagination::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);
-            Ok((headers, axum::Json(items)))
+
+            if is_scoped {
+                let scoped: Vec<$scoped_list> = items.into_iter().map(|item| { let converted: $scoped_list = item.into(); converted }).collect();
+                Ok((headers, axum::Json(scoped)).into_response())
+            } else {
+                Ok((headers, axum::Json(items)).into_response())
+            }
         }
 
 
@@ -158,8 +230,12 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn delete_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             path: axum::extract::Path<uuid::Uuid>,
         ) -> Result<axum::http::StatusCode, crudcrate::ApiError> {
+            if scope.is_some() {
+                return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
+            }
             <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, path.0)
                 .await
                 .map(|_| axum::http::StatusCode::NO_CONTENT)
@@ -188,8 +264,12 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn create_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             json: axum::Json<$create_model>,
         ) -> Result<(axum::http::StatusCode, axum::Json<$response_model>), crudcrate::ApiError> {
+            if scope.is_some() {
+                return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
+            }
             <$resource as crudcrate::traits::CRUDResource>::create(&state.0, json.0)
                 .await
                 .map(|res| (axum::http::StatusCode::CREATED, axum::Json(res.into())))
@@ -212,10 +292,15 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn delete_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
             json: axum::Json<Vec<uuid::Uuid>>,
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
+
+            if scope.is_some() {
+                return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
+            }
 
             let ids = json.0;
 
@@ -275,9 +360,13 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn update_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             path: axum::extract::Path<uuid::Uuid>,
             json: axum::Json<$update_model>,
         ) -> Result<axum::Json<$response_model>, crudcrate::ApiError> {
+            if scope.is_some() {
+                return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
+            }
             <$resource as crudcrate::traits::CRUDResource>::update(&state.0, path.0, json.0)
                 .await
                 .map(|res| axum::Json(res.into()))
@@ -302,10 +391,15 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn create_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
             json: axum::Json<Vec<$create_model>>,
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
+
+            if scope.is_some() {
+                return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
+            }
 
             let data = json.0;
 
@@ -382,10 +476,15 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn update_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
+            scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
             json: axum::Json<Vec<BatchUpdateRequest>>,
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
+
+            if scope.is_some() {
+                return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
+            }
 
             let updates: Vec<(uuid::Uuid, $update_model)> = json.0
                 .into_iter()

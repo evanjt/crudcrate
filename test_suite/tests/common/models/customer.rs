@@ -20,6 +20,8 @@ pub struct Model {
     pub created_at: DateTime<Utc>,
     #[crudcrate(sortable, exclude(create, update, list), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
+    #[crudcrate(filterable, exclude(scoped, create), on_create = false)]
+    pub is_private: bool,
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 5))]
     pub vehicles: Vec<Vehicle>,

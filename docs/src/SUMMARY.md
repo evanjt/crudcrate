@@ -15,6 +15,7 @@ Build a task manager from scratch, adding features as you need them.
 - [Sorting & Pagination](./tutorial/sorting.md)
 - [Searching Text](./tutorial/search.md)
 - [Hiding Sensitive Data](./tutorial/hiding-fields.md)
+- [Public & Private Endpoints](./tutorial/scoping.md)
 - [Relationships](./tutorial/relationships.md)
 - [Custom Logic - Hooks](./tutorial/hooks.md)
 

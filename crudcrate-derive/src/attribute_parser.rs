@@ -141,13 +141,121 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             _ => {}
                         }
                     }
-                    Meta::List(_) => {}
+                    Meta::List(list) => {
+                        if list.path.is_ident("join") {
+                            if let Some(join_def) = parse_struct_level_join(&list) {
+                                meta.struct_level_joins.push(join_def);
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
     meta
+}
+
+/// Parse a struct-level `join(name = "field", result = "Type", one, all, depth = N)` attribute.
+/// Returns `Some` only if both `name` and `result` are present (distinguishing from field-level joins).
+fn parse_struct_level_join(
+    meta_list: &syn::MetaList,
+) -> Option<crate::traits::crudresource::structs::StructLevelJoin> {
+    use crate::traits::crudresource::structs::StructLevelJoin;
+
+    let mut name = None;
+    let mut result_type = None;
+    let mut on_one = false;
+    let mut on_all = false;
+    let mut depth = None;
+    let mut relation = None;
+    let mut path = None;
+    let mut filterable_columns = Vec::new();
+    let mut sortable_columns = Vec::new();
+
+    let metas =
+        Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()).ok()?;
+
+    for meta in metas {
+        match meta {
+            Meta::NameValue(nv) => {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    match &expr_lit.lit {
+                        Lit::Str(s) => {
+                            if nv.path.is_ident("name") {
+                                name = Some(s.value());
+                            } else if nv.path.is_ident("result") {
+                                result_type = Some(s.value());
+                            } else if nv.path.is_ident("relation") {
+                                relation = Some(s.value());
+                            } else if nv.path.is_ident("path") {
+                                path = Some(s.value());
+                            }
+                        }
+                        Lit::Int(i) => {
+                            if nv.path.is_ident("depth") {
+                                depth = i.base10_parse().ok();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Meta::Path(p) => {
+                if p.is_ident("one") || p.is_ident("on_one") {
+                    on_one = true;
+                } else if p.is_ident("all") || p.is_ident("on_all") {
+                    on_all = true;
+                }
+            }
+            Meta::List(nested) => {
+                if nested.path.is_ident("filterable") {
+                    filterable_columns = parse_struct_join_string_list(&nested);
+                } else if nested.path.is_ident("sortable") {
+                    sortable_columns = parse_struct_join_string_list(&nested);
+                }
+            }
+        }
+    }
+
+    let name = name?;
+    let result_type = result_type?;
+    if !on_one && !on_all {
+        return None;
+    }
+
+    Some(StructLevelJoin {
+        name,
+        result_type,
+        on_one,
+        on_all,
+        depth,
+        relation,
+        path,
+        filterable_columns,
+        sortable_columns,
+    })
+}
+
+/// Parse a list of string literals from a nested meta list like `filterable("col1", "col2")`
+fn parse_struct_join_string_list(meta_list: &syn::MetaList) -> Vec<String> {
+    Punctuated::<syn::Expr, Comma>::parse_terminated
+        .parse2(meta_list.tokens.clone())
+        .ok()
+        .map(|exprs| {
+            exprs
+                .iter()
+                .filter_map(|expr| {
+                    if let syn::Expr::Lit(lit) = expr {
+                        if let Lit::Str(s) = &lit.lit {
+                            return Some(s.value());
+                        }
+                    }
+                    None
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Parse a path like `create::one::pre` into (operation, cardinality, phase)
@@ -380,6 +488,8 @@ fn parse_exclude_parameters(meta_list: &syn::MetaList, target_key: &str) -> Opti
                     "list_model"
                 } else if path.is_ident("one") {
                     "one_model"
+                } else if path.is_ident("scoped") {
+                    "scoped_model"
                 } else {
                     continue;
                 };

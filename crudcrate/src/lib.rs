@@ -127,6 +127,7 @@ pub mod errors;
 pub mod filtering;
 pub mod operations;
 pub mod relationships;
+pub mod scope;
 pub mod validation;
 
 // Deprecated module aliases — use the canonical paths above instead.
@@ -163,5 +164,6 @@ pub use filtering::{
     parse_dot_notation, parse_pagination, parse_range, parse_sorting, parse_sorting_with_joins,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
+pub use scope::{ScopeCondition, ScopeFilterable};
 
 pub use serde_with;

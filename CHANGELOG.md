@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-07
+
+### Added
+
+- **Struct-level join definitions**: Join fields can now be defined at the struct level instead of on the SeaORM Model. This keeps the Model lightweight and avoids stack overflow when loading entities with heavy join types. The join field only exists on the generated API struct.
+  ```rust
+  #[crudcrate(
+      api_struct = "Site",
+      join(name = "replicates", result = "Vec<SiteReplicate>", one, all, depth = 0)
+  )]
+  pub struct Model { /* no replicates field here */ }
+  ```
+  Field-level joins with `#[sea_orm(ignore)]` + `#[crudcrate(non_db_attr, join(...))]` still work for backward compatibility.
+
+- **SQL-level column exclusion for `exclude(list)`**: Fields marked `#[crudcrate(exclude(list))]` with `Option<T>` types are now skipped at the SQL level in list queries — the database never transfers the data. Previously, `exclude(list)` only removed the field from the response struct while still fetching all columns. This dramatically improves performance for entities with large fields (photos, blobs, documents). Benchmarked at **7x improvement** (1,013 → 7,121 req/s) on an endpoint with base64 photo data.
+
+- **`ScopeCondition` for auth-aware query filtering**: New `ScopeCondition` type that can be injected via Axum `Extension` to add conditions to read queries. Auth-system-agnostic — users write middleware to convert their auth state into a `ScopeCondition`. When present, `get_all_handler` merges the condition into the query filter, and `get_one_handler` verifies the fetched record passes the condition. Write operations are unaffected.
+  ```rust
+  use crudcrate::ScopeCondition;
+  let public = Article::read_only_router(&db)
+      .layer(Extension(ScopeCondition(
+          Condition::all().add(article::Column::IsPrivate.eq(false))
+      )));
+  ```
+
+- **`read_only_router()` method**: Generates a router with only GET endpoints (get_one + get_all), no create/update/delete. Use with `ScopeCondition` for public/filtered API endpoints.
+
 ## [0.7.2] - 2026-03-27
 
 ### Added

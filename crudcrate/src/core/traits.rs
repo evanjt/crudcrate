@@ -356,6 +356,18 @@ where
         vec![]
     }
 
+    /// Returns column names excluded from filtering/sorting when a `ScopeCondition` is active.
+    ///
+    /// Fields marked with `#[crudcrate(exclude(scoped))]` are automatically included.
+    /// When a request is scoped (e.g. public/unauthenticated), these columns are stripped
+    /// from the filterable and sortable lists to prevent schema probing.
+    ///
+    /// Default: empty (no columns excluded).
+    #[must_use]
+    fn scoped_excluded_columns() -> &'static [&'static str] {
+        &[]
+    }
+
     /// Returns a list of filterable columns on joined/related entities.
     ///
     /// These columns can be filtered using dot-notation in query parameters:
