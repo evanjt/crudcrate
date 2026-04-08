@@ -478,13 +478,19 @@ fn generate_join_loading_impl(
                         };
                     });
                 } else {
-                    // Use find_related() wrapped in Box::pin to keep the SeaORM
-                    // query future on the heap, preventing async state machine bloat.
+                    // Vec joins are always has_many, so the FK is on the child entity.
+                    // Use Entity::find().filter() which produces a much smaller monomorphized
+                    // future than find_related() — avoiding stack overflow in debug builds.
+                    let column_path = get_path_from_field_type(&field.ty, "Column");
+                    let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
+
                     loading_statements.push(quote! {
                         let #loaded_var: Vec<#api_struct_type> = {
-                            use sea_orm::{EntityTrait, ModelTrait};
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
                             let related_models = Box::pin(
-                                model.find_related(#entity_path).all(db)
+                                #entity_path::find()
+                                    .filter(#column_path::#fk_column_pascal.eq(model.id))
+                                    .all(db)
                             ).await?;
                             related_models
                                 .into_iter()
@@ -520,11 +526,16 @@ fn generate_join_loading_impl(
                         };
                     });
                 } else {
+                    let column_path = get_path_from_field_type(&field.ty, "Column");
+                    let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
+
                     loading_statements.push(quote! {
                         let #field_name: Vec<#api_struct_type> = {
-                            use sea_orm::{EntityTrait, ModelTrait};
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
                             let related_models = Box::pin(
-                                model.find_related(#entity_path).all(db)
+                                #entity_path::find()
+                                    .filter(#column_path::#fk_column_pascal.eq(model.id))
+                                    .all(db)
                             ).await?;
                             let mut result = Vec::new();
                             for related_model in related_models {
