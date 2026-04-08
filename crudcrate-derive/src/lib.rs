@@ -432,6 +432,12 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
             &synthetic_join_fields,
         );
 
+    // Generate compile-time bidirectional relation detection
+    let bidirectional_checks = relation_validator::generate_bidirectional_checks(
+        &field_analysis,
+        &api_struct_name.to_string(),
+    );
+
     // Generate final output
     let expanded = quote! {
         #api_struct
@@ -439,6 +445,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         #crud_impl
         #list_model
         #response_model
+        #bidirectional_checks
     };
 
     TokenStream::from(expanded)
