@@ -1,0 +1,287 @@
+error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<socket2::Domain>`
+             `i32` implements `From<socket2::Protocol>`
+             `i32` implements `From<socket2::Type>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `crudcrate::CRUDResource::EntityType`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::EntityType`
+...
+   |     type EntityType: EntityTrait + Sync;
+   |          ---------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `uuid::Uuid` implements `From<Braced>`
+             `uuid::Uuid` implements `From<Hyphenated>`
+             `uuid::Uuid` implements `From<NonNilUuid>`
+             `uuid::Uuid` implements `From<Urn>`
+             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = note: required for `i32` to implement `Into<uuid::Uuid>`
+note: required by a bound in `crudcrate::CRUDResource::EntityType`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::EntityType`
+...
+   |     type EntityType: EntityTrait + Sync;
+   |          ---------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<socket2::Domain>`
+             `i32` implements `From<socket2::Protocol>`
+             `i32` implements `From<socket2::Type>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `CRUDResource`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   | pub trait CRUDResource: Sized + Send + Sync
+   |           ------------ required by a bound in this trait
+...
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource`
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `uuid::Uuid` implements `From<Braced>`
+             `uuid::Uuid` implements `From<Hyphenated>`
+             `uuid::Uuid` implements `From<NonNilUuid>`
+             `uuid::Uuid` implements `From<Urn>`
+             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = note: required for `i32` to implement `Into<uuid::Uuid>`
+note: required by a bound in `CRUDResource`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   | pub trait CRUDResource: Sized + Send + Sync
+   |           ------------ required by a bound in this trait
+...
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource`
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<socket2::Domain>`
+             `i32` implements `From<socket2::Protocol>`
+             `i32` implements `From<socket2::Type>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `crudcrate::CRUDResource::ColumnType`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::ColumnType`
+...
+   |     type ColumnType: ColumnTrait + std::fmt::Debug;
+   |          ---------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `uuid::Uuid` implements `From<Braced>`
+             `uuid::Uuid` implements `From<Hyphenated>`
+             `uuid::Uuid` implements `From<NonNilUuid>`
+             `uuid::Uuid` implements `From<Urn>`
+             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = note: required for `i32` to implement `Into<uuid::Uuid>`
+note: required by a bound in `crudcrate::CRUDResource::ColumnType`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::ColumnType`
+...
+   |     type ColumnType: ColumnTrait + std::fmt::Debug;
+   |          ---------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<socket2::Domain>`
+             `i32` implements `From<socket2::Protocol>`
+             `i32` implements `From<socket2::Type>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `crudcrate::CRUDResource::ListModel`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::ListModel`
+...
+   |     type ListModel: From<Self> + Send + Sync;
+   |          --------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `uuid::Uuid` implements `From<Braced>`
+             `uuid::Uuid` implements `From<Hyphenated>`
+             `uuid::Uuid` implements `From<NonNilUuid>`
+             `uuid::Uuid` implements `From<Urn>`
+             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = note: required for `i32` to implement `Into<uuid::Uuid>`
+note: required by a bound in `crudcrate::CRUDResource::ListModel`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::ListModel`
+...
+   |     type ListModel: From<Self> + Send + Sync;
+   |          --------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<socket2::Domain>`
+             `i32` implements `From<socket2::Protocol>`
+             `i32` implements `From<socket2::Type>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `crudcrate::CRUDResource::ActiveModelType`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::ActiveModelType`
+...
+   |     type ActiveModelType: ActiveModelTrait<Entity = Self::EntityType>;
+   |          --------------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `uuid::Uuid` implements `From<Braced>`
+             `uuid::Uuid` implements `From<Hyphenated>`
+             `uuid::Uuid` implements `From<NonNilUuid>`
+             `uuid::Uuid` implements `From<Urn>`
+             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = note: required for `i32` to implement `Into<uuid::Uuid>`
+note: required by a bound in `crudcrate::CRUDResource::ActiveModelType`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::ActiveModelType`
+...
+   |     type ActiveModelType: ActiveModelTrait<Entity = Self::EntityType>;
+   |          --------------- required by a bound in this associated type
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<socket2::Domain>`
+             `i32` implements `From<socket2::Protocol>`
+             `i32` implements `From<socket2::Type>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `batch_limit`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::batch_limit`
+...
+   |     fn batch_limit() -> usize {
+   |        ----------- required by a bound in this associated function
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
+  --> tests/ui-fail/integer_pk.rs:10:54
+   |
+10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+   |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `uuid::Uuid` implements `From<Braced>`
+             `uuid::Uuid` implements `From<Hyphenated>`
+             `uuid::Uuid` implements `From<NonNilUuid>`
+             `uuid::Uuid` implements `From<Urn>`
+             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = note: required for `i32` to implement `Into<uuid::Uuid>`
+note: required by a bound in `batch_limit`
+  --> $WORKSPACE/crudcrate/src/core/traits.rs
+   |
+   |     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+   |                                                                                    ^^^^^^^^^^ required by this bound in `CRUDResource::batch_limit`
+...
+   |     fn batch_limit() -> usize {
+   |        ----------- required by a bound in this associated function
+   = note: this error originates in the derive macro `EntityToModels` (in Nightly builds, run with -Z macro-backtrace for more info)

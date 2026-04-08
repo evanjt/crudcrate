@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```rust
   #[crudcrate(
       api_struct = "Site",
-      join(name = "replicates", result = "Vec<SiteReplicate>", one, all, depth = 0)
+      join(name = "replicates", result = "Vec<SiteReplicate>", one, all, depth = 1)
   )]
   pub struct Model { /* no replicates field here */ }
   ```
@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 - **`read_only_router()` method**: Generates a router with only GET endpoints (get_one + get_all), no create/update/delete. Use with `ScopeCondition` for public/filtered API endpoints.
+
+### Fixed
+
+- **Stack overflow with many joins**: All join-loading futures are now `Box::pin`ned, moving large async state off the stack. Prevents stack overflow in debug builds with many join fields.
+- **Async state machine bloat in debug builds**: All join-loading futures are wrapped in `Box::pin`, preventing debug-build async state machine bloat from `Related<E>` monomorphization.
+
+### Changed
+
+- **`depth = 0` is now a compile error**: Use `depth = 1` for shallow loading. Previously `depth = 0` could cause infinite recursion at runtime.
 
 ## [0.7.2] - 2026-03-27
 

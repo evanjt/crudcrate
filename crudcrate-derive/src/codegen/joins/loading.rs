@@ -208,11 +208,7 @@ fn generate_batch_loading_impl(
                             let all_related = #entity_path::find()
                                 .filter(#column_path::ParentId.is_in(parent_ids.clone()))
                                 .all(db)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    tracing::warn!(error = %e, "Failed to batch load self-referencing children");
-                                    Vec::new()
-                                });
+                                .await?;
 
                             let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
@@ -223,8 +219,8 @@ fn generate_batch_loading_impl(
                                         .push(#api_struct_type::from(related_model));
                                 }
                             }
-                            map
-                        }).await;
+                            Ok::<_, crudcrate::ApiError>(map)
+                        }).await?;
                     });
                 } else {
                     // Regular join: use derived FK column name
@@ -474,11 +470,7 @@ fn generate_join_loading_impl(
                             let condition = #column_path::ParentId.eq(model.id).into_condition();
                             let related_models = Box::pin(
                                 #entity_path::find().filter(condition).all(db)
-                            ).await
-                            .unwrap_or_else(|e| {
-                                tracing::warn!(error = %e, "Failed to load self-referencing children");
-                                Vec::new()
-                            });
+                            ).await?;
                             related_models
                                 .into_iter()
                                 .map(|m: #model_path| #api_struct_type::from(m))
@@ -486,19 +478,13 @@ fn generate_join_loading_impl(
                         };
                     });
                 } else {
-                    // Use Entity::find().filter() instead of model.find_related()
-                    // to avoid the large monomorphized Related<E> type chain that
-                    // bloats the async state machine in debug builds.
-                    let column_path = get_path_from_field_type(&field.ty, "Column");
-                    let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
-
+                    // Use find_related() wrapped in Box::pin to keep the SeaORM
+                    // query future on the heap, preventing async state machine bloat.
                     loading_statements.push(quote! {
                         let #loaded_var: Vec<#api_struct_type> = {
-                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+                            use sea_orm::{EntityTrait, ModelTrait};
                             let related_models = Box::pin(
-                                #entity_path::find()
-                                    .filter(#column_path::#fk_column_pascal.eq(model.id))
-                                    .all(db)
+                                model.find_related(#entity_path).all(db)
                             ).await?;
                             related_models
                                 .into_iter()
@@ -519,10 +505,7 @@ fn generate_join_loading_impl(
                             let condition = #column_path::ParentId.eq(model.id).into_condition();
                             let related_models = Box::pin(
                                 #entity_path::find().filter(condition).all(db)
-                            ).await.unwrap_or_else(|e| {
-                                tracing::warn!(error = %e, "Failed to load self-referencing children");
-                                Vec::new()
-                            });
+                            ).await?;
                             let mut result = Vec::new();
                             for related_model in related_models {
                                 match #api_struct_type::get_one(db, related_model.id).await {
@@ -537,16 +520,11 @@ fn generate_join_loading_impl(
                         };
                     });
                 } else {
-                    let column_path = get_path_from_field_type(&field.ty, "Column");
-                    let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
-
                     loading_statements.push(quote! {
                         let #field_name: Vec<#api_struct_type> = {
-                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+                            use sea_orm::{EntityTrait, ModelTrait};
                             let related_models = Box::pin(
-                                #entity_path::find()
-                                    .filter(#column_path::#fk_column_pascal.eq(model.id))
-                                    .all(db)
+                                model.find_related(#entity_path).all(db)
                             ).await?;
                             let mut result = Vec::new();
                             for related_model in related_models {
