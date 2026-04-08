@@ -4,6 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::customer::Customer;
 use super::maintenance_record::MaintenanceRecord;
 use super::vehicle_part::VehiclePart;
 
@@ -77,6 +78,9 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
     #[crudcrate(filterable, exclude(scoped, create), on_create = false)]
     pub is_private: bool,
+    #[sea_orm(ignore)]
+    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, depth = 1))]
+    pub customer: Option<Customer>,
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 3))]
     pub parts: Vec<VehiclePart>,

@@ -237,10 +237,10 @@ pub fn generate_get_one_impl(
         quote! {
             use sea_orm::{EntityTrait, ModelTrait, Related};
 
-            // Load the main entity first
-            let main_model = Self::EntityType::find_by_id(id)
-                .one(db)
-                .await?;
+            // Load the main entity first — Box::pin to keep future off the stack
+            let main_model = Box::pin(
+                Self::EntityType::find_by_id(id).one(db)
+            ).await?;
 
             let result = match main_model {
                 Some(model) => {

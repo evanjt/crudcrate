@@ -60,6 +60,15 @@ pub(crate) fn get_join_config(field: &syn::Field) -> JoinConfigResult {
                 match &meta {
                     Meta::List(list_meta) if list_meta.path.is_ident("join") => {
                         config = parse_join_parameters(list_meta);
+                        if let Some(ref c) = config {
+                            if c.depth == Some(0) {
+                                errors.push(syn::Error::new_spanned(
+                                    list_meta,
+                                    "Join `depth = 0` is invalid (causes infinite recursion). \
+                                     Use `depth = 1` for shallow loading.",
+                                ));
+                            }
+                        }
                     }
                     Meta::List(list_meta) if list_meta.path.is_ident("join_filterable") => {
                         errors.push(create_join_attr_deprecation_error(

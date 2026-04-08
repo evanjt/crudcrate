@@ -197,10 +197,12 @@ fn generate_batch_loading_impl(
 
             if depth_limited {
                 // Depth=1: Simple batch load without recursion
+                // Each batch load is Box::pin'd to move its future to the heap,
+                // preventing async state machine bloat when multiple joins accumulate.
                 if is_self_referencing {
                     // Self-referencing: use ParentId column
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = {
+                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                             let all_related = #entity_path::find()
@@ -222,13 +224,13 @@ fn generate_batch_loading_impl(
                                 }
                             }
                             map
-                        };
+                        }).await;
                     });
                 } else {
                     // Regular join: use derived FK column name
                     // Column enum uses PascalCase (CustomerId), field uses snake_case (customer_id)
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = {
+                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                             let all_related = #entity_path::find()
@@ -244,8 +246,8 @@ fn generate_batch_loading_impl(
                                     .or_insert_with(Vec::new)
                                     .push(#api_struct_type::from(related_model));
                             }
-                            map
-                        };
+                            Ok::<_, crudcrate::ApiError>(map)
+                        }).await?;
                     });
                 }
 
@@ -260,7 +262,7 @@ fn generate_batch_loading_impl(
                 // only reached for cross-model joins.
                 // Batch load immediate children, then recursively load their nested relations
                 batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = {
+                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                             let all_related_models: Vec<#model_path> = #entity_path::find()
@@ -285,8 +287,8 @@ fn generate_batch_loading_impl(
                                     .or_insert_with(Vec::new)
                                     .push(entity);
                             }
-                            map
-                        };
+                            Ok::<_, crudcrate::ApiError>(map)
+                        }).await?;
                     });
 
                 field_assignments.push(quote! {
@@ -301,7 +303,7 @@ fn generate_batch_loading_impl(
 
             if depth_limited {
                 batch_loading_statements.push(quote! {
-                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = {
+                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
                         use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                         let all_related = #entity_path::find()
@@ -315,12 +317,12 @@ fn generate_batch_loading_impl(
                             let fk_value = related_model.#fk_field_snake;
                             map.insert(fk_value, #target_type::from(related_model));
                         }
-                        map
-                    };
+                        Ok::<_, crudcrate::ApiError>(map)
+                    }).await?;
                 });
             } else {
                 batch_loading_statements.push(quote! {
-                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = {
+                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
                         use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                         let all_related_models: Vec<#model_path> = #entity_path::find()
@@ -341,8 +343,8 @@ fn generate_batch_loading_impl(
                             };
                             map.insert(fk_value, entity);
                         }
-                        map
-                    };
+                        Ok::<_, crudcrate::ApiError>(map)
+                    }).await?;
                 });
             }
 
@@ -462,114 +464,121 @@ fn generate_join_loading_impl(
                 // - Check common FK column names: ParentId, parent_id, etc.
                 // - Fall back to manual filtering if needed
                 if is_self_referencing {
-                    // Try to find the FK column by checking the SeaORM relation
-                    // For Category: has_many from=Id to=ParentId, so FK is ParentId
-                    // We'll try common patterns and let it compile-fail if wrong
                     let column_path = get_path_from_field_type(&field.ty, "Column");
 
                     loading_statements.push(quote! {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
-
-                        // Try to load using Entity::find().filter() instead of find_related()
-                        // This avoids the stack overflow issue with Related<Entity> for Entity
-                        let related_models = {
-                            // Try common FK column names for self-referencing relationships
-                            // Most common: ParentId (for tree structures)
+                        let #loaded_var: Vec<#api_struct_type> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
                             use sea_orm::sea_query::IntoCondition;
 
-                            // Build a condition that checks for matching foreign key
-                            // For Category: WHERE parent_id = model.id
                             let condition = #column_path::ParentId.eq(model.id).into_condition();
-
-                            #entity_path::find()
-                                .filter(condition)
-                                .all(db)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    tracing::warn!(error = %e, "Failed to load self-referencing children");
-                                    Vec::new()
-                                })
+                            let related_models = Box::pin(
+                                #entity_path::find().filter(condition).all(db)
+                            ).await
+                            .unwrap_or_else(|e| {
+                                tracing::warn!(error = %e, "Failed to load self-referencing children");
+                                Vec::new()
+                            });
+                            related_models
+                                .into_iter()
+                                .map(|m: #model_path| #api_struct_type::from(m))
+                                .collect::<Vec<_>>()
                         };
-
-                        let #loaded_var: Vec<#api_struct_type> = related_models
-                            .into_iter()
-                            .map(|m: #model_path| #api_struct_type::from(m))
-                            .collect();
                     });
                 } else {
+                    // Use Entity::find().filter() instead of model.find_related()
+                    // to avoid the large monomorphized Related<E> type chain that
+                    // bloats the async state machine in debug builds.
+                    let column_path = get_path_from_field_type(&field.ty, "Column");
+                    let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
+
                     loading_statements.push(quote! {
-                        let related_models = model.find_related(#entity_path).all(db).await?;
-                        let #loaded_var: Vec<#api_struct_type> = related_models
-                            .into_iter()
-                            .map(|m: #model_path| #api_struct_type::from(m))
-                            .collect();
+                        let #loaded_var: Vec<#api_struct_type> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+                            let related_models = Box::pin(
+                                #entity_path::find()
+                                    .filter(#column_path::#fk_column_pascal.eq(model.id))
+                                    .all(db)
+                            ).await?;
+                            related_models
+                                .into_iter()
+                                .map(|m: #model_path| #api_struct_type::from(m))
+                                .collect()
+                        };
                     });
                 }
                 field_assignments.push(quote! { result.#field_name = #loaded_var; });
             } else {
                 // Unlimited depth: Recursive loading via get_one()
                 if is_self_referencing {
-                    // For self-referencing, use Entity::find().filter() to avoid stack overflow
                     let column_path = get_path_from_field_type(&field.ty, "Column");
                     loading_statements.push(quote! {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
-
-                        // Load related models using filter instead of find_related
-                        let related_models = {
+                        let #field_name: Vec<#api_struct_type> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
                             use sea_orm::sea_query::IntoCondition;
                             let condition = #column_path::ParentId.eq(model.id).into_condition();
-                            #entity_path::find()
-                                .filter(condition)
-                                .all(db)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    tracing::warn!(error = %e, "Failed to load self-referencing children");
-                                    Vec::new()
-                                })
-                        };
-
-                        let mut #field_name = Vec::new();
-                        for related_model in related_models {
-                            match #api_struct_type::get_one(db, related_model.id).await {
-                                Ok(entity) => #field_name.push(entity),
-                                Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
-                                    #field_name.push(related_model.into());
+                            let related_models = Box::pin(
+                                #entity_path::find().filter(condition).all(db)
+                            ).await.unwrap_or_else(|e| {
+                                tracing::warn!(error = %e, "Failed to load self-referencing children");
+                                Vec::new()
+                            });
+                            let mut result = Vec::new();
+                            for related_model in related_models {
+                                match #api_struct_type::get_one(db, related_model.id).await {
+                                    Ok(entity) => result.push(entity),
+                                    Err(e) => {
+                                        tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                        result.push(related_model.into());
+                                    }
                                 }
                             }
-                        }
+                            result
+                        };
                     });
                 } else {
+                    let column_path = get_path_from_field_type(&field.ty, "Column");
+                    let fk_column_pascal = quote::format_ident!("{}Id", api_struct_name);
+
                     loading_statements.push(quote! {
-                        let related_models = model.find_related(#entity_path).all(db).await?;
-                        let mut #field_name = Vec::new();
-                        for related_model in related_models {
-                            match #api_struct_type::get_one(db, related_model.id).await {
-                                Ok(entity) => #field_name.push(entity),
-                                Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
-                                    #field_name.push(related_model.into());
+                        let #field_name: Vec<#api_struct_type> = {
+                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+                            let related_models = Box::pin(
+                                #entity_path::find()
+                                    .filter(#column_path::#fk_column_pascal.eq(model.id))
+                                    .all(db)
+                            ).await?;
+                            let mut result = Vec::new();
+                            for related_model in related_models {
+                                match #api_struct_type::get_one(db, related_model.id).await {
+                                    Ok(entity) => result.push(entity),
+                                    Err(e) => {
+                                        tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                        result.push(related_model.into());
+                                    }
                                 }
                             }
-                        }
+                            result
+                        };
                     });
                 }
                 field_assignments.push(quote! { result.#field_name = #field_name; });
             }
         } else {
             // Option<T> or T relationships (belongs_to/has_one)
+            // Use find_related() here (wrapped in Box::pin for stack safety) because
+            // the FK direction varies: belongs_to has FK on self, has_one has FK on related.
+            // find_related() resolves this correctly via the Related<E> trait definition.
             let target_type = extract_option_or_direct_inner_type(&field.ty);
 
             if depth_limited {
                 // Depth=1: Load data, no recursion
-                // Use explicit From::<Model>::from() to avoid trait ambiguity with self-referencing types
                 let loaded_var = quote::format_ident!("loaded_{}", field_name);
                 loading_statements.push(quote! {
-                    let #loaded_var = model
-                        .find_related(#entity_path)
-                        .one(db)
-                        .await?
-                        .map(|m: #model_path| #target_type::from(m));
+                    let #loaded_var = Box::pin(
+                        model.find_related(#entity_path).one(db)
+                    ).await?
+                    .map(|m: #model_path| #target_type::from(m));
                 });
                 field_assignments.push(quote! {
                     result.#field_name = #loaded_var;
@@ -577,7 +586,9 @@ fn generate_join_loading_impl(
             } else {
                 // Unlimited depth: Recursive loading via get_one()
                 loading_statements.push(quote! {
-                    let #field_name = match model.find_related(#entity_path).one(db).await? {
+                    let #field_name = match Box::pin(
+                        model.find_related(#entity_path).one(db)
+                    ).await? {
                         Some(related_model) => {
                             match #target_type::get_one(db, related_model.id).await {
                                 Ok(entity) => Some(entity),
