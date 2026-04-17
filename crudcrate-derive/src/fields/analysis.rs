@@ -11,7 +11,7 @@ use proc_macro::TokenStream;
 
 /// Analyze entity fields and categorize them by attributes.
 /// `struct_level_joins` are synthetic fields from struct-level `join(...)` attributes
-/// that exist only on the generated API struct, not on the SeaORM Model.
+/// that exist only on the generated API struct, not on the `SeaORM` Model.
 ///
 /// Returns an error if deprecated syntax (like `join_filterable`/`join_sortable`) is used.
 pub fn analyze_entity_fields<'a>(

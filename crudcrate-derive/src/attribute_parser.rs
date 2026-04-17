@@ -143,17 +143,17 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                         }
                     }
                     Meta::List(list) => {
-                        if list.path.is_ident("join") {
-                            if let Some(join_def) = parse_struct_level_join(&list) {
-                                if join_def.depth == Some(0) {
-                                    meta.deprecation_errors.push(syn::Error::new_spanned(
-                                        &list,
-                                        "Join `depth = 0` is invalid (causes infinite recursion). \
+                        if list.path.is_ident("join")
+                            && let Some(join_def) = parse_struct_level_join(&list)
+                        {
+                            if join_def.depth == Some(0) {
+                                meta.deprecation_errors.push(syn::Error::new_spanned(
+                                    &list,
+                                    "Join `depth = 0` is invalid (causes infinite recursion). \
                                          Use `depth = 1` for shallow loading.",
-                                    ));
-                                }
-                                meta.struct_level_joins.push(join_def);
+                                ));
                             }
+                            meta.struct_level_joins.push(join_def);
                         }
                     }
                 }
@@ -258,10 +258,10 @@ fn parse_struct_join_string_list(meta_list: &syn::MetaList) -> Vec<String> {
             exprs
                 .iter()
                 .filter_map(|expr| {
-                    if let syn::Expr::Lit(lit) = expr {
-                        if let Lit::Str(s) = &lit.lit {
-                            return Some(s.value());
-                        }
+                    if let syn::Expr::Lit(lit) = expr
+                        && let Lit::Str(s) = &lit.lit
+                    {
+                        return Some(s.value());
                     }
                     None
                 })

@@ -23,8 +23,7 @@ pub(crate) fn generate_list_struct_fields(
             // so that exclude(list) on child fields is respected
             let is_join_all = get_join_config(field).is_some_and(|c| c.on_all);
             let final_ty = if is_join_all {
-                let list_ty = transform_type_to_list_variant(ty, api_struct_name);
-                list_ty
+                transform_type_to_list_variant(ty, api_struct_name)
             } else {
                 // Resolve type with target models (list model)
                 resolve_field_type_with_target_models(ty, field, |_, _, list| list.clone())

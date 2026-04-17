@@ -111,17 +111,15 @@ pub fn transform_type_to_list_variant(
     }
 
     // Unwrap Vec/Option to get the inner type, transform it, and re-wrap
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if (segment.ident == "Vec" || segment.ident == "Option")
-                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-                && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-            {
-                let list_inner = append_list_to_type(inner_ty);
-                let wrapper = &segment.ident;
-                return quote! { #wrapper<#list_inner> };
-            }
-        }
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && (segment.ident == "Vec" || segment.ident == "Option")
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        let list_inner = append_list_to_type(inner_ty);
+        let wrapper = &segment.ident;
+        return quote! { #wrapper<#list_inner> };
     }
 
     // Not wrapped - transform directly
@@ -158,9 +156,9 @@ fn append_list_to_type(ty: &syn::Type) -> proc_macro2::TokenStream {
     }
 }
 
-/// Transform a field type to use the ScopedList variant of its inner API struct.
+/// Transform a field type to use the `ScopedList` variant of its inner API struct.
 ///
-/// Like `transform_type_to_list_variant`, but appends "ScopedList" instead of "List".
+/// Like `transform_type_to_list_variant`, but appends "`ScopedList`" instead of "List".
 /// Used in scoped models so that joined children also have their scoped fields excluded.
 ///
 /// Examples:
@@ -179,17 +177,15 @@ pub fn transform_type_to_scoped_list_variant(
     }
 
     // Unwrap Vec/Option to get the inner type, transform it, and re-wrap
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if (segment.ident == "Vec" || segment.ident == "Option")
-                && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
-                && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
-            {
-                let scoped_inner = append_suffix_to_type(inner_ty, "ScopedList");
-                let wrapper = &segment.ident;
-                return quote! { #wrapper<#scoped_inner> };
-            }
-        }
+    if let syn::Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && (segment.ident == "Vec" || segment.ident == "Option")
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first()
+    {
+        let scoped_inner = append_suffix_to_type(inner_ty, "ScopedList");
+        let wrapper = &segment.ident;
+        return quote! { #wrapper<#scoped_inner> };
     }
 
     append_suffix_to_type(ty, "ScopedList")
@@ -216,7 +212,7 @@ fn append_suffix_to_type(ty: &syn::Type, suffix: &str) -> proc_macro2::TokenStre
     }
 }
 
-/// For a Vec<T> type, return the "TList" inner type token (not wrapped in Vec).
+/// For a Vec<T> type, return the "`TList`" inner type token (not wrapped in Vec).
 /// Used when generating chained conversions for scoped response join fields.
 pub fn inner_list_type_of_vec(ty: &syn::Type) -> proc_macro2::TokenStream {
     let inner = extract_vec_inner_type_ref(ty);
@@ -254,7 +250,7 @@ pub fn is_option_type(ty: &syn::Type) -> bool {
     false
 }
 
-/// For an Option<T> type, return the "TList" inner type token (not wrapped in Option).
+/// For an Option<T> type, return the "`TList`" inner type token (not wrapped in Option).
 pub fn inner_list_type_of_option(ty: &syn::Type) -> proc_macro2::TokenStream {
     let inner = extract_option_inner_type_ref(ty);
     append_suffix_to_type(inner, "List")

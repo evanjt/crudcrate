@@ -1,9 +1,9 @@
 //! Join validation - compile-time checks for problematic join configurations.
 //!
 //! Detects:
-//! - Self-referencing joins without explicit depth (would default to MAX_DEPTH)
-//! - Depth exceeding MAX_ALLOWED_DEPTH
-//! - Bidirectional SeaORM relations that cause infinite recursion in `find_related()`
+//! - Self-referencing joins without explicit depth (would default to `MAX_DEPTH`)
+//! - Depth exceeding `MAX_ALLOWED_DEPTH`
+//! - Bidirectional `SeaORM` relations that cause infinite recursion in `find_related()`
 
 use crate::codegen::joins::get_join_config;
 use crate::codegen::type_resolution::{
@@ -126,7 +126,7 @@ pub fn generate_bidirectional_checks(
 
 /// Check if a join field's target entity has a `Related<SelfEntity>` impl (bidirectional).
 ///
-/// Vec<T> joins use `Entity::find().filter()` which avoids the SeaORM `Related<E>` type
+/// Vec<T> joins use `Entity::find().filter()` which avoids the `SeaORM` `Related<E>` type
 /// chain, so bidirectional relations are safe at any depth.
 ///
 /// - Any explicit depth: No warning (user chose the depth deliberately)
@@ -151,42 +151,39 @@ fn check_bidirectional_relation(
         .as_ref()
         .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
-    match depth {
-        Some(_) => {
-            // Explicit depth is safe — Vec joins use filter(), not find_related().
-            let const_name = quote::format_ident!(
-                "_BIDIRECTIONAL_RELATION_{}_{}",
-                entity_name.to_uppercase(),
-                field_name.to_uppercase()
+    if depth.is_some() {
+        // Explicit depth is safe — Vec joins use filter(), not find_related().
+        let const_name = quote::format_ident!(
+            "_BIDIRECTIONAL_RELATION_{}_{}",
+            entity_name.to_uppercase(),
+            field_name.to_uppercase()
+        );
+        Some(quote! {
+            #[doc(hidden)]
+            pub const #const_name: bool =
+                crudcrate::impls!(#target_entity: sea_orm::Related<Entity>);
+        })
+    } else {
+        // No depth specified on a bidirectional relation: compile error.
+        // Defaulting to depth=5 would silently cause massive data explosion.
+        let msg = format!(
+            "Bidirectional SeaORM relation on join '{field_name}' in '{entity_name}' \
+             with no explicit depth (defaults to 5).\n\
+             \n\
+             {entity_name} and the target of '{field_name}' have mutual Related<> impls. \
+             Without an explicit depth, this would load nested objects 5 levels deep, \
+             producing large redundant responses.\n\
+             \n\
+             Fix: set an explicit depth:\n\
+             - depth = 1: load immediate children only (recommended)\n\
+             - depth = N: load N levels (causes data duplication at each level)"
+        );
+        Some(quote! {
+            const _: () = assert!(
+                !crudcrate::impls!(#target_entity: sea_orm::Related<Entity>),
+                #msg
             );
-            Some(quote! {
-                #[doc(hidden)]
-                pub const #const_name: bool =
-                    crudcrate::impls!(#target_entity: sea_orm::Related<Entity>);
-            })
-        }
-        None => {
-            // No depth specified on a bidirectional relation: compile error.
-            // Defaulting to depth=5 would silently cause massive data explosion.
-            let msg = format!(
-                "Bidirectional SeaORM relation on join '{field_name}' in '{entity_name}' \
-                 with no explicit depth (defaults to 5).\n\
-                 \n\
-                 {entity_name} and the target of '{field_name}' have mutual Related<> impls. \
-                 Without an explicit depth, this would load nested objects 5 levels deep, \
-                 producing large redundant responses.\n\
-                 \n\
-                 Fix: set an explicit depth:\n\
-                 - depth = 1: load immediate children only (recommended)\n\
-                 - depth = N: load N levels (causes data duplication at each level)"
-            );
-            Some(quote! {
-                const _: () = assert!(
-                    !crudcrate::impls!(#target_entity: sea_orm::Related<Entity>),
-                    #msg
-                );
-            })
-        }
+        })
     }
 }
 

@@ -196,7 +196,7 @@ fn generate_joined_column_entries(
 }
 
 /// Generate `#[cfg(test)]` functions that validate FK column naming conventions
-/// against the actual SeaORM `RelationDef` at test time.
+/// against the actual `SeaORM` `RelationDef` at test time.
 ///
 /// For each Vec<T> join field, generates a test that:
 /// 1. Fetches the `RelationDef` via `<ChildEntity as Related<ParentEntity>>::to()`
@@ -282,10 +282,9 @@ fn generate_fk_validation_tests(
         };
 
         let assert_msg = format!(
-            "crudcrate FK mismatch: convention derived '{}' for join '{}.{}', \
+            "crudcrate FK mismatch: convention derived '{fk_snake}' for join '{api_struct_name}.{field_name}', \
              but SeaORM RelationDef says the FK column is '{{}}'. \
-             Fix: add fk_column = \"ActualColumnName\" to the join attribute.",
-            fk_snake, api_struct_name, field_name
+             Fix: add fk_column = \"ActualColumnName\" to the join attribute."
         );
 
         tests.push(quote! {

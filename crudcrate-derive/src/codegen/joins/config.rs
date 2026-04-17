@@ -12,7 +12,7 @@ pub struct JoinConfig {
     pub filterable_columns: Vec<String>,
     /// Columns on the joined entity that can be sorted via dot-notation (e.g., "vehicles.year")
     pub sortable_columns: Vec<String>,
-    /// Explicit FK column name override (e.g., "OwnerUuid" instead of convention-derived "CustomerId")
+    /// Explicit FK column name override (e.g., "`OwnerUuid`" instead of convention-derived "`CustomerId`")
     pub fk_column: Option<String>,
 }
 
@@ -62,14 +62,14 @@ pub(crate) fn get_join_config(field: &syn::Field) -> JoinConfigResult {
                 match &meta {
                     Meta::List(list_meta) if list_meta.path.is_ident("join") => {
                         config = parse_join_parameters(list_meta);
-                        if let Some(ref c) = config {
-                            if c.depth == Some(0) {
-                                errors.push(syn::Error::new_spanned(
-                                    list_meta,
-                                    "Join `depth = 0` is invalid (causes infinite recursion). \
+                        if let Some(ref c) = config
+                            && c.depth == Some(0)
+                        {
+                            errors.push(syn::Error::new_spanned(
+                                list_meta,
+                                "Join `depth = 0` is invalid (causes infinite recursion). \
                                      Use `depth = 1` for shallow loading.",
-                                ));
-                            }
+                            ));
                         }
                     }
                     Meta::List(list_meta) if list_meta.path.is_ident("join_filterable") => {

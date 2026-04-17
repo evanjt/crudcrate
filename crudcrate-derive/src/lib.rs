@@ -357,10 +357,10 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         );
         match syn::parse_str::<syn::ItemStruct>(&struct_str) {
             Ok(s) => {
-                if let syn::Fields::Named(named) = s.fields {
-                    if let Some(field) = named.named.into_iter().next() {
-                        synthetic_join_fields.push(field);
-                    }
+                if let syn::Fields::Named(named) = s.fields
+                    && let Some(field) = named.named.into_iter().next()
+                {
+                    synthetic_join_fields.push(field);
                 }
             }
             Err(e) => {

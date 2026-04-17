@@ -14,8 +14,7 @@ fn is_option_type(ty: &syn::Type) -> bool {
             .path
             .segments
             .last()
-            .map(|s| s.ident == "Option")
-            .unwrap_or(false)
+            .is_some_and(|s| s.ident == "Option")
     } else {
         false
     }
@@ -23,7 +22,7 @@ fn is_option_type(ty: &syn::Type) -> bool {
 
 /// Generate `select_only()` column selection for list queries.
 /// Included columns are selected normally. Excluded Option<T> columns are replaced
-/// with NULL to avoid fetching heavy data (photos, blobs) while keeping FromQueryResult happy.
+/// with NULL to avoid fetching heavy data (photos, blobs) while keeping `FromQueryResult` happy.
 /// Returns `Some(token_stream)` if there are skippable columns, `None` otherwise.
 fn generate_select_only_columns(
     analysis: &EntityFieldAnalysis,

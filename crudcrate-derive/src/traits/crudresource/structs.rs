@@ -26,7 +26,7 @@ pub(crate) struct CrudHooks {
 }
 
 /// A join field defined at the struct level rather than as a field on the Model.
-/// This keeps the SeaORM Model lightweight — the field only exists on the generated API struct.
+/// This keeps the `SeaORM` Model lightweight — the field only exists on the generated API struct.
 #[derive(Clone)]
 pub(crate) struct StructLevelJoin {
     pub(crate) name: String,

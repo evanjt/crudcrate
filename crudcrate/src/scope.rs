@@ -49,6 +49,7 @@ pub trait ScopeFilterable {
     ///
     /// Used by join loading to filter child entities at the SQL level during scoped requests,
     /// avoiding loading private children into memory.
+    #[must_use]
     fn scope_condition() -> Option<sea_orm::Condition> {
         None
     }
@@ -56,6 +57,7 @@ pub trait ScopeFilterable {
 
 impl ScopeCondition {
     /// Create a scope with a query condition (row filtering).
+    #[must_use]
     pub fn new(condition: sea_orm::Condition) -> Self {
         Self { condition }
     }
