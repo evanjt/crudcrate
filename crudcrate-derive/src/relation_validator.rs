@@ -126,18 +126,16 @@ pub fn generate_bidirectional_checks(
 
 /// Check if a join field's target entity has a `Related<SelfEntity>` impl (bidirectional).
 ///
-/// SeaORM's `find_related()` infinitely recurses when both A: Related<B> and B: Related<A>
-/// exist, because `Relation::def()` calls through `EntityTrait::has_many/has_one` which
-/// resolves the reverse relation's `def()`, creating an infinite loop.
+/// Vec<T> joins use `Entity::find().filter()` which avoids the SeaORM `Related<E>` type
+/// chain, so bidirectional relations are safe at any depth.
 ///
-/// - `depth = 1` is safe: crudcrate uses `Entity::find().filter()`, not `find_related()`
-/// - No depth or `depth > 1` is unsafe: emits a compile error requiring `depth = 1`
+/// - Any explicit depth: No warning (user chose the depth deliberately)
+/// - No depth specified: Compile error (defaulting to 5 on bidirectional would be surprising)
 fn check_bidirectional_relation(
     field: &syn::Field,
     entity_name: &str,
 ) -> Option<proc_macro2::TokenStream> {
     // Skip self-referencing joins (already handled separately in loading.rs).
-    // Compare full type path via token stream, not substring matching.
     let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
     if inner_type.to_string().trim() == entity_name {
         return None;
@@ -146,7 +144,6 @@ fn check_bidirectional_relation(
     let join_config = get_join_config(field);
     let depth = join_config.config.as_ref().and_then(|c| c.depth);
 
-    // Get the target Entity path from the field type
     let target_entity = get_path_from_field_type(&field.ty, "Entity");
 
     let field_name = field
@@ -155,9 +152,8 @@ fn check_bidirectional_relation(
         .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
     match depth {
-        Some(1) => {
-            // depth = 1 is safe — crudcrate uses Entity::find().filter(), not find_related().
-            // Generate a const flag for documentation / downstream checks.
+        Some(_) => {
+            // Explicit depth is safe — Vec joins use filter(), not find_related().
             let const_name = quote::format_ident!(
                 "_BIDIRECTIONAL_RELATION_{}_{}",
                 entity_name.to_uppercase(),
@@ -169,47 +165,20 @@ fn check_bidirectional_relation(
                     crudcrate::impls!(#target_entity: sea_orm::Related<Entity>);
             })
         }
-        Some(d) => {
-            // Direct bidirectional = 2-hop cycle. Max safe depth = cycle_length - 1 = 1.
-            let cycle_length = 2u8;
-            let max_safe = cycle_length - 1;
-            let msg = format!(
-                "Bidirectional SeaORM relation on join '{field_name}' in '{entity_name}' \
-                 with depth = {d}.\n\
-                 \n\
-                 Detected cycle ({cycle_length} hops): {entity_name} -> {field_name} -> {entity_name}\n\
-                 Maximum safe depth = cycle_length - 1 = {cycle_length} - 1 = {max_safe}\n\
-                 \n\
-                 At depth >= {cycle} the child's get_one() loads its own joins — including \
-                 the relation back to {entity_name} — causing infinite recursion through \
-                 SeaORM's Relation::def() chain.\n\
-                 \n\
-                 Fix: #[crudcrate(join(one, depth = {max_safe}))]",
-                cycle = max_safe + 1
-            );
-            Some(quote! {
-                const _: () = assert!(
-                    !crudcrate::impls!(#target_entity: sea_orm::Related<Entity>),
-                    #msg
-                );
-            })
-        }
         None => {
-            let cycle_length = 2u8;
-            let max_safe = cycle_length - 1;
+            // No depth specified on a bidirectional relation: compile error.
+            // Defaulting to depth=5 would silently cause massive data explosion.
             let msg = format!(
                 "Bidirectional SeaORM relation on join '{field_name}' in '{entity_name}' \
                  with no explicit depth (defaults to 5).\n\
                  \n\
-                 Detected cycle ({cycle_length} hops): {entity_name} -> {field_name} -> {entity_name}\n\
-                 Maximum safe depth = cycle_length - 1 = {cycle_length} - 1 = {max_safe}\n\
+                 {entity_name} and the target of '{field_name}' have mutual Related<> impls. \
+                 Without an explicit depth, this would load nested objects 5 levels deep, \
+                 producing large redundant responses.\n\
                  \n\
-                 At depth >= {cycle} the child's get_one() loads its own joins — including \
-                 the relation back to {entity_name} — causing infinite recursion through \
-                 SeaORM's Relation::def() chain.\n\
-                 \n\
-                 Fix: #[crudcrate(join(one, depth = {max_safe}))]",
-                cycle = max_safe + 1
+                 Fix: set an explicit depth:\n\
+                 - depth = 1: load immediate children only (recommended)\n\
+                 - depth = N: load N levels (causes data duplication at each level)"
             );
             Some(quote! {
                 const _: () = assert!(

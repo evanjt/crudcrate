@@ -326,6 +326,9 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
             let cols = j.sortable_columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
             parts.push(format!("sortable({cols})"));
         }
+        if let Some(ref fk) = j.fk_column {
+            parts.push(format!("fk_column = \"{fk}\""));
+        }
         let join_attr = parts.join(", ");
         let struct_str = format!(
             "struct S {{ #[sea_orm(ignore)] #[crudcrate(non_db_attr, exclude(create, update), join({join_attr}))] pub {}: {} }}",

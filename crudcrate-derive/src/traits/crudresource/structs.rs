@@ -38,6 +38,7 @@ pub(crate) struct StructLevelJoin {
     pub(crate) path: Option<String>,
     pub(crate) filterable_columns: Vec<String>,
     pub(crate) sortable_columns: Vec<String>,
+    pub(crate) fk_column: Option<String>,
 }
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
@@ -59,6 +60,8 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) max_page_size: Option<u64>,
     // Struct-level join definitions (fields only on the API struct, not the Model)
     pub(crate) struct_level_joins: Vec<StructLevelJoin>,
+    // Require scope middleware on read endpoints (returns 500 if missing)
+    pub(crate) require_scope: bool,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

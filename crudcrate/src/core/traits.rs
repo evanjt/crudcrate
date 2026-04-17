@@ -49,6 +49,10 @@ where
     const RESOURCE_DESCRIPTION: &'static str = "";
     const FULLTEXT_LANGUAGE: &'static str = "english";
 
+    /// When true, read handlers return HTTP 500 if no `ScopeCondition` middleware is present.
+    /// Set via `#[crudcrate(require_scope)]` on the struct.
+    const REQUIRE_SCOPE: bool = false;
+
     /// Maximum number of items allowed in batch create/update/delete operations.
     /// Override with `#[crudcrate(batch_limit = 500)]` on your struct, or implement
     /// manually for runtime logic (env vars, config, etc.).
@@ -87,8 +91,57 @@ where
             .collect())
     }
 
+    /// Scope-aware variant of `get_all` used by `get_all_handler` when a
+    /// `ScopeCondition` extension is present. The parent-level scope is already
+    /// merged into `condition` by the handler; this method is responsible for
+    /// propagating scope into joined-child batch queries so private children
+    /// are filtered at the SQL level.
+    ///
+    /// The derive macro overrides this to apply each child's
+    /// `ScopeFilterable::scope_condition()` to the per-join batch query, and to
+    /// recurse via `get_one_scoped` at depth > 1. The default impl delegates to
+    /// `get_all`, which is safe for resources without `join(all)` children.
+    async fn get_all_scoped(
+        db: &DatabaseConnection,
+        condition: &Condition,
+        order_column: Self::ColumnType,
+        order_direction: Order,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<Self::ListModel>, ApiError> {
+        Self::get_all(db, condition, order_column, order_direction, offset, limit).await
+    }
+
     async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {
         let model = Self::EntityType::find_by_id(id)
+            .one(db)
+            .await
+            .map_err(ApiError::database)?
+            .ok_or_else(|| {
+                ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+            })?;
+        Ok(Self::from(model))
+    }
+
+    /// Fetch a single entity by ID with a scope condition applied atomically.
+    ///
+    /// Unlike calling `get_one()` followed by a separate scope verification query,
+    /// this combines the ID and scope condition into a single `WHERE id = ? AND <scope>`
+    /// query, preventing TOCTOU races where the entity's scope-relevant columns could
+    /// change between two separate queries.
+    ///
+    /// The derive macro overrides this to include join loading.
+    async fn get_one_scoped(
+        db: &DatabaseConnection,
+        id: Uuid,
+        scope: &Condition,
+    ) -> Result<Self, ApiError> {
+        use sea_orm::QueryFilter;
+        let condition = Condition::all()
+            .add(Self::ID_COLUMN.eq(id))
+            .add(scope.clone());
+        let model = Self::EntityType::find()
+            .filter(condition)
             .one(db)
             .await
             .map_err(ApiError::database)?

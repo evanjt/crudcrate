@@ -184,14 +184,13 @@ No `is_private` on the customer **or** on any nested vehicle. crudcrate generate
 
 ### How join scoping works
 
-Both field stripping and row filtering happen automatically for joined children:
+Two layers protect joined children on scoped requests:
 
-1. **Field stripping**: The scoped types (`VehicleScopedList`) omit `exclude(scoped)` fields from the JSON
-2. **Row filtering**: During the `From<ListModel> for ScopedList` conversion, children are filtered via `ScopeFilterable::is_scope_visible()` — any child with `is_private: true` is removed from the response
+1. **Field stripping**: The scoped types (`VehicleScopedList`) omit `exclude(scoped)` fields from the JSON.
+2. **SQL-level row filtering**: Every child batch query includes the child's `ScopeFilterable::scope_condition()` as an additional `WHERE` clause. This applies on **both** `get_one_scoped` and `get_all_scoped` handlers, at every depth when `depth > 1` — the scoped batch loader recurses via `get_one_scoped`, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.
+3. **In-memory defense in depth**: `From<ListModel> for ScopedList` still runs `ScopeFilterable::is_scope_visible()` over each child as a belt-and-suspenders guard, so a custom `read::many::body` hook that bypasses the SQL filter still strips private rows before serialisation.
 
-> **Important**: Row filtering happens at the application level (in Rust, during type conversion), not at the SQL level. The database query loads all children; private ones are stripped during serialization. For entities with very large child sets, consider using SQL-level subqueries in your `ScopeCondition` instead (see "Scoping with Relationships" above).
-
-For this automatic filtering to work, the child entity **must** have at least one `exclude(scoped)` boolean field. If it doesn't, all children pass through regardless of their data.
+For automatic filtering to work, the child entity **must** have at least one `exclude(scoped)` boolean field (the derive macro generates the required `ScopeFilterable::scope_condition()` from those fields). If it doesn't, the child's `scope_condition()` returns `None` and every child row is returned — identical to unscoped behaviour.
 
 ## Quick Reference
 

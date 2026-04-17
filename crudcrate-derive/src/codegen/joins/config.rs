@@ -12,6 +12,8 @@ pub struct JoinConfig {
     pub filterable_columns: Vec<String>,
     /// Columns on the joined entity that can be sorted via dot-notation (e.g., "vehicles.year")
     pub sortable_columns: Vec<String>,
+    /// Explicit FK column name override (e.g., "OwnerUuid" instead of convention-derived "CustomerId")
+    pub fk_column: Option<String>,
 }
 
 /// Result of parsing join config - may contain deprecation errors
@@ -178,6 +180,9 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
                                 }
                                 Lit::Str(str_lit) if nv.path.is_ident("path") => {
                                     config.path = Some(str_lit.value());
+                                }
+                                Lit::Str(str_lit) if nv.path.is_ident("fk_column") => {
+                                    config.fk_column = Some(str_lit.value());
                                 }
                                 _ => {}
                             }

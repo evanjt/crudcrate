@@ -1,5 +1,6 @@
 use crate::codegen::joins::loading::{
-    generate_get_all_batch_loading, generate_get_one_join_loading,
+    generate_get_all_batch_loading, generate_get_all_scoped_batch_loading,
+    generate_get_one_join_loading, generate_get_one_scoped_join_loading,
 };
 use crate::codegen::models::should_include_in_model;
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
@@ -118,53 +119,67 @@ pub fn generate_get_all_impl(
     let select_only_columns = generate_select_only_columns(analysis);
     let select_clause = select_only_columns.unwrap_or_default();
 
-    // Generate body - either custom or default
-    let body = if let Some(fn_path) = &hooks.body {
-        quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
-    } else if has_join_all_fields {
-        // Generate get_all with BATCH loading (optimized: 2 queries instead of N+1)
-        let (pre_loop_code, in_loop_code) =
-            generate_get_all_batch_loading(analysis, api_struct_name);
-        quote! {
-            use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
+    // Shared body builder: given a batch-loading fragment, produce the full body.
+    // Used for both get_all (unscoped) and get_all_scoped variants so they share
+    // ordering, pagination, select_only, and hook semantics.
+    let build_body = |batch_loading: Option<(proc_macro2::TokenStream, proc_macro2::TokenStream)>| {
+        if let Some(fn_path) = &hooks.body {
+            // Custom body takes full control; applies to both variants.
+            quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+        } else if let Some((pre_loop_code, in_loop_code)) = batch_loading {
+            quote! {
+                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
 
-            let models = Self::EntityType::find()
-                #select_clause
-                .filter(condition.clone())
-                .order_by(order_column, order_direction)
-                .offset(offset)
-                .limit(limit)
-                .all(db)
-                .await?;
+                let models = Self::EntityType::find()
+                    #select_clause
+                    .filter(condition.clone())
+                    .order_by(order_column, order_direction)
+                    .offset(offset)
+                    .limit(limit)
+                    .all(db)
+                    .await?;
 
-            // Batch load all related entities (one query per join field)
-            #pre_loop_code
+                // Batch load all related entities (one query per join field)
+                #pre_loop_code
 
-            // Assign pre-loaded data to each model (no queries in loop)
-            let mut result = Vec::new();
-            for model in models {
-                let item = {
-                    #in_loop_code
-                };
-                result.push(Self::ListModel::from(item));
+                // Assign pre-loaded data to each model (no queries in loop)
+                let mut result = Vec::new();
+                for model in models {
+                    let item = {
+                        #in_loop_code
+                    };
+                    result.push(Self::ListModel::from(item));
+                }
+            }
+        } else {
+            // Standard get_all without joins
+            quote! {
+                use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
+
+                let models = Self::EntityType::find()
+                    #select_clause
+                    .filter(condition.clone())
+                    .order_by(order_column, order_direction)
+                    .offset(offset)
+                    .limit(limit)
+                    .all(db)
+                    .await?;
+                let result: Vec<Self::ListModel> = models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect();
             }
         }
-    } else {
-        // Standard get_all without joins
-        quote! {
-            use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
-
-            let models = Self::EntityType::find()
-                #select_clause
-                .filter(condition.clone())
-                .order_by(order_column, order_direction)
-                .offset(offset)
-                .limit(limit)
-                .all(db)
-                .await?;
-            let result: Vec<Self::ListModel> = models.into_iter().map(|model| Self::ListModel::from(Self::from(model))).collect();
-        }
     };
+
+    let body = build_body(if has_join_all_fields {
+        Some(generate_get_all_batch_loading(analysis, api_struct_name))
+    } else {
+        None
+    });
+
+    let scoped_body = build_body(if has_join_all_fields {
+        Some(generate_get_all_scoped_batch_loading(analysis, api_struct_name))
+    } else {
+        None
+    });
 
     // Generate transform hook call (modifies the results)
     let transform_hook = hooks.transform.as_ref().map(|fn_path| {
@@ -187,6 +202,21 @@ pub fn generate_get_all_impl(
         ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
+            #post_hook
+            Ok(result)
+        }
+
+        async fn get_all_scoped(
+            db: &sea_orm::DatabaseConnection,
+            condition: &sea_orm::Condition,
+            order_column: Self::ColumnType,
+            order_direction: sea_orm::Order,
+            offset: u64,
+            limit: u64,
+        ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
+            #pre_hook
+            #scoped_body
             #transform_hook
             #post_hook
             Ok(result)
@@ -271,10 +301,61 @@ pub fn generate_get_one_impl(
         quote! { #fn_path(db, &result).await?; }
     });
 
+    // Generate get_one_scoped — scope-filtered query + scoped join loading.
+    // Uses scope condition on the parent query AND child entity scope conditions on joins.
+    let scoped_body = if has_joins {
+        let join_loading_code = generate_get_one_scoped_join_loading(analysis, api_struct_name);
+        quote! {
+            use sea_orm::{EntityTrait, ModelTrait, Related, QueryFilter};
+
+            let scoped_condition = sea_orm::Condition::all()
+                .add(Self::ID_COLUMN.eq(id))
+                .add(scope.clone());
+
+            let main_model = Box::pin(
+                Self::EntityType::find().filter(scoped_condition).one(db)
+            ).await?;
+
+            let result = match main_model {
+                Some(model) => {
+                    #join_loading_code
+                }
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+            };
+        }
+    } else {
+        quote! {
+            use sea_orm::QueryFilter;
+            let scoped_condition = sea_orm::Condition::all()
+                .add(Self::ID_COLUMN.eq(id))
+                .add(scope.clone());
+            let model = Self::EntityType::find()
+                .filter(scoped_condition)
+                .one(db)
+                .await?;
+            let result = match model {
+                Some(model) => Self::from(model),
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+            };
+        }
+    };
+
     quote! {
         async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
             #pre_hook
             #body
+            #transform_hook
+            #post_hook
+            Ok(result)
+        }
+
+        async fn get_one_scoped(
+            db: &sea_orm::DatabaseConnection,
+            id: uuid::Uuid,
+            scope: &sea_orm::Condition,
+        ) -> Result<Self, crudcrate::ApiError> {
+            #pre_hook
+            #scoped_body
             #transform_hook
             #post_hook
             Ok(result)

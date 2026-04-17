@@ -266,12 +266,23 @@ pub(crate) fn generate_list_and_response_models(
         .collect();
 
     let scope_filterable_impls = if scope_filter_fields.is_empty() {
-        // No exclude(scoped) boolean fields — use default (always visible)
+        // No exclude(scoped) boolean fields — use default (always visible, no scope condition)
         quote! {
             impl crudcrate::ScopeFilterable for #list_name {}
             impl crudcrate::ScopeFilterable for #api_struct_name {}
         }
     } else {
+        // Generate scope_condition() that returns a Condition filtering by the boolean fields.
+        // E.g., for `is_private: bool` → `Condition::all().add(Column::IsPrivate.eq(false))`
+        use convert_case::{Case, Casing};
+        let scope_condition_adds: Vec<_> = scope_filter_fields
+            .iter()
+            .map(|field_name| {
+                let col_pascal = quote::format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
+                quote! { .add(Column::#col_pascal.eq(false)) }
+            })
+            .collect();
+
         // Generate impl that checks all exclude(scoped) boolean fields
         // Record is visible only when ALL privacy booleans are false
         quote! {
@@ -279,10 +290,18 @@ pub(crate) fn generate_list_and_response_models(
                 fn is_scope_visible(&self) -> bool {
                     #(!self.#scope_filter_fields)&&*
                 }
+                fn scope_condition() -> Option<sea_orm::Condition> {
+                    use sea_orm::ColumnTrait;
+                    Some(sea_orm::Condition::all() #(#scope_condition_adds)*)
+                }
             }
             impl crudcrate::ScopeFilterable for #api_struct_name {
                 fn is_scope_visible(&self) -> bool {
                     #(!self.#scope_filter_fields)&&*
+                }
+                fn scope_condition() -> Option<sea_orm::Condition> {
+                    use sea_orm::ColumnTrait;
+                    Some(sea_orm::Condition::all() #(#scope_condition_adds)*)
                 }
             }
         }

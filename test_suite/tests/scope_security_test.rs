@@ -878,3 +878,178 @@ async fn scope_search_respects_scope_filter() {
         "Admin search for 'Alice' should find both public and private"
     );
 }
+
+// =============================================================================
+// 25. Atomic scope check: flip to private then verify 404
+// =============================================================================
+
+#[tokio::test]
+async fn scope_get_one_atomic_single_query() {
+    let db = setup_test_db().await.unwrap();
+    let admin = setup_test_app(&db);
+    let scoped = setup_scoped_app(&db);
+
+    // Create public customer
+    let (_, created) = admin_post(
+        &admin,
+        "/customers",
+        json!({"name": "WillGoPrivate", "email": "flip@example.com"}),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap();
+
+    // Confirm visible in scoped
+    let (s, _, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    assert_eq!(s, StatusCode::OK, "Public customer should be visible");
+
+    // Flip to private
+    admin_update(&admin, &format!("/customers/{id}"), json!({"is_private": true})).await;
+
+    // Scoped get_one must return 404 — the scope condition is part of the fetch,
+    // not a separate verification query (atomic single-query check).
+    let (s, _, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "After flipping to private, scoped get_one must return 404"
+    );
+}
+
+// =============================================================================
+// 26. Scoped get_one preserves join loading with scope filtering
+// =============================================================================
+
+#[tokio::test]
+async fn scope_get_one_scoped_preserves_join_loading() {
+    let db = setup_test_db().await.unwrap();
+    let admin = setup_test_app(&db);
+    let scoped = setup_scoped_app(&db);
+
+    let (_, cust) = admin_post(
+        &admin,
+        "/customers",
+        json!({"name": "JoinParent", "email": "jp@example.com"}),
+    )
+    .await;
+    let cust_id = cust["id"].as_str().unwrap();
+
+    // Create 2 public + 1 private vehicle
+    admin_post(
+        &admin,
+        "/vehicles",
+        json!({"customer_id": cust_id, "make": "Pub1", "model": "X", "year": 2020, "vin": "JP1"}),
+    )
+    .await;
+    admin_post(
+        &admin,
+        "/vehicles",
+        json!({"customer_id": cust_id, "make": "Pub2", "model": "Y", "year": 2021, "vin": "JP2"}),
+    )
+    .await;
+    create_private(
+        &admin,
+        "/vehicles",
+        json!({"customer_id": cust_id, "make": "Priv1", "model": "Z", "year": 2022, "vin": "JP3"}),
+    )
+    .await;
+
+    // Scoped get_one: should return customer with only 2 public vehicles
+    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    assert_eq!(s, StatusCode::OK);
+
+    let vehicles = body["vehicles"].as_array().expect("should have vehicles join");
+    assert_eq!(
+        vehicles.len(),
+        2,
+        "Scoped get_one should only load public vehicles in join, got: {vehicles:?}"
+    );
+
+    // All vehicles should omit is_private
+    for v in vehicles {
+        assert!(
+            v.get("is_private").is_none(),
+            "is_private must not appear in scoped join vehicle: {v:?}"
+        );
+    }
+}
+
+// =============================================================================
+// 27. Scoped get_one for private record: 404, no data leak
+// =============================================================================
+
+#[tokio::test]
+async fn scope_get_one_scoped_404_does_not_leak_existence() {
+    let db = setup_test_db().await.unwrap();
+    let admin = setup_test_app(&db);
+    let scoped = setup_scoped_app(&db);
+
+    // Create private customer with a vehicle
+    let private_cust = create_private(
+        &admin,
+        "/customers",
+        json!({"name": "SecretOwner", "email": "secret@example.com"}),
+    )
+    .await;
+    let cust_id = private_cust["id"].as_str().unwrap();
+
+    admin_post(
+        &admin,
+        "/vehicles",
+        json!({"customer_id": cust_id, "make": "Hidden", "model": "Car", "year": 2020, "vin": "HID99"}),
+    )
+    .await;
+
+    // Scoped get_one must return 404 — NOT 200 with empty joins
+    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "Private customer must return 404");
+
+    // Body must NOT contain any customer fields
+    assert!(
+        body.get("name").is_none(),
+        "404 response must not leak customer name, got: {body}"
+    );
+    assert!(
+        body.get("vehicles").is_none(),
+        "404 response must not leak vehicles join, got: {body}"
+    );
+}
+
+// =============================================================================
+// 28. Unscoped get_one regression: still returns full data
+// =============================================================================
+
+#[tokio::test]
+async fn scope_get_one_unscoped_still_works() {
+    let db = setup_test_db().await.unwrap();
+    let admin = setup_test_app(&db);
+
+    let (_, cust) = admin_post(
+        &admin,
+        "/customers",
+        json!({"name": "FullData", "email": "full@example.com"}),
+    )
+    .await;
+    let cust_id = cust["id"].as_str().unwrap();
+
+    admin_post(
+        &admin,
+        "/vehicles",
+        json!({"customer_id": cust_id, "make": "AdminCar", "model": "X", "year": 2024, "vin": "ADM1"}),
+    )
+    .await;
+
+    // Admin (unscoped) get_one: full data including is_private
+    let (s, body, _) = get_json(&admin, &format!("/customers/{cust_id}")).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(
+        body.get("is_private").is_some(),
+        "Admin get_one must include is_private field"
+    );
+
+    let vehicles = body["vehicles"].as_array().expect("should have vehicles");
+    assert_eq!(vehicles.len(), 1, "Admin should see all vehicles");
+    assert!(
+        vehicles[0].get("is_private").is_some(),
+        "Admin vehicle join must include is_private field"
+    );
+}

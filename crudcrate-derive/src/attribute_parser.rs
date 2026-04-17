@@ -138,6 +138,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             Some("derive_eq") => meta.derive_eq = true,
                             Some("no_partial_eq") => meta.derive_partial_eq = false,
                             Some("no_eq") => meta.derive_eq = false,
+                            Some("require_scope") => meta.require_scope = true,
                             _ => {}
                         }
                     }
@@ -179,7 +180,7 @@ fn parse_struct_level_join(
     let mut path = None;
     let mut filterable_columns = Vec::new();
     let mut sortable_columns = Vec::new();
-
+    let mut fk_column = None;
     let metas =
         Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()).ok()?;
 
@@ -197,6 +198,8 @@ fn parse_struct_level_join(
                                 relation = Some(s.value());
                             } else if nv.path.is_ident("path") {
                                 path = Some(s.value());
+                            } else if nv.path.is_ident("fk_column") {
+                                fk_column = Some(s.value());
                             }
                         }
                         Lit::Int(i) => {
@@ -241,6 +244,7 @@ fn parse_struct_level_join(
         path,
         filterable_columns,
         sortable_columns,
+        fk_column,
     })
 }
 

@@ -707,7 +707,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crudcrate"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -741,7 +741,7 @@ dependencies = [
 
 [[package]]
 name = "crudcrate-derive"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3487,7 +3487,7 @@ dependencies = [
 
 [[package]]
 name = "test_suite"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "async-trait",
  "axum",

@@ -91,27 +91,24 @@ macro_rules! crud_handlers_impl {
         ) -> Result<axum::response::Response, crudcrate::ApiError> {
             use axum::response::IntoResponse;
 
+            // require_scope: if scope middleware is required but not present, return 500
+            if <$resource as crudcrate::traits::CRUDResource>::REQUIRE_SCOPE && scope.is_none() {
+                return Err(crudcrate::ApiError::internal(
+                    "Scope middleware required for this resource but not configured",
+                    Some("require_scope check failed: ScopeCondition extension not found in request".into()),
+                ));
+            }
+
             if let Some(axum::Extension(crudcrate::ScopeCondition { condition: extra })) = scope {
-                // Scoped request: load entity (preserving hooks/joins), then verify scope.
-                // Data is discarded if scope check fails — never reaches serialization.
-                let result = <$resource as crudcrate::traits::CRUDResource>::get_one(&db, id)
+                // Atomic scoped fetch: ID + scope condition in a single query.
+                // Prevents TOCTOU race where scope-relevant columns could change
+                // between a fetch and a separate verification query.
+                let result = <$resource as crudcrate::traits::CRUDResource>::get_one_scoped(&db, id, &extra)
                     .await
                     .map_err(|_| crudcrate::ApiError::not_found(
                         <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
                         Some(id.to_string()),
                     ))?;
-
-                // Verify the loaded entity passes the scope condition
-                use sea_orm::ColumnTrait;
-                let scope_check = sea_orm::Condition::all()
-                    .add(<$resource as crudcrate::traits::CRUDResource>::ID_COLUMN.eq(id))
-                    .add(extra);
-                if <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &scope_check).await == 0 {
-                    return Err(crudcrate::ApiError::not_found(
-                        <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
-                        Some(id.to_string()),
-                    ));
-                }
 
                 let response: $response_model = result.into();
                 let scoped: $scoped_response = response.into();
@@ -158,6 +155,14 @@ macro_rules! crud_handlers_impl {
         ) -> Result<axum::response::Response, crudcrate::ApiError> {
             use axum::response::IntoResponse;
 
+            // require_scope: if scope middleware is required but not present, return 500
+            if <$resource as crudcrate::traits::CRUDResource>::REQUIRE_SCOPE && scope.is_none() {
+                return Err(crudcrate::ApiError::internal(
+                    "Scope middleware required for this resource but not configured",
+                    Some("require_scope check failed: ScopeCondition extension not found in request".into()),
+                ));
+            }
+
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
             let limit = limit.min(<$resource as crudcrate::traits::CRUDResource>::max_page_size());
 
@@ -201,9 +206,15 @@ macro_rules! crud_handlers_impl {
                 }
             };
 
-            let items = <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
-                .await
-                .map_err(crudcrate::ApiError::from)?;
+            let items = if is_scoped {
+                <$resource as crudcrate::traits::CRUDResource>::get_all_scoped(&db, &condition, order_column, order_direction, offset, limit)
+                    .await
+                    .map_err(crudcrate::ApiError::from)?
+            } else {
+                <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
+                    .await
+                    .map_err(crudcrate::ApiError::from)?
+            };
             let total_count = <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
             let headers = crudcrate::pagination::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);
 
