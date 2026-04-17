@@ -179,7 +179,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="hiding-sensitive-data"><a class="header" href="#hiding-sensitive-data">Hiding Sensitive Data</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/exclude_functionality_test.rs#L1" target="_blank" title="exclude tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L1" target="_blank" title="exclude tests">📋 See test</a></span></p>
 <p>Let’s add users to our task manager. Users have passwords, but we never want to expose password hashes.</p>
 <h2 id="a-user-entity"><a class="header" href="#a-user-entity">A User Entity</a></h2>
 <pre><code class="language-rust">#[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
@@ -241,10 +241,10 @@ curl http://localhost:3000/users/550e8400-e29b-41d4-a716-446655440000
 <tr><th>Attribute</th><th>Effect</th><th>Test</th></tr>
 </thead>
 <tbody>
-<tr><td><code>exclude(create)</code></td><td>Not in POST body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/exclude_functionality_test.rs#L75-L113" target="_blank" title="exclude create test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(update)</code></td><td>Not in PUT body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/exclude_functionality_test.rs#L117-L179" target="_blank" title="exclude update test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(one)</code></td><td>Not in GET /:id response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/exclude_functionality_test.rs#L17-L71" target="_blank" title="exclude one test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(list)</code></td><td>Not in GET / response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/exclude_functionality_test.rs#L183-L232" target="_blank" title="exclude list test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(create)</code></td><td>Not in POST body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L75-L113" target="_blank" title="exclude create test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(update)</code></td><td>Not in PUT body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L117-L179" target="_blank" title="exclude update test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(one)</code></td><td>Not in GET /:id response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L17-L71" target="_blank" title="exclude one test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(list)</code></td><td>Not in GET / response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L183-L232" target="_blank" title="exclude list test">📋 See test</a></span></td></tr>
 </tbody>
 </table>
 </div>

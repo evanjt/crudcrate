@@ -179,7 +179,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="custom-logic-with-hooks"><a class="header" href="#custom-logic-with-hooks">Custom Logic with Hooks</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/hook_system_test.rs#L1" target="_blank" title="hooks tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L1" target="_blank" title="hooks tests">📋 See test</a></span></p>
 <p>Sometimes you need custom logic: validate input, send notifications, or log events. Hooks let you run code before or after CRUD operations.</p>
 <h2 id="the-hook-system"><a class="header" href="#the-hook-system">The Hook System</a></h2>
 <p>Hooks use this syntax: <code>{operation}::{cardinality}::{phase}</code></p>
@@ -309,7 +309,7 @@ pub struct Model {
 }</code></pre>
 <h2 id="hook-function-signatures"><a class="header" href="#hook-function-signatures">Hook Function Signatures</a></h2>
 <h3 id="create"><a class="header" href="#create">Create</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/hook_system_test.rs#L394-L418" target="_blank" title="hooks create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L394-L418" target="_blank" title="hooks create test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can modify input
 async fn create_pre(db: &amp;DatabaseConnection, data: &amp;mut TaskCreate) -&gt; Result&lt;(), ApiError&gt;;
 
@@ -322,14 +322,14 @@ async fn create_body(db: &amp;DatabaseConnection, data: TaskCreate) -&gt; Result
 // Transform: modify result before returning
 async fn create_transform(db: &amp;DatabaseConnection, task: Task) -&gt; Result&lt;Task, ApiError&gt;;</code></pre>
 <h3 id="update"><a class="header" href="#update">Update</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/hook_system_test.rs#L480-L511" target="_blank" title="hooks update test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L480-L511" target="_blank" title="hooks update test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: receives id and can modify input
 async fn update_pre(db: &amp;DatabaseConnection, id: Uuid, data: &amp;mut TaskUpdate) -&gt; Result&lt;(), ApiError&gt;;
 
 // Post: receives updated item
 async fn update_post(db: &amp;DatabaseConnection, task: &amp;Task) -&gt; Result&lt;(), ApiError&gt;;</code></pre>
 <h3 id="delete"><a class="header" href="#delete">Delete</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.7.2/test_suite/tests/hook_system_test.rs#L552-L580" target="_blank" title="hooks delete test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L552-L580" target="_blank" title="hooks delete test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can prevent deletion
 async fn delete_pre(db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;(), ApiError&gt;;
 
