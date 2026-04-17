@@ -340,7 +340,7 @@ All attributes and options.
 <p>MIT License - use it however you want.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="your-first-api"><a class="header" href="#your-first-api">Your First API</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/multi_database_test.rs#L14-L125" target="_blank" title="crud test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/multi_database_test.rs#L14-L125" target="_blank" title="crud test">📋 See test</a></span></p>
 <p>Let’s build a task manager. We’ll start simple and add features as we need them.</p>
 <h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
 <pre><code class="language-bash">cargo new taskmanager
@@ -527,7 +527,7 @@ curl -X POST http://localhost:3000/tasks \
 </table>
 </div>
 <h2 id="what-on_create-does"><a class="header" href="#what-on_create-does">What <code>on_create</code> Does</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span></p>
 <p>The expression is evaluated when inserting a new record:</p>
 <pre><code class="language-rust">on_create = Uuid::new_v4()      // Generate UUID
 on_create = chrono::Utc::now()  // Current timestamp
@@ -578,7 +578,7 @@ pub struct Model {
 )
 </code></pre>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What’s Happening</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span> <span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L470-L506" target="_blank" title="on_update test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span> <span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/test_deep_recursion.rs#L470-L506" target="_blank" title="on_update test">📋 See test</a></span></p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -636,7 +636,7 @@ curl -X PUT http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440000 \
 <p><strong>Next:</strong> <a href="#finding-tasks">Finding tasks</a> - filter by field values.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="finding-tasks"><a class="header" href="#finding-tasks">Finding Tasks</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_filtering_test.rs#L1" target="_blank" title="filtering tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_filtering_test.rs#L1" target="_blank" title="filtering tests">📋 See test</a></span></p>
 <p>We have lots of tasks now. Let’s add a way to filter them.</p>
 <h2 id="add-a-status-field"><a class="header" href="#add-a-status-field">Add a Status Field</a></h2>
 <p>First, let’s give tasks a <code>completed</code> status:</p>
@@ -712,7 +712,7 @@ curl 'http://localhost:3000/tasks?filter={"priority_lte":5}'
 curl 'http://localhost:3000/tasks?filter={"priority_gte":3,"priority_lte":7}'
 </code></pre>
 <h2 id="available-operators"><a class="header" href="#available-operators">Available Operators</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_filtering_test.rs#L16-L323" target="_blank" title="filtering comparison tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_filtering_test.rs#L16-L323" target="_blank" title="filtering comparison tests">📋 See test</a></span></p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -758,7 +758,7 @@ curl 'http://localhost:3000/tasks?filter={"created_at":"2024-01-01"}'
 <p><strong>Next:</strong> <a href="#sorting-results">Sorting results</a> - order tasks by any field.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sorting-results"><a class="header" href="#sorting-results">Sorting Results</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_sorting_test.rs#L1" target="_blank" title="sorting tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_sorting_test.rs#L1" target="_blank" title="sorting tests">📋 See test</a></span></p>
 <p>Tasks come back in database order. Let’s control the order.</p>
 <h2 id="enable-sorting"><a class="header" href="#enable-sorting">Enable Sorting</a></h2>
 <p>Add <code>sortable</code> to fields you want to sort by:</p>
@@ -801,10 +801,10 @@ curl 'http://localhost:3000/tasks?filter={"priority_gte":8}&amp;sort=["created_a
 </code></pre>
 <hr>
 <h1 id="pagination"><a class="header" href="#pagination">Pagination</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_pagination_test.rs#L1" target="_blank" title="pagination tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_pagination_test.rs#L1" target="_blank" title="pagination tests">📋 See test</a></span></p>
 <p>What if you have 10,000 tasks? You don’t want to load them all at once.</p>
 <h2 id="the-range-parameter"><a class="header" href="#the-range-parameter">The Range Parameter</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_pagination_test.rs#L15-L157" target="_blank" title="pagination range tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_pagination_test.rs#L15-L157" target="_blank" title="pagination range tests">📋 See test</a></span></p>
 <pre><code class="language-bash"># First 10 tasks (items 0-9)
 curl 'http://localhost:3000/tasks?range=[0,9]'
 
@@ -850,7 +850,7 @@ curl 'http://localhost:3000/tasks?filter={"completed":false}&amp;sort=["priority
 <p><strong>Next:</strong> <a href="#searching-text">Searching text</a> - find tasks by keywords.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="searching-text"><a class="header" href="#searching-text">Searching Text</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_fulltext_test.rs#L1" target="_blank" title="fulltext tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_fulltext_test.rs#L1" target="_blank" title="fulltext tests">📋 See test</a></span></p>
 <p>Filtering requires exact values. But what if you want to find tasks containing “meeting” anywhere in the title?</p>
 <h2 id="enable-fulltext-search"><a class="header" href="#enable-fulltext-search">Enable Fulltext Search</a></h2>
 <p>Add <code>fulltext</code> to searchable fields:</p>
@@ -944,7 +944,7 @@ curl 'http://localhost:3000/tasks?q=urgent&amp;range=[0,9]'
 <p><strong>Next:</strong> <a href="#hiding-sensitive-data">Hiding data</a> - keep sensitive fields out of responses.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hiding-sensitive-data"><a class="header" href="#hiding-sensitive-data">Hiding Sensitive Data</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L1" target="_blank" title="exclude tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L1" target="_blank" title="exclude tests">📋 See test</a></span></p>
 <p>Let’s add users to our task manager. Users have passwords, but we never want to expose password hashes.</p>
 <h2 id="a-user-entity"><a class="header" href="#a-user-entity">A User Entity</a></h2>
 <pre><code class="language-rust">#[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
@@ -1006,10 +1006,10 @@ curl http://localhost:3000/users/550e8400-e29b-41d4-a716-446655440000
 <tr><th>Attribute</th><th>Effect</th><th>Test</th></tr>
 </thead>
 <tbody>
-<tr><td><code>exclude(create)</code></td><td>Not in POST body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L75-L113" target="_blank" title="exclude create test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(update)</code></td><td>Not in PUT body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L117-L179" target="_blank" title="exclude update test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(one)</code></td><td>Not in GET /:id response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L17-L71" target="_blank" title="exclude one test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(list)</code></td><td>Not in GET / response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L183-L232" target="_blank" title="exclude list test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(create)</code></td><td>Not in POST body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L75-L113" target="_blank" title="exclude create test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(update)</code></td><td>Not in PUT body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L117-L179" target="_blank" title="exclude update test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(one)</code></td><td>Not in GET /:id response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L17-L71" target="_blank" title="exclude one test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(list)</code></td><td>Not in GET / response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L183-L232" target="_blank" title="exclude list test">📋 See test</a></span></td></tr>
 </tbody>
 </table>
 </div>
@@ -1035,7 +1035,7 @@ pub full_description: String,</code></pre>
 <p><strong>Next:</strong> <a href="#relationships">Relationships</a> - connect tasks to users.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="relationships"><a class="header" href="#relationships">Relationships</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/join_functionality_test.rs#L1" target="_blank" title="relationships tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/join_functionality_test.rs#L1" target="_blank" title="relationships tests">📋 See test</a></span></p>
 <p>Tasks should belong to users. Let’s connect them.</p>
 <h2 id="add-user-id-to-tasks"><a class="header" href="#add-user-id-to-tasks">Add User ID to Tasks</a></h2>
 <pre><code class="language-rust">// task.rs
@@ -1176,12 +1176,12 @@ impl Related&lt;super::task::Entity&gt; for Entity {
 }
 </code></pre>
 <h2 id="depth-limit"><a class="header" href="#depth-limit">Depth Limit</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L184-L361" target="_blank" title="relationships depth tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/test_deep_recursion.rs#L184-L361" target="_blank" title="relationships depth tests">📋 See test</a></span></p>
 <p>To prevent infinite recursion (user → tasks → user → tasks → …), use <code>depth</code>:</p>
 <pre><code class="language-rust">#[crudcrate(non_db_attr, join(one, depth = 1))]
 pub tasks: Vec&lt;Task&gt;,</code></pre>
 <p>Default max depth is 5. Self-referencing relations (like categories with subcategories) are automatically limited to depth 1.</p>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L79-L182" target="_blank" title="relationships recursive tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/test_deep_recursion.rs#L79-L182" target="_blank" title="relationships recursive tests">📋 See test</a></span></p>
 <hr>
 <h2 id="try-the-recursive-join-example"><a class="header" href="#try-the-recursive-join-example">Try the Recursive Join Example</a></h2>
 <p>See relationships in action with a complete example:</p>
@@ -1208,7 +1208,7 @@ cargo run --example recursive_join
 <p><strong>Next:</strong> <a href="#custom-logic-with-hooks">Custom logic</a> - add validation and side effects.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="custom-logic-with-hooks"><a class="header" href="#custom-logic-with-hooks">Custom Logic with Hooks</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L1" target="_blank" title="hooks tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/hook_system_test.rs#L1" target="_blank" title="hooks tests">📋 See test</a></span></p>
 <p>Sometimes you need custom logic: validate input, send notifications, or log events. Hooks let you run code before or after CRUD operations.</p>
 <h2 id="the-hook-system"><a class="header" href="#the-hook-system">The Hook System</a></h2>
 <p>Hooks use this syntax: <code>{operation}::{cardinality}::{phase}</code></p>
@@ -1338,7 +1338,7 @@ pub struct Model {
 }</code></pre>
 <h2 id="hook-function-signatures"><a class="header" href="#hook-function-signatures">Hook Function Signatures</a></h2>
 <h3 id="create"><a class="header" href="#create">Create</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L394-L418" target="_blank" title="hooks create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/hook_system_test.rs#L394-L418" target="_blank" title="hooks create test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can modify input
 async fn create_pre(db: &amp;DatabaseConnection, data: &amp;mut TaskCreate) -&gt; Result&lt;(), ApiError&gt;;
 
@@ -1351,14 +1351,14 @@ async fn create_body(db: &amp;DatabaseConnection, data: TaskCreate) -&gt; Result
 // Transform: modify result before returning
 async fn create_transform(db: &amp;DatabaseConnection, task: Task) -&gt; Result&lt;Task, ApiError&gt;;</code></pre>
 <h3 id="update"><a class="header" href="#update">Update</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L480-L511" target="_blank" title="hooks update test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/hook_system_test.rs#L480-L511" target="_blank" title="hooks update test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: receives id and can modify input
 async fn update_pre(db: &amp;DatabaseConnection, id: Uuid, data: &amp;mut TaskUpdate) -&gt; Result&lt;(), ApiError&gt;;
 
 // Post: receives updated item
 async fn update_post(db: &amp;DatabaseConnection, task: &amp;Task) -&gt; Result&lt;(), ApiError&gt;;</code></pre>
 <h3 id="delete"><a class="header" href="#delete">Delete</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L552-L580" target="_blank" title="hooks delete test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/hook_system_test.rs#L552-L580" target="_blank" title="hooks delete test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can prevent deletion
 async fn delete_pre(db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;(), ApiError&gt;;
 
