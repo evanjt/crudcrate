@@ -4,7 +4,7 @@ use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
-async fn custom_create(_db: &DatabaseConnection, _data: TodoCreate) -> Result<Todo, crudcrate::ApiError> {
+async fn custom_create(_db: &DatabaseConnection, _id: Uuid) -> Result<Uuid, crudcrate::ApiError> {
     unimplemented!()
 }
 
