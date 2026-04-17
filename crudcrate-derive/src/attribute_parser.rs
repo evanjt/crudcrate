@@ -181,8 +181,9 @@ fn parse_struct_level_join(
     let mut filterable_columns = Vec::new();
     let mut sortable_columns = Vec::new();
     let mut fk_column = None;
-    let metas =
-        Punctuated::<Meta, Comma>::parse_terminated.parse2(meta_list.tokens.clone()).ok()?;
+    let metas = Punctuated::<Meta, Comma>::parse_terminated
+        .parse2(meta_list.tokens.clone())
+        .ok()?;
 
     for meta in metas {
         match meta {

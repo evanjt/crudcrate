@@ -4,12 +4,11 @@
 /// - Resources WITHOUT require_scope work normally without scope middleware
 /// - Resources WITH require_scope return 500 when scope middleware is missing
 /// - Resources WITH require_scope work normally when scope middleware is present
-
 mod common;
 
-use axum::body::{to_bytes, Body};
+use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};

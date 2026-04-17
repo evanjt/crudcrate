@@ -7,12 +7,11 @@
 /// - Deep join chains filter at each level independently
 /// - Unscoped (admin) paths return all data
 /// - Edge cases: all-private children, empty results
-
 mod common;
 
-use axum::body::{to_bytes, Body};
+use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
@@ -60,12 +59,8 @@ async fn create_private(app: &axum::Router, path: &str, payload: Value) -> Value
     let (s, created) = admin_post(app, path, payload).await;
     assert_eq!(s, StatusCode::CREATED);
     let id = created["id"].as_str().unwrap();
-    let (s, updated) = admin_update(
-        app,
-        &format!("{path}/{id}"),
-        json!({"is_private": true}),
-    )
-    .await;
+    let (s, updated) =
+        admin_update(app, &format!("{path}/{id}"), json!({"is_private": true})).await;
     assert_eq!(s, StatusCode::OK);
     updated
 }
@@ -295,7 +290,9 @@ async fn scope_sql_filter_all_children_private() {
     // Scoped get_one: empty vehicles array (not null, not missing)
     let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
-    let vehicles = body["vehicles"].as_array().expect("vehicles should be an array, not null");
+    let vehicles = body["vehicles"]
+        .as_array()
+        .expect("vehicles should be an array, not null");
     assert_eq!(
         vehicles.len(),
         0,
@@ -358,7 +355,8 @@ async fn scope_sql_filter_no_scoped_fields_on_child() {
     let (s, body, _) = get_json(&admin, &format!("/vehicles/{vehicle_id}")).await;
     assert_eq!(s, StatusCode::OK);
     // Debug: print the response keys for this vehicle
-    let admin_parts = body["parts"].as_array()
+    let admin_parts = body["parts"]
+        .as_array()
         .unwrap_or_else(|| panic!("admin should have parts array. Full response: {body}"));
     assert_eq!(
         admin_parts.len(),
@@ -535,8 +533,8 @@ async fn scope_defense_in_depth_memory_filter_still_active() {
     // This test verifies that the in-memory ScopeFilterable filter
     // produces correct results. Even if SQL-level filtering handles
     // the heavy lifting, the memory filter is defense-in-depth.
-    use crudcrate::ScopeFilterable;
     use common::vehicle;
+    use crudcrate::ScopeFilterable;
 
     let db = setup_test_db().await.unwrap();
     let admin = setup_test_app(&db);

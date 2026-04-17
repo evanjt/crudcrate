@@ -29,9 +29,10 @@ fn generate_select_only_columns(
     analysis: &EntityFieldAnalysis,
 ) -> Option<proc_macro2::TokenStream> {
     // Check if any DB columns are excluded from list AND are Option<T>
-    let has_skippable = analysis.db_fields.iter().any(|f| {
-        !should_include_in_model(f, "list_model") && is_option_type(&f.ty)
-    });
+    let has_skippable = analysis
+        .db_fields
+        .iter()
+        .any(|f| !should_include_in_model(f, "list_model") && is_option_type(&f.ty));
 
     if !has_skippable {
         return None;
@@ -122,7 +123,10 @@ pub fn generate_get_all_impl(
     // Shared body builder: given a batch-loading fragment, produce the full body.
     // Used for both get_all (unscoped) and get_all_scoped variants so they share
     // ordering, pagination, select_only, and hook semantics.
-    let build_body = |batch_loading: Option<(proc_macro2::TokenStream, proc_macro2::TokenStream)>| {
+    let build_body = |batch_loading: Option<(
+        proc_macro2::TokenStream,
+        proc_macro2::TokenStream,
+    )>| {
         if let Some(fn_path) = &hooks.body {
             // Custom body takes full control; applies to both variants.
             quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
@@ -176,7 +180,10 @@ pub fn generate_get_all_impl(
     });
 
     let scoped_body = build_body(if has_join_all_fields {
-        Some(generate_get_all_scoped_batch_loading(analysis, api_struct_name))
+        Some(generate_get_all_scoped_batch_loading(
+            analysis,
+            api_struct_name,
+        ))
     } else {
         None
     });

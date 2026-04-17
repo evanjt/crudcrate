@@ -50,7 +50,8 @@ pub(crate) fn generate_list_and_response_models(
         all_fields.push(field.clone());
     }
 
-    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&all_fields, api_struct_name);
+    let list_struct_fields =
+        crate::codegen::models::list::generate_list_struct_fields(&all_fields, api_struct_name);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&all_fields);
     let list_from_model_assignments =
@@ -111,9 +112,9 @@ pub(crate) fn generate_list_and_response_models(
 
     // Always generate ScopedList/ScopedResponse so parent entities can reference
     // child scoped types in their own scoped models (join fields).
-    let has_scoped_exclusions = all_fields
-        .iter()
-        .any(|f| !should_include_in_model(f, "scoped_model") && should_include_in_model(f, "list_model"));
+    let has_scoped_exclusions = all_fields.iter().any(|f| {
+        !should_include_in_model(f, "scoped_model") && should_include_in_model(f, "list_model")
+    });
 
     let scoped_list_name = format_ident!("{}ScopedList", api_struct_name);
     let scoped_response_name = format_ident!("{}ScopedResponse", api_struct_name);
@@ -126,7 +127,10 @@ pub(crate) fn generate_list_and_response_models(
         // fields on children are also stripped from nested responses.
         let scoped_list_fields: Vec<_> = all_fields
             .iter()
-            .filter(|f| should_include_in_model(f, "list_model") && should_include_in_model(f, "scoped_model"))
+            .filter(|f| {
+                should_include_in_model(f, "list_model")
+                    && should_include_in_model(f, "scoped_model")
+            })
             .map(|f| {
                 let ident = &f.ident;
                 let is_join_all = get_join_config(f).is_some_and(|c| c.on_all);
@@ -160,7 +164,10 @@ pub(crate) fn generate_list_and_response_models(
         // Join fields use ScopedList child type (same as in ScopedList)
         let scoped_response_fields: Vec<_> = all_fields
             .iter()
-            .filter(|f| should_include_in_model(f, "one_model") && should_include_in_model(f, "scoped_model"))
+            .filter(|f| {
+                should_include_in_model(f, "one_model")
+                    && should_include_in_model(f, "scoped_model")
+            })
             .map(|f| {
                 let ident = &f.ident;
                 let is_join = get_join_config(f).is_some();
@@ -278,7 +285,8 @@ pub(crate) fn generate_list_and_response_models(
         let scope_condition_adds: Vec<_> = scope_filter_fields
             .iter()
             .map(|field_name| {
-                let col_pascal = quote::format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
+                let col_pascal =
+                    quote::format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
                 quote! { .add(Column::#col_pascal.eq(false)) }
             })
             .collect();

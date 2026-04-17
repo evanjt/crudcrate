@@ -1,4 +1,4 @@
-use axum::{extract::Request, middleware::Next, response::Response, Router};
+use axum::{Router, extract::Request, middleware::Next, response::Response};
 use crudcrate::ScopeCondition;
 use sea_orm::{ColumnTrait, Condition, Database, DatabaseConnection, DbErr};
 use sea_orm_migration::prelude::*;

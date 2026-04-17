@@ -148,8 +148,7 @@ async fn test_belongs_to_option_join_none_when_orphan() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let vehicle: Vehicle =
-        serde_json::from_slice(&body).expect("Failed to parse created vehicle");
+    let vehicle: Vehicle = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
 
     // Vehicle should have been created successfully with a valid customer
     // Just verify the basic flow works — the main assertion is in the first test

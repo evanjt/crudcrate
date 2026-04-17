@@ -230,7 +230,8 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(e) => return e,
     };
-    let list_struct_fields = crate::codegen::models::list::generate_list_struct_fields(&fields, name);
+    let list_struct_fields =
+        crate::codegen::models::list::generate_list_struct_fields(&fields, name);
     let list_from_assignments =
         crate::codegen::models::list::generate_list_from_assignments(&fields);
 
@@ -313,17 +314,37 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let mut synthetic_join_fields: Vec<syn::Field> = Vec::new();
     for j in &crud_meta.struct_level_joins {
         let mut parts = Vec::new();
-        if j.on_one { parts.push("one".to_string()); }
-        if j.on_all { parts.push("all".to_string()); }
-        if let Some(d) = j.depth { parts.push(format!("depth = {d}")); }
-        if let Some(ref r) = j.relation { parts.push(format!("relation = \"{r}\"")); }
-        if let Some(ref p) = j.path { parts.push(format!("path = \"{p}\"")); }
+        if j.on_one {
+            parts.push("one".to_string());
+        }
+        if j.on_all {
+            parts.push("all".to_string());
+        }
+        if let Some(d) = j.depth {
+            parts.push(format!("depth = {d}"));
+        }
+        if let Some(ref r) = j.relation {
+            parts.push(format!("relation = \"{r}\""));
+        }
+        if let Some(ref p) = j.path {
+            parts.push(format!("path = \"{p}\""));
+        }
         if !j.filterable_columns.is_empty() {
-            let cols = j.filterable_columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+            let cols = j
+                .filterable_columns
+                .iter()
+                .map(|c| format!("\"{c}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
             parts.push(format!("filterable({cols})"));
         }
         if !j.sortable_columns.is_empty() {
-            let cols = j.sortable_columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+            let cols = j
+                .sortable_columns
+                .iter()
+                .map(|c| format!("\"{c}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
             parts.push(format!("sortable({cols})"));
         }
         if let Some(ref fk) = j.fk_column {

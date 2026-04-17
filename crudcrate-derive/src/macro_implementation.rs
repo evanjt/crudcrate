@@ -4,8 +4,8 @@ use crate::codegen::{
     type_resolution::{
         extract_api_struct_type_for_recursive_call, generate_crud_type_aliases,
         generate_enum_field_checker, generate_field_entries, generate_id_column,
-        generate_like_filterable_entries, generate_scoped_excluded_entries, get_path_from_field_type,
-        is_vec_type,
+        generate_like_filterable_entries, generate_scoped_excluded_entries,
+        get_path_from_field_type, is_vec_type,
     },
 };
 use crate::traits::crudresource::structs::{

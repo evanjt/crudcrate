@@ -594,7 +594,9 @@ fn generate_join_loading_impl(
         };
 
         // SQL-level scope filter for Vec children (applied before fetching).
-        let scope_filter = if let (true, Some(child_list_type)) = (is_vec_field, &child_list_type_path) {
+        let scope_filter = if let (true, Some(child_list_type)) =
+            (is_vec_field, &child_list_type_path)
+        {
             quote! {
                 // Apply child entity's scope condition (if any) at the SQL level
                 let query = if let Some(child_scope) = <#child_list_type as crudcrate::ScopeFilterable>::scope_condition() {

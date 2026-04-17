@@ -8,12 +8,11 @@
 /// - Returns correct Content-Range counts reflecting the scoped condition
 ///
 /// These tests use real SQLite-in-memory databases — no mocks.
-
 mod common;
 
-use axum::body::{to_bytes, Body};
+use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
@@ -89,12 +88,8 @@ async fn create_private(app: &axum::Router, path: &str, payload: Value) -> Value
     let (s, created) = admin_post(app, path, payload).await;
     assert_eq!(s, StatusCode::CREATED);
     let id = created["id"].as_str().unwrap();
-    let (s, updated) = admin_update(
-        app,
-        &format!("{path}/{id}"),
-        json!({"is_private": true}),
-    )
-    .await;
+    let (s, updated) =
+        admin_update(app, &format!("{path}/{id}"), json!({"is_private": true})).await;
     assert_eq!(s, StatusCode::OK);
     updated
 }
@@ -903,7 +898,12 @@ async fn scope_get_one_atomic_single_query() {
     assert_eq!(s, StatusCode::OK, "Public customer should be visible");
 
     // Flip to private
-    admin_update(&admin, &format!("/customers/{id}"), json!({"is_private": true})).await;
+    admin_update(
+        &admin,
+        &format!("/customers/{id}"),
+        json!({"is_private": true}),
+    )
+    .await;
 
     // Scoped get_one must return 404 — the scope condition is part of the fetch,
     // not a separate verification query (atomic single-query check).
@@ -957,7 +957,9 @@ async fn scope_get_one_scoped_preserves_join_loading() {
     let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
 
-    let vehicles = body["vehicles"].as_array().expect("should have vehicles join");
+    let vehicles = body["vehicles"]
+        .as_array()
+        .expect("should have vehicles join");
     assert_eq!(
         vehicles.len(),
         2,

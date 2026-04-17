@@ -2,7 +2,10 @@ use convert_case::{Case, Casing};
 use heck::ToPascalCase;
 use quote::{format_ident, quote};
 
-use crate::{CRUDResourceMeta, attribute_parser::get_crudcrate_bool, codegen::models::should_include_in_model};
+use crate::{
+    CRUDResourceMeta, attribute_parser::get_crudcrate_bool,
+    codegen::models::should_include_in_model,
+};
 
 /// Map field types to their corresponding entity or model paths
 /// This function replaces both `get_entity_path_from_field_type` and `get_model_path_from_field_type`
