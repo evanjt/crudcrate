@@ -17,7 +17,6 @@ syn = { workspace = true, features = ["full"] }
 proc-macro2 = { workspace = true }
 convert_case = { workspace = true }
 heck = { workspace = true }
-prettyplease = { version = "0.2", optional = true }
 
 [lib]
 proc-macro = true

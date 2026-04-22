@@ -25,7 +25,6 @@ crudcrate-derive = { version = "=0.8.0", optional = true, path = "../crudcrate-d
 # Core dependencies using workspace versions
 async-trait = { workspace = true }
 axum = { workspace = true, features = ["macros"] }
-hyper = { workspace = true }
 sea-orm = { workspace = true, features = ["runtime-tokio-rustls", "macros", "with-uuid"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -45,7 +44,6 @@ spring-web = { version = "0.4.3", optional = true }
 proc-macro = false
 
 [dev-dependencies]
-axum-helmet = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 criterion = { workspace = true, features = ["html_reports"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono", "with-rust_decimal"] }
@@ -54,8 +52,6 @@ tokio = { workspace = true, features = ["full"] }
 tracing-subscriber = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors", "trace"] }
-tower_governor = { workspace = true }
-url = { workspace = true }
 url-escape = { workspace = true }
 utoipa = { workspace = true, features = ["uuid", "chrono", "decimal"] }
 utoipa-axum = { workspace = true }

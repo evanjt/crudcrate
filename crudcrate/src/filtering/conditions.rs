@@ -11,6 +11,18 @@ use super::search::{build_fulltext_condition, build_like_condition};
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
 const MAX_PAGE_SIZE: u64 = 1000;
 const MAX_OFFSET: u64 = 1_000_000;
+/// Maximum number of filter clauses accepted per request.
+///
+/// A malicious client could otherwise submit a filter object with thousands of
+/// keys, each producing a SQL condition and potentially blowing up query planning
+/// or evaluation time. Legitimate admin dashboards rarely exceed ~20 filter fields
+/// (remember comparison operators split one field into two clauses: `year_gte`
+/// and `year_lte`), so 100 gives generous headroom while still preventing abuse.
+///
+/// Exceeding this limit produces a `400 Bad Request` response — crudcrate
+/// deliberately does *not* silently drop filters, because a silently-unfiltered
+/// response is worse than a failed request.
+const MAX_FILTER_CLAUSES: usize = 100;
 
 /// Escape LIKE wildcards to prevent wildcard injection attacks
 /// Escapes: % (match any) and _ (match single char)
@@ -81,16 +93,36 @@ where
     }
 }
 
-fn parse_filter_json(filter_str: Option<String>) -> HashMap<String, serde_json::Value> {
-    filter_str.map_or_else(HashMap::new, |filter| match serde_json::from_str(&filter) {
-        Ok(parsed) => parsed,
-        Err(_e) => {
-            // Log at debug level - invalid user input doesn't warrant warnings
-            // Don't include user input to avoid exposing potentially sensitive data
-            tracing::debug!("Invalid JSON in filter parameter - ignoring filter");
-            HashMap::new()
+fn parse_filter_json(
+    filter_str: Option<String>,
+) -> Result<HashMap<String, serde_json::Value>, crate::errors::ApiError> {
+    let Some(filter) = filter_str else {
+        return Ok(HashMap::new());
+    };
+
+    match serde_json::from_str::<HashMap<String, serde_json::Value>>(&filter) {
+        Ok(parsed) => {
+            if parsed.len() > MAX_FILTER_CLAUSES {
+                tracing::debug!(
+                    "Filter has {} clauses, exceeding MAX_FILTER_CLAUSES ({})",
+                    parsed.len(),
+                    MAX_FILTER_CLAUSES
+                );
+                return Err(crate::errors::ApiError::bad_request(format!(
+                    "Filter contains too many clauses (max {MAX_FILTER_CLAUSES})"
+                )));
+            }
+            Ok(parsed)
         }
-    })
+        Err(_e) => {
+            // Invalid JSON is a client error but we preserve historical behavior
+            // (ignore and return empty) to avoid breaking callers that pass
+            // malformed filters defensively. The MAX_FILTER_CLAUSES path is new
+            // and deliberately strict.
+            tracing::debug!("Invalid JSON in filter parameter - ignoring filter");
+            Ok(HashMap::new())
+        }
+    }
 }
 
 fn handle_fulltext_search<T: crate::traits::CRUDResource>(
@@ -306,12 +338,17 @@ fn process_array_filter(
     None
 }
 
+/// Build a Sea-ORM `Condition` from a JSON filter string.
+///
+/// # Errors
+/// Returns `ApiError::BadRequest` if the filter contains more than
+/// [`MAX_FILTER_CLAUSES`] keys.
 pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
     backend: DatabaseBackend,
-) -> Condition {
-    let filters = parse_filter_json(filter_str);
+) -> Result<Condition, crate::errors::ApiError> {
+    let filters = parse_filter_json(filter_str)?;
     let mut condition = Condition::all();
 
     // Handle fulltext search
@@ -368,7 +405,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
         }
     }
 
-    condition
+    Ok(condition)
 }
 
 #[must_use]
@@ -419,14 +456,19 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
 /// Output: main_condition: name = 'John'
 ///         joined_filters: [vehicles.make = 'BMW', vehicles.year >= 2020]
 /// ```
+/// Parse filters with support for dot-notation joined-entity filters.
+///
+/// # Errors
+/// Returns `ApiError::BadRequest` if the filter contains more than
+/// [`MAX_FILTER_CLAUSES`] keys.
 pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
     backend: DatabaseBackend,
-) -> super::joined::ParsedFilters {
+) -> Result<super::joined::ParsedFilters, crate::errors::ApiError> {
     use super::joined::{JoinedFilter, ParsedFilters, parse_dot_notation};
 
-    let filters = parse_filter_json(filter_str);
+    let filters = parse_filter_json(filter_str)?;
     let mut result = ParsedFilters::default();
 
     // Get allowed joined columns for validation
@@ -506,7 +548,7 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
         }
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -694,7 +736,7 @@ mod tests {
     #[test]
     fn test_parse_filter_json_valid() {
         let filter_str = Some(r#"{"name": "John", "age": 30}"#.to_string());
-        let parsed = parse_filter_json(filter_str);
+        let parsed = parse_filter_json(filter_str).expect("valid filter");
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed.get("name").and_then(|v| v.as_str()), Some("John"));
@@ -703,25 +745,50 @@ mod tests {
 
     #[test]
     fn test_parse_filter_json_invalid() {
-        // Invalid JSON should return empty HashMap
+        // Invalid JSON historically returns empty (preserved behavior); over-limit
+        // is the new strict path tested separately below.
         let filter_str = Some("{invalid json}".to_string());
-        let parsed = parse_filter_json(filter_str);
+        let parsed = parse_filter_json(filter_str).expect("invalid-json path is lenient");
         assert_eq!(parsed.len(), 0);
     }
 
     #[test]
     fn test_parse_filter_json_none() {
-        // None should return empty HashMap
-        let parsed = parse_filter_json(None);
+        let parsed = parse_filter_json(None).expect("None is valid");
         assert_eq!(parsed.len(), 0);
     }
 
     #[test]
     fn test_parse_filter_json_empty() {
-        // Empty string should return empty HashMap
         let filter_str = Some("{}".to_string());
-        let parsed = parse_filter_json(filter_str);
+        let parsed = parse_filter_json(filter_str).expect("empty object is valid");
         assert_eq!(parsed.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_filter_json_at_limit_is_accepted() {
+        let mut entries: Vec<String> = Vec::with_capacity(MAX_FILTER_CLAUSES);
+        for i in 0..MAX_FILTER_CLAUSES {
+            entries.push(format!("\"f{i}\":{i}"));
+        }
+        let filter_str = Some(format!("{{{}}}", entries.join(",")));
+        let parsed = parse_filter_json(filter_str).expect("at-limit filter must be accepted");
+        assert_eq!(parsed.len(), MAX_FILTER_CLAUSES);
+    }
+
+    #[test]
+    fn test_parse_filter_json_rejects_when_over_limit() {
+        let mut entries: Vec<String> = Vec::with_capacity(MAX_FILTER_CLAUSES + 1);
+        for i in 0..=MAX_FILTER_CLAUSES {
+            entries.push(format!("\"f{i}\":{i}"));
+        }
+        let filter_str = Some(format!("{{{}}}", entries.join(",")));
+        let err = parse_filter_json(filter_str)
+            .expect_err("over-limit filter must be rejected, not silently dropped");
+        assert!(
+            matches!(err, crate::errors::ApiError::BadRequest { .. }),
+            "expected BadRequest, got {err:?}"
+        );
     }
 
     /// Test comparison operators with edge cases

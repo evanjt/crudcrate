@@ -36,6 +36,13 @@ pub struct Model {
 let app = Router::new().nest("/customers", Customer::router(&db));
 ```
 
+> **Security:** the generated router is unauthenticated **and has no default
+> request body size limit**. Before shipping, you MUST (1) add an Axum
+> authentication middleware and (2) set `DefaultBodyLimit` on the router —
+> without the body-size cap, a single `POST /batch` request can exhaust server
+> memory. See [`docs/src/advanced/security.md`](docs/src/advanced/security.md)
+> and the [`scoped_access`](examples/scoped_access/main.rs) example.
+
 This generates `Customer`, `CustomerCreate`, `CustomerUpdate`, and `CustomerList`
 structs, a full `CRUDResource` implementation, and an Axum router with:
 

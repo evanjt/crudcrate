@@ -67,7 +67,7 @@ macro_rules! crud_handlers_impl {
             Json,
         };
 
-        use hyper::HeaderMap;
+        use axum::http::HeaderMap;
         use sea_orm::{DbErr, SqlErr};
 
 
@@ -185,7 +185,7 @@ macro_rules! crud_handlers_impl {
                 params.filter.clone(),
                 &filterable_columns,
                 db.get_database_backend()
-            );
+            )?;
 
             let sort_config = crudcrate::parse_sorting_with_joins::<$resource, _>(
                 &params,

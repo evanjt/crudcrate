@@ -97,6 +97,45 @@ Prevents wildcard injection in search queries:
 // Result: Literal search for "%admin%" string
 ```
 
+### Filter Clause Count Limit
+
+Caps the number of filter clauses per request to prevent a client from driving expensive query construction:
+
+```rust
+// Built-in limit
+const MAX_FILTER_CLAUSES: usize = 100;
+```
+
+Requests with more than 100 filter keys receive a **`400 Bad Request`** response with a clear error message. CRUDCrate deliberately does *not* silently drop over-limit filters — an unfiltered response is a worse failure mode than a rejected request, because a caller relying on the filter would see data they didn't ask for.
+
+Remember that comparison-operator suffixes count separately: `{"year_gte": 2020, "year_lte": 2024}` is two clauses on one logical field. Legitimate admin dashboards with many filterable fields rarely approach 100 in practice.
+
+### Request Body Size
+
+**CRUDCrate does not set a default request body size limit** — your application MUST configure one. Without it, batch endpoints (`POST /batch`, `PATCH /batch`) will accept arbitrarily large JSON payloads, and a client can exhaust server memory with a single request.
+
+Use Axum's `DefaultBodyLimit`:
+
+```rust
+use axum::extract::DefaultBodyLimit;
+
+let app = Router::new()
+    .nest("/customers", Customer::router(&db))
+    // 2 MB global cap — tune to your batch size and field width
+    .layer(DefaultBodyLimit::max(2 * 1024 * 1024));
+```
+
+For routes where you want a larger limit (e.g., bulk import), override per-route:
+
+```rust
+let app = Router::new()
+    .nest("/customers", Customer::router(&db))
+    .layer(DefaultBodyLimit::max(1024 * 1024))      // 1 MB default
+    .route_layer(DefaultBodyLimit::max(10 * 1024 * 1024)); // 10 MB for bulk
+```
+
+Combine this with `batch_limit` (number of items) and Axum/tower timeouts for defence-in-depth.
+
 ### Batch Operation Limits
 
 All batch operations (create, update, delete) enforce a configurable size limit to prevent resource exhaustion:
@@ -156,7 +195,9 @@ Internal errors are logged but not exposed:
 
 ## Authentication
 
-CRUDCrate doesn't include authentication - use Axum middleware:
+> **CRUDCrate does NOT provide authentication.** The generated routers are open by default — any request that reaches them will be processed. Applications **must** wrap the routers with an Axum middleware layer (or upstream reverse proxy) that authenticates the caller before the handler runs. See the [`scoped_access`](https://github.com/evanjt/crudcrate/tree/main/examples/scoped_access) example for an end-to-end pattern combining auth middleware with row-level scoping.
+
+Use Axum middleware:
 
 ### JWT Authentication
 

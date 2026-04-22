@@ -280,7 +280,8 @@ mod filter_parsing_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should have no joined filters
         assert!(!parsed.has_joined_filters);
@@ -296,7 +297,8 @@ mod filter_parsing_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should have joined filters
         assert!(parsed.has_joined_filters);
@@ -316,7 +318,8 @@ mod filter_parsing_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should have joined filters
         assert!(parsed.has_joined_filters);
@@ -336,7 +339,8 @@ mod filter_parsing_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should NOT have joined filters (model is not in join_filterable)
         assert!(!parsed.has_joined_filters);
@@ -355,7 +359,8 @@ mod filter_parsing_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should have 3 joined filters
         assert!(parsed.has_joined_filters);
@@ -505,7 +510,8 @@ mod security_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should be rejected (not a valid joined column)
         assert!(!parsed.has_joined_filters);
@@ -521,7 +527,8 @@ mod security_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         // Should be rejected
         assert!(!parsed.has_joined_filters);
@@ -537,7 +544,8 @@ mod security_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         assert!(!parsed.has_joined_filters);
 
@@ -548,7 +556,8 @@ mod security_tests {
             filter_str,
             &filterable_columns,
             DatabaseBackend::Sqlite,
-        );
+        )
+        .expect("valid test filter");
 
         assert!(parsed.has_joined_filters);
     }

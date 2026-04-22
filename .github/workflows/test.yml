@@ -26,6 +26,9 @@ jobs:
     - name: Clippy
       run: cargo clippy --workspace
 
+    - name: Build examples
+      run: cargo build --examples
+
   test-sqlite:
     name: SQLite - Test & Benchmark
     runs-on: ubuntu-latest

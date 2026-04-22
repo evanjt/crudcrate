@@ -479,8 +479,19 @@ impl From<DbErr> for ApiError {
     fn from(err: DbErr) -> Self {
         match &err {
             DbErr::RecordNotFound(msg) => {
-                // Try to extract resource name from error message
-                let resource = msg.split_whitespace().next().unwrap_or("Resource");
+                // Try to extract resource name from error message. Only accept
+                // alphanumeric/underscore identifiers; fall back to "Resource"
+                // for anything else so we never reflect arbitrary text from the
+                // DB driver into the client-facing response.
+                let resource = msg
+                    .split_whitespace()
+                    .next()
+                    .filter(|s| {
+                        !s.is_empty()
+                            && s.len() <= 64
+                            && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                    })
+                    .unwrap_or("Resource");
                 Self::NotFound {
                     resource: resource.to_string(),
                     id: None,
@@ -611,6 +622,37 @@ mod tests {
         let api_err: ApiError = db_err.into();
         assert_eq!(api_err.status_code(), StatusCode::NOT_FOUND);
         assert!(api_err.user_message().contains("not found"));
+    }
+
+    #[test]
+    fn test_dberr_record_not_found_rejects_non_identifier_prefix() {
+        // Arbitrary DB-driver text must not be reflected into the response.
+        // Driver messages that start with quotes, punctuation, or control chars
+        // should fall back to the generic "Resource" label.
+        for msg in [
+            "'<script>alert(1)</script>' not found",
+            "\r\nInjected-Header: evil",
+            "\"quoted\" not found",
+            "",
+            "   ",
+            "field-with-dashes not found",
+        ] {
+            let api_err: ApiError = DbErr::RecordNotFound(msg.to_string()).into();
+            assert!(
+                api_err.user_message().starts_with("Resource "),
+                "msg={msg:?} produced {:?}",
+                api_err.user_message()
+            );
+        }
+    }
+
+    #[test]
+    fn test_dberr_record_not_found_truncates_overlong_prefix() {
+        // A 100-char prefix exceeds the 64-char identifier cap.
+        let long_prefix = "A".repeat(100);
+        let msg = format!("{long_prefix} not found");
+        let api_err: ApiError = DbErr::RecordNotFound(msg).into();
+        assert!(api_err.user_message().starts_with("Resource "));
     }
 
     #[test]
