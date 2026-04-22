@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-4b51f762.js";
+            window.path_to_searchindex_js = "../searchindex-d0e21c4b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8bb2dc99.js"></script>
@@ -239,6 +239,27 @@ fn sanitize_resource_name(name: &amp;str) -&gt; String {
 // % → \%
 // _ → \_
 // Result: Literal search for "%admin%" string</code></pre>
+<h3 id="filter-clause-count-limit"><a class="header" href="#filter-clause-count-limit">Filter Clause Count Limit</a></h3>
+<p>Caps the number of filter clauses per request to prevent a client from driving expensive query construction:</p>
+<pre><code class="language-rust">// Built-in limit
+const MAX_FILTER_CLAUSES: usize = 100;</code></pre>
+<p>Requests with more than 100 filter keys receive a <strong><code>400 Bad Request</code></strong> response with a clear error message. CRUDCrate deliberately does <em>not</em> silently drop over-limit filters — an unfiltered response is a worse failure mode than a rejected request, because a caller relying on the filter would see data they didn’t ask for.</p>
+<p>Remember that comparison-operator suffixes count separately: <code>{"year_gte": 2020, "year_lte": 2024}</code> is two clauses on one logical field. Legitimate admin dashboards with many filterable fields rarely approach 100 in practice.</p>
+<h3 id="request-body-size"><a class="header" href="#request-body-size">Request Body Size</a></h3>
+<p><strong>CRUDCrate does not set a default request body size limit</strong> — your application MUST configure one. Without it, batch endpoints (<code>POST /batch</code>, <code>PATCH /batch</code>) will accept arbitrarily large JSON payloads, and a client can exhaust server memory with a single request.</p>
+<p>Use Axum’s <code>DefaultBodyLimit</code>:</p>
+<pre><code class="language-rust">use axum::extract::DefaultBodyLimit;
+
+let app = Router::new()
+    .nest("/customers", Customer::router(&amp;db))
+    // 2 MB global cap — tune to your batch size and field width
+    .layer(DefaultBodyLimit::max(2 * 1024 * 1024));</code></pre>
+<p>For routes where you want a larger limit (e.g., bulk import), override per-route:</p>
+<pre><code class="language-rust">let app = Router::new()
+    .nest("/customers", Customer::router(&amp;db))
+    .layer(DefaultBodyLimit::max(1024 * 1024))      // 1 MB default
+    .route_layer(DefaultBodyLimit::max(10 * 1024 * 1024)); // 10 MB for bulk</code></pre>
+<p>Combine this with <code>batch_limit</code> (number of items) and Axum/tower timeouts for defence-in-depth.</p>
 <h3 id="batch-operation-limits"><a class="header" href="#batch-operation-limits">Batch Operation Limits</a></h3>
 <p>All batch operations (create, update, delete) enforce a configurable size limit to prevent resource exhaustion:</p>
 <pre><code class="language-rust">// Default: 100 items per batch
@@ -280,7 +301,10 @@ pub struct Model { }</code></pre>
 <pre><code class="language-rust">// Internal: "SQLSTATE[42P01]: Undefined table: 7 ERROR: relation \"users\" does not exist"
 // Response: "Database error"</code></pre>
 <h2 id="authentication"><a class="header" href="#authentication">Authentication</a></h2>
-<p>CRUDCrate doesn’t include authentication - use Axum middleware:</p>
+<blockquote>
+<p><strong>CRUDCrate does NOT provide authentication.</strong> The generated routers are open by default — any request that reaches them will be processed. Applications <strong>must</strong> wrap the routers with an Axum middleware layer (or upstream reverse proxy) that authenticates the caller before the handler runs. See the <a href="https://github.com/evanjt/crudcrate/tree/main/examples/scoped_access"><code>scoped_access</code></a> example for an end-to-end pattern combining auth middleware with row-level scoping.</p>
+</blockquote>
+<p>Use Axum middleware:</p>
 <h3 id="jwt-authentication"><a class="header" href="#jwt-authentication">JWT Authentication</a></h3>
 <pre><code class="language-rust">use axum::{
     middleware,

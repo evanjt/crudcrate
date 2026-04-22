@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-4b51f762.js";
+            window.path_to_searchindex_js = "../searchindex-d0e21c4b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8bb2dc99.js"></script>
@@ -243,7 +243,7 @@ curl -X POST http://localhost:3000/tasks \
 </table>
 </div>
 <h2 id="what-on_create-does"><a class="header" href="#what-on_create-does">What <code>on_create</code> Does</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span></p>
 <p>The expression is evaluated when inserting a new record:</p>
 <pre><code class="language-rust">on_create = Uuid::new_v4()      // Generate UUID
 on_create = chrono::Utc::now()  // Current timestamp

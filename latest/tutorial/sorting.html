@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-4b51f762.js";
+            window.path_to_searchindex_js = "../searchindex-d0e21c4b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8bb2dc99.js"></script>
@@ -179,7 +179,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="sorting-results"><a class="header" href="#sorting-results">Sorting Results</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_sorting_test.rs#L1" target="_blank" title="sorting tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_sorting_test.rs#L1" target="_blank" title="sorting tests">📋 See test</a></span></p>
 <p>Tasks come back in database order. Let’s control the order.</p>
 <h2 id="enable-sorting"><a class="header" href="#enable-sorting">Enable Sorting</a></h2>
 <p>Add <code>sortable</code> to fields you want to sort by:</p>
@@ -222,10 +222,10 @@ curl 'http://localhost:3000/tasks?filter={"priority_gte":8}&amp;sort=["created_a
 </code></pre>
 <hr>
 <h1 id="pagination"><a class="header" href="#pagination">Pagination</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_pagination_test.rs#L1" target="_blank" title="pagination tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_pagination_test.rs#L1" target="_blank" title="pagination tests">📋 See test</a></span></p>
 <p>What if you have 10,000 tasks? You don’t want to load them all at once.</p>
 <h2 id="the-range-parameter"><a class="header" href="#the-range-parameter">The Range Parameter</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/comprehensive_pagination_test.rs#L15-L157" target="_blank" title="pagination range tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_pagination_test.rs#L15-L157" target="_blank" title="pagination range tests">📋 See test</a></span></p>
 <pre><code class="language-bash"># First 10 tasks (items 0-9)
 curl 'http://localhost:3000/tasks?range=[0,9]'
 

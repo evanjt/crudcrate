@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-4b51f762.js";
+            window.path_to_searchindex_js = "../searchindex-d0e21c4b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8bb2dc99.js"></script>
@@ -179,7 +179,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="relationships"><a class="header" href="#relationships">Relationships</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/join_functionality_test.rs#L1" target="_blank" title="relationships tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/join_functionality_test.rs#L1" target="_blank" title="relationships tests">📋 See test</a></span></p>
 <p>Tasks should belong to users. Let’s connect them.</p>
 <h2 id="add-user-id-to-tasks"><a class="header" href="#add-user-id-to-tasks">Add User ID to Tasks</a></h2>
 <pre><code class="language-rust">// task.rs
@@ -320,12 +320,12 @@ impl Related&lt;super::task::Entity&gt; for Entity {
 }
 </code></pre>
 <h2 id="depth-limit"><a class="header" href="#depth-limit">Depth Limit</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/test_deep_recursion.rs#L184-L361" target="_blank" title="relationships depth tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L184-L361" target="_blank" title="relationships depth tests">📋 See test</a></span></p>
 <p>To prevent infinite recursion (user → tasks → user → tasks → …), use <code>depth</code>:</p>
 <pre><code class="language-rust">#[crudcrate(non_db_attr, join(one, depth = 1))]
 pub tasks: Vec&lt;Task&gt;,</code></pre>
 <p>Default max depth is 5. Self-referencing relations (like categories with subcategories) are automatically limited to depth 1.</p>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.8.0/test_suite/tests/test_deep_recursion.rs#L79-L182" target="_blank" title="relationships recursive tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L79-L182" target="_blank" title="relationships recursive tests">📋 See test</a></span></p>
 <hr>
 <h2 id="try-the-recursive-join-example"><a class="header" href="#try-the-recursive-join-example">Try the Recursive Join Example</a></h2>
 <p>See relationships in action with a complete example:</p>
