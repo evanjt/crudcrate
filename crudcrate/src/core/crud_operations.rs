@@ -212,9 +212,28 @@ macro_rules! crud_handlers_impl {
 
             let mut condition = parsed_filters.main_condition;
 
+            let scope_was_present = scope.is_some();
             if let Some(axum::Extension(crudcrate::ScopeCondition { condition: extra })) = scope {
                 condition = condition.add(extra);
             };
+
+            // Strict scope propagation: reject joined filters targeting child entities
+            // that don't carry their own scope_condition. Without scope on the child,
+            // the sub-query runs unrestricted and parent existence leaks via the
+            // result's cardinality even when the parent scope filters the final rows.
+            if profile.scope_propagation_strict
+                && scope_was_present
+                && !parsed_filters.joined_filters.is_empty()
+            {
+                for jf in &parsed_filters.joined_filters {
+                    if !<$resource as crudcrate::traits::CRUDResource>::joined_field_has_scope(&jf.join_field) {
+                        return Err(crudcrate::ApiError::bad_request(format!(
+                            "Joined filter on '{}' not allowed under strict scope: child entity has no scope_condition",
+                            jf.join_field,
+                        )));
+                    }
+                }
+            }
 
             // Resolve dot-notation joined filters (e.g. {"vehicles.make":"BMW"})
             // into additional `Self::ID_COLUMN.is_in(...)` clauses on the main

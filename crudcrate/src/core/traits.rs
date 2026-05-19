@@ -81,6 +81,23 @@ where
         crate::SecurityProfile::legacy()
     }
 
+    /// Returns whether the named joined field's child entity carries its own
+    /// `ScopeFilterable::scope_condition()` — i.e., whether a sub-query on that
+    /// child is automatically scope-restricted.
+    ///
+    /// Consulted only when `SecurityProfile::scope_propagation_strict` is `true`
+    /// and a request carries a `ScopeCondition` extension. The handler rejects
+    /// joined filters whose target field returns `false`, preventing parent-existence
+    /// side-channels via unscoped child columns.
+    ///
+    /// The default implementation returns `false` for every field — the safe choice
+    /// when the child's scope status is unknown. The derive macro overrides this to
+    /// return `true` for joined fields whose child type has `exclude(scoped)` fields.
+    #[must_use]
+    fn joined_field_has_scope(_field: &str) -> bool {
+        false
+    }
+
     async fn get_all(
         db: &DatabaseConnection,
         condition: &Condition,
