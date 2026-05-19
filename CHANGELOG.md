@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-05-19
+
+### Added
+
+- **Joined filters are now applied by the default handler**. Requests like
+  `GET /customers?filter={"vehicles.make":"BMW"}` previously parsed and
+  whitelisted the filter but silently dropped it before hitting the
+  database — users got unfiltered results. The default `get_all_handler`
+  now resolves each `JoinedFilter` into a sub-query on the child table
+  (with the child's `ScopeFilterable::scope_condition()` applied), collects
+  matching parent-FK values, and adds `id IN (...)` to the main condition.
+  Query shape: one extra `SELECT parent_fk FROM child WHERE ...` per
+  joined-filter field plus the usual list + count queries — no JOIN, no
+  `DISTINCT`. Backed by `test_suite/tests/joined_filter_http_test.rs` and
+  a runnable `cargo run --example joined_filter`.
+
+- **New `CRUDResource::resolve_joined_filters` trait method**. Takes the
+  parsed condition plus the `&[JoinedFilter]` list and returns the
+  augmented condition to use for both the list query and the count query.
+  Default impl logs and returns the condition unchanged (backward
+  compatible for non-derive users); the derive macro generates an override
+  for every resource that declares `join(..., filterable(...))` on any
+  `Vec<Child>` field.
+
+- **New public helper `crudcrate::build_comparison_expr`**. Translates a
+  column + `FilterOperator` + `serde_json::Value` into an
+  `Option<SimpleExpr>` for use in custom filter resolvers.
+
+### Changed
+
+- `crudcrate::filtering::ParsedFilters::joined_filters` is now consumed by
+  the handler (previously only populated by the parser and read by tests).
+  No API change — the field was already public.
+
+### Documentation
+
+- `docs/src/features/filtering.md` "Filtering on Related Entities"
+  rewritten to describe the actual query shape, scope-safety guarantees,
+  and the `Vec<Child>`-only limitation. Removed the stale "requires a
+  custom `read::many::body` hook" note.
+- `docs/src/features/relationships.md` migrated from the deprecated
+  `join_filterable(...)` / `join_sortable(...)` syntax to the current
+  `filterable(...)` / `sortable(...)` inside `join(...)`.
+
 ## [0.8.0] - 2026-04-17
 
 ### Security

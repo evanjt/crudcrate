@@ -271,11 +271,15 @@ Complex filters can impact performance. Consider:
 
 ## Filtering on Related Entities (Join Filtering)
 
-CRUDCrate supports filtering on columns from related entities using dot-notation syntax. This lets you filter parent entities based on properties of their children.
+CRUDCrate supports filtering parents by columns on their related children
+using dot-notation syntax. The built-in handler resolves each joined filter
+into a sub-query on the child table and intersects matching parent IDs with
+the main query — no custom hook required.
 
 ### Enabling Join Filtering
 
-Use the `filterable(...)` parameter inside `join(...)` to specify which columns from a related entity can be used for filtering:
+Declare the whitelisted child columns with `filterable(...)` inside `join(...)`
+on the parent's relationship field:
 
 ```rust
 #[derive(EntityToModels)]
@@ -287,11 +291,10 @@ pub struct Model {
     #[crudcrate(filterable, sortable)]
     pub name: String,
 
-    // Vehicles relationship with filterable columns
     #[sea_orm(ignore)]
     #[crudcrate(
         non_db_attr,
-        join(one, all, depth = 1, filterable("make", "year", "color"))
+        join(one, all, depth = 1, filterable("make", "year"))
     )]
     pub vehicles: Vec<Vehicle>,
 }
@@ -299,78 +302,129 @@ pub struct Model {
 
 ### Dot-Notation Syntax
 
-Filter using `relation.column` format:
+Filter with `relation.column` and the standard operator suffixes:
 
 ```bash
-# Filter customers by vehicle make
+# Customers whose vehicles include at least one BMW
 GET /customers?filter={"vehicles.make":"BMW"}
 
-# Filter with comparison operators
+# Customers with at least one vehicle built in 2020 or later
 GET /customers?filter={"vehicles.year_gte":2020}
 
-# Multiple join filters
+# Intersection of two joined filters on the same relation
 GET /customers?filter={"vehicles.make":"Toyota","vehicles.year_gte":2018}
 
-# Combine with main entity filters
-GET /customers?filter={"name":"John","vehicles.color":"Black"}
+# Combine with main-entity filters
+GET /customers?filter={"name":"Alice","vehicles.make":"BMW"}
 ```
 
 ### Supported Operators
 
-All standard operators work with dot-notation:
+All standard operator suffixes work on joined columns:
 
 | Operator | Example |
 |----------|---------|
 | (none) | `{"vehicles.make":"BMW"}` |
-| `_neq` | `{"vehicles.color_neq":"Red"}` |
+| `_neq` | `{"vehicles.make_neq":"BMW"}` |
 | `_gt` | `{"vehicles.year_gt":2019}` |
 | `_gte` | `{"vehicles.year_gte":2020}` |
-| `_lt` | `{"vehicles.mileage_lt":50000}` |
-| `_lte` | `{"vehicles.mileage_lte":100000}` |
+| `_lt` | `{"vehicles.year_lt":2020}` |
+| `_lte` | `{"vehicles.year_lte":2020}` |
+
+### How It's Resolved
+
+For every joined filter in a request the handler runs one sub-query on the
+child entity and adds its result to the main condition:
+
+```sql
+SELECT * FROM customers
+ WHERE id IN (
+     SELECT customer_id
+       FROM vehicles
+      WHERE make = 'BMW'
+        AND <child scope_condition()>  -- e.g. is_private = false
+   )
+   AND <main-entity filters>
+   AND <parent scope_condition if middleware scope is active>
+```
+
+Two to three queries per request: one per joined-filter field plus the main
+list query plus the count query — both of which reuse the augmented
+condition. No row multiplication, no `DISTINCT`, no JOIN in the main query.
+
+### Scope Safety
+
+When the child entity declares `exclude(scoped)` privacy flags (booleans),
+the generated code applies the child's
+`ScopeFilterable::scope_condition()` to the sub-query. A parent cannot be
+surfaced through a private child.
+
+When you use **middleware-injected scope** (dynamic `ScopeCondition` from
+request extensions, e.g. tenant_id from a verified JWT claim), the
+injected condition is applied to the **parent** query. Transitive safety
+relies on the standard schema invariant that a child belongs to the
+parent referenced by its FK. If your schema allows children to reference
+parents from a different tenant, filter those rows out at the middleware
+level or add an explicit privacy flag on the child.
 
 ### Security (Whitelist Validation)
 
 Only columns explicitly listed in `filterable(...)` can be filtered:
 
 ```rust
-// Only make, year, and color can be filtered
-#[crudcrate(join(one, all, filterable("make", "year", "color")))]
+// Only make and year can be filtered
+#[crudcrate(join(one, all, filterable("make", "year")))]
 pub vehicles: Vec<Vehicle>,
 ```
 
 ```bash
-# ✅ Allowed - year is in filterable
+# ✅ Allowed — year is in filterable
 GET /customers?filter={"vehicles.year":2020}
 
-# ❌ Ignored - model is NOT in filterable
+# ❌ Ignored — model is NOT in filterable
 GET /customers?filter={"vehicles.model":"Civic"}
 
-# ❌ Ignored - invalid join field
+# ❌ Ignored — unknown join field
 GET /customers?filter={"fake.column":"value"}
 ```
 
-This prevents:
-- SQL injection via dot-notation
-- Access to sensitive columns not intended for filtering
+Silent drop (rather than 400) is deliberate — it prevents:
+
+- SQL injection via crafted dot-notation
 - Schema discovery through filter probing
+- Accidental exposure of internal columns
+
+### Runnable Example
+
+The `joined_filter` example seeds three customers with distinct vehicle
+makes and demonstrates each variation end-to-end:
+
+```bash
+cargo run --example joined_filter
+
+# in another shell:
+curl 'http://localhost:3000/customers'
+curl 'http://localhost:3000/customers?filter=%7B%22vehicles.make%22%3A%22BMW%22%7D'
+curl 'http://localhost:3000/customers?filter=%7B%22vehicles.year_gte%22%3A2020%7D'
+```
+
+The end-to-end behaviour described on this page is backed by
+`test_suite/tests/joined_filter_http_test.rs` (run with
+`cargo test --manifest-path test_suite/Cargo.toml --test joined_filter_http_test`).
 
 ### Limitations
 
-**Single-level joins only**: Join filtering supports direct relationships only. Nested paths like `vehicles.parts.name` are not supported—only single-level paths like `vehicles.make`.
+**Single-level joins**: nested paths (`vehicles.parts.name`) are rejected
+by the parser.
 
-```bash
-# ✅ Supported - single level
-GET /customers?filter={"vehicles.make":"BMW"}
+**`Vec<Child>` only**: joined filtering currently applies to `has_many`
+relationships (`Vec<Child>` fields). `Option<Child>` (`belongs_to`) fields
+that declare joined filterable columns are silently ignored, because the
+FK is on the parent and the sub-query direction is reversed.
 
-# ❌ Not supported - nested path
-GET /customers?filter={"vehicles.parts.name":"Engine"}
-```
-
-### Implementation Notes
-
-Join filtering is validated and parsed automatically. The parsed filters are available in the handler for custom implementation via lifecycle hooks. For basic use cases, filters on the main entity work immediately.
-
-> **Note**: Full automatic query execution for join filters requires a custom `read::many::body` hook. The built-in handler validates and parses join filters but uses only the main entity condition.
+**FK column naming convention**: the child's FK column must follow the
+convention `{parent_struct_name}_id` (snake_case) unless overridden via
+`#[crudcrate(join(..., fk_column = "..."))]`.
 
 ## LIKE-Filterable Fields (Partial Matching)
 

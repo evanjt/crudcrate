@@ -119,7 +119,7 @@ fn build_fallback_fulltext_condition(
     // Escape both LIKE wildcards and SQL quotes
     let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
 
-    let like_sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\'",);
+    let like_sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\'");
 
     // Use custom SQL expression
     Some(SimpleExpr::Custom(like_sql))

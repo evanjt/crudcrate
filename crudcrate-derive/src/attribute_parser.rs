@@ -203,10 +203,8 @@ fn parse_struct_level_join(
                                 fk_column = Some(s.value());
                             }
                         }
-                        Lit::Int(i) => {
-                            if nv.path.is_ident("depth") {
-                                depth = i.base10_parse().ok();
-                            }
+                        Lit::Int(i) if nv.path.is_ident("depth") => {
+                            depth = i.base10_parse().ok();
                         }
                         _ => {}
                     }

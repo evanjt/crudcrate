@@ -338,6 +338,127 @@ fn process_array_filter(
     None
 }
 
+/// Build a Sea-ORM `SimpleExpr` from a column, operator, and a JSON value.
+///
+/// Used by the derive-macro-generated `resolve_joined_filters` to translate
+/// parsed [`crate::filtering::joined::JoinedFilter`] entries into concrete
+/// sub-query conditions on child tables.
+///
+/// Unlike the main-entity filter path, this builder does not apply enum or
+/// fulltext normalization — joined filters target plain columns (strings,
+/// numbers, UUIDs, bools). Attempts to use range operators (`_gt`, `_gte`,
+/// `_lt`, `_lte`) against unsupported value kinds return `None` so the caller
+/// can silently skip the filter, matching the existing "skip invalid filters"
+/// convention.
+///
+/// Returns `None` for:
+/// - empty strings / overlong strings (> `10_000` chars)
+/// - range operators against UUIDs, bools, arrays, or null
+/// - `IsNull` / `In` operators against non-matching value kinds
+/// - objects as values
+#[must_use]
+pub fn build_comparison_expr<C>(
+    column: C,
+    operator: super::joined::FilterOperator,
+    value: &serde_json::Value,
+) -> Option<SimpleExpr>
+where
+    C: sea_orm::ColumnTrait + Copy,
+{
+    use super::joined::FilterOperator;
+    use serde_json::Value;
+
+    let col = || Expr::col(column);
+
+    match value {
+        Value::String(s) => {
+            if !validate_field_value(s) {
+                return None;
+            }
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+
+            // Try UUID first — ranges on UUIDs are meaningless, so only allow eq/neq
+            if let Ok(uuid_val) = Uuid::parse_str(trimmed) {
+                return match operator {
+                    FilterOperator::Eq => Some(col().eq(uuid_val)),
+                    FilterOperator::Neq => Some(col().ne(uuid_val)),
+                    _ => None,
+                };
+            }
+
+            match operator {
+                FilterOperator::Eq => Some(col().eq(trimmed)),
+                FilterOperator::Neq => Some(col().ne(trimmed)),
+                FilterOperator::Gt => Some(col().gt(trimmed)),
+                FilterOperator::Gte => Some(col().gte(trimmed)),
+                FilterOperator::Lt => Some(col().lt(trimmed)),
+                FilterOperator::Lte => Some(col().lte(trimmed)),
+                FilterOperator::Like => {
+                    let escaped = escape_like_wildcards(trimmed);
+                    Some(col().like(format!("%{escaped}%")))
+                }
+                FilterOperator::In | FilterOperator::IsNull => None,
+            }
+        }
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                return match operator {
+                    FilterOperator::Eq => Some(col().eq(i)),
+                    FilterOperator::Neq => Some(col().ne(i)),
+                    FilterOperator::Gt => Some(col().gt(i)),
+                    FilterOperator::Gte => Some(col().gte(i)),
+                    FilterOperator::Lt => Some(col().lt(i)),
+                    FilterOperator::Lte => Some(col().lte(i)),
+                    _ => None,
+                };
+            }
+            if let Some(f) = n.as_f64() {
+                return match operator {
+                    FilterOperator::Eq => Some(col().eq(f)),
+                    FilterOperator::Neq => Some(col().ne(f)),
+                    FilterOperator::Gt => Some(col().gt(f)),
+                    FilterOperator::Gte => Some(col().gte(f)),
+                    FilterOperator::Lt => Some(col().lt(f)),
+                    FilterOperator::Lte => Some(col().lte(f)),
+                    _ => None,
+                };
+            }
+            None
+        }
+        Value::Bool(b) => match operator {
+            FilterOperator::Eq => Some(col().eq(*b)),
+            FilterOperator::Neq => Some(col().ne(*b)),
+            _ => None,
+        },
+        Value::Array(arr) => {
+            if arr.is_empty() {
+                return None;
+            }
+            let strings: Vec<String> = arr
+                .iter()
+                .filter_map(|v| match v {
+                    Value::String(s) => Some(s.clone()),
+                    Value::Number(n) => Some(n.to_string()),
+                    Value::Bool(b) => Some(b.to_string()),
+                    _ => None,
+                })
+                .collect();
+            if strings.is_empty() {
+                return None;
+            }
+            Some(col().is_in(strings))
+        }
+        Value::Null => match operator {
+            FilterOperator::Eq | FilterOperator::IsNull => Some(col().is_null()),
+            _ => None,
+        },
+        Value::Object(_) => None,
+    }
+}
+
 /// Build a Sea-ORM `Condition` from a JSON filter string.
 ///
 /// # Errors
@@ -411,9 +532,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 #[must_use]
 pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
     range_str.map_or((0, 9), |r| {
-        serde_json::from_str::<[u64; 2]>(&r)
-            .map(|range| (range[0], range[1]))
-            .unwrap_or((0, 9))
+        serde_json::from_str::<[u64; 2]>(&r).map_or((0, 9), |range| (range[0], range[1]))
     })
 }
 

@@ -112,6 +112,40 @@ where
         Self::get_all(db, condition, order_column, order_direction, offset, limit).await
     }
 
+    /// Resolve dot-notation joined filters (e.g. `{"vehicles.make":"BMW"}`)
+    /// into an augmented `Condition` that the caller passes to `get_all` /
+    /// `get_all_scoped` / `total_count`.
+    ///
+    /// Each [`crate::JoinedFilter`] runs as a sub-query on the child table.
+    /// The generated implementation:
+    /// - applies the child's static
+    ///   [`crate::ScopeFilterable::scope_condition()`] to the sub-query so
+    ///   that `#[crudcrate(exclude(scoped))]` privacy flags on the child are
+    ///   respected, and
+    /// - collects matching parent-FK values and adds
+    ///   `Self::ID_COLUMN.is_in(ids)` to the returned condition.
+    ///
+    /// The default implementation ignores `joined_filters` and returns the
+    /// incoming condition unchanged. The derive macro overrides this for
+    /// resources that declare `join(..., filterable(...))` on any field.
+    ///
+    /// # Errors
+    /// Returns `ApiError::Database` if any child sub-query fails.
+    async fn resolve_joined_filters(
+        db: &DatabaseConnection,
+        condition: Condition,
+        joined_filters: &[crate::JoinedFilter],
+    ) -> Result<Condition, ApiError> {
+        let _ = db;
+        if !joined_filters.is_empty() {
+            tracing::debug!(
+                count = joined_filters.len(),
+                "Default resolve_joined_filters() ignoring joined filters; override this method or use the derive macro to apply them"
+            );
+        }
+        Ok(condition)
+    }
+
     async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {
         let model = Self::EntityType::find_by_id(id)
             .one(db)

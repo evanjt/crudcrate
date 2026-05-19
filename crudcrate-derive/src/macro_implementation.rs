@@ -1,6 +1,6 @@
 use crate::codegen::{
     handlers::{create, delete, get, update},
-    joins::get_join_config,
+    joins::{get_join_config, loading::generate_resolve_joined_filters_impl},
     type_resolution::{
         extract_api_struct_type_for_recursive_call, generate_crud_type_aliases,
         generate_enum_field_checker, generate_field_entries, generate_id_column,
@@ -45,6 +45,10 @@ pub(crate) fn generate_crud_resource_impl(
         generate_joined_column_entries(&analysis.join_filter_sort_configs, true);
     let joined_sortable_entries =
         generate_joined_column_entries(&analysis.join_filter_sort_configs, false);
+
+    // Generate resolve_joined_filters override (empty if no filterable joined cols)
+    let resolve_joined_filters_impl =
+        generate_resolve_joined_filters_impl(analysis, api_struct_name);
 
     let (
         get_one_impl,
@@ -146,6 +150,8 @@ pub(crate) fn generate_crud_resource_impl(
             fn joined_sortable_columns() -> Vec<crudcrate::JoinedColumnDef> {
                 vec![#(#joined_sortable_entries),*]
             }
+
+            #resolve_joined_filters_impl
 
             #get_one_impl
             #get_all_impl

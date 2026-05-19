@@ -53,6 +53,190 @@ use crate::codegen::type_resolution::{
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
+/// Generate `resolve_joined_filters` method for `CRUDResource` impl.
+///
+/// For each `join(..., filterable(...))` field on a `Vec<Child>`, emits a
+/// match arm that, when a [`crudcrate::JoinedFilter`] targets that field,
+/// runs a sub-query on the child entity with the child's
+/// [`crudcrate::ScopeFilterable::scope_condition()`] applied, collects the
+/// matching parent-FK values, and adds `Self::ID_COLUMN.is_in(ids)` to the
+/// augmented condition.
+///
+/// `Option<Child>` fields (`belongs_to`) and fields without declared filterable
+/// columns are silently skipped — the default trait impl's debug-log
+/// behavior handles the runtime case.
+///
+/// Returns empty tokens if there are no filterable joined columns (letting
+/// the default trait method handle the no-op case).
+pub fn generate_resolve_joined_filters_impl(
+    analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    // Collect Vec<Child> fields that have non-empty filterable_columns
+    let candidates: Vec<(&syn::Field, String, Vec<String>)> = analysis
+        .join_on_all_fields
+        .iter()
+        .filter_map(|&field| {
+            // Only Vec<Child> — Option<Child> (belongs_to) has the FK on the
+            // parent, not the child, so the sub-query direction is reversed
+            // and requires different codegen. Skip for now.
+            if !is_vec_type(&field.ty) {
+                return None;
+            }
+            let field_name = field.ident.as_ref()?.to_string();
+            let config = analysis
+                .join_filter_sort_configs
+                .iter()
+                .find(|c| c.field_name == field_name)?;
+            if config.filterable_columns.is_empty() {
+                None
+            } else {
+                Some((field, field_name, config.filterable_columns.clone()))
+            }
+        })
+        .collect();
+
+    if candidates.is_empty() {
+        // No override needed — default trait impl returns the condition unchanged
+        return quote! {};
+    }
+
+    let field_arms = candidates.iter().map(|(field, field_name, filterable_columns)| {
+        let join_config = get_join_config(field).unwrap_or_default();
+
+        let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
+        let inner_type_string = inner_type.to_string();
+        let api_struct_name_string = api_struct_name.to_string();
+        let is_self_referencing = inner_type_string.trim() == api_struct_name_string.trim();
+
+        // Entity / Column / Model paths
+        let (entity_path, column_path) = if let Some(custom_path) = &join_config.path {
+            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() {
+                (
+                    quote! { #path_tokens::Entity },
+                    quote! { #path_tokens::Column },
+                )
+            } else {
+                let error_msg = format!("Invalid join path '{custom_path}' for field '{field_name}'");
+                return quote! { compile_error!(#error_msg); };
+            }
+        } else {
+            (
+                get_path_from_field_type(&field.ty, "Entity"),
+                get_path_from_field_type(&field.ty, "Column"),
+            )
+        };
+
+        // FK idents on the child row
+        let (fk_column_pascal, fk_field_snake) =
+            derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
+
+        // Child List type path for ScopeFilterable::scope_condition()
+        let list_suffix = {
+            let struct_name = inner_type_string
+                .split("::")
+                .last()
+                .unwrap_or(&inner_type_string)
+                .trim();
+            format!("{struct_name}List")
+        };
+        let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+
+        // Column match arms: "make" => Some(column::Make), ...
+        let column_arms = filterable_columns.iter().map(|col| {
+            let col_pascal = quote::format_ident!(
+                "{}",
+                col.split('_')
+                    .map(|part| {
+                        let mut chars = part.chars();
+                        chars.next().map_or_else(String::new, |c| {
+                            c.to_uppercase().collect::<String>() + chars.as_str()
+                        })
+                    })
+                    .collect::<String>()
+            );
+            quote! {
+                #col => crudcrate::build_comparison_expr(
+                    #column_path::#col_pascal,
+                    __jf.operator,
+                    &__jf.value,
+                ),
+            }
+        });
+
+        // FK extraction: self-ref has Option<Uuid>, non-self has Uuid
+        let fk_collect = if is_self_referencing {
+            quote! {
+                __matches
+                    .into_iter()
+                    .filter_map(|__m| __m.#fk_field_snake)
+                    .collect()
+            }
+        } else {
+            quote! {
+                __matches
+                    .into_iter()
+                    .map(|__m| __m.#fk_field_snake)
+                    .collect()
+            }
+        };
+
+        // Suppress unused-variable warnings for fk_column_pascal — it's referenced
+        // implicitly via the column enum, not the FK snake ident. Keep it in scope
+        // in case future changes need it.
+        let _ = &fk_column_pascal;
+
+        quote! {
+            #field_name => {
+                let __sub_expr: Option<sea_orm::sea_query::SimpleExpr> = match __jf.column.as_str() {
+                    #( #column_arms )*
+                    _ => None,
+                };
+
+                if let Some(__sub_expr) = __sub_expr {
+                    let __child_scope: Option<sea_orm::Condition> =
+                        <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
+
+                    let mut __q = #entity_path::find().filter(__sub_expr);
+                    if let Some(__cs) = __child_scope {
+                        __q = __q.filter(__cs);
+                    }
+
+                    let __matches = __q.all(db).await.map_err(crudcrate::ApiError::database)?;
+                    let __matching_ids: Vec<uuid::Uuid> = #fk_collect;
+
+                    __augmented = __augmented.add(Self::ID_COLUMN.is_in(__matching_ids));
+                }
+            }
+        }
+    });
+
+    quote! {
+        async fn resolve_joined_filters(
+            db: &sea_orm::DatabaseConnection,
+            condition: sea_orm::Condition,
+            joined_filters: &[crudcrate::JoinedFilter],
+        ) -> Result<sea_orm::Condition, crudcrate::ApiError> {
+            if joined_filters.is_empty() {
+                return Ok(condition);
+            }
+
+            use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
+
+            let mut __augmented = condition;
+
+            for __jf in joined_filters {
+                match __jf.join_field.as_str() {
+                    #( #field_arms )*
+                    _ => {} // Unknown join_field — silently skip (matches parser-level behavior)
+                }
+            }
+
+            Ok(__augmented)
+        }
+    }
+}
+
 /// Generate join loading code for `get_one()` method
 ///
 /// Returns code that evaluates to `Self` (not wrapped in Result).

@@ -199,6 +199,17 @@ macro_rules! crud_handlers_impl {
                 condition = condition.add(extra);
             };
 
+            // Resolve dot-notation joined filters (e.g. {"vehicles.make":"BMW"})
+            // into additional `Self::ID_COLUMN.is_in(...)` clauses on the main
+            // condition. The derive macro's override runs a sub-query per
+            // filter with the child's scope_condition applied. Default impl
+            // (no derive override) returns the condition unchanged.
+            let condition = <$resource as crudcrate::traits::CRUDResource>::resolve_joined_filters(
+                &db,
+                condition,
+                &parsed_filters.joined_filters,
+            ).await?;
+
             let (order_column, order_direction) = match &sort_config {
                 crudcrate::SortConfig::Column { column, direction } => (*column, direction.clone()),
                 crudcrate::SortConfig::Joined { direction, .. } => {
