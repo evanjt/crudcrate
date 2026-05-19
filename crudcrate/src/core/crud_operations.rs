@@ -332,6 +332,7 @@ macro_rules! crud_handlers_impl {
         pub async fn delete_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
+            profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
             json: axum::Json<Vec<uuid::Uuid>>,
         ) -> axum::response::Response {
@@ -340,6 +341,11 @@ macro_rules! crud_handlers_impl {
             if scope.is_some() {
                 return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
             }
+
+            let profile = crudcrate::profile::resolve(
+                profile_ext,
+                <$resource as crudcrate::traits::CRUDResource>::security_profile,
+            );
 
             let ids = json.0;
 
@@ -362,22 +368,33 @@ macro_rules! crud_handlers_impl {
                     }
                 }
 
-                // Determine response status
-                if result.all_failed() {
-                    // All failed - return 400
-                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(result)).into_response()
+                let status = if result.all_failed() {
+                    axum::http::StatusCode::BAD_REQUEST
                 } else if result.is_partial() {
-                    // Some succeeded, some failed - return 207
-                    (axum::http::StatusCode::MULTI_STATUS, axum::Json(result)).into_response()
+                    axum::http::StatusCode::MULTI_STATUS
                 } else {
-                    // All succeeded - return 200
-                    (axum::http::StatusCode::OK, axum::Json(result)).into_response()
+                    axum::http::StatusCode::OK
+                };
+
+                if profile.expose_deleted_ids {
+                    (status, axum::Json(result)).into_response()
+                } else {
+                    let secure = serde_json::json!({
+                        "succeeded_count": result.succeeded.len(),
+                        "failed": result.failed,
+                    });
+                    (status, axum::Json(secure)).into_response()
                 }
             } else {
                 // All-or-nothing mode (default)
                 match <$resource as crudcrate::traits::CRUDResource>::delete_many(&state.0, ids).await {
                     Ok(deleted_ids) => {
-                        (axum::http::StatusCode::OK, axum::Json(deleted_ids)).into_response()
+                        if profile.expose_deleted_ids {
+                            (axum::http::StatusCode::OK, axum::Json(deleted_ids)).into_response()
+                        } else {
+                            let secure = serde_json::json!({"deleted": deleted_ids.len()});
+                            (axum::http::StatusCode::OK, axum::Json(secure)).into_response()
+                        }
                     }
                     Err(e) => crudcrate::ApiError::from(e).into_response()
                 }
