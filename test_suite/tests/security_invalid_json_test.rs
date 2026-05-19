@@ -30,9 +30,8 @@ async fn get_with_raw_filter(app: axum::Router, filter: &str) -> StatusCode {
 #[tokio::test]
 async fn legacy_profile_silently_ignores_malformed_filter() {
     let db = setup_test_db().await.expect("setup");
-    let app = setup_test_app(&db);
-    // Default is legacy() — malformed JSON is silently dropped, returns 200 with
-    // an unfiltered result.
+    // Explicit legacy() — 0.9.0 flipped the default to secure().
+    let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
     let status = get_with_raw_filter(app, "garbage").await;
     assert_eq!(status, StatusCode::OK);
 }

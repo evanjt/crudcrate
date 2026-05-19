@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-19
+
+### Security
+
+- **`SecurityProfile` config struct + presets**. New `crudcrate::SecurityProfile`
+  bundles the security-sensitive runtime defaults — strict filter parsing,
+  scope propagation, deleted-ID exposure, and request body size — under one
+  type with three presets: `SecurityProfile::secure()`, `react_admin()`, and
+  `legacy()`. Override individual fields via Rust's struct-update syntax:
+  `SecurityProfile { expose_deleted_ids: true, ..SecurityProfile::secure() }`.
+
+- **Per-resource override via derive attribute**.
+  `#[crudcrate(security_profile = "secure" | "react_admin" | "legacy")]`
+  generates a `CRUDResource::security_profile()` impl that returns the named
+  preset.
+
+- **Global override via Axum extension**. Apply
+  `.layer(Extension(SecurityProfile::secure()))` on your router to override the
+  per-resource setting at request time. Resolution order:
+  `Extension > CRUDResource::security_profile() > trait default`.
+
+- **Default profile flipped to `secure()`**. New resources ship hardened
+  defaults out of the box. See [MIGRATION_0.9.md](docs/MIGRATION_0.9.md) for
+  the per-flag breakdown and opt-out instructions.
+
+- **Issue 1: explicit batch body limit**. The generated router now applies an
+  Axum `DefaultBodyLimit::max(...)` layer derived from
+  `SecurityProfile::max_request_body_bytes` (default 2 MiB, matching axum-core's
+  baseline). Previous behavior relied on Axum's implicit default and broke if
+  any consumer wired `DefaultBodyLimit::disable()` up the tree.
+
+- **Issue 2: scope-propagation side-channel guard**. Under `secure()` profile,
+  joined filters (`?filter={"vehicles.color":"..."}`) on a child entity that
+  has no `exclude(scoped)` scope condition are rejected with `400 Bad Request`
+  when the request carries a `ScopeCondition`. Prevents parent-existence
+  side-channels via unscoped child columns.
+
+- **Issue 3: strict filter parsing**. Under `secure()` profile, a malformed
+  `?filter=...` value returns `400` instead of silently dropping the filter
+  and returning the unfiltered result.
+
+- **Issue 4: deleted-ID enumeration**. Under `secure()` profile, batch delete
+  responses return `{"deleted": N}` instead of the array of UUIDs that
+  actually existed in the database, removing the existence-enumeration
+  side-channel through the delete endpoint. react-admin frontends that rely on
+  the ID array for cache invalidation should pin
+  `SecurityProfile::react_admin()` or `legacy()`.
+
+- **Issue 5: fulltext SQL bind parameterization**. The Postgres / MySQL /
+  SQLite fulltext condition builders now route the user query value through
+  `Expr::cust_with_values` so the value is bound as a parameter rather than
+  interpolated into the SQL string. Defense-in-depth — column names were
+  already compile-time-known, but raw `SimpleExpr::Custom(format!(...))` was
+  removed everywhere user input could reach it.
+
+### Changed
+
+- `crudcrate/Cargo.toml`: replaced unmaintained `impls = "1"` (no release since
+  2019) with an inline `crudcrate::impls!` macro. Same autoref-specialization
+  semantics, 30 LOC, no behavior change.
+
+- Workspace dependencies bumped: `axum 0.8.6 → 0.8.9`, `sea-orm 1.1.19 → 1.1.20`,
+  `serde_json → 1.0.149`, `uuid → 1.23.1`, `tokio → 1.52.3`, `chrono → 0.4.44`,
+  `tower-http → 0.6.11`, `utoipa → 5.5.0`, plus proc-macro and `rust_decimal`
+  patches.
+
+- `url-escape` (unmaintained dev dep) replaced with `percent-encoding`.
+
+### Documentation
+
+- `README.md`: added security caveat for the `mysql` feature, which pulls in
+  `rsa 0.9.10` (RUSTSEC-2023-0071, Marvin attack — no upstream fix).
+
 ## [0.8.1] - 2026-05-19
 
 ### Added

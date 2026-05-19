@@ -73,12 +73,13 @@ where
     /// `axum::Extension<SecurityProfile>`. See [`crate::SecurityProfile`] for the
     /// preset rationale and override syntax.
     ///
-    /// Default is [`SecurityProfile::legacy`] which preserves pre-0.9.0 behavior so
-    /// existing consumers can bump version without observable change. New code should
-    /// override to [`SecurityProfile::secure`].
+    /// Default is [`SecurityProfile::secure`] as of 0.9.0. Consumers upgrading from
+    /// 0.8.x can restore pre-0.9.0 behavior with
+    /// `#[crudcrate(security_profile = "legacy")]` on each resource, or by applying
+    /// `.layer(Extension(SecurityProfile::legacy()))` at the app level.
     #[must_use]
     fn security_profile() -> crate::SecurityProfile {
-        crate::SecurityProfile::legacy()
+        crate::SecurityProfile::secure()
     }
 
     /// Returns whether the named joined field's child entity carries its own

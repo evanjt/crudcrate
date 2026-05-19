@@ -28,7 +28,9 @@ fn encode_filter(filter: &serde_json::Value) -> String {
 #[tokio::test]
 async fn legacy_profile_allows_unscoped_joined_filter_under_scope() {
     let db = setup_test_db().await.expect("setup");
-    let app = setup_scoped_app(&db); // default legacy() profile
+    // 0.9.0: default is secure() — opt explicitly into legacy() to verify the
+    // historical lenient behavior is still available.
+    let app = setup_scoped_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
 
     // Vehicle is scoped (has is_private) but VehiclePart is NOT scoped — filtering
     // vehicles by parts.name is the side-channel scenario. Legacy preserves the

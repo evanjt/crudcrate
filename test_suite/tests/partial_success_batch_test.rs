@@ -23,6 +23,7 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use crudcrate::SecurityProfile;
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -447,7 +448,8 @@ async fn test_batch_delete_partial_success() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
-    let app = setup_test_app(&db);
+    // Legacy profile: partial-success response keeps the `succeeded: [uuid]` shape.
+    let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
 
     // Create two customers
     let mut customer_ids = Vec::new();
@@ -680,7 +682,9 @@ async fn test_batch_delete_returns_only_existing_ids() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
-    let app = setup_test_app(&db);
+    // Opt into the legacy response shape (ID array) — this test asserts which
+    // specific IDs were deleted, which is gated behind `expose_deleted_ids = true`.
+    let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
 
     // Create one customer
     let customer_json = json!({
@@ -752,7 +756,8 @@ async fn test_batch_delete_partial_all_fail() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
-    let app = setup_test_app(&db);
+    // Legacy profile: keeps the `succeeded`/`failed` array shape under partial mode.
+    let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
 
     // Try to delete 2 nonexistent IDs
     let delete_ids = json!([
