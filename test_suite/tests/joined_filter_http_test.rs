@@ -148,7 +148,7 @@ async fn seed_three_customers(app: &axum::Router) -> (String, String, String) {
 fn filter_query(filter_json: &str) -> String {
     format!(
         "/customers?filter={}",
-        url_escape::encode_component(filter_json)
+        percent_encoding::utf8_percent_encode(filter_json, percent_encoding::NON_ALPHANUMERIC)
     )
 }
 

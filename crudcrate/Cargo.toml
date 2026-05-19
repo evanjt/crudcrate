@@ -52,7 +52,7 @@ tokio = { workspace = true, features = ["full"] }
 tracing-subscriber = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors", "trace"] }
-url-escape = { workspace = true }
+percent-encoding = { workspace = true }
 utoipa = { workspace = true, features = ["uuid", "chrono", "decimal"] }
 utoipa-axum = { workspace = true }
 utoipa-scalar = { workspace = true }

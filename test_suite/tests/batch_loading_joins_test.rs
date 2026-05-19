@@ -25,7 +25,6 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
-use url_escape;
 
 mod common;
 use common::{setup_test_app, setup_test_db};
@@ -561,7 +560,8 @@ async fn test_batch_loading_with_filtering() {
     // Filter customers by exact name match
     let filter = json!({"name": "Charlie Jones"});
     let filter_str = filter.to_string();
-    let encoded_filter = url_escape::encode_component(&filter_str);
+    let encoded_filter =
+        percent_encoding::utf8_percent_encode(&filter_str, percent_encoding::NON_ALPHANUMERIC);
     let request = Request::builder()
         .method("GET")
         .uri(format!("/customers?filter={}", encoded_filter))

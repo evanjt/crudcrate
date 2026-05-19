@@ -17,7 +17,8 @@ use crate::common::vehicle::{FuelType, Transmission, VehicleList};
 use common::{create_test_customer, setup_test_app, setup_test_db};
 
 fn encode_filter(filter: &serde_json::Value) -> String {
-    url_escape::encode_component(&filter.to_string()).to_string()
+    percent_encoding::utf8_percent_encode(&filter.to_string(), percent_encoding::NON_ALPHANUMERIC)
+        .to_string()
 }
 
 async fn create_vehicle(app: &axum::Router, customer_id: &str, vin: &str, fuel_type: &str) {
@@ -189,7 +190,10 @@ async fn test_enum_field_sort() {
     create_vehicle(&app, &customer_id, "ENUM-SORT-2", "Diesel").await;
     create_vehicle(&app, &customer_id, "ENUM-SORT-3", "Electric").await;
 
-    let sort = url_escape::encode_component(r#"["fuel_type","ASC"]"#);
+    let sort = percent_encoding::utf8_percent_encode(
+        r#"["fuel_type","ASC"]"#,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
     let response = app
         .clone()
         .oneshot(

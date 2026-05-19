@@ -519,7 +519,8 @@ async fn benchmark_filtered_query(
     app: Router,
     filter: &str,
 ) -> Result<Vec<BenchmarkPost>, Box<dyn std::error::Error>> {
-    let encoded_filter = url_escape::encode_component(filter);
+    let encoded_filter =
+        percent_encoding::utf8_percent_encode(filter, percent_encoding::NON_ALPHANUMERIC);
     let uri = format!("/api/v1/benchmark_posts?filter={encoded_filter}");
 
     let request = Request::builder()
@@ -604,7 +605,8 @@ async fn benchmark_complex_query(
     app: Router,
 ) -> Result<Vec<BenchmarkPost>, Box<dyn std::error::Error>> {
     let filter = r#"{"published":true,"priority_gte":5}"#;
-    let encoded_filter = url_escape::encode_component(filter);
+    let encoded_filter =
+        percent_encoding::utf8_percent_encode(filter, percent_encoding::NON_ALPHANUMERIC);
     let uri = format!(
         "/api/v1/benchmark_posts?filter={encoded_filter}&sort=view_count&order=DESC&page=0&per_page=20"
     );

@@ -15,7 +15,8 @@ use crate::common::vehicle_part::VehiclePartList;
 
 /// Helper function to URL-encode a filter JSON for use in query strings
 fn encode_filter(filter: &serde_json::Value) -> String {
-    url_escape::encode_component(&filter.to_string()).to_string()
+    percent_encoding::utf8_percent_encode(&filter.to_string(), percent_encoding::NON_ALPHANUMERIC)
+        .to_string()
 }
 
 /// Test NULL filtering: {"field": null}

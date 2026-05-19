@@ -27,7 +27,7 @@ rust_decimal = { workspace = true }
 # Additional dependencies needed by tests
 tracing = { workspace = true }
 tower-http = { workspace = true, features = ["cors", "trace"] }
-url-escape = { workspace = true }
+percent-encoding = { workspace = true }
 async-trait = { workspace = true }
 serial_test = "3.2"
 
