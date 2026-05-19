@@ -87,6 +87,18 @@ pub(crate) fn generate_crud_resource_impl(
         }
     });
 
+    let security_profile_impl = crud_meta.security_profile.as_deref().and_then(|preset| {
+        let ctor = match preset {
+            "secure" => quote! { crudcrate::SecurityProfile::secure() },
+            "react_admin" => quote! { crudcrate::SecurityProfile::react_admin() },
+            "legacy" => quote! { crudcrate::SecurityProfile::legacy() },
+            _ => return None,
+        };
+        Some(quote! {
+            fn security_profile() -> crudcrate::SecurityProfile { #ctor }
+        })
+    });
+
     // Generate require_scope constant (only when attribute is set, otherwise use trait default)
     let require_scope_impl = if crud_meta.require_scope {
         Some(quote! {
@@ -118,6 +130,7 @@ pub(crate) fn generate_crud_resource_impl(
             #batch_limit_impl
             #require_scope_impl
             #max_page_size_impl
+            #security_profile_impl
 
             fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
                 vec![#(#sortable_entries),*]

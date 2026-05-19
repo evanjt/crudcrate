@@ -34,6 +34,9 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                         Some("fulltext_language") => {
                                             meta.fulltext_language = Some(value);
                                         }
+                                        Some("security_profile") => {
+                                            meta.security_profile = Some(value);
+                                        }
                                         _ => {}
                                     }
                                 }

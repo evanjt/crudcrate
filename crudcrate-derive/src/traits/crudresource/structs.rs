@@ -58,6 +58,8 @@ pub(crate) struct CRUDResourceMeta {
     // Configurable limits
     pub(crate) batch_limit: Option<usize>,
     pub(crate) max_page_size: Option<u64>,
+    // Per-resource security profile preset name: "secure", "react_admin", "legacy"
+    pub(crate) security_profile: Option<String>,
     // Struct-level join definitions (fields only on the API struct, not the Model)
     pub(crate) struct_level_joins: Vec<StructLevelJoin>,
     // Require scope middleware on read endpoints (returns 500 if missing)
