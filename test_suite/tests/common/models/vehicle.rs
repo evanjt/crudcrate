@@ -82,7 +82,11 @@ pub struct Model {
     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, depth = 1))]
     pub customer: Option<Customer>,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 3))]
+    #[crudcrate(
+        non_db_attr = true,
+        exclude(create, update),
+        join(one, all, depth = 3, filterable("name", "category"))
+    )]
     pub parts: Vec<VehiclePart>,
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 3))]

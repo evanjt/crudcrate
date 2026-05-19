@@ -53,6 +53,73 @@ use crate::codegen::type_resolution::{
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
+/// Generate `joined_field_has_scope` method for `CRUDResource` impl.
+///
+/// Emits a match arm per `Vec<Child>` join field with `filterable(...)` columns,
+/// resolving to `<ChildList as ScopeFilterable>::scope_condition().is_some()` at
+/// runtime. Used by the `scope_propagation_strict` profile field to decide
+/// whether a joined filter is safe under an active `ScopeCondition`.
+///
+/// Falls back to `false` for unknown field names — matching the default trait
+/// impl's conservative posture.
+pub fn generate_joined_field_has_scope_impl(
+    analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    let candidates: Vec<(&syn::Field, String)> = analysis
+        .join_on_all_fields
+        .iter()
+        .filter_map(|&field| {
+            if !is_vec_type(&field.ty) {
+                return None;
+            }
+            let field_name = field.ident.as_ref()?.to_string();
+            let config = analysis
+                .join_filter_sort_configs
+                .iter()
+                .find(|c| c.field_name == field_name)?;
+            if config.filterable_columns.is_empty() {
+                None
+            } else {
+                Some((field, field_name))
+            }
+        })
+        .collect();
+
+    if candidates.is_empty() {
+        return quote! {};
+    }
+
+    let arms = candidates.iter().map(|(field, field_name)| {
+        let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
+        let inner_type_string = inner_type.to_string();
+        let list_suffix = {
+            let struct_name = inner_type_string
+                .split("::")
+                .last()
+                .unwrap_or(&inner_type_string)
+                .trim();
+            format!("{struct_name}List")
+        };
+        let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+        let _ = api_struct_name;
+        quote! {
+            #field_name => {
+                <#child_list_type as crudcrate::ScopeFilterable>::scope_condition().is_some()
+            }
+        }
+    });
+
+    quote! {
+        fn joined_field_has_scope(field: &str) -> bool {
+            match field {
+                #( #arms )*
+                _ => false,
+            }
+        }
+    }
+}
+
 /// Generate `resolve_joined_filters` method for `CRUDResource` impl.
 ///
 /// For each `join(..., filterable(...))` field on a `Vec<Child>`, emits a
