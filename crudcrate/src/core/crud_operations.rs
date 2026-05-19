@@ -152,6 +152,7 @@ macro_rules! crud_handlers_impl {
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
+            profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
         ) -> Result<axum::response::Response, crudcrate::ApiError> {
             use axum::response::IntoResponse;
 
@@ -160,6 +161,22 @@ macro_rules! crud_handlers_impl {
                 return Err(crudcrate::ApiError::internal(
                     "Scope middleware required for this resource but not configured",
                     Some("require_scope check failed: ScopeCondition extension not found in request".into()),
+                ));
+            }
+
+            let profile = crudcrate::profile::resolve(
+                profile_ext,
+                <$resource as crudcrate::traits::CRUDResource>::security_profile,
+            );
+
+            // Strict filter parsing: reject malformed filter JSON before falling through
+            // to the lenient parser (which would silently return an unfiltered result).
+            if profile.strict_filter_parsing
+                && let Some(filter_str) = &params.filter
+                && serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(filter_str).is_err()
+            {
+                return Err(crudcrate::ApiError::bad_request(
+                    "Invalid JSON in filter parameter",
                 ));
             }
 
