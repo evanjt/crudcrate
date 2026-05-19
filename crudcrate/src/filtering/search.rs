@@ -1,4 +1,7 @@
-use sea_orm::{DatabaseBackend, sea_query::SimpleExpr};
+use sea_orm::{
+    DatabaseBackend,
+    sea_query::{Expr, SimpleExpr},
+};
 
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
@@ -50,9 +53,12 @@ fn build_postgres_fulltext_condition(
         .join(" || ' ' || ");
 
     let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
-    let escaped = escape_like_wildcards(sanitized).replace('\'', "''");
-    let sql = format!("({concat_sql}) ILIKE '%{escaped}%' ESCAPE '\\'");
-    Some(SimpleExpr::Custom(sql))
+    let pattern = format!("%{}%", escape_like_wildcards(sanitized));
+
+    Some(Expr::cust_with_values(
+        format!("({concat_sql}) ILIKE ? ESCAPE '\\'"),
+        [pattern],
+    ))
 }
 
 /// Build MySQL-specific fulltext search using CONCAT and LIKE.
@@ -77,9 +83,12 @@ fn build_mysql_fulltext_condition(
     };
 
     let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
-    let escaped = escape_like_wildcards(sanitized).replace('\'', "''");
-    let sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped}%') ESCAPE '\\\\'");
-    Some(SimpleExpr::Custom(sql))
+    let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
+
+    Some(Expr::cust_with_values(
+        format!("UPPER({concat_sql}) LIKE ? ESCAPE '\\\\'"),
+        [pattern],
+    ))
 }
 
 /// Build fallback fulltext search for `SQLite` and other standard SQL databases.
@@ -100,9 +109,12 @@ fn build_fallback_fulltext_condition(
         .join(" || ' ' || ");
 
     let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
-    let escaped = escape_like_wildcards(sanitized).replace('\'', "''");
-    let sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped}%') ESCAPE '\\'");
-    Some(SimpleExpr::Custom(sql))
+    let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
+
+    Some(Expr::cust_with_values(
+        format!("UPPER({concat_sql}) LIKE ? ESCAPE '\\'"),
+        [pattern],
+    ))
 }
 
 /// Build condition for string field with LIKE queries (case-insensitive)
