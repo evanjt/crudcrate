@@ -62,7 +62,10 @@ pub struct SecurityProfile {
     pub max_request_body_bytes: usize,
 }
 
-const DEFAULT_BODY_LIMIT_BYTES: usize = 4 * 1024 * 1024;
+/// Matches Axum 0.8's built-in default (`axum-core` 0.5: `DEFAULT_LIMIT = 2_097_152`).
+/// Setting it explicitly via `SecurityProfile` lets per-resource overrides tighten or loosen
+/// the bound without diverging from Axum's baseline by default.
+const DEFAULT_BODY_LIMIT_BYTES: usize = 2 * 1024 * 1024;
 
 impl SecurityProfile {
     /// Hardened defaults. Strict scope handling, no ID enumeration via batch delete,
@@ -139,7 +142,7 @@ mod tests {
         assert!(p.strict_filter_parsing);
         assert!(p.scope_propagation_strict);
         assert!(!p.expose_deleted_ids);
-        assert_eq!(p.max_request_body_bytes, 4 * 1024 * 1024);
+        assert_eq!(p.max_request_body_bytes, 2 * 1024 * 1024);
     }
 
     #[test]
@@ -148,7 +151,7 @@ mod tests {
         assert!(!p.strict_filter_parsing);
         assert!(p.scope_propagation_strict);
         assert!(p.expose_deleted_ids);
-        assert_eq!(p.max_request_body_bytes, 4 * 1024 * 1024);
+        assert_eq!(p.max_request_body_bytes, 2 * 1024 * 1024);
     }
 
     #[test]
@@ -157,7 +160,7 @@ mod tests {
         assert!(!p.strict_filter_parsing);
         assert!(!p.scope_propagation_strict);
         assert!(p.expose_deleted_ids);
-        assert_eq!(p.max_request_body_bytes, 4 * 1024 * 1024);
+        assert_eq!(p.max_request_body_bytes, 2 * 1024 * 1024);
     }
 
     #[test]
@@ -176,7 +179,7 @@ mod tests {
         assert!(overridden.strict_filter_parsing);
         assert!(overridden.scope_propagation_strict);
         assert!(overridden.expose_deleted_ids);
-        assert_eq!(overridden.max_request_body_bytes, 4 * 1024 * 1024);
+        assert_eq!(overridden.max_request_body_bytes, DEFAULT_BODY_LIMIT_BYTES);
     }
 
     #[test]
@@ -186,11 +189,11 @@ mod tests {
     }
 
     #[test]
-    fn test_body_limit_is_4mib_default() {
-        // 4 MiB = 4 * 1024 * 1024 = 4194304
-        assert_eq!(SecurityProfile::secure().max_request_body_bytes, 4_194_304);
-        assert_eq!(SecurityProfile::react_admin().max_request_body_bytes, 4_194_304);
-        assert_eq!(SecurityProfile::legacy().max_request_body_bytes, 4_194_304);
+    fn test_body_limit_matches_axum_default() {
+        // 2 MiB = 2 * 1024 * 1024 = 2_097_152 (matches axum-core's DEFAULT_LIMIT)
+        assert_eq!(SecurityProfile::secure().max_request_body_bytes, 2_097_152);
+        assert_eq!(SecurityProfile::react_admin().max_request_body_bytes, 2_097_152);
+        assert_eq!(SecurityProfile::legacy().max_request_body_bytes, 2_097_152);
     }
 
     #[test]

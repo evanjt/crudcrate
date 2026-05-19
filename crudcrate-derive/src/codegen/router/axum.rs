@@ -68,6 +68,9 @@ fn generate_axum_router(
                     .routes(routes!(update_many_handler))
                     .routes(routes!(delete_one_handler))
                     .routes(routes!(delete_many_handler))
+                    .layer(axum::extract::DefaultBodyLimit::max(
+                        Self::security_profile().max_request_body_bytes,
+                    ))
                     .with_state(db.clone())
             }
 
@@ -100,6 +103,9 @@ fn generate_axum_router(
                 OpenApiRouter::new()
                     .routes(routes!(get_one_handler))
                     .routes(routes!(get_all_handler))
+                    .layer(axum::extract::DefaultBodyLimit::max(
+                        Self::security_profile().max_request_body_bytes,
+                    ))
                     .with_state(db.clone())
             }
         }

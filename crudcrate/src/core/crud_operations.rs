@@ -585,6 +585,10 @@ macro_rules! generate_crud_router {
                 .routes(routes!(update_many_handler))
                 .routes(routes!(delete_one_handler))
                 .routes(routes!(delete_many_handler))
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    <$api_struct as crudcrate::traits::CRUDResource>::security_profile()
+                        .max_request_body_bytes,
+                ))
                 .with_state(db.clone())
         }
     };
@@ -617,6 +621,10 @@ macro_rules! generate_crud_router {
                 $(
                     .routes($extra_routes)
                 )*
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    <$api_struct as crudcrate::traits::CRUDResource>::security_profile()
+                        .max_request_body_bytes,
+                ))
                 .with_state(db.clone())
         }
     };
