@@ -88,9 +88,11 @@ fn react_admin_attribute_returns_react_admin_profile() {
 }
 
 #[test]
-fn no_attribute_returns_legacy_profile() {
+fn no_attribute_returns_secure_profile() {
+    // 0.9.0: the trait default flipped from `legacy()` to `secure()`. Resources
+    // that don't override the attribute now ship hardened defaults.
     assert_eq!(
         no_attr::DefaultResource::security_profile(),
-        SecurityProfile::legacy()
+        SecurityProfile::secure()
     );
 }
