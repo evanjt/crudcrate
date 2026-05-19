@@ -125,6 +125,8 @@ pub mod core;
 pub mod database;
 pub mod errors;
 pub mod filtering;
+#[doc(hidden)]
+pub mod impls_check;
 pub mod operations;
 pub mod profile;
 pub mod relationships;
@@ -169,5 +171,4 @@ pub use operations::{CRUDOperations, DefaultCRUDOperations};
 pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
 
-pub use impls::impls;
 pub use serde_with;
