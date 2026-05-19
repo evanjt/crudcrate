@@ -126,6 +126,7 @@ pub mod database;
 pub mod errors;
 pub mod filtering;
 pub mod operations;
+pub mod profile;
 pub mod relationships;
 pub mod scope;
 pub mod validation;
@@ -165,6 +166,7 @@ pub use filtering::{
     parse_sorting_with_joins,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
+pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
 
 pub use impls::impls;

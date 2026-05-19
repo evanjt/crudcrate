@@ -69,6 +69,18 @@ where
         1000
     }
 
+    /// Per-resource security profile, applied unless overridden by a request-time
+    /// `axum::Extension<SecurityProfile>`. See [`crate::SecurityProfile`] for the
+    /// preset rationale and override syntax.
+    ///
+    /// Default is [`SecurityProfile::legacy`] which preserves pre-0.9.0 behavior so
+    /// existing consumers can bump version without observable change. New code should
+    /// override to [`SecurityProfile::secure`].
+    #[must_use]
+    fn security_profile() -> crate::SecurityProfile {
+        crate::SecurityProfile::legacy()
+    }
+
     async fn get_all(
         db: &DatabaseConnection,
         condition: &Condition,
