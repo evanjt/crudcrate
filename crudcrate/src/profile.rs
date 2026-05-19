@@ -109,6 +109,26 @@ impl SecurityProfile {
     }
 }
 
+/// Resolve the effective `SecurityProfile` for a request.
+///
+/// Priority order:
+/// 1. `axum::Extension<SecurityProfile>` injected into the request (global override).
+/// 2. The per-resource `CRUDResource::security_profile()` default (via `fallback`).
+///
+/// Generated handlers call this with the per-resource trait method as the fallback so a
+/// global Extension layer transparently overrides every resource without touching each
+/// `impl CRUDResource`.
+#[must_use]
+pub fn resolve<F>(
+    extension: Option<axum::Extension<SecurityProfile>>,
+    fallback: F,
+) -> SecurityProfile
+where
+    F: FnOnce() -> SecurityProfile,
+{
+    extension.map_or_else(fallback, |axum::Extension(profile)| profile)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,5 +207,32 @@ mod tests {
         let q = p;
         let r = p;
         assert_eq!(q, r);
+    }
+
+    #[test]
+    fn test_resolve_extension_wins() {
+        let resolved = resolve(
+            Some(axum::Extension(SecurityProfile::secure())),
+            SecurityProfile::legacy,
+        );
+        assert_eq!(resolved, SecurityProfile::secure());
+    }
+
+    #[test]
+    fn test_resolve_falls_back_when_no_extension() {
+        let resolved = resolve(None, SecurityProfile::react_admin);
+        assert_eq!(resolved, SecurityProfile::react_admin());
+    }
+
+    #[test]
+    fn test_resolve_extension_beats_any_fallback() {
+        // Even when the per-resource fallback is more permissive, the global
+        // Extension wins.
+        let resolved = resolve(
+            Some(axum::Extension(SecurityProfile::secure())),
+            SecurityProfile::legacy,
+        );
+        assert!(resolved.strict_filter_parsing);
+        assert!(!resolved.expose_deleted_ids);
     }
 }
