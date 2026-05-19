@@ -190,6 +190,12 @@ cargo run --example minimal            # Todo API in ~60 lines
 cargo run --example recursive_join     # Multi-level relationship loading
 ```
 
+## Security caveats
+
+The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`. That version is affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (the Marvin attack — a server-side timing side-channel against RSA decryption). There is no upstream fix yet.
+
+The feature is opt-in. If you are not connecting to MySQL, leave it disabled. If you are, terminate the MySQL connection over a private network or unix socket rather than across a network-attacker-reachable path.
+
 ## License
 
 MIT
