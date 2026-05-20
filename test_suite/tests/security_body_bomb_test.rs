@@ -18,9 +18,7 @@ use common::{setup_test_app, setup_test_db};
 /// Build a JSON array body of roughly `size` bytes — one customer with a long name.
 fn oversized_customer_batch_body(size: usize) -> String {
     let padding = "x".repeat(size);
-    format!(
-        r#"[{{"name":"{padding}","email":"a@b.c","is_private":false}}]"#
-    )
+    format!(r#"[{{"name":"{padding}","email":"a@b.c","is_private":false}}]"#)
 }
 
 #[tokio::test]

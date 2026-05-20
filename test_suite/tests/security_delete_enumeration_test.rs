@@ -18,9 +18,8 @@ use common::{setup_test_app, setup_test_db};
 async fn seed_three_customers(app: &axum::Router) -> Vec<Uuid> {
     let mut ids = Vec::new();
     for i in 0..3 {
-        let body = format!(
-            r#"{{"name":"Cust {i}","email":"c{i}@example.com","is_private":false}}"#
-        );
+        let body =
+            format!(r#"{{"name":"Cust {i}","email":"c{i}@example.com","is_private":false}}"#);
         let response = app
             .clone()
             .oneshot(

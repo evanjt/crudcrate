@@ -29,33 +29,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Extension > CRUDResource::security_profile() > trait default`.
 
 - **Default profile flipped to `secure()`**. New resources ship hardened
-  defaults out of the box. See [MIGRATION_0.9.md](docs/MIGRATION_0.9.md) for
-  the per-flag breakdown and opt-out instructions.
+  defaults. See [MIGRATION_0.9.md](docs/MIGRATION_0.9.md) for the per-flag
+  breakdown and opt-out instructions.
 
-- **Issue 1: explicit batch body limit**. The generated router now applies an
+- **Explicit batch body limit**. The generated router now applies an
   Axum `DefaultBodyLimit::max(...)` layer derived from
   `SecurityProfile::max_request_body_bytes` (default 2 MiB, matching axum-core's
   baseline). Previous behavior relied on Axum's implicit default and broke if
   any consumer wired `DefaultBodyLimit::disable()` up the tree.
 
-- **Issue 2: scope-propagation side-channel guard**. Under `secure()` profile,
+- **Scope-propagation side-channel guard**. Under `secure()` profile,
   joined filters (`?filter={"vehicles.color":"..."}`) on a child entity that
   has no `exclude(scoped)` scope condition are rejected with `400 Bad Request`
   when the request carries a `ScopeCondition`. Prevents parent-existence
   side-channels via unscoped child columns.
 
-- **Issue 3: strict filter parsing**. Under `secure()` profile, a malformed
+- **Strict filter parsing**. Under `secure()` profile, a malformed
   `?filter=...` value returns `400` instead of silently dropping the filter
   and returning the unfiltered result.
 
-- **Issue 4: deleted-ID enumeration**. Under `secure()` profile, batch delete
+- **Deleted-ID enumeration guard**. Under `secure()` profile, batch delete
   responses return `{"deleted": N}` instead of the array of UUIDs that
   actually existed in the database, removing the existence-enumeration
   side-channel through the delete endpoint. react-admin frontends that rely on
   the ID array for cache invalidation should pin
   `SecurityProfile::react_admin()` or `legacy()`.
 
-- **Issue 5: fulltext SQL bind parameterization**. The Postgres / MySQL /
+- **Fulltext SQL bind parameterization**. The Postgres / MySQL /
   SQLite fulltext condition builders now route the user query value through
   `Expr::cust_with_values` so the value is bound as a parameter rather than
   interpolated into the SQL string. Defense-in-depth — column names were
@@ -660,7 +660,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
-[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.8.0...HEAD
+[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.9.0...HEAD
+[0.9.0]: https://github.com/evanjt/crudcrate/compare/0.8.1...0.9.0
+[0.8.1]: https://github.com/evanjt/crudcrate/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/evanjt/crudcrate/compare/0.7.2...0.8.0
 [0.7.2]: https://github.com/evanjt/crudcrate/compare/0.7.1...0.7.2
 [0.7.1]: https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1

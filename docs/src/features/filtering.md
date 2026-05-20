@@ -1,6 +1,6 @@
 # Filtering
 
-CRUDCrate provides powerful, type-safe filtering through JSON query parameters.
+CRUDCrate filters list endpoints via JSON in the `?filter=` query parameter.
 
 ## Enabling Filtering
 
@@ -452,14 +452,18 @@ This is useful for fields where users expect partial matching behavior.
 
 ## Error Handling
 
-CRUDCrate handles invalid filters gracefully:
+How CRUDCrate handles bad filter input depends on the active
+[`SecurityProfile`](../advanced/security.md#securityprofile):
 
-- **Invalid JSON**: Returns all results (filter is ignored)
-- **Unknown fields**: Silently ignored for security
-- **Invalid values**: Field filter is skipped
-- **Malformed operators**: Falls back to equality check
-
-This defensive approach prevents information disclosure about your schema while maintaining API stability.
+- **Invalid JSON**: under `secure()` (the 0.9.0 default), returns
+  `400 Bad Request`. Under `legacy()` / `react_admin()`, the filter is
+  silently dropped and the unfiltered list is returned.
+- **Unknown fields**: silently ignored under every profile, so callers
+  can't probe the schema by trial.
+- **Invalid values**: the offending field's filter is skipped; other
+  fields still apply.
+- **Malformed operator suffix**: falls back to equality on the base
+  column.
 
 ## Next Steps
 

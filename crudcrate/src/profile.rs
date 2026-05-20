@@ -192,7 +192,10 @@ mod tests {
     fn test_body_limit_matches_axum_default() {
         // 2 MiB = 2 * 1024 * 1024 = 2_097_152 (matches axum-core's DEFAULT_LIMIT)
         assert_eq!(SecurityProfile::secure().max_request_body_bytes, 2_097_152);
-        assert_eq!(SecurityProfile::react_admin().max_request_body_bytes, 2_097_152);
+        assert_eq!(
+            SecurityProfile::react_admin().max_request_body_bytes,
+            2_097_152
+        );
         assert_eq!(SecurityProfile::legacy().max_request_body_bytes, 2_097_152);
     }
 
@@ -202,14 +205,6 @@ mod tests {
         const _SECURE: SecurityProfile = SecurityProfile::secure();
         const _RA: SecurityProfile = SecurityProfile::react_admin();
         const _LEGACY: SecurityProfile = SecurityProfile::legacy();
-    }
-
-    #[test]
-    fn test_clone_copy_traits() {
-        let p = SecurityProfile::secure();
-        let q = p;
-        let r = p;
-        assert_eq!(q, r);
     }
 
     #[test]

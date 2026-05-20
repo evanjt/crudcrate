@@ -1,6 +1,3 @@
-// Security Boundary Tests
-// Tests input validation, empty/malicious queries, and boundary conditions.
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::json;
@@ -17,9 +14,8 @@ fn encode_filter(filter: &serde_json::Value) -> String {
         .to_string()
 }
 
-/// Test that {"q": ""} does NOT match all items.
-/// BUG 3: Empty fulltext search falls through to LIKE '%%' which matches everything.
-/// Correct behavior: empty search query should be a no-op (return all without filter).
+/// An empty `q` previously fell through to `LIKE '%%'` and matched every row;
+/// it must be treated as a no-op so the response equals an unfiltered list.
 #[tokio::test]
 async fn test_empty_fulltext_returns_all_without_filter() {
     let db = setup_test_db()
@@ -91,8 +87,7 @@ async fn test_empty_fulltext_returns_all_without_filter() {
     );
 }
 
-/// Test that {"q": "   "} (whitespace-only) does NOT match all items.
-/// BUG 3: Whitespace query isn't trimmed in the fulltext search path.
+/// Whitespace-only `q` must be trimmed and treated as a no-op, same as empty.
 #[tokio::test]
 async fn test_whitespace_fulltext_returns_all_without_filter() {
     let db = setup_test_db()
