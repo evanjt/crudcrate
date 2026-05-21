@@ -1,3 +1,5 @@
+pub mod author;
+pub mod book;
 pub mod category;
 pub mod customer;
 pub mod maintenance_record;

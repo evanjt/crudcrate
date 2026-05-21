@@ -7,7 +7,7 @@ use sea_orm_migration::prelude::*;
 pub mod models;
 
 // Re-export local test models for easy access
-pub use self::models::{category, customer, maintenance_record, vehicle, vehicle_part};
+pub use self::models::{author, book, category, customer, maintenance_record, vehicle, vehicle_part};
 
 // Helper function to get database URL from environment or default to SQLite
 fn get_test_database_url() -> String {
@@ -33,6 +33,8 @@ pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
         let _ = db.execute_unprepared("DELETE FROM vehicles").await;
         let _ = db.execute_unprepared("DELETE FROM customers").await;
         let _ = db.execute_unprepared("DELETE FROM categories").await;
+        let _ = db.execute_unprepared("DELETE FROM books").await;
+        let _ = db.execute_unprepared("DELETE FROM authors").await;
     }
 
     Ok(db)
@@ -53,6 +55,8 @@ pub fn setup_test_app(db: &DatabaseConnection) -> Router {
             "/maintenance_records",
             maintenance_record::MaintenanceRecord::router(db).into(),
         )
+        .nest("/authors", author::Author::router(db).into())
+        .nest("/books", book::Book::router(db).into())
 }
 
 /// Build app with ScopeCondition middleware applied to every request.
@@ -113,6 +117,8 @@ impl MigratorTrait for CustomerVehicleMigrator {
             Box::new(CreateVehicleTable),
             Box::new(CreateVehiclePartTable),
             Box::new(CreateMaintenanceRecordTable),
+            Box::new(CreateAuthorTable),
+            Box::new(CreateBookTable),
         ]
     }
 }
@@ -491,4 +497,93 @@ pub async fn create_test_customer(app: &Router) -> String {
         .unwrap();
     let created_customer: serde_json::Value = serde_json::from_slice(&body).unwrap();
     created_customer["id"].as_str().unwrap().to_string()
+}
+
+// Author table (for non-standard FK test)
+pub struct CreateAuthorTable;
+
+#[async_trait::async_trait]
+impl MigrationName for CreateAuthorTable {
+    fn name(&self) -> &'static str {
+        "m20240101_000005_create_author_table"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for CreateAuthorTable {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = Table::create()
+            .table(author::Entity)
+            .if_not_exists()
+            .col(
+                ColumnDef::new(author::Column::Id)
+                    .uuid()
+                    .not_null()
+                    .primary_key(),
+            )
+            .col(ColumnDef::new(author::Column::Name).text().not_null())
+            .col(
+                ColumnDef::new(author::Column::CreatedAt)
+                    .timestamp_with_time_zone()
+                    .not_null(),
+            )
+            .to_owned();
+        manager.create_table(table).await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(author::Entity).to_owned())
+            .await?;
+        Ok(())
+    }
+}
+
+pub struct CreateBookTable;
+
+#[async_trait::async_trait]
+impl MigrationName for CreateBookTable {
+    fn name(&self) -> &'static str {
+        "m20240101_000006_create_book_table"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for CreateBookTable {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = Table::create()
+            .table(book::Entity)
+            .if_not_exists()
+            .col(
+                ColumnDef::new(book::Column::Id)
+                    .uuid()
+                    .not_null()
+                    .primary_key(),
+            )
+            .col(ColumnDef::new(book::Column::Title).text().not_null())
+            .col(ColumnDef::new(book::Column::AuthorRef).uuid().not_null())
+            .col(
+                ColumnDef::new(book::Column::CreatedAt)
+                    .timestamp_with_time_zone()
+                    .not_null(),
+            )
+            .foreign_key(
+                ForeignKey::create()
+                    .name("fk_book_author")
+                    .from(book::Entity, book::Column::AuthorRef)
+                    .to(author::Entity, author::Column::Id)
+                    .on_delete(ForeignKeyAction::Cascade),
+            )
+            .to_owned();
+        manager.create_table(table).await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(book::Entity).to_owned())
+            .await?;
+        Ok(())
+    }
 }

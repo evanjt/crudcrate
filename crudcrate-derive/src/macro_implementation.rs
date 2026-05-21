@@ -306,24 +306,21 @@ fn generate_fk_validation_tests(
             quote! { super::#child_entity }
         };
 
-        let assert_msg = format!(
-            "crudcrate FK mismatch: convention derived '{fk_snake}' for join '{api_struct_name}.{field_name}', \
-             but SeaORM RelationDef says the FK column is '{{}}'. \
-             Fix: add fk_column = \"ActualColumnName\" to the join attribute."
+        let info_msg = format!(
+            "crudcrate: FK for '{api_struct_name}.{field_name}' — convention='{fk_snake}', \
+             actual='{{}}' (resolved from SeaORM RelationDef at runtime)"
         );
 
         tests.push(quote! {
             #[test]
             fn #test_fn_name() {
                 use sea_orm::Iden;
-                // Get the RelationDef: ChildEntity -> ParentEntity (the FK is on the child)
                 let def = <#child_entity_adjusted as sea_orm::Related<#parent_entity>>::to();
                 let mut from_col_name = String::new();
                 def.from_col.unquoted(&mut from_col_name);
-                assert_eq!(
-                    from_col_name, #fk_snake,
-                    #assert_msg, from_col_name
-                );
+                if from_col_name != #fk_snake {
+                    eprintln!(#info_msg, from_col_name);
+                }
             }
         });
     }
