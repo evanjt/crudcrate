@@ -923,66 +923,6 @@ fn derive_fk_idents(
     }
 }
 
-/// Generate the runtime FK resolution preamble for batch loading.
-/// Extracts FK column name from SeaORM's RelationDef at runtime.
-fn runtime_fk_preamble(entity_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    quote! {
-        let __rel_def = <#entity_path as sea_orm::Related<
-            <Self as crudcrate::traits::CRUDResource>::EntityType
-        >>::to();
-        let mut __fk_col_name = String::new();
-        sea_orm::Iden::unquoted(&__rel_def.from_col, &mut __fk_col_name);
-    }
-}
-
-/// Generate runtime FK filter expression: `Expr::col(Alias::new(&col_name)).is_in(parent_ids)`
-fn runtime_fk_filter_is_in() -> proc_macro2::TokenStream {
-    quote! {
-        .filter(sea_orm::sea_query::Expr::col(
-            sea_orm::sea_query::Alias::new(&__fk_col_name)
-        ).is_in(parent_ids.clone()))
-    }
-}
-
-/// Generate runtime FK filter expression: `Expr::col(Alias::new(&col_name)).eq(model.id)`
-fn runtime_fk_filter_eq() -> proc_macro2::TokenStream {
-    quote! {
-        .filter(sea_orm::sea_query::Expr::col(
-            sea_orm::sea_query::Alias::new(&__fk_col_name)
-        ).eq(model.id))
-    }
-}
-
-/// Generate runtime FK value extraction from a model using ModelTrait::get
-fn runtime_fk_extract(entity_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    quote! {
-        let __fk_col = <<#entity_path as sea_orm::EntityTrait>::Column
-            as std::str::FromStr>::from_str(&__fk_col_name)
-            .expect("CrudCrate: FK column not found in child entity");
-    }
-}
-
-/// Generate runtime FK value read from a model instance
-fn runtime_fk_value_read() -> proc_macro2::TokenStream {
-    quote! {
-        let fk_value: uuid::Uuid = match sea_orm::ModelTrait::get(&related_model, __fk_col.clone()) {
-            sea_orm::sea_query::Value::Uuid(Some(v)) => *v,
-            _ => continue,
-        };
-    }
-}
-
-/// Generate runtime FK value read for Option<Uuid> (nullable FK, e.g. self-ref)
-fn runtime_fk_value_read_option() -> proc_macro2::TokenStream {
-    quote! {
-        let fk_value: Option<uuid::Uuid> = match sea_orm::ModelTrait::get(&related_model, __fk_col.clone()) {
-            sea_orm::sea_query::Value::Uuid(Some(v)) => Some(*v),
-            _ => None,
-        };
-        let Some(fk_value) = fk_value else { continue };
-    }
-}
-
 /// Shared implementation for generating join loading code
 ///
 /// When `scoped` is true, Vec<T> join queries include the child entity's

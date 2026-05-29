@@ -4,15 +4,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `crudcrate::CRUDResource::EntityType`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -29,12 +29,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `crudcrate::CRUDResource::EntityType`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
@@ -52,15 +52,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `CRUDResource`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -77,12 +77,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `CRUDResource`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
@@ -100,15 +100,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `crudcrate::CRUDResource::ColumnType`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -125,12 +125,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `crudcrate::CRUDResource::ColumnType`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
@@ -148,15 +148,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `ID_COLUMN`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -173,12 +173,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `ID_COLUMN`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
@@ -196,15 +196,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `crudcrate::CRUDResource::ListModel`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -221,12 +221,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `crudcrate::CRUDResource::ListModel`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
@@ -244,15 +244,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `crudcrate::CRUDResource::ActiveModelType`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -269,12 +269,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `crudcrate::CRUDResource::ActiveModelType`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
@@ -292,15 +292,15 @@ error[E0277]: the trait bound `i32: From<uuid::Uuid>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<uuid::Uuid>` is not implemented for `i32`
    |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<socket2::Domain>`
-             `i32` implements `From<socket2::Protocol>`
-             `i32` implements `From<socket2::Type>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
+   = help: `i32` implements trait `From<T>`:
+             From<bool>
+             From<i16>
+             From<i8>
+             From<socket2::Domain>
+             From<socket2::Protocol>
+             From<socket2::Type>
+             From<u16>
+             From<u8>
 note: required by a bound in `batch_limit`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
    |
@@ -317,12 +317,12 @@ error[E0277]: the trait bound `uuid::Uuid: From<i32>` is not satisfied
 10 | #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
    |                                                      ^^^^^^^^^^^^^^ the trait `From<i32>` is not implemented for `uuid::Uuid`
    |
-   = help: the following other types implement trait `From<T>`:
-             `uuid::Uuid` implements `From<Braced>`
-             `uuid::Uuid` implements `From<Hyphenated>`
-             `uuid::Uuid` implements `From<NonNilUuid>`
-             `uuid::Uuid` implements `From<Urn>`
-             `uuid::Uuid` implements `From<uuid::fmt::Simple>`
+   = help: `uuid::Uuid` implements trait `From<T>`:
+             From<Braced>
+             From<Hyphenated>
+             From<NonNilUuid>
+             From<Urn>
+             From<uuid::fmt::Simple>
    = note: required for `i32` to implement `Into<uuid::Uuid>`
 note: required by a bound in `batch_limit`
   --> $WORKSPACE/crudcrate/src/core/traits.rs
