@@ -7,7 +7,9 @@ use sea_orm_migration::prelude::*;
 pub mod models;
 
 // Re-export local test models for easy access
-pub use self::models::{author, book, category, customer, maintenance_record, vehicle, vehicle_part};
+pub use self::models::{
+    author, book, category, customer, maintenance_record, managed_author, vehicle, vehicle_part,
+};
 
 // Helper function to get database URL from environment or default to SQLite
 fn get_test_database_url() -> String {
@@ -57,6 +59,10 @@ pub fn setup_test_app(db: &DatabaseConnection) -> Router {
         )
         .nest("/authors", author::Author::router(db).into())
         .nest("/books", book::Book::router(db).into())
+        .nest(
+            "/managed_authors",
+            managed_author::ManagedAuthor::router(db).into(),
+        )
 }
 
 /// Build app with ScopeCondition middleware applied to every request.

@@ -26,11 +26,23 @@ pub enum Relation {
         to = "super::author::Column::Id"
     )]
     Author,
+    #[sea_orm(
+        belongs_to = "super::managed_author::Entity",
+        from = "Column::AuthorRef",
+        to = "super::managed_author::Column::Id"
+    )]
+    ManagedAuthor,
 }
 
 impl Related<super::author::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Author.def()
+    }
+}
+
+impl Related<super::managed_author::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ManagedAuthor.def()
     }
 }
 
