@@ -16,8 +16,8 @@
         <link rel="icon" href="favicon-30a6d5ba.svg">
         <link rel="shortcut icon" href="favicon-d66b1601.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/general-0392ca55.css">
+        <link rel="stylesheet" href="css/chrome-fc474251.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -37,10 +37,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-d0e21c4b.js";
+            window.path_to_searchindex_js = "searchindex-eca0d391.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8bb2dc99.js"></script>
+        <script src="toc-e10d79e3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1644,466 +1644,239 @@ async fn check_delete_permission(
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="security-best-practices"><a class="header" href="#security-best-practices">Security Best Practices</a></h1>
-<p>CRUDCrate includes built-in security features, but here’s how to maximize protection.</p>
+<p>This page covers the security knobs CRUDCrate provides, and points at
+upstream Axum / tower-http / axum-server for the layers it
+intentionally does not provide (authentication, CORS, TLS, rate
+limiting, response headers).</p>
 <h2 id="built-in-protections"><a class="header" href="#built-in-protections">Built-in Protections</a></h2>
-<h3 id="sql-injection-prevention"><a class="header" href="#sql-injection-prevention">SQL Injection Prevention</a></h3>
-<p>All queries use parameterization:</p>
-<pre><code class="language-rust">// User input is NEVER interpolated into SQL
-let condition = Column::Email.eq(user_input);
+<h3 id="sql-injection-prevention"><a class="header" href="#sql-injection-prevention">SQL injection prevention</a></h3>
+<p>All queries use Sea-ORM’s parameterized expression builders, so user
+input never reaches the SQL string:</p>
+<pre><code class="language-rust">let condition = Column::Email.eq(user_input);
+// Renders as `WHERE email = $1` with `user_input` bound as a parameter.</code></pre>
+<p>The fulltext-search builders route the query value through
+<code>Expr::cust_with_values</code>, so the <code>LIKE</code> pattern is bound rather than
+interpolated.</p>
+<h3 id="pagination-limits"><a class="header" href="#pagination-limits">Pagination limits</a></h3>
+<pre><code class="language-rust">const MAX_PAGE_SIZE: u64 = 1000;
+const MAX_OFFSET: u64 = 1_000_000;</code></pre>
+<p>Override per resource with <code>#[crudcrate(max_page_size = 500)]</code>, or by
+implementing <code>CRUDResource::max_page_size()</code> for runtime sources (env
+vars, config).</p>
+<h3 id="overflow-protection"><a class="header" href="#overflow-protection">Overflow protection</a></h3>
+<p>Pagination math uses saturating arithmetic. <code>page=u64::MAX</code> and
+<code>per_page=u64::MAX</code> resolve to safe values instead of panicking.</p>
+<h3 id="field-value-and-search-query-length-limits"><a class="header" href="#field-value-and-search-query-length-limits">Field value and search query length limits</a></h3>
+<pre><code class="language-rust">const MAX_FIELD_VALUE_LENGTH: usize = 10_000;   // 10 KB per filter value
+const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;  // 10 KB for {"q": ...}</code></pre>
+<p>Oversized values are truncated before they reach the query builder.</p>
+<h3 id="like-wildcard-escaping"><a class="header" href="#like-wildcard-escaping">LIKE wildcard escaping</a></h3>
+<p><code>%</code> and <code>_</code> in filter values are escaped, so <code>{"name": "%admin%"}</code>
+matches the literal string rather than every row containing <code>admin</code>.</p>
+<h3 id="filter-clause-count-limit"><a class="header" href="#filter-clause-count-limit">Filter clause count limit</a></h3>
+<pre><code class="language-rust">const MAX_FILTER_CLAUSES: usize = 100;</code></pre>
+<p>Requests with more than 100 filter keys return <code>400 Bad Request</code>.
+Comparison-operator suffixes count separately:
+<code>{"year_gte": 2020, "year_lte": 2024}</code> is two clauses on one field.</p>
+<p>CRUDCrate deliberately does not silently drop over-limit filters: an
+unfiltered response is a worse failure mode than a rejected request,
+because a caller relying on the filter would see data it did not ask
+for.</p>
+<h3 id="batch-operation-limits"><a class="header" href="#batch-operation-limits">Batch operation limits</a></h3>
+<pre><code class="language-rust">#[crudcrate(batch_limit = 500)]   // default 100
+pub struct Model { /* ... */ }</code></pre>
+<p>Override at runtime by implementing <code>CRUDResource::batch_limit()</code> (for
+example, reading from an environment variable).</p>
+<h3 id="partial-success-mode"><a class="header" href="#partial-success-mode">Partial-success mode</a></h3>
+<p><code>POST /resource/batch?partial=true</code> (and the equivalents for <code>PATCH</code>
+and <code>DELETE</code>) returns <code>207 Multi-Status</code> with a <code>succeeded</code> / <code>failed</code>
+split instead of failing the whole batch.</p>
+<p>Each item is processed through the single-item hooks
+(<code>create::one::*</code>, etc.) and commits independently. There is no shared
+transaction. Error strings in the <code>failed</code> array use the sanitized
+<code>ApiError</code> display output, not the raw DB error.</p>
+<p>HTTP status codes:</p>
+<ul>
+<li><code>200</code> if every item succeeded.</li>
+<li><code>207 Multi-Status</code> if some succeeded and some failed.</li>
+<li><code>400 Bad Request</code> if every item failed.</li>
+</ul>
+<h3 id="header-injection-prevention"><a class="header" href="#header-injection-prevention">Header injection prevention</a></h3>
+<p>Resource names embedded in <code>Content-Range</code> response headers are
+filtered to ASCII non-control characters, so a malicious table-name
+substring cannot inject extra headers.</p>
+<p>The <code>ApiError</code> to <code>Response</code> translation also sanitizes the
+user-derived prefix in <code>DbErr::RecordNotFound</code> messages: only an
+alphanumeric/underscore identifier in the first word is kept, capped
+at 64 characters. Anything else falls back to a generic <code>Resource</code>
+prefix.</p>
+<h3 id="error-sanitization"><a class="header" href="#error-sanitization">Error sanitization</a></h3>
+<p>Internal DB errors are logged via <code>tracing</code> but the client only sees a
+generic message:</p>
+<pre><code class="language-text">Internal log: SQLSTATE[42P01]: relation "users" does not exist
+Client response: "A database error occurred"
+</code></pre>
+<h2 id="securityprofile"><a class="header" href="#securityprofile">SecurityProfile</a></h2>
+<p><code>SecurityProfile</code> bundles the runtime defaults that vary between
+deployments: filter strictness, scope propagation, deleted-ID
+exposure, and request body size limit. Three presets cover the common
+cases:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Preset</th><th>Strict filter parsing</th><th>Strict scope propagation</th><th>Expose deleted IDs</th><th>Body limit</th></tr>
+</thead>
+<tbody>
+<tr><td><code>secure()</code> (0.9.0 default)</td><td>yes</td><td>yes</td><td>no</td><td>2 MiB</td></tr>
+<tr><td><code>react_admin()</code></td><td>no</td><td>yes</td><td>yes</td><td>2 MiB</td></tr>
+<tr><td><code>legacy()</code> (pre-0.9.0)</td><td>no</td><td>no</td><td>yes</td><td>2 MiB</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="per-resource-override"><a class="header" href="#per-resource-override">Per-resource override</a></h3>
+<pre><code class="language-rust">#[derive(EntityToModels, /* ... */)]
+#[crudcrate(api_struct = "Customer", security_profile = "react_admin")]
+pub struct Model { /* ... */ }</code></pre>
+<h3 id="global-override"><a class="header" href="#global-override">Global override</a></h3>
+<pre><code class="language-rust">use axum::Extension;
+use crudcrate::SecurityProfile;
 
-// Generated SQL:
-// SELECT * FROM users WHERE email = $1
-// With parameter: user_input (escaped)</code></pre>
-<h3 id="pagination-limits"><a class="header" href="#pagination-limits">Pagination Limits</a></h3>
-<p>Prevents denial-of-service via large queries:</p>
-<pre><code class="language-rust">// Built-in limits
-const MAX_PAGE_SIZE: u64 = 1000;
-const MAX_OFFSET: u64 = 1_000_000;
-
-// Even if user requests 10000 items, only 1000 returned</code></pre>
-<h3 id="overflow-protection"><a class="header" href="#overflow-protection">Overflow Protection</a></h3>
-<p>Pagination calculations use saturating arithmetic to prevent integer overflow panics:</p>
-<pre><code class="language-rust">// Malicious request: page=18446744073709551615&amp;per_page=18446744073709551615
-// Would normally cause: panic on integer overflow
-
-// CRUDCrate uses saturating arithmetic:
-let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
-// Result: Returns max safe values instead of panicking</code></pre>
-<h3 id="field-value-length-limits"><a class="header" href="#field-value-length-limits">Field Value Length Limits</a></h3>
-<p>Protects against memory exhaustion from oversized filter values:</p>
-<pre><code class="language-rust">// Built-in limit
-const MAX_FIELD_VALUE_LENGTH: usize = 10_000;  // 10KB max per field
-
-// User provides: {"name": "A".repeat(1_000_000)}
-// Result: Value truncated or rejected, not processed</code></pre>
-<h3 id="fulltext-search-query-limits"><a class="header" href="#fulltext-search-query-limits">Fulltext Search Query Limits</a></h3>
-<p>Prevents oversized search queries from consuming resources:</p>
-<pre><code class="language-rust">// Built-in limit
-const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;  // 10KB max
-
-// User provides: {"q": "A".repeat(1_000_000)}
-// Result: Query truncated to 10KB before processing</code></pre>
-<h3 id="header-injection-prevention"><a class="header" href="#header-injection-prevention">Header Injection Prevention</a></h3>
-<p>Sanitizes resource names to prevent HTTP header injection attacks:</p>
-<pre><code class="language-rust">// Malicious resource name: "items\r\nInjected-Header: evil"
-// Could inject headers into Content-Range response
-
-// CRUDCrate sanitizes:
-fn sanitize_resource_name(name: &amp;str) -&gt; String {
-    name.chars()
-        .filter(|c| c.is_ascii() &amp;&amp; !c.is_ascii_control())
-        .collect()
-}
-// Result: Control characters stripped, header injection prevented</code></pre>
-<h3 id="like-wildcard-escaping"><a class="header" href="#like-wildcard-escaping">LIKE Wildcard Escaping</a></h3>
-<p>Prevents wildcard injection in search queries:</p>
-<pre><code class="language-rust">// User provides: {"name": "%admin%"}
-// Without escaping: matches ALL records containing "admin"
-
-// CRUDCrate escapes wildcards:
-// % → \%
-// _ → \_
-// Result: Literal search for "%admin%" string</code></pre>
-<h3 id="filter-clause-count-limit"><a class="header" href="#filter-clause-count-limit">Filter Clause Count Limit</a></h3>
-<p>Caps the number of filter clauses per request to prevent a client from driving expensive query construction:</p>
-<pre><code class="language-rust">// Built-in limit
-const MAX_FILTER_CLAUSES: usize = 100;</code></pre>
-<p>Requests with more than 100 filter keys receive a <strong><code>400 Bad Request</code></strong> response with a clear error message. CRUDCrate deliberately does <em>not</em> silently drop over-limit filters — an unfiltered response is a worse failure mode than a rejected request, because a caller relying on the filter would see data they didn’t ask for.</p>
-<p>Remember that comparison-operator suffixes count separately: <code>{"year_gte": 2020, "year_lte": 2024}</code> is two clauses on one logical field. Legitimate admin dashboards with many filterable fields rarely approach 100 in practice.</p>
-<h3 id="request-body-size"><a class="header" href="#request-body-size">Request Body Size</a></h3>
-<p><strong>CRUDCrate does not set a default request body size limit</strong> — your application MUST configure one. Without it, batch endpoints (<code>POST /batch</code>, <code>PATCH /batch</code>) will accept arbitrarily large JSON payloads, and a client can exhaust server memory with a single request.</p>
-<p>Use Axum’s <code>DefaultBodyLimit</code>:</p>
+let app = Router::new()
+    .merge(Customer::router(&amp;db))
+    .merge(Article::router(&amp;db))
+    .layer(Extension(SecurityProfile::secure()));</code></pre>
+<p>The <code>Extension</code> wins over the per-resource attribute, so a global layer
+can tighten or loosen individual resources without touching each
+<code>impl CRUDResource</code>.</p>
+<h3 id="custom-profile"><a class="header" href="#custom-profile">Custom profile</a></h3>
+<p>Use struct-update syntax to mix fields:</p>
+<pre><code class="language-rust">let p = SecurityProfile {
+    expose_deleted_ids: true,
+    ..SecurityProfile::secure()
+};</code></pre>
+<h3 id="resolution-order"><a class="header" href="#resolution-order">Resolution order</a></h3>
+<ol>
+<li><code>axum::Extension&lt;SecurityProfile&gt;</code> on the request, if present.</li>
+<li><code>CRUDResource::security_profile()</code> for the resource being served
+(the derive attribute generates this).</li>
+<li>The trait default, which is <code>SecurityProfile::secure()</code> in 0.9.0.</li>
+</ol>
+<h3 id="build-time-caveat-for-max_request_body_bytes"><a class="header" href="#build-time-caveat-for-max_request_body_bytes">Build-time caveat for <code>max_request_body_bytes</code></a></h3>
+<p><code>max_request_body_bytes</code> is applied via Axum’s <code>DefaultBodyLimit</code>
+layer when the router is built. Changing it via an <code>Extension</code> at
+request time has no effect on the limit. The other three fields work
+fully at request time.</p>
+<p>To raise or lower the body limit, set it via the per-resource derive
+attribute, or wrap the router yourself:</p>
 <pre><code class="language-rust">use axum::extract::DefaultBodyLimit;
 
 let app = Router::new()
-    .nest("/customers", Customer::router(&amp;db))
-    // 2 MB global cap — tune to your batch size and field width
-    .layer(DefaultBodyLimit::max(2 * 1024 * 1024));</code></pre>
-<p>For routes where you want a larger limit (e.g., bulk import), override per-route:</p>
-<pre><code class="language-rust">let app = Router::new()
-    .nest("/customers", Customer::router(&amp;db))
-    .layer(DefaultBodyLimit::max(1024 * 1024))      // 1 MB default
-    .route_layer(DefaultBodyLimit::max(10 * 1024 * 1024)); // 10 MB for bulk</code></pre>
-<p>Combine this with <code>batch_limit</code> (number of items) and Axum/tower timeouts for defence-in-depth.</p>
-<h3 id="batch-operation-limits"><a class="header" href="#batch-operation-limits">Batch Operation Limits</a></h3>
-<p>All batch operations (create, update, delete) enforce a configurable size limit to prevent resource exhaustion:</p>
-<pre><code class="language-rust">// Default: 100 items per batch
-#[crudcrate(batch_limit = 500)]  // Override per-resource
-pub struct Model { }</code></pre>
-<p>For runtime-configurable limits (e.g., from environment variables), override the trait method:</p>
-<pre><code class="language-rust">impl CRUDResource for MyResource {
-    fn batch_limit() -&gt; usize {
-        std::env::var("MY_BATCH_LIMIT")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(100)
-    }
-    // ...
-}</code></pre>
-<h3 id="partial-success-mode"><a class="header" href="#partial-success-mode">Partial Success Mode</a></h3>
-<p>Batch endpoints support a <code>?partial=true</code> query parameter that changes behavior:</p>
-<p><strong>Response shape</strong>: With <code>?partial=true</code>, the response wraps results in a <code>BatchResult&lt;T&gt;</code> instead of <code>Vec&lt;T&gt;</code>:</p>
-<pre><code class="language-json">{
-  "succeeded": [{ "id": "...", "name": "..." }],
-  "failed": [{ "index": 2, "error": "..." }]
-}
-</code></pre>
-<p><strong>Hook behavior</strong>: Partial mode processes each item individually via single-item methods (<code>create</code>, <code>update</code>, <code>delete</code>). This means:</p>
-<ul>
-<li><code>create::many::*</code>, <code>update::many::*</code>, and <code>delete::many::*</code> hooks are <strong>not called</strong></li>
-<li>Single-item hooks (<code>create::one::*</code>, etc.) are called for each item instead</li>
-<li>There is no shared transaction — each item commits independently</li>
-</ul>
-<p><strong>Error sanitization</strong>: Error messages in the <code>failed</code> array use sanitized <code>ApiError::Display</code> output. Database errors show “A database error occurred” rather than internal details.</p>
-<p><strong>HTTP status codes</strong>:</p>
-<ul>
-<li><code>200</code> — All items succeeded</li>
-<li><code>207 Multi-Status</code> — Some items succeeded, some failed</li>
-<li><code>400 Bad Request</code> — All items failed</li>
-</ul>
-<h3 id="error-sanitization"><a class="header" href="#error-sanitization">Error Sanitization</a></h3>
-<p>Internal errors are logged but not exposed:</p>
-<pre><code class="language-rust">// Internal: "SQLSTATE[42P01]: Undefined table: 7 ERROR: relation \"users\" does not exist"
-// Response: "Database error"</code></pre>
+    .nest("/uploads", Upload::router(&amp;db))
+    .layer(DefaultBodyLimit::max(10 * 1024 * 1024));</code></pre>
+<p>See <a href="../MIGRATION_0.9.html">MIGRATION_0.9.md</a> for the upgrade path
+from <code>legacy()</code> and the per-flag rationale.</p>
 <h2 id="authentication"><a class="header" href="#authentication">Authentication</a></h2>
-<blockquote>
-<p><strong>CRUDCrate does NOT provide authentication.</strong> The generated routers are open by default — any request that reaches them will be processed. Applications <strong>must</strong> wrap the routers with an Axum middleware layer (or upstream reverse proxy) that authenticates the caller before the handler runs. See the <a href="https://github.com/evanjt/crudcrate/tree/main/examples/scoped_access"><code>scoped_access</code></a> example for an end-to-end pattern combining auth middleware with row-level scoping.</p>
-</blockquote>
-<p>Use Axum middleware:</p>
-<h3 id="jwt-authentication"><a class="header" href="#jwt-authentication">JWT Authentication</a></h3>
-<pre><code class="language-rust">use axum::{
-    middleware,
-    http::{Request, StatusCode},
-    response::Response,
-    extract::State,
-};
-use jsonwebtoken::{decode, Validation, DecodingKey};
-
-#[derive(Clone)]
-pub struct AuthState {
-    pub jwt_secret: String,
-}
-
-async fn auth_middleware&lt;B&gt;(
-    State(state): State&lt;AuthState&gt;,
-    mut request: Request&lt;B&gt;,
-    next: middleware::Next&lt;B&gt;,
-) -&gt; Result&lt;Response, StatusCode&gt; {
-    let auth_header = request.headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    let token_data = decode::&lt;Claims&gt;(
-        token,
-        &amp;DecodingKey::from_secret(state.jwt_secret.as_bytes()),
-        &amp;Validation::default()
-    ).map_err(|_| StatusCode::UNAUTHORIZED)?;
-
-    // Add user to request extensions
-    request.extensions_mut().insert(token_data.claims.user_id);
-
-    Ok(next.run(request).await)
-}
-
-// Apply to routes
-let app = Router::new()
-    .merge(protected_router())
-    .layer(middleware::from_fn_with_state(auth_state, auth_middleware));</code></pre>
-<h3 id="api-key-authentication"><a class="header" href="#api-key-authentication">API Key Authentication</a></h3>
-<pre><code class="language-rust">async fn api_key_middleware&lt;B&gt;(
-    State(valid_keys): State&lt;HashSet&lt;String&gt;&gt;,
-    request: Request&lt;B&gt;,
-    next: middleware::Next&lt;B&gt;,
-) -&gt; Result&lt;Response, StatusCode&gt; {
-    let api_key = request.headers()
-        .get("X-API-Key")
-        .and_then(|h| h.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if !valid_keys.contains(api_key) {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    Ok(next.run(request).await)
-}</code></pre>
+<p><strong>CRUDCrate does not authenticate callers.</strong> The generated routers are
+open: any request that reaches them is processed. Wrap them with an
+Axum middleware layer (or an upstream reverse proxy) that
+authenticates the caller before the handler runs.</p>
+<p>The <a href="https://github.com/evanjt/crudcrate/tree/main/examples/scoped_access"><code>scoped_access</code></a>
+example combines auth middleware with row-level scoping end to end.</p>
+<p>For middleware patterns (JWT, API key, session cookie), see the
+<a href="https://docs.rs/axum/latest/axum/middleware/index.html">Axum middleware docs</a>.</p>
 <h2 id="authorization"><a class="header" href="#authorization">Authorization</a></h2>
-<h3 id="row-level-security"><a class="header" href="#row-level-security">Row-Level Security</a></h3>
-<p>Use <code>before_get_all</code> to filter results:</p>
-<pre><code class="language-rust">impl CRUDOperations for ArticleOperations {
-    async fn before_get_all(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        condition: &amp;mut Condition,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        let user = get_current_user();
-
-        if !user.is_admin {
-            // Users only see their own articles
-            *condition = condition.clone().add(Column::AuthorId.eq(user.id));
-        }
-
-        Ok(())
-    }
-}</code></pre>
-<h3 id="operation-level-authorization"><a class="header" href="#operation-level-authorization">Operation-Level Authorization</a></h3>
-<pre><code class="language-rust">impl CRUDOperations for ArticleOperations {
-    async fn before_update(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-        _data: &amp;mut ArticleUpdate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        let user = get_current_user();
-        let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-
-        // Only author or admin can edit
-        if article.author_id != user.id &amp;&amp; !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        Ok(())
-    }
-
-    async fn before_delete(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        let user = get_current_user();
-
-        // Only admins can delete
-        if !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        Ok(())
-    }
-}</code></pre>
-<h3 id="role-based-access-control"><a class="header" href="#role-based-access-control">Role-Based Access Control</a></h3>
-<pre><code class="language-rust">#[derive(Clone, Copy, PartialEq)]
-pub enum Role {
-    User,
-    Moderator,
-    Admin,
-}
-
-fn require_role(user: &amp;User, required: Role) -&gt; Result&lt;(), ApiError&gt; {
-    let user_level = match user.role {
-        Role::Admin =&gt; 3,
-        Role::Moderator =&gt; 2,
-        Role::User =&gt; 1,
-    };
-
-    let required_level = match required {
-        Role::Admin =&gt; 3,
-        Role::Moderator =&gt; 2,
-        Role::User =&gt; 1,
-    };
-
-    if user_level &gt;= required_level {
-        Ok(())
-    } else {
-        Err(ApiError::Forbidden)
-    }
-}</code></pre>
-<h2 id="input-validation"><a class="header" href="#input-validation">Input Validation</a></h2>
-<h3 id="sanitize-user-input"><a class="header" href="#sanitize-user-input">Sanitize User Input</a></h3>
-<pre><code class="language-rust">async fn before_create(
+<p>Authorization lives in the hook system. Use <code>before_get_all</code> for
+row-level filtering and <code>before_*</code> hooks for per-operation checks:</p>
+<pre><code class="language-rust">async fn before_get_all(
     &amp;self,
     _db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
+    condition: &amp;mut Condition,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    // Trim whitespace
-    data.title = data.title.trim().to_string();
-
-    // Sanitize HTML (if allowing rich text)
-    data.content = ammonia::clean(&amp;data.content);
-
-    // Validate length
-    if data.title.len() &gt; 200 {
-        return Err(ApiError::ValidationFailed(vec![
-            ValidationError::new("title", "Title too long (max 200 characters)")
-        ]));
+    let user = current_user();
+    if !user.is_admin {
+        *condition = condition.clone().add(Column::AuthorId.eq(user.id));
     }
+    Ok(())
+}
 
+async fn before_update(
+    &amp;self,
+    db: &amp;DatabaseConnection,
+    id: Uuid,
+    _data: &amp;mut ArticleUpdate,
+) -&gt; Result&lt;(), ApiError&gt; {
+    let user = current_user();
+    let article = Entity::find_by_id(id)
+        .one(db)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    if article.author_id != user.id &amp;&amp; !user.is_admin {
+        return Err(ApiError::Forbidden);
+    }
     Ok(())
 }</code></pre>
-<h3 id="prevent-mass-assignment"><a class="header" href="#prevent-mass-assignment">Prevent Mass Assignment</a></h3>
-<p>Only allow specific fields to be updated:</p>
+<p>For declarative scope filtering tied to an <code>Extension</code>, see the
+<a href="#public--private-endpoints">scoping tutorial</a>.</p>
+<h3 id="prevent-mass-assignment"><a class="header" href="#prevent-mass-assignment">Prevent mass assignment</a></h3>
+<p>Strip protected fields in <code>before_update</code>:</p>
 <pre><code class="language-rust">async fn before_update(
     &amp;self,
     _db: &amp;DatabaseConnection,
     _id: Uuid,
     data: &amp;mut UserUpdate,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    // Prevent updating sensitive fields via API
     data.is_admin = None;
-    data.email_verified = None;
     data.password_reset_token = None;
-
     Ok(())
 }</code></pre>
-<h2 id="rate-limiting"><a class="header" href="#rate-limiting">Rate Limiting</a></h2>
-<p>Use tower middleware:</p>
-<pre><code class="language-rust">use tower_governor::{GovernorLayer, GovernorConfig};
-
-let governor_conf = GovernorConfig::default();
-
-let app = Router::new()
-    .merge(api_router())
-    .layer(GovernorLayer {
-        config: &amp;governor_conf,
-    });</code></pre>
-<p>Or custom rate limiting:</p>
-<pre><code class="language-rust">use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
-struct RateLimiter {
-    requests: HashMap&lt;String, (u32, Instant)&gt;,
-    max_requests: u32,
-    window: Duration,
-}
-
-async fn rate_limit_middleware&lt;B&gt;(
-    State(limiter): State&lt;Arc&lt;Mutex&lt;RateLimiter&gt;&gt;&gt;,
-    request: Request&lt;B&gt;,
-    next: middleware::Next&lt;B&gt;,
-) -&gt; Result&lt;Response, StatusCode&gt; {
-    let ip = request.headers()
-        .get("X-Forwarded-For")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string();
-
-    let mut limiter = limiter.lock().await;
-
-    let (count, start) = limiter.requests
-        .entry(ip.clone())
-        .or_insert((0, Instant::now()));
-
-    if start.elapsed() &gt; limiter.window {
-        *count = 0;
-        *start = Instant::now();
-    }
-
-    *count += 1;
-
-    if *count &gt; limiter.max_requests {
-        return Err(StatusCode::TOO_MANY_REQUESTS);
-    }
-
-    drop(limiter);
-    Ok(next.run(request).await)
-}</code></pre>
-<h2 id="cors-configuration"><a class="header" href="#cors-configuration">CORS Configuration</a></h2>
-<pre><code class="language-rust">use tower_http::cors::{CorsLayer, Any};
-
-// Development (permissive)
-let cors = CorsLayer::permissive();
-
-// Production (restrictive)
-let cors = CorsLayer::new()
-    .allow_origin("https://yourdomain.com".parse::&lt;HeaderValue&gt;().unwrap())
-    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-    .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
-    .max_age(Duration::from_secs(3600));
-
-let app = Router::new()
-    .merge(api_router())
-    .layer(cors);</code></pre>
-<h2 id="https"><a class="header" href="#https">HTTPS</a></h2>
-<p>Always use HTTPS in production:</p>
-<pre><code class="language-rust">// In production, terminate TLS at load balancer/reverse proxy
-// Or use rustls for direct TLS:
-
-use axum_server::tls_rustls::RustlsConfig;
-
-let config = RustlsConfig::from_pem_file("cert.pem", "key.pem").await?;
-
-axum_server::bind_rustls(addr, config)
-    .serve(app.into_make_service())
-    .await?;</code></pre>
-<h2 id="security-headers"><a class="header" href="#security-headers">Security Headers</a></h2>
-<pre><code class="language-rust">use tower_http::set_header::SetResponseHeaderLayer;
-use axum::http::header;
-
-let app = Router::new()
-    .merge(api_router())
-    .layer(SetResponseHeaderLayer::if_not_present(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff")
-    ))
-    .layer(SetResponseHeaderLayer::if_not_present(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY")
-    ))
-    .layer(SetResponseHeaderLayer::if_not_present(
-        header::STRICT_TRANSPORT_SECURITY,
-        HeaderValue::from_static("max-age=31536000; includeSubDomains")
-    ));</code></pre>
-<h2 id="logging-and-monitoring"><a class="header" href="#logging-and-monitoring">Logging and Monitoring</a></h2>
-<pre><code class="language-rust">use tracing::{info, warn, error, instrument};
-
-impl CRUDOperations for ArticleOperations {
-    #[instrument(skip(self, db))]
-    async fn before_delete(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        let user = get_current_user();
-
-        info!(
-            user_id = %user.id,
-            article_id = %id,
-            "User attempting to delete article"
-        );
-
-        // Authorization check
-        let article = Entity::find_by_id(id).one(db).await?;
-
-        if article.is_none() {
-            warn!(article_id = %id, "Attempted to delete non-existent article");
-            return Err(ApiError::NotFound);
-        }
-
-        if !user.is_admin {
-            warn!(
-                user_id = %user.id,
-                article_id = %id,
-                "Unauthorized delete attempt"
-            );
-            return Err(ApiError::Forbidden);
-        }
-
-        Ok(())
-    }
-}</code></pre>
-<h2 id="security-checklist"><a class="header" href="#security-checklist">Security Checklist</a></h2>
+<h2 id="layers-crudcrate-does-not-provide"><a class="header" href="#layers-crudcrate-does-not-provide">Layers CRUDCrate does not provide</a></h2>
+<p>Use the appropriate Axum / tower-http / axum-server layer for each.
+CRUDCrate intentionally does not wrap these.</p>
 <ul>
-<li><input disabled="" type="checkbox"> All routes require authentication (where needed)</li>
-<li><input disabled="" type="checkbox"> Authorization checks on all mutations</li>
-<li><input disabled="" type="checkbox"> Input validation on all user data</li>
-<li><input disabled="" type="checkbox"> Rate limiting configured</li>
-<li><input disabled="" type="checkbox"> CORS restricted to allowed origins</li>
-<li><input disabled="" type="checkbox"> HTTPS enabled in production</li>
-<li><input disabled="" type="checkbox"> Security headers set</li>
-<li><input disabled="" type="checkbox"> Sensitive fields excluded from responses</li>
-<li><input disabled="" type="checkbox"> Logging enabled for security events</li>
-<li><input disabled="" type="checkbox"> Database credentials not in code</li>
-<li><input disabled="" type="checkbox"> Dependencies updated regularly</li>
+<li><strong>Rate limiting</strong>: <a href="https://docs.rs/tower_governor"><code>tower-governor</code></a>,
+or a custom <code>tower::Layer</code>.</li>
+<li><strong>CORS</strong>: <a href="https://docs.rs/tower-http/latest/tower_http/cors/index.html"><code>tower_http::cors::CorsLayer</code></a>.</li>
+<li><strong>TLS termination</strong>: terminate at a reverse proxy in production, or
+use <a href="https://docs.rs/axum-server"><code>axum-server</code></a> with <code>rustls</code> for
+in-process TLS.</li>
+<li><strong>Response security headers</strong>:
+<a href="https://docs.rs/tower-http/latest/tower_http/set_header/index.html"><code>tower_http::set_header::SetResponseHeaderLayer</code></a>
+for <code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>,
+<code>Strict-Transport-Security</code>, and friends.</li>
+</ul>
+<h2 id="logging"><a class="header" href="#logging">Logging</a></h2>
+<p>Log security-relevant events through <code>tracing</code>. The hook system is the
+natural attachment point for <code>#[instrument]</code>:</p>
+<pre><code class="language-rust">#[instrument(skip(self, db))]
+async fn before_delete(
+    &amp;self,
+    db: &amp;DatabaseConnection,
+    id: Uuid,
+) -&gt; Result&lt;(), ApiError&gt; {
+    info!(article_id = %id, "delete attempted");
+    Ok(())
+}</code></pre>
+<p>A route-mount info log is emitted at startup with the resource name,
+table, <code>batch_limit</code>, <code>max_page_size</code>, and the active security
+defaults. It renders only when a <code>tracing_subscriber</code> is installed.</p>
+<h2 id="security-checklist"><a class="header" href="#security-checklist">Security checklist</a></h2>
+<ul>
+<li><input disabled="" type="checkbox"> Auth middleware wraps every route that needs to be authenticated.</li>
+<li><input disabled="" type="checkbox"> <code>before_*</code> hooks enforce authorization on mutations.</li>
+<li><input disabled="" type="checkbox"> <code>SecurityProfile::secure()</code> (or stricter) is the active profile.</li>
+<li><input disabled="" type="checkbox"> Rate limiting layer is in place.</li>
+<li><input disabled="" type="checkbox"> CORS restricted to allowed origins.</li>
+<li><input disabled="" type="checkbox"> HTTPS terminated at the load balancer or in-process.</li>
+<li><input disabled="" type="checkbox"> Security response headers set.</li>
+<li><input disabled="" type="checkbox"> Sensitive fields excluded via <code>exclude(list)</code> or <code>exclude(one)</code>.</li>
+<li><input disabled="" type="checkbox"> DB credentials sourced from environment, not source.</li>
+<li><input disabled="" type="checkbox"> <code>cargo audit</code> runs in CI.</li>
+<li><input disabled="" type="checkbox"> Dependencies updated regularly.</li>
 </ul>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
 <ul>
-<li>Learn about <a href="#performance-optimization">Performance Optimization</a></li>
-<li>Configure <a href="advanced/multi-database.html">Multi-Database Support</a></li>
-<li>Set up <a href="#custom-operations">Custom Operations</a></li>
+<li><a href="#performance-optimization">Performance Optimization</a></li>
+<li><a href="#custom-operations">Custom Operations</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="performance-optimization"><a class="header" href="#performance-optimization">Performance Optimization</a></h1>
@@ -2401,173 +2174,126 @@ where
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="custom-operations"><a class="header" href="#custom-operations">Custom Operations</a></h1>
-<p>Extend CRUDCrate’s default behavior with the <code>CRUDOperations</code> trait.</p>
-<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
-<p><code>CRUDOperations</code> provides hooks into every CRUD operation:</p>
-<pre><code class="language-rust">#[async_trait]
-pub trait CRUDOperations {
-    type Resource: CRUDResource;
-
-    // Create hooks
-    async fn before_create(&amp;self, db: &amp;DatabaseConnection, data: &amp;mut CreateModel) -&gt; Result&lt;(), ApiError&gt;;
-    async fn after_create(&amp;self, db: &amp;DatabaseConnection, created: &amp;Resource) -&gt; Result&lt;(), ApiError&gt;;
-
-    // Update hooks
-    async fn before_update(&amp;self, db: &amp;DatabaseConnection, id: PK, data: &amp;mut UpdateModel) -&gt; Result&lt;(), ApiError&gt;;
-    async fn after_update(&amp;self, db: &amp;DatabaseConnection, updated: &amp;Resource) -&gt; Result&lt;(), ApiError&gt;;
-
-    // Delete hooks
-    async fn before_delete(&amp;self, db: &amp;DatabaseConnection, id: PK) -&gt; Result&lt;(), ApiError&gt;;
-    async fn after_delete(&amp;self, db: &amp;DatabaseConnection, id: PK) -&gt; Result&lt;(), ApiError&gt;;
-
-    // Read hooks
-    async fn before_get_one(&amp;self, db: &amp;DatabaseConnection, id: PK) -&gt; Result&lt;(), ApiError&gt;;
-    async fn before_get_all(&amp;self, db: &amp;DatabaseConnection, condition: &amp;mut Condition) -&gt; Result&lt;(), ApiError&gt;;
-}</code></pre>
-<h2 id="basic-setup"><a class="header" href="#basic-setup">Basic Setup</a></h2>
-<h3 id="step-1-create-operations-struct"><a class="header" href="#step-1-create-operations-struct">Step 1: Create Operations Struct</a></h3>
-<pre><code class="language-rust">pub struct ArticleOperations;</code></pre>
-<h3 id="step-2-implement-crudoperations"><a class="header" href="#step-2-implement-crudoperations">Step 2: Implement CRUDOperations</a></h3>
+<p>The <code>CRUDOperations</code> trait is an alternative to per-attribute hooks. Implement
+it on a unit struct, override only the methods you need, and wire it in with
+<code>#[crudcrate(operations = MyOps)]</code>.</p>
+<h2 id="when-to-use-operations-vs-per-attribute-hooks"><a class="header" href="#when-to-use-operations-vs-per-attribute-hooks">When to use operations vs per-attribute hooks</a></h2>
+<p>Use <strong>operations</strong> when you want a single struct that owns all customization
+for a resource — validation, authorization, side effects. It reads like a
+controller.</p>
+<p>Use <strong>per-attribute hooks</strong> (<code>#[crudcrate(create::one::pre = validate)]</code>)
+when you only need one or two hooks and prefer keeping them close to the
+model definition.</p>
+<p>The two systems are alternatives. When <code>operations</code> is set, per-attribute
+hooks on the same resource are ignored.</p>
+<h2 id="setup-1"><a class="header" href="#setup-1">Setup</a></h2>
+<h3 id="1-define-the-operations-struct"><a class="header" href="#1-define-the-operations-struct">1. Define the operations struct</a></h3>
 <pre><code class="language-rust">use async_trait::async_trait;
 use crudcrate::{CRUDOperations, ApiError};
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
+
+pub struct AssetOps;
 
 #[async_trait]
-impl CRUDOperations for ArticleOperations {
-    type Resource = Article;
+impl CRUDOperations for AssetOps {
+    type Resource = Asset;
 
     async fn before_create(
         &amp;self,
-        _db: &amp;DatabaseConnection,
-        data: &amp;mut ArticleCreate,
+        db: &amp;DatabaseConnection,
+        data: &amp;&lt;Asset as crudcrate::traits::CRUDResource&gt;::CreateModel,
     ) -&gt; Result&lt;(), ApiError&gt; {
-        // Trim whitespace
-        data.title = data.title.trim().to_string();
-        data.content = data.content.trim().to_string();
+        // Validate, authorize, log — whatever you need
         Ok(())
     }
 
-    async fn after_create(
+    async fn before_delete(
         &amp;self,
         _db: &amp;DatabaseConnection,
-        created: &amp;Article,
+        id: Uuid,
     ) -&gt; Result&lt;(), ApiError&gt; {
-        println!("Article created: {}", created.id);
+        // Clean up S3 before the row is deleted
+        delete_from_s3(id).await
+            .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {e}"), None))?;
         Ok(())
     }
+
+    // All other methods use default no-op implementations
 }</code></pre>
-<h3 id="step-3-register-with-entity"><a class="header" href="#step-3-register-with-entity">Step 3: Register with Entity</a></h3>
+<h3 id="2-register-with-the-entity"><a class="header" href="#2-register-with-the-entity">2. Register with the entity</a></h3>
 <pre><code class="language-rust">#[derive(EntityToModels)]
-#[crudcrate(generate_router, operations = ArticleOperations)]
+#[crudcrate(generate_router, operations = AssetOps)]
 pub struct Model {
     // ...
 }</code></pre>
-<h2 id="hook-execution-order"><a class="header" href="#hook-execution-order">Hook Execution Order</a></h2>
-<h3 id="create-1"><a class="header" href="#create-1">Create</a></h3>
-<pre><code>1. Parse request body → ArticleCreate
-2. before_create(&amp;mut data)
-3. Convert to ActiveModel
-4. Insert into database
-5. after_create(&amp;created)
-6. Return response
-</code></pre>
-<h3 id="update-1"><a class="header" href="#update-1">Update</a></h3>
-<pre><code>1. Parse request body → ArticleUpdate
-2. before_update(id, &amp;mut data)
-3. Load existing record
-4. Merge updates
-5. Update database
-6. after_update(&amp;updated)
-7. Return response
-</code></pre>
-<h3 id="delete-1"><a class="header" href="#delete-1">Delete</a></h3>
-<pre><code>1. before_delete(id)
-2. Delete from database
-3. after_delete(id)
-4. Return success
-</code></pre>
-<h3 id="read"><a class="header" href="#read">Read</a></h3>
-<pre><code># get_one
-1. before_get_one(id)
-2. Query database
-3. Return response
+<h2 id="three-levels-of-customization"><a class="header" href="#three-levels-of-customization">Three levels of customization</a></h2>
+<h3 id="level-1-lifecycle-hooks"><a class="header" href="#level-1-lifecycle-hooks">Level 1: Lifecycle hooks</a></h3>
+<p><code>before_*</code> and <code>after_*</code> methods run around the default core logic.</p>
+<pre><code class="language-rust">async fn before_create(&amp;self, db: &amp;DatabaseConnection, data: &amp;CreateModel) -&gt; Result&lt;(), ApiError&gt;;
+async fn after_create(&amp;self, db: &amp;DatabaseConnection, entity: &amp;mut Self::Resource) -&gt; Result&lt;(), ApiError&gt;;
 
-# get_all
-1. before_get_all(&amp;mut condition)
-2. Query database with condition
-3. Return response
-</code></pre>
-<h2 id="common-use-cases"><a class="header" href="#common-use-cases">Common Use Cases</a></h2>
-<h3 id="input-validation-1"><a class="header" href="#input-validation-1">Input Validation</a></h3>
+async fn before_get_one(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;(), ApiError&gt;;
+async fn after_get_one(&amp;self, db: &amp;DatabaseConnection, entity: &amp;mut Self::Resource) -&gt; Result&lt;(), ApiError&gt;;</code></pre>
+<p><code>before_create</code> and <code>before_update</code> take <strong>immutable</strong> references to the
+input data. They’re for validation and authorization, not transformation.
+To transform input before insertion, override <code>perform_create</code> (level 2).</p>
+<p><code>after_*</code> hooks take <code>&amp;mut</code> references — use them for enrichment
+(computed fields, view counts, etc.).</p>
+<h3 id="level-2-core-logic-overrides"><a class="header" href="#level-2-core-logic-overrides">Level 2: Core logic overrides</a></h3>
+<p>Replace the default DB query or mutation while keeping lifecycle hooks
+around it.</p>
+<pre><code class="language-rust">async fn fetch_one(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Self::Resource, ApiError&gt; {
+    // Custom query — eg. select specific columns, add joins
+    // ...
+}
+
+async fn perform_create(&amp;self, db: &amp;DatabaseConnection, data: CreateModel) -&gt; Result&lt;Self::Resource, ApiError&gt; {
+    // Custom insertion logic — eg. transform data before insert
+    // ...
+}</code></pre>
+<h3 id="level-3-full-operation-overrides"><a class="header" href="#level-3-full-operation-overrides">Level 3: Full operation overrides</a></h3>
+<p>Replace the entire operation including lifecycle hooks. The default
+implementations orchestrate <code>before_* → core_logic → after_*</code>, so
+overriding here means you take full control.</p>
+<pre><code class="language-rust">async fn delete(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Uuid, ApiError&gt; {
+    // Completely custom — S3 cleanup, cascade, audit, everything
+    let asset = Asset::get_one(db, id).await?;
+    delete_from_s3(&amp;asset.s3_key).await?;
+    Asset::delete(db, id).await
+}</code></pre>
+<h2 id="interaction-with-joins"><a class="header" href="#interaction-with-joins">Interaction with joins</a></h2>
+<p>Entities can have both <code>operations</code> and <code>join(...)</code> fields. When they do:</p>
+<ul>
+<li>
+<p><strong><code>get_one</code> / <code>get_all</code></strong> use the standard join-loading codegen (batch
+loading, scoped child queries, FK resolution). The <code>before_get_one</code> /
+<code>after_get_one</code> and <code>before_get_all</code> / <code>after_get_all</code> hooks still fire
+around the join-loaded body.</p>
+</li>
+<li>
+<p><strong><code>fetch_one</code> / <code>fetch_all</code> overrides are bypassed</strong> when joins are
+present. Join loading needs the raw SeaORM <code>Model</code> for
+<code>model.find_related()</code>, which <code>fetch_one</code> doesn’t return (it returns
+the converted API struct). If you need full control over both the fetch
+query and join loading, use per-attribute hooks (<code>read::one::body</code>)
+instead.</p>
+</li>
+<li>
+<p><strong><code>get_one_scoped</code> / <code>get_all_scoped</code></strong> are generated with scope-aware
+join loading, same as entities without operations.</p>
+</li>
+</ul>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common patterns</a></h2>
+<h3 id="validation"><a class="header" href="#validation">Validation</a></h3>
 <pre><code class="language-rust">async fn before_create(
     &amp;self,
     _db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
+    data: &amp;ArticleCreate,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    let mut errors = Vec::new();
-
-    if data.title.len() &lt; 5 {
-        errors.push(ValidationError::new("title", "Title must be at least 5 characters"));
+    if data.title.trim().len() &lt; 5 {
+        return Err(ApiError::bad_request("Title must be at least 5 characters"));
     }
-
-    if data.title.len() &gt; 200 {
-        errors.push(ValidationError::new("title", "Title cannot exceed 200 characters"));
-    }
-
-    if data.content.is_empty() {
-        errors.push(ValidationError::new("content", "Content is required"));
-    }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(ApiError::ValidationFailed(errors))
-    }
-}</code></pre>
-<h3 id="data-transformation"><a class="header" href="#data-transformation">Data Transformation</a></h3>
-<pre><code class="language-rust">async fn before_create(
-    &amp;self,
-    _db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Generate slug from title
-    data.slug = Some(slugify(&amp;data.title));
-
-    // Sanitize HTML content
-    data.content = sanitize_html(&amp;data.content);
-
-    // Normalize tags
-    if let Some(tags) = &amp;mut data.tags {
-        *tags = tags.iter()
-            .map(|t| t.trim().to_lowercase())
-            .filter(|t| !t.is_empty())
-            .collect();
-    }
-
-    Ok(())
-}</code></pre>
-<h3 id="uniqueness-checks"><a class="header" href="#uniqueness-checks">Uniqueness Checks</a></h3>
-<pre><code class="language-rust">async fn before_create(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Check if slug already exists
-    let slug = slugify(&amp;data.title);
-
-    let exists = Entity::find()
-        .filter(Column::Slug.eq(&amp;slug))
-        .count(db)
-        .await
-        .map_err(|_| ApiError::Internal("Database error".into()))?;
-
-    if exists &gt; 0 {
-        // Append random suffix
-        data.slug = Some(format!("{}-{}", slug, random_string(6)));
-    } else {
-        data.slug = Some(slug);
-    }
-
     Ok(())
 }</code></pre>
 <h3 id="authorization-1"><a class="header" href="#authorization-1">Authorization</a></h3>
@@ -2575,281 +2301,45 @@ pub struct Model {
     &amp;self,
     db: &amp;DatabaseConnection,
     id: Uuid,
-    _data: &amp;mut ArticleUpdate,
+    _data: &amp;ArticleUpdate,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    // Get current user from context (you'd need to pass this)
-    let current_user = get_current_user();
-
-    // Load the article
     let article = Entity::find_by_id(id)
         .one(db)
         .await?
-        .ok_or(ApiError::NotFound)?;
+        .ok_or_else(|| ApiError::not_found("article", Some(id.to_string())))?;
 
-    // Check ownership
-    if article.author_id != current_user.id &amp;&amp; !current_user.is_admin {
-        return Err(ApiError::Forbidden);
+    let user = get_current_user();
+    if article.author_id != user.id &amp;&amp; !user.is_admin {
+        return Err(ApiError::forbidden("Not the author"));
     }
-
-    Ok(())
-}
-
-async fn before_delete(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    id: Uuid,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Same authorization check
-    let current_user = get_current_user();
-    let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-
-    if article.author_id != current_user.id &amp;&amp; !current_user.is_admin {
-        return Err(ApiError::Forbidden);
-    }
-
     Ok(())
 }</code></pre>
-<h3 id="cascading-operations"><a class="header" href="#cascading-operations">Cascading Operations</a></h3>
+<h3 id="enrichment-via-after-hooks"><a class="header" href="#enrichment-via-after-hooks">Enrichment via after hooks</a></h3>
+<pre><code class="language-rust">async fn after_get_one(
+    &amp;self,
+    db: &amp;DatabaseConnection,
+    entity: &amp;mut Article,
+) -&gt; Result&lt;(), ApiError&gt; {
+    entity.view_count = get_view_count(db, entity.id).await?;
+    Ok(())
+}</code></pre>
+<h3 id="cascading-deletes"><a class="header" href="#cascading-deletes">Cascading deletes</a></h3>
 <pre><code class="language-rust">async fn before_delete(
     &amp;self,
     db: &amp;DatabaseConnection,
     id: Uuid,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    // Delete related comments first
     comment::Entity::delete_many()
         .filter(comment::Column::ArticleId.eq(id))
         .exec(db)
-        .await
-        .map_err(|_| ApiError::Internal("Failed to delete comments".into()))?;
-
-    // Delete related tags
-    article_tag::Entity::delete_many()
-        .filter(article_tag::Column::ArticleId.eq(id))
-        .exec(db)
-        .await
-        .map_err(|_| ApiError::Internal("Failed to delete tags".into()))?;
-
+        .await?;
     Ok(())
 }</code></pre>
-<h3 id="notifications"><a class="header" href="#notifications">Notifications</a></h3>
-<pre><code class="language-rust">async fn after_create(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    created: &amp;Article,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Notify subscribers
-    let subscribers = get_subscribers_for_author(db, created.author_id).await?;
-
-    for subscriber in subscribers {
-        send_notification(
-            subscriber.email,
-            format!("New article: {}", created.title),
-        ).await;
-    }
-
-    Ok(())
-}</code></pre>
-<h3 id="audit-logging"><a class="header" href="#audit-logging">Audit Logging</a></h3>
-<pre><code class="language-rust">async fn after_create(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    created: &amp;Article,
-) -&gt; Result&lt;(), ApiError&gt; {
-    create_audit_log(db, AuditLog {
-        action: "CREATE",
-        entity: "Article",
-        entity_id: created.id.to_string(),
-        user_id: get_current_user().id,
-        timestamp: chrono::Utc::now(),
-        changes: serde_json::to_value(created).ok(),
-    }).await?;
-
-    Ok(())
-}
-
-async fn after_update(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    updated: &amp;Article,
-) -&gt; Result&lt;(), ApiError&gt; {
-    create_audit_log(db, AuditLog {
-        action: "UPDATE",
-        entity: "Article",
-        entity_id: updated.id.to_string(),
-        user_id: get_current_user().id,
-        timestamp: chrono::Utc::now(),
-        changes: None,  // Could include diff
-    }).await?;
-
-    Ok(())
-}</code></pre>
-<h3 id="row-level-security-1"><a class="header" href="#row-level-security-1">Row-Level Security</a></h3>
-<pre><code class="language-rust">async fn before_get_all(
-    &amp;self,
-    _db: &amp;DatabaseConnection,
-    condition: &amp;mut Condition,
-) -&gt; Result&lt;(), ApiError&gt; {
-    let current_user = get_current_user();
-
-    if !current_user.is_admin {
-        // Non-admins only see their own articles
-        *condition = condition.clone().add(Column::AuthorId.eq(current_user.id));
-    }
-
-    Ok(())
-}</code></pre>
-<h2 id="complete-example-1"><a class="header" href="#complete-example-1">Complete Example</a></h2>
-<pre><code class="language-rust">use async_trait::async_trait;
-use crudcrate::{CRUDOperations, ApiError, ValidationError};
-use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter};
-
-pub struct ArticleOperations;
-
-#[async_trait]
-impl CRUDOperations for ArticleOperations {
-    type Resource = Article;
-
-    async fn before_create(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        data: &amp;mut ArticleCreate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Validate
-        let mut errors = Vec::new();
-        if data.title.trim().len() &lt; 5 {
-            errors.push(ValidationError::new("title", "Title too short"));
-        }
-        if !errors.is_empty() {
-            return Err(ApiError::ValidationFailed(errors));
-        }
-
-        // Transform
-        data.title = data.title.trim().to_string();
-        data.slug = Some(slugify(&amp;data.title));
-
-        // Ensure unique slug
-        let mut slug = data.slug.clone().unwrap();
-        let mut counter = 1;
-        while slug_exists(db, &amp;slug).await? {
-            slug = format!("{}-{}", data.slug.as_ref().unwrap(), counter);
-            counter += 1;
-        }
-        data.slug = Some(slug);
-
-        Ok(())
-    }
-
-    async fn after_create(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        created: &amp;Article,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Log
-        tracing::info!(article_id = %created.id, "Article created");
-
-        // Index for search
-        index_article_for_search(created).await;
-
-        // Notify
-        notify_followers(db, created).await?;
-
-        Ok(())
-    }
-
-    async fn before_update(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-        data: &amp;mut ArticleUpdate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Authorize
-        let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-        let user = get_current_user();
-
-        if article.author_id != user.id &amp;&amp; !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        // Transform title if changed
-        if let Some(ref mut title) = data.title {
-            *title = title.trim().to_string();
-        }
-
-        Ok(())
-    }
-
-    async fn before_delete(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Authorize
-        let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-        let user = get_current_user();
-
-        if article.author_id != user.id &amp;&amp; !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        // Cascade delete
-        comment::Entity::delete_many()
-            .filter(comment::Column::ArticleId.eq(id))
-            .exec(db)
-            .await?;
-
-        Ok(())
-    }
-
-    async fn after_delete(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        id: Uuid,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Remove from search index
-        remove_from_search_index(id).await;
-
-        tracing::info!(article_id = %id, "Article deleted");
-
-        Ok(())
-    }
-
-    async fn before_get_all(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        condition: &amp;mut Condition,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Only show published articles (unless admin)
-        let user = get_current_user();
-        if !user.is_admin {
-            *condition = condition.clone().add(Column::Status.eq("published"));
-        }
-
-        Ok(())
-    }
-}</code></pre>
-<h2 id="default-implementation"><a class="header" href="#default-implementation">Default Implementation</a></h2>
-<p>If you don’t need all hooks, the trait has default no-op implementations:</p>
-<pre><code class="language-rust">#[async_trait]
-impl CRUDOperations for ArticleOperations {
-    type Resource = Article;
-
-    // Only implement what you need
-    async fn before_create(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        data: &amp;mut ArticleCreate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        data.title = data.title.trim().to_string();
-        Ok(())
-    }
-
-    // All other hooks use default (do nothing)
-}</code></pre>
-<h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next Steps</a></h2>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li>Learn about <a href="advanced/lifecycle-hooks.html">Lifecycle Hooks</a> for attribute-based hooks</li>
-<li>Configure <a href="advanced/validation.html">Validation</a></li>
-<li>Set up <a href="#security-best-practices">Security</a></li>
+<li><a href="reference/crudoperations-api.html">CRUDOperations API reference</a> — full trait definition and execution order</li>
+<li><a href="advanced/lifecycle-hooks.html">Lifecycle Hooks</a> — per-attribute hook alternative</li>
+<li><a href="#security-best-practices">Security</a> — SecurityProfile configuration</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h1>
@@ -3108,7 +2598,7 @@ pub field: String,</code></pre>
 <li><strong>Parameterized queries</strong> prevent SQL injection without string escaping</li>
 <li><strong>Pagination limits</strong> prevent DoS attacks (max 1000 items)</li>
 </ul>
-<h2 id="next-steps-3"><a class="header" href="#next-steps-3">Next Steps</a></h2>
+<h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next Steps</a></h2>
 <ul>
 <li>Understand <a href="concepts/entity-model.html">The Entity Model</a></li>
 <li>Learn about <a href="#generated-models">Generated Models</a></li>
@@ -3117,7 +2607,7 @@ pub field: String,</code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="generated-models"><a class="header" href="#generated-models">Generated Models</a></h1>
 <p>CRUDCrate generates four model types from your entity. Each serves a specific purpose in your API.</p>
-<h2 id="overview-1"><a class="header" href="#overview-1">Overview</a></h2>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
 <p>From this entity:</p>
 <pre><code class="language-rust">#[derive(EntityToModels)]
 #[sea_orm(table_name = "users")]
@@ -3323,7 +2813,7 @@ impl Default for UserCreate {
         }
     }
 }</code></pre>
-<h3 id="validation"><a class="header" href="#validation">Validation</a></h3>
+<h3 id="validation-1"><a class="header" href="#validation-1">Validation</a></h3>
 <p>Add validation in <code>CRUDOperations</code>:</p>
 <pre><code class="language-rust">impl CRUDOperations for UserOps {
     async fn before_create(&amp;self, data: &amp;mut UserCreate) -&gt; Result&lt;(), ApiError&gt; {
@@ -3354,7 +2844,7 @@ pub struct User {
 <li><code>join(all)</code> - Load in <code>get_all</code> too (can be expensive)</li>
 <li><code>join(one, all)</code> - Load in both</li>
 </ul>
-<h2 id="next-steps-4"><a class="header" href="#next-steps-4">Next Steps</a></h2>
+<h2 id="next-steps-3"><a class="header" href="#next-steps-3">Next Steps</a></h2>
 <ul>
 <li>Understand the <a href="concepts/crudresource-trait.html">CRUDResource Trait</a></li>
 <li>Learn about <a href="features/field-exclusion.html">Field Exclusion</a></li>
@@ -3553,7 +3043,7 @@ async fn filter_by_tenant(
     condition: &amp;mut Condition,
 ) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
 <hr>
-<h2 id="complete-example-2"><a class="header" href="#complete-example-2">Complete Example</a></h2>
+<h2 id="complete-example-1"><a class="header" href="#complete-example-1">Complete Example</a></h2>
 <pre><code class="language-rust">#[derive(EntityToModels)]
 #[crudcrate(
     generate_router,
@@ -3594,7 +3084,7 @@ pub struct Model {
 <p><strong>Note</strong>: Batch loading currently requires UUID primary keys, consistent with the <code>CRUDResource</code> trait contract.</p>
 </blockquote>
 <p>See <a href="#security-best-practices">Security</a> for partial success and batch limit configuration.</p>
-<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
+<h2 id="see-also-1"><a class="header" href="#see-also-1">See Also</a></h2>
 <ul>
 <li><a href="#field-attributes-reference">Field Attributes Reference</a></li>
 <li><a href="#custom-logic-with-hooks">Custom Logic with Hooks</a></li>
@@ -3735,7 +3225,7 @@ pub vehicles: Vec&lt;Vehicle&gt;,</code></pre>
 <strong>Effect:</strong> Enables <code>?sort=["vehicles.year","DESC"]</code>
 <strong>Security:</strong> Only listed columns can be sorted - unlisted columns fall back to default sort</p>
 <hr>
-<h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<h2 id="common-patterns-1"><a class="header" href="#common-patterns-1">Common Patterns</a></h2>
 <h3 id="auto-generated-id"><a class="header" href="#auto-generated-id">Auto-Generated ID</a></h3>
 <pre><code class="language-rust">#[sea_orm(primary_key, auto_increment = false)]
 #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -3784,7 +3274,7 @@ pub vehicles: Vec&lt;Vehicle&gt;,</code></pre>
 <pre><code class="language-rust">#[crudcrate(sortable, exclude(create, update))]
 pub view_count: i32,</code></pre>
 <hr>
-<h2 id="complete-example-3"><a class="header" href="#complete-example-3">Complete Example</a></h2>
+<h2 id="complete-example-2"><a class="header" href="#complete-example-2">Complete Example</a></h2>
 <pre><code class="language-rust">#[derive(EntityToModels)]
 #[crudcrate(generate_router)]
 #[sea_orm(table_name = "articles")]
@@ -3864,7 +3354,7 @@ pub struct Model {
 </tbody>
 </table>
 </div>
-<h2 id="see-also-1"><a class="header" href="#see-also-1">See Also</a></h2>
+<h2 id="see-also-2"><a class="header" href="#see-also-2">See Also</a></h2>
 <ul>
 <li><a href="#struct-attributes-reference">Struct Attributes Reference</a></li>
 <li><a href="#hiding-sensitive-data">Hiding Sensitive Data</a></li>
@@ -4080,7 +3570,7 @@ let condition = build_fulltext_condition(
 <pre><code class="language-bash">GET /articles?range=invalid
 </code></pre>
 <p>Falls back to default pagination.</p>
-<h2 id="see-also-2"><a class="header" href="#see-also-2">See Also</a></h2>
+<h2 id="see-also-3"><a class="header" href="#see-also-3">See Also</a></h2>
 <ul>
 <li><a href="#finding-tasks">Filtering Tutorial</a></li>
 <li><a href="#sorting-results">Sorting &amp; Pagination Tutorial</a></li>
@@ -5069,16 +4559,187 @@ pub updated_at: DateTimeUtc,</code></pre>
 <p>All notable changes to the crudcrate project will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2 id="unreleased"><a class="header" href="#unreleased"><a href="https://github.com/evanjt/crudcrate/compare/0.8.0...HEAD">Unreleased</a></a></h2>
-<h2 id="080---2026-04-17"><a class="header" href="#080---2026-04-17"><a href="https://github.com/evanjt/crudcrate/compare/0.7.2...0.8.0">0.8.0</a> - 2026-04-17</a></h2>
+<h2 id="unreleased"><a class="header" href="#unreleased"><a href="https://github.com/evanjt/crudcrate/compare/0.9.0...HEAD">Unreleased</a></a></h2>
+<h2 id="090---2026-05-19"><a class="header" href="#090---2026-05-19"><a href="https://github.com/evanjt/crudcrate/compare/0.8.1...0.9.0">0.9.0</a> - 2026-05-19</a></h2>
 <h3 id="security"><a class="header" href="#security">Security</a></h3>
+<ul>
+<li>
+<p><strong><code>SecurityProfile</code> config struct + presets</strong>. New <code>crudcrate::SecurityProfile</code>
+bundles the security-sensitive runtime defaults — strict filter parsing,
+scope propagation, deleted-ID exposure, and request body size — under one
+type with three presets: <code>SecurityProfile::secure()</code>, <code>react_admin()</code>, and
+<code>legacy()</code>. Override individual fields via Rust’s struct-update syntax:
+<code>SecurityProfile { expose_deleted_ids: true, ..SecurityProfile::secure() }</code>.</p>
+</li>
+<li>
+<p><strong>Per-resource override via derive attribute</strong>.
+<code>#[crudcrate(security_profile = "secure" | "react_admin" | "legacy")]</code>
+generates a <code>CRUDResource::security_profile()</code> impl that returns the named
+preset.</p>
+</li>
+<li>
+<p><strong>Global override via Axum extension</strong>. Apply
+<code>.layer(Extension(SecurityProfile::secure()))</code> on your router to override the
+per-resource setting at request time. Resolution order:
+<code>Extension &gt; CRUDResource::security_profile() &gt; trait default</code>.</p>
+</li>
+<li>
+<p><strong>Default profile flipped to <code>secure()</code></strong>. New resources ship hardened
+defaults. See <a href="docs/MIGRATION_0.9.html">MIGRATION_0.9.md</a> for the per-flag
+breakdown and opt-out instructions.</p>
+</li>
+<li>
+<p><strong>Explicit batch body limit</strong>. The generated router now applies an
+Axum <code>DefaultBodyLimit::max(...)</code> layer derived from
+<code>SecurityProfile::max_request_body_bytes</code> (default 2 MiB, matching axum-core’s
+baseline). Previous behavior relied on Axum’s implicit default and broke if
+any consumer wired <code>DefaultBodyLimit::disable()</code> up the tree.</p>
+</li>
+<li>
+<p><strong>Scope-propagation side-channel guard</strong>. Under <code>secure()</code> profile,
+joined filters (<code>?filter={"vehicles.color":"..."}</code>) on a child entity that
+has no <code>exclude(scoped)</code> scope condition are rejected with <code>400 Bad Request</code>
+when the request carries a <code>ScopeCondition</code>. Prevents parent-existence
+side-channels via unscoped child columns.</p>
+</li>
+<li>
+<p><strong>Strict filter parsing</strong>. Under <code>secure()</code> profile, a malformed
+<code>?filter=...</code> value returns <code>400</code> instead of silently dropping the filter
+and returning the unfiltered result.</p>
+</li>
+<li>
+<p><strong>Deleted-ID enumeration guard</strong>. Under <code>secure()</code> profile, batch delete
+responses return <code>{"deleted": N}</code> instead of the array of UUIDs that
+actually existed in the database, removing the existence-enumeration
+side-channel through the delete endpoint. react-admin frontends that rely on
+the ID array for cache invalidation should pin
+<code>SecurityProfile::react_admin()</code> or <code>legacy()</code>.</p>
+</li>
+<li>
+<p><strong>Fulltext SQL bind parameterization</strong>. The Postgres / MySQL /
+SQLite fulltext condition builders now route the user query value through
+<code>Expr::cust_with_values</code> so the value is bound as a parameter rather than
+interpolated into the SQL string. Defense-in-depth — column names were
+already compile-time-known, but raw <code>SimpleExpr::Custom(format!(...))</code> was
+removed everywhere user input could reach it.</p>
+</li>
+</ul>
+<h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<ul>
+<li>
+<p><strong>Join loading with <code>operations</code> attribute</strong>. Entities using
+<code>#[crudcrate(operations = MyOps)]</code> for create/update/delete hooks had
+their join loading silently bypassed on <code>get_one</code> and <code>get_all</code> — the
+codegen delegated entirely to <code>CRUDOperations</code> which does plain queries
+with no relation loading. The operations path now falls through to the
+standard join-loading codegen when the entity has <code>join(...)</code> fields,
+with <code>before_get_one</code>/<code>after_get_one</code> and <code>before_get_all</code>/<code>after_get_all</code>
+hooks wrapping the join-loaded body. <code>get_one_scoped</code> and <code>get_all_scoped</code>
+are also generated for this path (previously missing entirely).</p>
+</li>
+<li>
+<p><strong>FK column resolution in batch loading</strong>. The batch loader and join
+loader now resolve FK columns from the SeaORM <code>RelationDef</code> at runtime
+instead of guessing from the struct name convention. Joins with
+non-standard FK names (eg. <code>author_ref</code> instead of <code>author_id</code>) now
+load correctly.</p>
+</li>
+</ul>
+<h3 id="changed"><a class="header" href="#changed">Changed</a></h3>
+<ul>
+<li>
+<p>Replaced unmaintained <code>impls = "1"</code> (no release since 2019) with an
+inline <code>crudcrate::impls!</code> macro. Same autoref-specialization semantics,
+30 LOC, no behavior change.</p>
+</li>
+<li>
+<p>Workspace dependencies bumped: <code>axum 0.8.6 → 0.8.9</code>, <code>sea-orm 1.1.19 → 1.1.20</code>, <code>serde_json → 1.0.149</code>, <code>uuid → 1.23.1</code>, <code>tokio → 1.52.3</code>,
+<code>chrono → 0.4.44</code>, <code>tower-http → 0.6.11</code>, <code>utoipa → 5.5.0</code>, plus
+proc-macro and <code>rust_decimal</code> patches.</p>
+</li>
+<li>
+<p><code>url-escape</code> (unmaintained dev dep) replaced with <code>percent-encoding</code>.</p>
+</li>
+</ul>
+<h3 id="documentation"><a class="header" href="#documentation">Documentation</a></h3>
+<ul>
+<li><code>README.md</code>: added security caveat for the <code>mysql</code> feature, which pulls in
+<code>rsa 0.9.10</code> (RUSTSEC-2023-0071, Marvin attack — no upstream fix).</li>
+</ul>
+<h2 id="081---2026-05-19"><a class="header" href="#081---2026-05-19"><a href="https://github.com/evanjt/crudcrate/compare/0.8.0...0.8.1">0.8.1</a> - 2026-05-19</a></h2>
+<h3 id="security-1"><a class="header" href="#security-1">Security</a></h3>
+<ul>
+<li>
+<p><strong>Filter clause limit</strong>. Requests with more than 100 filter keys are
+rejected with <code>400 Bad Request</code> (<code>MAX_FILTER_CLAUSES = 100</code>). Prevents
+query-planning DoS via oversized filter payloads.</p>
+</li>
+<li>
+<p><strong>DB error sanitization</strong>. Internal database error messages are stripped
+from client-facing responses. Only a generic prefix is returned; the
+full error is logged via <code>tracing</code>.</p>
+</li>
+</ul>
+<h3 id="added"><a class="header" href="#added">Added</a></h3>
+<ul>
+<li>
+<p><strong>Joined filters are now applied by the default handler</strong>. Requests like
+<code>GET /customers?filter={"vehicles.make":"BMW"}</code> previously parsed and
+whitelisted the filter but silently dropped it before hitting the
+database — users got unfiltered results. The default <code>get_all_handler</code>
+now resolves each <code>JoinedFilter</code> into a sub-query on the child table
+(with the child’s <code>ScopeFilterable::scope_condition()</code> applied), collects
+matching parent-FK values, and adds <code>id IN (...)</code> to the main condition.
+Query shape: one extra <code>SELECT parent_fk FROM child WHERE ...</code> per
+joined-filter field plus the usual list + count queries — no JOIN, no
+<code>DISTINCT</code>. Backed by <code>test_suite/tests/joined_filter_http_test.rs</code> and
+a runnable <code>cargo run --example joined_filter</code>.</p>
+</li>
+<li>
+<p><strong>New <code>CRUDResource::resolve_joined_filters</code> trait method</strong>. Takes the
+parsed condition plus the <code>&amp;[JoinedFilter]</code> list and returns the
+augmented condition to use for both the list query and the count query.
+Default impl logs and returns the condition unchanged (backward
+compatible for non-derive users); the derive macro generates an override
+for every resource that declares <code>join(..., filterable(...))</code> on any
+<code>Vec&lt;Child&gt;</code> field.</p>
+</li>
+<li>
+<p><strong>New public helper <code>crudcrate::build_comparison_expr</code></strong>. Translates a
+column + <code>FilterOperator</code> + <code>serde_json::Value</code> into an
+<code>Option&lt;SimpleExpr&gt;</code> for use in custom filter resolvers.</p>
+</li>
+</ul>
+<h3 id="changed-1"><a class="header" href="#changed-1">Changed</a></h3>
+<ul>
+<li>
+<p><code>crudcrate::filtering::ParsedFilters::joined_filters</code> is now consumed by
+the handler (previously only populated by the parser and read by tests).
+No API change — the field was already public.</p>
+</li>
+<li>
+<p>Pruned unused dependencies from the workspace.</p>
+</li>
+</ul>
+<h3 id="documentation-1"><a class="header" href="#documentation-1">Documentation</a></h3>
+<ul>
+<li><code>docs/src/features/filtering.md</code> “Filtering on Related Entities”
+rewritten to describe the actual query shape, scope-safety guarantees,
+and the <code>Vec&lt;Child&gt;</code>-only limitation. Removed the stale “requires a
+custom <code>read::many::body</code> hook” note.</li>
+<li><code>docs/src/features/relationships.md</code> migrated from the deprecated
+<code>join_filterable(...)</code> / <code>join_sortable(...)</code> syntax to the current
+<code>filterable(...)</code> / <code>sortable(...)</code> inside <code>join(...)</code>.</li>
+</ul>
+<h2 id="080---2026-04-17"><a class="header" href="#080---2026-04-17"><a href="https://github.com/evanjt/crudcrate/compare/0.7.2...0.8.0">0.8.0</a> - 2026-04-17</a></h2>
+<h3 id="security-2"><a class="header" href="#security-2">Security</a></h3>
 <ul>
 <li><strong>Atomic scope check in <code>get_one</code></strong>: Scoped <code>get_one</code> requests now verify the scope condition in a single query (ID + scope filter), eliminating a TOCTOU race where a separate <code>total_count()</code> verification could see stale data between the fetch and the check.</li>
 <li><strong>FK column runtime validation</strong>: The derive macro generates <code>#[cfg(test)]</code> functions that verify convention-derived FK column names match the actual <code>RelationDef</code> from SeaORM at test time. Catches silent data mismatches from FK naming convention violations before they reach production.</li>
 <li><strong>SQL-level scope filtering for joins (all endpoints, all depths)</strong>: Child entities with <code>exclude(scoped)</code> fields are now filtered at the SQL level (<code>WHERE is_private = false</code>) during join loading on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code>, and at <strong>every</strong> depth when <code>depth &gt; 1</code>. The scoped batch loader applies each child’s <code>ScopeFilterable::scope_condition()</code> to its <code>Entity::find().filter(FK in parent_ids)</code> query, and recurses via <code>get_one_scoped</code> (not <code>get_one</code>) for nested children. The in-memory <code>ScopeFilterable::is_scope_visible()</code> filter remains as defense-in-depth, but privacy is now enforced in the database, not just at serialisation time — private rows never leave Postgres on public endpoints.</li>
 <li><strong><code>require_scope</code> attribute</strong>: New <code>#[crudcrate(require_scope)]</code> struct-level attribute. When set, read handlers return HTTP 500 if no <code>ScopeCondition</code> middleware is present — catches misconfigured routes that should be scoped but aren’t.</li>
 </ul>
-<h3 id="added"><a class="header" href="#added">Added</a></h3>
+<h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
 <ul>
 <li>
 <p><strong>Struct-level join definitions</strong>: Join fields can now be defined at the struct level instead of on the SeaORM Model. This keeps the Model lightweight and avoids stack overflow when loading entities with heavy join types. The join field only exists on the generated API struct.</p>
@@ -5115,19 +4776,19 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <p><strong><code>get_one_scoped</code> / <code>get_all_scoped</code></strong>: New <code>CRUDResource</code> trait methods with scope-aware query variants. Default implementations delegate to the non-scoped <code>get_one</code> / <code>get_all</code> (safe for resources without <code>join(all)</code> children). The derive macro overrides both with SQL-level child-scope propagation. <code>get_all_handler</code> dispatches to <code>get_all_scoped</code> whenever a <code>ScopeCondition</code> extension is present.</p>
 </li>
 </ul>
-<h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
 <ul>
 <li><strong>Stack overflow with many joins</strong>: All join-loading futures are now <code>Box::pin</code>ned, moving large async state off the stack. Prevents stack overflow in debug builds with many join fields.</li>
 <li><strong>Async state machine bloat in debug builds</strong>: All join-loading futures are wrapped in <code>Box::pin</code>, preventing debug-build async state machine bloat from <code>Related&lt;E&gt;</code> monomorphization.</li>
 </ul>
-<h3 id="changed"><a class="header" href="#changed">Changed</a></h3>
+<h3 id="changed-2"><a class="header" href="#changed-2">Changed</a></h3>
 <ul>
 <li><strong><code>depth = 0</code> is now a compile error</strong>: Use <code>depth = 1</code> for shallow loading. Previously <code>depth = 0</code> could cause infinite recursion at runtime.</li>
 <li><strong>Compile-time bidirectional relation detection</strong>: Joins targeting an entity that has a <code>Related&lt;Self&gt;</code> impl (bidirectional/cyclic relationship) now produce a compile error unless an explicit <code>depth</code> is set. Previously, these silently caused infinite recursion at runtime via SeaORM’s <code>Relation::def()</code> chain. The error message explains the cycle and suggests the fix.</li>
 <li><strong>Compile-time warnings for risky join depths</strong>: Self-referencing joins without an explicit <code>depth</code> and joins with <code>depth &gt; 5</code> now emit <code>#[deprecated]</code> warnings at compile time, guiding users to set safe depth values.</li>
 </ul>
 <h2 id="072---2026-03-27"><a class="header" href="#072---2026-03-27"><a href="https://github.com/evanjt/crudcrate/compare/0.7.1...0.7.2">0.7.2</a> - 2026-03-27</a></h2>
-<h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
+<h3 id="added-2"><a class="header" href="#added-2">Added</a></h3>
 <ul>
 <li><strong>Automatic enum field detection</strong>: Fields with types implementing <code>sea_orm::ActiveEnum</code> are now detected at compile time — no <code>#[crudcrate(enum_field)]</code> annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field’s type.</li>
 <li><strong>Case-insensitive enum array filtering</strong>: Array/IN filters on enum fields now apply <code>UPPER(CAST(col AS TEXT))</code> on Postgres, matching the case-insensitive behavior already used for single-value enum filters.</li>
@@ -5136,12 +4797,12 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <ul>
 <li><strong><code>#[crudcrate(enum_field)]</code></strong>: No longer required. Enum fields are auto-detected from the <code>ActiveEnum</code> trait implementation. The attribute still works for backward compatibility but can be safely removed.</li>
 </ul>
-<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
+<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
 <ul>
 <li><strong>Array/IN filtering on enum fields</strong>: <code>process_array_filter()</code> now handles enum fields by casting to TEXT and uppercasing on Postgres. Previously, array filters on enum columns could fail on native Postgres ENUM types or produce case-sensitive results.</li>
 </ul>
 <h2 id="071---2026-03-09"><a class="header" href="#071---2026-03-09"><a href="https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1">0.7.1</a> - 2026-03-09</a></h2>
-<h3 id="added-2"><a class="header" href="#added-2">Added</a></h3>
+<h3 id="added-3"><a class="header" href="#added-3">Added</a></h3>
 <ul>
 <li><strong>Transform Hooks</strong>: New <code>transform</code> phase in hook system for result modification
 <ul>
@@ -5189,7 +4850,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><strong>Documentation Test Links</strong>: New mdbook preprocessor linking documentation examples to test files</li>
 <li><strong>IDE Documentation</strong>: Comprehensive attribute reference in crate-level documentation</li>
 </ul>
-<h3 id="changed-1"><a class="header" href="#changed-1">Changed</a></h3>
+<h3 id="changed-3"><a class="header" href="#changed-3">Changed</a></h3>
 <ul>
 <li><strong>Documentation Overhaul</strong>: Complete restructure of tutorial documentation
 <ul>
@@ -5206,7 +4867,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><code>BATCH_LIMIT</code> and <code>MAX_PAGE_SIZE</code> changed from associated constants to trait methods for runtime overridability</li>
 <li>Batch loading uses <code>.remove()</code> from HashMap instead of <code>.get().cloned()</code> — moves data instead of copying</li>
 </ul>
-<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
+<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
 <ul>
 <li>UUID array filtering now passes native <code>Uuid</code> values to <code>is_in()</code> instead of stringified values, fixing incorrect query generation for UUID column arrays</li>
 <li><code>max_page_size()</code> trait method now enforced in HTTP pagination handler</li>
@@ -5228,13 +4889,13 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><strong>Documentation</strong>: Legacy tutorial structure replaced by progressive tutorials</li>
 </ul>
 <h2 id="070---2025-11-26"><a class="header" href="#070---2025-11-26"><a href="https://github.com/evanjt/crudcrate/compare/0.6.1...0.7.0">0.7.0</a> - 2025-11-26</a></h2>
-<h3 id="security-1"><a class="header" href="#security-1">Security</a></h3>
+<h3 id="security-3"><a class="header" href="#security-3">Security</a></h3>
 <ul>
 <li>Harden search queries with proper wildcard escaping</li>
 <li>Improve input sanitization in filtering and pagination</li>
 <li>Add pagination limits to prevent excessive queries</li>
 </ul>
-<h3 id="added-3"><a class="header" href="#added-3">Added</a></h3>
+<h3 id="added-4"><a class="header" href="#added-4">Added</a></h3>
 <ul>
 <li><strong>Join Filtering</strong>: Filter by related entity columns using dot-notation syntax
 <ul>
@@ -5271,7 +4932,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Lifecycle hooks in <code>CRUDOperations</code> trait</li>
 <li>Improved test coverage across modules</li>
 </ul>
-<h3 id="changed-2"><a class="header" href="#changed-2">Changed</a></h3>
+<h3 id="changed-4"><a class="header" href="#changed-4">Changed</a></h3>
 <ul>
 <li>Major codebase refactoring (38% size reduction)
 <ul>
@@ -5285,7 +4946,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Replace <code>eprintln!</code> with <code>tracing</code> for logging</li>
 <li>Legacy <code>fn_*</code> attributes auto-map to new hook syntax</li>
 </ul>
-<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
+<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
 <ul>
 <li>Improved error handling in join path parsing</li>
 <li>Fixed flaky tests with serial execution</li>
@@ -5307,13 +4968,13 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Added <code>tracing</code> for structured logging</li>
 </ul>
 <h2 id="061---2025-11-03"><a class="header" href="#061---2025-11-03"><a href="https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1">0.6.1</a> - 2025-11-03</a></h2>
-<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
+<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
 <ul>
 <li>Global path resolution of joined structs</li>
 <li>Restructuring of crudcrate-derive into smaller modules, bit by bit.</li>
 </ul>
 <h2 id="060---2025-10-31"><a class="header" href="#060---2025-10-31"><a href="https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0">0.6.0</a> - 2025-10-31</a></h2>
-<h3 id="added-4"><a class="header" href="#added-4">Added</a></h3>
+<h3 id="added-5"><a class="header" href="#added-5">Added</a></h3>
 <ul>
 <li><strong>Recursive Join Loading</strong>: Multi-level relationship loading with <code>#[crudcrate(join(one, all))]</code> attribute</li>
 <li>Cyclic dependency detection at compile-time with actionable error messages</li>
@@ -5323,12 +4984,12 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>New <code>recursive_join</code> example demonstrating nested relationship loading</li>
 <li>Debug output functionality for procedural macros with <code>debug_output</code> attribute</li>
 </ul>
-<h3 id="changed-3"><a class="header" href="#changed-3">Changed</a></h3>
+<h3 id="changed-5"><a class="header" href="#changed-5">Changed</a></h3>
 <ul>
 <li><strong>derive</strong>: Removed requirement for <code>Eq</code> and <code>PartialEq</code> derives on generated API structs</li>
 <li><strong>derive</strong>: Improved multi-pass code generation to handle cyclic dependencies</li>
 </ul>
-<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
+<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
 <ul>
 <li>Database test cleanup logic for PostgreSQL and MySQL backends</li>
 <li>Relationship loading in <code>get_one()</code> and <code>get_all()</code> endpoints</li>
@@ -5338,12 +4999,12 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><strong>derive</strong>: Updated with recursive join support, cyclic dependency detection, and enhanced attribute parsing</li>
 </ul>
 <h2 id="050---2025-08-28"><a class="header" href="#050---2025-08-28"><a href="https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0">0.5.0</a> - 2025-08-28</a></h2>
-<h3 id="added-5"><a class="header" href="#added-5">Added</a></h3>
+<h3 id="added-6"><a class="header" href="#added-6">Added</a></h3>
 <ul>
 <li>Spring-RS framework support with minimal example in <code>/examples</code></li>
 <li>Restored CRUD benchmarks from 0.4.5</li>
 </ul>
-<h3 id="changed-4"><a class="header" href="#changed-4">Changed</a></h3>
+<h3 id="changed-6"><a class="header" href="#changed-6">Changed</a></h3>
 <ul>
 <li>Moved <code>crudcrate-derive</code> and examples into repository</li>
 <li>Simplified framework architecture - removed redundant code generation paths</li>
@@ -5354,37 +5015,37 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>BREAKING: Case-sensitive enum filtering functionality</li>
 </ul>
 <h2 id="045---2025-08-25"><a class="header" href="#045---2025-08-25"><a href="https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5">0.4.5</a> - 2025-08-25</a></h2>
-<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
+<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
 <ul>
 <li>Batch delete endpoints now returns the array of successfully deleted resource UUIDs, suitable for a react-admin batch delete response.</li>
 </ul>
 <h2 id="044---2025-08-20"><a class="header" href="#044---2025-08-20"><a href="https://github.com/evanjt/crudcrate/compare/0.4.3...0.4.4">0.4.4</a> - 2025-08-20</a></h2>
-<h3 id="added-6"><a class="header" href="#added-6">Added</a></h3>
+<h3 id="added-7"><a class="header" href="#added-7">Added</a></h3>
 <ul>
 <li>Index analysis system for database optimization recommendations</li>
 <li><code>analyse_indexes_for_resource</code> and <code>analyse_all_registered_models</code> functions</li>
 <li>Database-specific index recommendations with priority-based output</li>
 </ul>
-<h3 id="changed-5"><a class="header" href="#changed-5">Changed</a></h3>
+<h3 id="changed-7"><a class="header" href="#changed-7">Changed</a></h3>
 <ul>
 <li><strong>BREAKING</strong> (if still using CRUDResource manually): Added required <code>TABLE_NAME</code>
 constant to <code>CRUDResource</code> trait. This does not affect <code>EntityToModel</code> functionality.</li>
 <li>Made <code>validate_field_value</code> function const</li>
 <li>Improved code organization with extracted helper functions</li>
 </ul>
-<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
+<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
 <ul>
 <li>All clippy warnings (pessimistic and pedantic)</li>
 <li>Test compilation errors and naming inconsistencies</li>
 <li>Documentation examples and missing trait implementations</li>
 </ul>
 <h2 id="043---2025-08-19"><a class="header" href="#043---2025-08-19"><a href="https://github.com/evanjt/crudcrate/compare/0.4.2...0.4.3">0.4.3</a> - 2025-08-19</a></h2>
-<h3 id="added-7"><a class="header" href="#added-7">Added</a></h3>
+<h3 id="added-8"><a class="header" href="#added-8">Added</a></h3>
 <ul>
 <li><strong>Testing</strong>: Integration tests for <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
 <li><strong>Testing</strong>: Comprehensive test suite for <code>use_target_models</code> functionality with cross-model referencing</li>
 </ul>
-<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
+<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Resolved lingering compilation errors from List model update</li>
 <li><strong>derive</strong>: Fixed test compatibility issues following List model integration</li>
@@ -5395,7 +5056,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to latest version with enhanced List model support and improved compatibility</li>
 </ul>
 <h2 id="042---2025-08-18"><a class="header" href="#042---2025-08-18"><a href="https://github.com/evanjt/crudcrate/compare/0.4.1...0.4.2">0.4.2</a> - 2025-08-18</a></h2>
-<h3 id="added-8"><a class="header" href="#added-8">Added</a></h3>
+<h3 id="added-9"><a class="header" href="#added-9">Added</a></h3>
 <ul>
 <li><strong>List Model Support</strong>: New <code>List</code> model generation capability for customizing fields returned in list/getAll endpoints, similar to Create and Update models</li>
 <li>Generated List model behavior with field deselection support</li>
@@ -5404,13 +5065,13 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced target model usage with CRUDResource structs for cross-model referencing</li>
 <li><strong>derive</strong>: Automatic <code>From&lt;&gt;</code> trait generation for List structs from Sea-ORM DB models</li>
 </ul>
-<h3 id="changed-6"><a class="header" href="#changed-6">Changed</a></h3>
+<h3 id="changed-8"><a class="header" href="#changed-8">Changed</a></h3>
 <ul>
 <li><strong>derive</strong>: Improved trait compatibility by re-adding <code>PartialEq</code>, <code>Eq</code>, <code>Debug</code>, and <code>Clone</code> derives to models for Sea-ORM compatibility</li>
 <li><strong>derive</strong>: Route generation now uses root-level paths instead of prefixed routes for better user control</li>
 <li><strong>derive</strong>: Enhanced <code>use_target_models</code> functionality for better cross-model integration</li>
 </ul>
-<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
+<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Fixed ActiveModel generation when create model excludes keys</li>
 <li><strong>derive</strong>: Fixed <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
@@ -5423,7 +5084,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.2.6 with List model support, reserved field handling, and enhanced model generation capabilities</li>
 </ul>
 <h2 id="041---2025-08-05"><a class="header" href="#041---2025-08-05"><a href="https://github.com/evanjt/crudcrate/compare/0.4.0...0.4.1">0.4.1</a> - 2025-08-05</a></h2>
-<h3 id="added-9"><a class="header" href="#added-9">Added</a></h3>
+<h3 id="added-10"><a class="header" href="#added-10">Added</a></h3>
 <ul>
 <li>Index analysis functionality with <code>analyze_indexes_for_resource()</code> and <code>analyze_and_display_indexes()</code> methods</li>
 <li>Full-text search support in filtering system with <code>fulltext_searchable_columns()</code> method</li>
@@ -5435,7 +5096,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Database feature flags for selective driver compilation (<code>mysql</code>, <code>postgresql</code>, <code>sqlite</code>)</li>
 <li>Binary size optimization through conditional database driver inclusion</li>
 </ul>
-<h3 id="changed-7"><a class="header" href="#changed-7">Changed</a></h3>
+<h3 id="changed-9"><a class="header" href="#changed-9">Changed</a></h3>
 <ul>
 <li>Enhanced filtering system with enum case insensitivity and improved edge case handling</li>
 <li>Updated README with minimal examples and comprehensive testing documentation</li>
@@ -5446,7 +5107,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Sea-ORM dependency now uses <code>default-features = false</code> with selective feature enabling</li>
 <li>Enhanced README with database feature selection examples</li>
 </ul>
-<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
+<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
 <ul>
 <li>Enum filtering now supports case-insensitive matching</li>
 <li>Filter edge cases handle malformed JSON gracefully</li>
@@ -5460,7 +5121,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Removed Clone derives from generated structs to reduce memory overhead</li>
 </ul>
 <h2 id="040---2025-07-17"><a class="header" href="#040---2025-07-17"><a href="https://github.com/evanjt/crudcrate/compare/0.3.3...0.4.0">0.4.0</a> - 2025-07-17</a></h2>
-<h3 id="added-10"><a class="header" href="#added-10">Added</a></h3>
+<h3 id="added-11"><a class="header" href="#added-11">Added</a></h3>
 <ul>
 <li><strong>Enhanced Router Generation</strong>: Automatic router generation via <code>generate_router</code> attribute in <code>EntityToModels</code> macro</li>
 <li><strong>Non-Database Field Support</strong>: Complete support for non-DB fields using <code>#[sea_orm(ignore)]</code> + <code>#[crudcrate(non_db_attr = true)]</code> pattern</li>
@@ -5471,7 +5132,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced support for non-database fields with proper Sea-ORM integration</li>
 <li><strong>derive</strong>: Comprehensive integration tests and restructured codebase</li>
 </ul>
-<h3 id="changed-8"><a class="header" href="#changed-8">Changed</a></h3>
+<h3 id="changed-10"><a class="header" href="#changed-10">Changed</a></h3>
 <ul>
 <li>Enhanced <code>EntityToModels</code> macro to automatically generate router functions</li>
 <li>Improved documentation with comprehensive non-DB field examples</li>
@@ -5479,23 +5140,23 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced <code>ToCreateModel</code> and <code>ToUpdateModel</code> with new trait system</li>
 <li><strong>derive</strong>: Added <code>MergeIntoActiveModel</code> trait implementation</li>
 </ul>
-<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
+<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Test infrastructure improvements and better error handling in macro generation</li>
 </ul>
 <h2 id="033---2025-06-23"><a class="header" href="#033---2025-06-23"><a href="https://github.com/evanjt/crudcrate/compare/0.3.2...0.3.3">0.3.3</a> - 2025-06-23</a></h2>
-<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
+<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
 <ul>
 <li>Fix newline formatting in auto-generated OpenAPI documentation</li>
 <li>Remove debug messages from production builds</li>
 </ul>
-<h3 id="changed-9"><a class="header" href="#changed-9">Changed</a></h3>
+<h3 id="changed-11"><a class="header" href="#changed-11">Changed</a></h3>
 <ul>
 <li>Accept enum exact comparison in filter queries</li>
 <li>Filter on integer columns support</li>
 </ul>
 <h2 id="032---2025-06-06"><a class="header" href="#032---2025-06-06"><a href="https://github.com/evanjt/crudcrate/compare/0.3.1...0.3.2">0.3.2</a> - 2025-06-06</a></h2>
-<h3 id="changed-10"><a class="header" href="#changed-10">Changed</a></h3>
+<h3 id="changed-12"><a class="header" href="#changed-12">Changed</a></h3>
 <ul>
 <li>Bump dependencies including crudcrate-derive for improved <code>into()</code> casting support</li>
 </ul>
@@ -5504,18 +5165,18 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.6 with improved <code>.into()</code> casting support and enhanced field attribute handling</li>
 </ul>
 <h2 id="031---2025-05-12"><a class="header" href="#031---2025-05-12"><a href="https://github.com/evanjt/crudcrate/compare/0.3.0...0.3.1">0.3.1</a> - 2025-05-12</a></h2>
-<h3 id="changed-11"><a class="header" href="#changed-11">Changed</a></h3>
+<h3 id="changed-13"><a class="header" href="#changed-13">Changed</a></h3>
 <ul>
 <li>Update lockfile and enhance filtering capabilities for enum and integer columns</li>
 </ul>
 <h2 id="030---2025-04-05"><a class="header" href="#030---2025-04-05"><a href="https://github.com/evanjt/crudcrate/compare/0.2.5...0.3.0">0.3.0</a> - 2025-04-05</a></h2>
-<h3 id="added-11"><a class="header" href="#added-11">Added</a></h3>
+<h3 id="added-12"><a class="header" href="#added-12">Added</a></h3>
 <ul>
 <li><strong>Major</strong>: Default implementations for <code>get_one</code>, <code>get_all</code>, and <code>update_one</code> in <code>CRUDResource</code> trait</li>
 <li>New <code>MergeIntoActiveModel</code> trait for improved update model handling</li>
 <li>Enhanced derive macro integration with new trait system</li>
 </ul>
-<h3 id="changed-12"><a class="header" href="#changed-12">Changed</a></h3>
+<h3 id="changed-14"><a class="header" href="#changed-14">Changed</a></h3>
 <ul>
 <li>Restructured core trait system for better usability</li>
 <li>Updated derive macro to reference new <code>MergeIntoActiveModel</code> trait</li>
@@ -5525,19 +5186,19 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.5 with <code>IntoActiveModel</code> trait for <code>UpdateModel</code> and improved trait derivations</li>
 </ul>
 <h2 id="025---2025-04-04"><a class="header" href="#025---2025-04-04"><a href="https://github.com/evanjt/crudcrate/compare/0.2.4...0.2.5">0.2.5</a> - 2025-04-04</a></h2>
-<h3 id="added-12"><a class="header" href="#added-12">Added</a></h3>
+<h3 id="added-13"><a class="header" href="#added-13">Added</a></h3>
 <ul>
 <li>Export <code>serde_with</code> for better serialization support</li>
 <li>Enhanced error responses in API endpoints</li>
 <li>Documentation for query parameters</li>
 </ul>
-<h3 id="changed-13"><a class="header" href="#changed-13">Changed</a></h3>
+<h3 id="changed-15"><a class="header" href="#changed-15">Changed</a></h3>
 <ul>
 <li>Renamed <code>openapi.rs</code> to <code>routes.rs</code> for better organization</li>
 <li>Updated dependencies</li>
 </ul>
 <h2 id="024---2025-03-11"><a class="header" href="#024---2025-03-11"><a href="https://github.com/evanjt/crudcrate/compare/0.2.3...0.2.4">0.2.4</a> - 2025-03-11</a></h2>
-<h3 id="added-13"><a class="header" href="#added-13">Added</a></h3>
+<h3 id="added-14"><a class="header" href="#added-14">Added</a></h3>
 <ul>
 <li>Description string support in CRUDResource</li>
 <li>Auto-populated summary and description for macro-generated endpoints</li>
@@ -5548,28 +5209,28 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.4 with improved serialization support using exported <code>serde_with</code></li>
 </ul>
 <h2 id="023---2025-03-07"><a class="header" href="#023---2025-03-07"><a href="https://github.com/evanjt/crudcrate/compare/0.2.2...0.2.3">0.2.3</a> - 2025-03-07</a></h2>
-<h3 id="added-14"><a class="header" href="#added-14">Added</a></h3>
+<h3 id="added-15"><a class="header" href="#added-15">Added</a></h3>
 <ul>
 <li>Comprehensive OpenAPI macro support</li>
 <li>Better API documentation generation</li>
 </ul>
-<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
+<h3 id="fixed-14"><a class="header" href="#fixed-14">Fixed</a></h3>
 <ul>
 <li>Improved error responses in endpoints</li>
 </ul>
 <h2 id="022---2025-03-06"><a class="header" href="#022---2025-03-06"><a href="https://github.com/evanjt/crudcrate/compare/0.2.1...0.2.2">0.2.2</a> - 2025-03-06</a></h2>
-<h3 id="added-15"><a class="header" href="#added-15">Added</a></h3>
+<h3 id="added-16"><a class="header" href="#added-16">Added</a></h3>
 <ul>
 <li>Documentation for query parameters</li>
 </ul>
 <h2 id="021---2025-03-05"><a class="header" href="#021---2025-03-05"><a href="https://github.com/evanjt/crudcrate/compare/0.2.0...0.2.1">0.2.1</a> - 2025-03-05</a></h2>
-<h3 id="added-16"><a class="header" href="#added-16">Added</a></h3>
+<h3 id="added-17"><a class="header" href="#added-17">Added</a></h3>
 <ul>
 <li>Description string support in CRUDResource</li>
 <li>Auto-populated summary and description for macro-generated endpoints</li>
 </ul>
 <h2 id="020---2025-03-05"><a class="header" href="#020---2025-03-05"><a href="https://github.com/evanjt/crudcrate/compare/0.1.4...0.2.0">0.2.0</a> - 2025-03-05</a></h2>
-<h3 id="changed-14"><a class="header" href="#changed-14">Changed</a></h3>
+<h3 id="changed-16"><a class="header" href="#changed-16">Changed</a></h3>
 <ul>
 <li><strong>Breaking</strong>: Major refactor from route-based to macro-based approach</li>
 <li>Introduced <code>crud_handlers!</code> macro for generating CRUD endpoints</li>
@@ -5580,13 +5241,13 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Legacy route-based implementation</li>
 </ul>
 <h2 id="014---2025-03-03"><a class="header" href="#014---2025-03-03"><a href="https://github.com/evanjt/crudcrate/compare/0.1.3...0.1.4">0.1.4</a> - 2025-03-03</a></h2>
-<h3 id="fixed-14"><a class="header" href="#fixed-14">Fixed</a></h3>
+<h3 id="fixed-15"><a class="header" href="#fixed-15">Fixed</a></h3>
 <ul>
 <li>Fixed return type of <code>delete_one</code> handler</li>
 <li>Applied clippy suggestions for performance improvements</li>
 </ul>
 <h2 id="013---2025-02-19"><a class="header" href="#013---2025-02-19"><a href="https://github.com/evanjt/crudcrate/compare/0.1.2...0.1.3">0.1.3</a> - 2025-02-19</a></h2>
-<h3 id="changed-15"><a class="header" href="#changed-15">Changed</a></h3>
+<h3 id="changed-17"><a class="header" href="#changed-17">Changed</a></h3>
 <ul>
 <li>Update crudcrate-derive to allow non-db parameters in update/create models</li>
 </ul>
@@ -5595,7 +5256,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.3 with support for auxiliary attributes in structs that don’t relate to DB model</li>
 </ul>
 <h2 id="012---2025-02-18"><a class="header" href="#012---2025-02-18"><a href="https://github.com/evanjt/crudcrate/compare/0.1.0...0.1.2">0.1.2</a> - 2025-02-18</a></h2>
-<h3 id="changed-16"><a class="header" href="#changed-16">Changed</a></h3>
+<h3 id="changed-18"><a class="header" href="#changed-18">Changed</a></h3>
 <ul>
 <li>Update proc macro to 0.1.2</li>
 </ul>
@@ -5604,7 +5265,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.2 with improved trait derivations (Clone instead of Copy where appropriate)</li>
 </ul>
 <h2 id="010---2025-02-18"><a class="header" href="#010---2025-02-18"><a href="https://github.com/evanjt/crudcrate/releases/tag/0.1.0">0.1.0</a> - 2025-02-18</a></h2>
-<h3 id="added-17"><a class="header" href="#added-17">Added</a></h3>
+<h3 id="added-18"><a class="header" href="#added-18">Added</a></h3>
 <ul>
 <li>Initial release of crudcrate</li>
 <li>Basic CRUD operation framework</li>
@@ -5650,11 +5311,11 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="book-c22b7243.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="theme/version-selector-f75b1977.js"></script>

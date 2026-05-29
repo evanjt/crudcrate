@@ -15,8 +15,8 @@
         <link rel="icon" href="../favicon-30a6d5ba.svg">
         <link rel="shortcut icon" href="../favicon-d66b1601.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-0392ca55.css">
+        <link rel="stylesheet" href="../css/chrome-fc474251.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-d0e21c4b.js";
+            window.path_to_searchindex_js = "../searchindex-eca0d391.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8bb2dc99.js"></script>
+        <script src="../toc-e10d79e3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -179,173 +179,126 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="custom-operations"><a class="header" href="#custom-operations">Custom Operations</a></h1>
-<p>Extend CRUDCrate’s default behavior with the <code>CRUDOperations</code> trait.</p>
-<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
-<p><code>CRUDOperations</code> provides hooks into every CRUD operation:</p>
-<pre><code class="language-rust">#[async_trait]
-pub trait CRUDOperations {
-    type Resource: CRUDResource;
-
-    // Create hooks
-    async fn before_create(&amp;self, db: &amp;DatabaseConnection, data: &amp;mut CreateModel) -&gt; Result&lt;(), ApiError&gt;;
-    async fn after_create(&amp;self, db: &amp;DatabaseConnection, created: &amp;Resource) -&gt; Result&lt;(), ApiError&gt;;
-
-    // Update hooks
-    async fn before_update(&amp;self, db: &amp;DatabaseConnection, id: PK, data: &amp;mut UpdateModel) -&gt; Result&lt;(), ApiError&gt;;
-    async fn after_update(&amp;self, db: &amp;DatabaseConnection, updated: &amp;Resource) -&gt; Result&lt;(), ApiError&gt;;
-
-    // Delete hooks
-    async fn before_delete(&amp;self, db: &amp;DatabaseConnection, id: PK) -&gt; Result&lt;(), ApiError&gt;;
-    async fn after_delete(&amp;self, db: &amp;DatabaseConnection, id: PK) -&gt; Result&lt;(), ApiError&gt;;
-
-    // Read hooks
-    async fn before_get_one(&amp;self, db: &amp;DatabaseConnection, id: PK) -&gt; Result&lt;(), ApiError&gt;;
-    async fn before_get_all(&amp;self, db: &amp;DatabaseConnection, condition: &amp;mut Condition) -&gt; Result&lt;(), ApiError&gt;;
-}</code></pre>
-<h2 id="basic-setup"><a class="header" href="#basic-setup">Basic Setup</a></h2>
-<h3 id="step-1-create-operations-struct"><a class="header" href="#step-1-create-operations-struct">Step 1: Create Operations Struct</a></h3>
-<pre><code class="language-rust">pub struct ArticleOperations;</code></pre>
-<h3 id="step-2-implement-crudoperations"><a class="header" href="#step-2-implement-crudoperations">Step 2: Implement CRUDOperations</a></h3>
+<p>The <code>CRUDOperations</code> trait is an alternative to per-attribute hooks. Implement
+it on a unit struct, override only the methods you need, and wire it in with
+<code>#[crudcrate(operations = MyOps)]</code>.</p>
+<h2 id="when-to-use-operations-vs-per-attribute-hooks"><a class="header" href="#when-to-use-operations-vs-per-attribute-hooks">When to use operations vs per-attribute hooks</a></h2>
+<p>Use <strong>operations</strong> when you want a single struct that owns all customization
+for a resource — validation, authorization, side effects. It reads like a
+controller.</p>
+<p>Use <strong>per-attribute hooks</strong> (<code>#[crudcrate(create::one::pre = validate)]</code>)
+when you only need one or two hooks and prefer keeping them close to the
+model definition.</p>
+<p>The two systems are alternatives. When <code>operations</code> is set, per-attribute
+hooks on the same resource are ignored.</p>
+<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
+<h3 id="1-define-the-operations-struct"><a class="header" href="#1-define-the-operations-struct">1. Define the operations struct</a></h3>
 <pre><code class="language-rust">use async_trait::async_trait;
 use crudcrate::{CRUDOperations, ApiError};
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
+
+pub struct AssetOps;
 
 #[async_trait]
-impl CRUDOperations for ArticleOperations {
-    type Resource = Article;
+impl CRUDOperations for AssetOps {
+    type Resource = Asset;
 
     async fn before_create(
         &amp;self,
-        _db: &amp;DatabaseConnection,
-        data: &amp;mut ArticleCreate,
+        db: &amp;DatabaseConnection,
+        data: &amp;&lt;Asset as crudcrate::traits::CRUDResource&gt;::CreateModel,
     ) -&gt; Result&lt;(), ApiError&gt; {
-        // Trim whitespace
-        data.title = data.title.trim().to_string();
-        data.content = data.content.trim().to_string();
+        // Validate, authorize, log — whatever you need
         Ok(())
     }
 
-    async fn after_create(
+    async fn before_delete(
         &amp;self,
         _db: &amp;DatabaseConnection,
-        created: &amp;Article,
+        id: Uuid,
     ) -&gt; Result&lt;(), ApiError&gt; {
-        println!("Article created: {}", created.id);
+        // Clean up S3 before the row is deleted
+        delete_from_s3(id).await
+            .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {e}"), None))?;
         Ok(())
     }
+
+    // All other methods use default no-op implementations
 }</code></pre>
-<h3 id="step-3-register-with-entity"><a class="header" href="#step-3-register-with-entity">Step 3: Register with Entity</a></h3>
+<h3 id="2-register-with-the-entity"><a class="header" href="#2-register-with-the-entity">2. Register with the entity</a></h3>
 <pre><code class="language-rust">#[derive(EntityToModels)]
-#[crudcrate(generate_router, operations = ArticleOperations)]
+#[crudcrate(generate_router, operations = AssetOps)]
 pub struct Model {
     // ...
 }</code></pre>
-<h2 id="hook-execution-order"><a class="header" href="#hook-execution-order">Hook Execution Order</a></h2>
-<h3 id="create"><a class="header" href="#create">Create</a></h3>
-<pre><code>1. Parse request body → ArticleCreate
-2. before_create(&amp;mut data)
-3. Convert to ActiveModel
-4. Insert into database
-5. after_create(&amp;created)
-6. Return response
-</code></pre>
-<h3 id="update"><a class="header" href="#update">Update</a></h3>
-<pre><code>1. Parse request body → ArticleUpdate
-2. before_update(id, &amp;mut data)
-3. Load existing record
-4. Merge updates
-5. Update database
-6. after_update(&amp;updated)
-7. Return response
-</code></pre>
-<h3 id="delete"><a class="header" href="#delete">Delete</a></h3>
-<pre><code>1. before_delete(id)
-2. Delete from database
-3. after_delete(id)
-4. Return success
-</code></pre>
-<h3 id="read"><a class="header" href="#read">Read</a></h3>
-<pre><code># get_one
-1. before_get_one(id)
-2. Query database
-3. Return response
+<h2 id="three-levels-of-customization"><a class="header" href="#three-levels-of-customization">Three levels of customization</a></h2>
+<h3 id="level-1-lifecycle-hooks"><a class="header" href="#level-1-lifecycle-hooks">Level 1: Lifecycle hooks</a></h3>
+<p><code>before_*</code> and <code>after_*</code> methods run around the default core logic.</p>
+<pre><code class="language-rust">async fn before_create(&amp;self, db: &amp;DatabaseConnection, data: &amp;CreateModel) -&gt; Result&lt;(), ApiError&gt;;
+async fn after_create(&amp;self, db: &amp;DatabaseConnection, entity: &amp;mut Self::Resource) -&gt; Result&lt;(), ApiError&gt;;
 
-# get_all
-1. before_get_all(&amp;mut condition)
-2. Query database with condition
-3. Return response
-</code></pre>
-<h2 id="common-use-cases"><a class="header" href="#common-use-cases">Common Use Cases</a></h2>
-<h3 id="input-validation"><a class="header" href="#input-validation">Input Validation</a></h3>
+async fn before_get_one(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;(), ApiError&gt;;
+async fn after_get_one(&amp;self, db: &amp;DatabaseConnection, entity: &amp;mut Self::Resource) -&gt; Result&lt;(), ApiError&gt;;</code></pre>
+<p><code>before_create</code> and <code>before_update</code> take <strong>immutable</strong> references to the
+input data. They’re for validation and authorization, not transformation.
+To transform input before insertion, override <code>perform_create</code> (level 2).</p>
+<p><code>after_*</code> hooks take <code>&amp;mut</code> references — use them for enrichment
+(computed fields, view counts, etc.).</p>
+<h3 id="level-2-core-logic-overrides"><a class="header" href="#level-2-core-logic-overrides">Level 2: Core logic overrides</a></h3>
+<p>Replace the default DB query or mutation while keeping lifecycle hooks
+around it.</p>
+<pre><code class="language-rust">async fn fetch_one(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Self::Resource, ApiError&gt; {
+    // Custom query — eg. select specific columns, add joins
+    // ...
+}
+
+async fn perform_create(&amp;self, db: &amp;DatabaseConnection, data: CreateModel) -&gt; Result&lt;Self::Resource, ApiError&gt; {
+    // Custom insertion logic — eg. transform data before insert
+    // ...
+}</code></pre>
+<h3 id="level-3-full-operation-overrides"><a class="header" href="#level-3-full-operation-overrides">Level 3: Full operation overrides</a></h3>
+<p>Replace the entire operation including lifecycle hooks. The default
+implementations orchestrate <code>before_* → core_logic → after_*</code>, so
+overriding here means you take full control.</p>
+<pre><code class="language-rust">async fn delete(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Uuid, ApiError&gt; {
+    // Completely custom — S3 cleanup, cascade, audit, everything
+    let asset = Asset::get_one(db, id).await?;
+    delete_from_s3(&amp;asset.s3_key).await?;
+    Asset::delete(db, id).await
+}</code></pre>
+<h2 id="interaction-with-joins"><a class="header" href="#interaction-with-joins">Interaction with joins</a></h2>
+<p>Entities can have both <code>operations</code> and <code>join(...)</code> fields. When they do:</p>
+<ul>
+<li>
+<p><strong><code>get_one</code> / <code>get_all</code></strong> use the standard join-loading codegen (batch
+loading, scoped child queries, FK resolution). The <code>before_get_one</code> /
+<code>after_get_one</code> and <code>before_get_all</code> / <code>after_get_all</code> hooks still fire
+around the join-loaded body.</p>
+</li>
+<li>
+<p><strong><code>fetch_one</code> / <code>fetch_all</code> overrides are bypassed</strong> when joins are
+present. Join loading needs the raw SeaORM <code>Model</code> for
+<code>model.find_related()</code>, which <code>fetch_one</code> doesn’t return (it returns
+the converted API struct). If you need full control over both the fetch
+query and join loading, use per-attribute hooks (<code>read::one::body</code>)
+instead.</p>
+</li>
+<li>
+<p><strong><code>get_one_scoped</code> / <code>get_all_scoped</code></strong> are generated with scope-aware
+join loading, same as entities without operations.</p>
+</li>
+</ul>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common patterns</a></h2>
+<h3 id="validation"><a class="header" href="#validation">Validation</a></h3>
 <pre><code class="language-rust">async fn before_create(
     &amp;self,
     _db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
+    data: &amp;ArticleCreate,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    let mut errors = Vec::new();
-
-    if data.title.len() &lt; 5 {
-        errors.push(ValidationError::new("title", "Title must be at least 5 characters"));
+    if data.title.trim().len() &lt; 5 {
+        return Err(ApiError::bad_request("Title must be at least 5 characters"));
     }
-
-    if data.title.len() &gt; 200 {
-        errors.push(ValidationError::new("title", "Title cannot exceed 200 characters"));
-    }
-
-    if data.content.is_empty() {
-        errors.push(ValidationError::new("content", "Content is required"));
-    }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(ApiError::ValidationFailed(errors))
-    }
-}</code></pre>
-<h3 id="data-transformation"><a class="header" href="#data-transformation">Data Transformation</a></h3>
-<pre><code class="language-rust">async fn before_create(
-    &amp;self,
-    _db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Generate slug from title
-    data.slug = Some(slugify(&amp;data.title));
-
-    // Sanitize HTML content
-    data.content = sanitize_html(&amp;data.content);
-
-    // Normalize tags
-    if let Some(tags) = &amp;mut data.tags {
-        *tags = tags.iter()
-            .map(|t| t.trim().to_lowercase())
-            .filter(|t| !t.is_empty())
-            .collect();
-    }
-
-    Ok(())
-}</code></pre>
-<h3 id="uniqueness-checks"><a class="header" href="#uniqueness-checks">Uniqueness Checks</a></h3>
-<pre><code class="language-rust">async fn before_create(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    data: &amp;mut ArticleCreate,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Check if slug already exists
-    let slug = slugify(&amp;data.title);
-
-    let exists = Entity::find()
-        .filter(Column::Slug.eq(&amp;slug))
-        .count(db)
-        .await
-        .map_err(|_| ApiError::Internal("Database error".into()))?;
-
-    if exists &gt; 0 {
-        // Append random suffix
-        data.slug = Some(format!("{}-{}", slug, random_string(6)));
-    } else {
-        data.slug = Some(slug);
-    }
-
     Ok(())
 }</code></pre>
 <h3 id="authorization"><a class="header" href="#authorization">Authorization</a></h3>
@@ -353,281 +306,45 @@ pub struct Model {
     &amp;self,
     db: &amp;DatabaseConnection,
     id: Uuid,
-    _data: &amp;mut ArticleUpdate,
+    _data: &amp;ArticleUpdate,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    // Get current user from context (you'd need to pass this)
-    let current_user = get_current_user();
-
-    // Load the article
     let article = Entity::find_by_id(id)
         .one(db)
         .await?
-        .ok_or(ApiError::NotFound)?;
+        .ok_or_else(|| ApiError::not_found("article", Some(id.to_string())))?;
 
-    // Check ownership
-    if article.author_id != current_user.id &amp;&amp; !current_user.is_admin {
-        return Err(ApiError::Forbidden);
+    let user = get_current_user();
+    if article.author_id != user.id &amp;&amp; !user.is_admin {
+        return Err(ApiError::forbidden("Not the author"));
     }
-
-    Ok(())
-}
-
-async fn before_delete(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    id: Uuid,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Same authorization check
-    let current_user = get_current_user();
-    let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-
-    if article.author_id != current_user.id &amp;&amp; !current_user.is_admin {
-        return Err(ApiError::Forbidden);
-    }
-
     Ok(())
 }</code></pre>
-<h3 id="cascading-operations"><a class="header" href="#cascading-operations">Cascading Operations</a></h3>
+<h3 id="enrichment-via-after-hooks"><a class="header" href="#enrichment-via-after-hooks">Enrichment via after hooks</a></h3>
+<pre><code class="language-rust">async fn after_get_one(
+    &amp;self,
+    db: &amp;DatabaseConnection,
+    entity: &amp;mut Article,
+) -&gt; Result&lt;(), ApiError&gt; {
+    entity.view_count = get_view_count(db, entity.id).await?;
+    Ok(())
+}</code></pre>
+<h3 id="cascading-deletes"><a class="header" href="#cascading-deletes">Cascading deletes</a></h3>
 <pre><code class="language-rust">async fn before_delete(
     &amp;self,
     db: &amp;DatabaseConnection,
     id: Uuid,
 ) -&gt; Result&lt;(), ApiError&gt; {
-    // Delete related comments first
     comment::Entity::delete_many()
         .filter(comment::Column::ArticleId.eq(id))
         .exec(db)
-        .await
-        .map_err(|_| ApiError::Internal("Failed to delete comments".into()))?;
-
-    // Delete related tags
-    article_tag::Entity::delete_many()
-        .filter(article_tag::Column::ArticleId.eq(id))
-        .exec(db)
-        .await
-        .map_err(|_| ApiError::Internal("Failed to delete tags".into()))?;
-
+        .await?;
     Ok(())
 }</code></pre>
-<h3 id="notifications"><a class="header" href="#notifications">Notifications</a></h3>
-<pre><code class="language-rust">async fn after_create(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    created: &amp;Article,
-) -&gt; Result&lt;(), ApiError&gt; {
-    // Notify subscribers
-    let subscribers = get_subscribers_for_author(db, created.author_id).await?;
-
-    for subscriber in subscribers {
-        send_notification(
-            subscriber.email,
-            format!("New article: {}", created.title),
-        ).await;
-    }
-
-    Ok(())
-}</code></pre>
-<h3 id="audit-logging"><a class="header" href="#audit-logging">Audit Logging</a></h3>
-<pre><code class="language-rust">async fn after_create(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    created: &amp;Article,
-) -&gt; Result&lt;(), ApiError&gt; {
-    create_audit_log(db, AuditLog {
-        action: "CREATE",
-        entity: "Article",
-        entity_id: created.id.to_string(),
-        user_id: get_current_user().id,
-        timestamp: chrono::Utc::now(),
-        changes: serde_json::to_value(created).ok(),
-    }).await?;
-
-    Ok(())
-}
-
-async fn after_update(
-    &amp;self,
-    db: &amp;DatabaseConnection,
-    updated: &amp;Article,
-) -&gt; Result&lt;(), ApiError&gt; {
-    create_audit_log(db, AuditLog {
-        action: "UPDATE",
-        entity: "Article",
-        entity_id: updated.id.to_string(),
-        user_id: get_current_user().id,
-        timestamp: chrono::Utc::now(),
-        changes: None,  // Could include diff
-    }).await?;
-
-    Ok(())
-}</code></pre>
-<h3 id="row-level-security"><a class="header" href="#row-level-security">Row-Level Security</a></h3>
-<pre><code class="language-rust">async fn before_get_all(
-    &amp;self,
-    _db: &amp;DatabaseConnection,
-    condition: &amp;mut Condition,
-) -&gt; Result&lt;(), ApiError&gt; {
-    let current_user = get_current_user();
-
-    if !current_user.is_admin {
-        // Non-admins only see their own articles
-        *condition = condition.clone().add(Column::AuthorId.eq(current_user.id));
-    }
-
-    Ok(())
-}</code></pre>
-<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<pre><code class="language-rust">use async_trait::async_trait;
-use crudcrate::{CRUDOperations, ApiError, ValidationError};
-use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter};
-
-pub struct ArticleOperations;
-
-#[async_trait]
-impl CRUDOperations for ArticleOperations {
-    type Resource = Article;
-
-    async fn before_create(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        data: &amp;mut ArticleCreate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Validate
-        let mut errors = Vec::new();
-        if data.title.trim().len() &lt; 5 {
-            errors.push(ValidationError::new("title", "Title too short"));
-        }
-        if !errors.is_empty() {
-            return Err(ApiError::ValidationFailed(errors));
-        }
-
-        // Transform
-        data.title = data.title.trim().to_string();
-        data.slug = Some(slugify(&amp;data.title));
-
-        // Ensure unique slug
-        let mut slug = data.slug.clone().unwrap();
-        let mut counter = 1;
-        while slug_exists(db, &amp;slug).await? {
-            slug = format!("{}-{}", data.slug.as_ref().unwrap(), counter);
-            counter += 1;
-        }
-        data.slug = Some(slug);
-
-        Ok(())
-    }
-
-    async fn after_create(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        created: &amp;Article,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Log
-        tracing::info!(article_id = %created.id, "Article created");
-
-        // Index for search
-        index_article_for_search(created).await;
-
-        // Notify
-        notify_followers(db, created).await?;
-
-        Ok(())
-    }
-
-    async fn before_update(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-        data: &amp;mut ArticleUpdate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Authorize
-        let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-        let user = get_current_user();
-
-        if article.author_id != user.id &amp;&amp; !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        // Transform title if changed
-        if let Some(ref mut title) = data.title {
-            *title = title.trim().to_string();
-        }
-
-        Ok(())
-    }
-
-    async fn before_delete(
-        &amp;self,
-        db: &amp;DatabaseConnection,
-        id: Uuid,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Authorize
-        let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-        let user = get_current_user();
-
-        if article.author_id != user.id &amp;&amp; !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        // Cascade delete
-        comment::Entity::delete_many()
-            .filter(comment::Column::ArticleId.eq(id))
-            .exec(db)
-            .await?;
-
-        Ok(())
-    }
-
-    async fn after_delete(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        id: Uuid,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Remove from search index
-        remove_from_search_index(id).await;
-
-        tracing::info!(article_id = %id, "Article deleted");
-
-        Ok(())
-    }
-
-    async fn before_get_all(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        condition: &amp;mut Condition,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        // Only show published articles (unless admin)
-        let user = get_current_user();
-        if !user.is_admin {
-            *condition = condition.clone().add(Column::Status.eq("published"));
-        }
-
-        Ok(())
-    }
-}</code></pre>
-<h2 id="default-implementation"><a class="header" href="#default-implementation">Default Implementation</a></h2>
-<p>If you don’t need all hooks, the trait has default no-op implementations:</p>
-<pre><code class="language-rust">#[async_trait]
-impl CRUDOperations for ArticleOperations {
-    type Resource = Article;
-
-    // Only implement what you need
-    async fn before_create(
-        &amp;self,
-        _db: &amp;DatabaseConnection,
-        data: &amp;mut ArticleCreate,
-    ) -&gt; Result&lt;(), ApiError&gt; {
-        data.title = data.title.trim().to_string();
-        Ok(())
-    }
-
-    // All other hooks use default (do nothing)
-}</code></pre>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li>Learn about <a href="./lifecycle-hooks.html">Lifecycle Hooks</a> for attribute-based hooks</li>
-<li>Configure <a href="./validation.html">Validation</a></li>
-<li>Set up <a href="./security.html">Security</a></li>
+<li><a href="../reference/crudoperations-api.html">CRUDOperations API reference</a> — full trait definition and execution order</li>
+<li><a href="./lifecycle-hooks.html">Lifecycle Hooks</a> — per-attribute hook alternative</li>
+<li><a href="./security.html">Security</a> — SecurityProfile configuration</li>
 </ul>
 
                     </main>
@@ -674,11 +391,11 @@ impl CRUDOperations for ArticleOperations {
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-c22b7243.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="../theme/version-selector-f75b1977.js"></script>
