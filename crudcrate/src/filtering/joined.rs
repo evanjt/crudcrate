@@ -74,15 +74,13 @@ impl FilterOperator {
     #[must_use]
     pub fn suffix(&self) -> &'static str {
         match self {
-            Self::Eq => "",
+            Self::Eq | Self::In | Self::IsNull => "",
             Self::Neq => "_neq",
             Self::Gt => "_gt",
             Self::Gte => "_gte",
             Self::Lt => "_lt",
             Self::Lte => "_lte",
             Self::Like => "_like",
-            Self::In => "",
-            Self::IsNull => "",
         }
     }
 }

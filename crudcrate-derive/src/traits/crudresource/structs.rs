@@ -43,6 +43,7 @@ pub(crate) struct StructLevelJoin {
 
 /// Extracts `CRUDResource` metadata from struct-level crudcrate attributes
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct CRUDResourceMeta {
     pub(crate) name_singular: Option<String>,
     pub(crate) name_plural: Option<String>,
@@ -110,9 +111,9 @@ pub(crate) struct JoinFilterSortConfig {
     /// Reserved for future use (e.g., generating join queries)
     #[allow(dead_code)]
     pub(crate) entity_path: Option<String>,
-    /// Column names on the related entity that can be filtered (e.g., ["make", "year"])
+    /// Column names on the related entity that can be filtered (e.g., `["make", "year"]`)
     pub(crate) filterable_columns: Vec<String>,
-    /// Column names on the related entity that can be sorted (e.g., ["year"])
+    /// Column names on the related entity that can be sorted (e.g., `["year"]`)
     pub(crate) sortable_columns: Vec<String>,
 }
 

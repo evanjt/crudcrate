@@ -97,7 +97,10 @@ impl ValidationErrors {
         &self.errors
     }
 
-    /// Convert to Result
+    /// Convert to `Result`, returning `Err(self)` when errors are present.
+    ///
+    /// # Errors
+    /// Returns `Err(ValidationErrors)` if any validation errors were added.
     pub fn result(self) -> Result<(), Self> {
         if self.is_empty() { Ok(()) } else { Err(self) }
     }
@@ -127,10 +130,10 @@ impl std::error::Error for ValidationErrors {}
 /// The validation will be called automatically before database operations if
 /// you use the generated CRUD handlers.
 pub trait Validatable {
-    /// Validate the instance
+    /// Validate the instance.
     ///
-    /// Return `Ok(())` if valid, or `Err(ValidationError)` if invalid.
-    /// For multiple validation errors, use `ValidationErrors`.
+    /// # Errors
+    /// Returns `Err(ValidationError)` if validation fails.
     fn validate(&self) -> Result<(), ValidationError>;
 }
 
@@ -138,7 +141,10 @@ pub trait Validatable {
 pub mod validators {
     use super::ValidationError;
 
-    /// Validate string length is within range
+    /// Validate string length is within range.
+    ///
+    /// # Errors
+    /// Returns `Err(ValidationError)` if the length is outside the given bounds.
     pub fn validate_length(
         field: &str,
         value: &str,
@@ -168,7 +174,11 @@ pub mod validators {
         Ok(())
     }
 
-    /// Validate number is within range
+    /// Validate number is within range.
+    ///
+    /// # Errors
+    /// Returns `Err(ValidationError)` if the value is outside the given bounds.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn validate_range<T: PartialOrd + fmt::Display>(
         field: &str,
         value: T,
@@ -196,7 +206,10 @@ pub mod validators {
         Ok(())
     }
 
-    /// Basic email validation
+    /// Basic email validation.
+    ///
+    /// # Errors
+    /// Returns `Err(ValidationError)` if the value lacks `@`/`.` or exceeds 255 chars.
     pub fn validate_email(field: &str, value: &str) -> Result<(), ValidationError> {
         if !value.contains('@') || !value.contains('.') {
             return Err(ValidationError::new(field, "Invalid email format"));
@@ -212,7 +225,10 @@ pub mod validators {
         Ok(())
     }
 
-    /// Validate value is not empty
+    /// Validate value is not empty.
+    ///
+    /// # Errors
+    /// Returns `Err(ValidationError)` if the trimmed value is empty.
     pub fn validate_required(field: &str, value: &str) -> Result<(), ValidationError> {
         if value.trim().is_empty() {
             return Err(ValidationError::new(field, "This field is required"));

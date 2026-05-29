@@ -894,9 +894,10 @@ fn to_snake_case(s: &str) -> String {
 /// 1. Explicit `fk_column = "..."` from join config (highest priority)
 /// 2. Self-referencing: `ParentId` / `parent_id`
 /// 3. Convention: `{ParentStructName}Id` / `{parent_struct_name}_id`
-/// Returns (fk_column_pascal, fk_field_snake, use_runtime).
-/// When use_runtime is true, the FK column should be resolved from SeaORM's
-/// RelationDef at runtime instead of using the static identifiers.
+///
+/// Returns `(fk_column_pascal, fk_field_snake, use_runtime)`.
+/// When `use_runtime` is true, the FK column should be resolved from
+/// `RelationDef` at runtime instead of using the static identifiers.
 fn derive_fk_idents(
     join_config: &crate::codegen::joins::config::JoinConfig,
     api_struct_name: &syn::Ident,

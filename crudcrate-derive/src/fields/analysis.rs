@@ -105,16 +105,14 @@ pub fn analyze_entity_fields<'a>(
 /// Validate field analysis for consistency
 pub fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenStream> {
     // Check for multiple primary keys
-    if analysis.primary_key_field.is_some()
-        && analysis
-            .db_fields
-            .iter()
-            .filter(|field| attribute_parser::field_has_crudcrate_flag(field, "primary_key"))
-            .count()
-            > 1
-    {
+    let pk_count = analysis
+        .db_fields
+        .iter()
+        .filter(|field| attribute_parser::field_has_crudcrate_flag(field, "primary_key"))
+        .count();
+    if let (Some(pk_field), true) = (&analysis.primary_key_field, pk_count > 1) {
         return Err(syn::Error::new_spanned(
-            analysis.primary_key_field.unwrap(),
+            pk_field,
             "Only one field can be marked with 'primary_key' attribute",
         )
         .to_compile_error()

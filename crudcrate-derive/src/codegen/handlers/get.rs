@@ -91,22 +91,24 @@ pub fn generate_get_all_impl(
     let has_join_all_fields = !analysis.join_on_all_fields.is_empty();
 
     // If operations is specified and there are no joins, delegate fully
-    if let Some(ops_path) = &crud_meta.operations {
-        if !has_join_all_fields {
-            return quote! {
-                async fn get_all(
-                    db: &sea_orm::DatabaseConnection,
-                    condition: &sea_orm::Condition,
-                    order_column: Self::ColumnType,
-                    order_direction: sea_orm::Order,
-                    offset: u64,
-                    limit: u64,
-                ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
-                    let ops = #ops_path;
-                    crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
-                }
-            };
-        }
+    if let Some(ops_path) = crud_meta
+        .operations
+        .as_ref()
+        .filter(|_| !has_join_all_fields)
+    {
+        return quote! {
+            async fn get_all(
+                db: &sea_orm::DatabaseConnection,
+                condition: &sea_orm::Condition,
+                order_column: Self::ColumnType,
+                order_direction: sea_orm::Order,
+                offset: u64,
+                limit: u64,
+            ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
+            }
+        };
     }
 
     // Generate select_only() optimization for skipping heavy Option columns excluded from ListModel
@@ -262,15 +264,13 @@ pub fn generate_get_one_impl(
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
     // If operations is specified and there are no joins, delegate fully
-    if let Some(ops_path) = &crud_meta.operations {
-        if !has_joins {
-            return quote! {
-                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
-                    let ops = #ops_path;
-                    crudcrate::CRUDOperations::get_one(&ops, db, id).await
-                }
-            };
-        }
+    if let Some(ops_path) = crud_meta.operations.as_ref().filter(|_| !has_joins) {
+        return quote! {
+            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::get_one(&ops, db, id).await
+            }
+        };
     }
 
     // When operations is set with joins, use operations lifecycle hooks.

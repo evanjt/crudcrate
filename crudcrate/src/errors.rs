@@ -318,8 +318,7 @@ impl ApiError {
             Self::Forbidden { .. } => StatusCode::FORBIDDEN,
             Self::Conflict { .. } => StatusCode::CONFLICT,
             Self::ValidationFailed { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::Database { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Database { .. } | Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Custom { status, .. } => *status,
         }
     }
@@ -334,10 +333,6 @@ impl ApiError {
                     format!("{resource} not found")
                 }
             }
-            Self::BadRequest { message } => message.clone(),
-            Self::Unauthorized { message } => message.clone(),
-            Self::Forbidden { message } => message.clone(),
-            Self::Conflict { message } => message.clone(),
             Self::ValidationFailed { errors } => {
                 if errors.len() == 1 {
                     errors[0].clone()
@@ -345,9 +340,13 @@ impl ApiError {
                     format!("Validation failed: {}", errors.join(", "))
                 }
             }
-            Self::Database { message, .. } => message.clone(),
-            Self::Internal { message, .. } => message.clone(),
-            Self::Custom { message, .. } => message.clone(),
+            Self::BadRequest { message }
+            | Self::Unauthorized { message }
+            | Self::Forbidden { message }
+            | Self::Conflict { message }
+            | Self::Database { message, .. }
+            | Self::Internal { message, .. }
+            | Self::Custom { message, .. } => message.clone(),
         }
     }
 
