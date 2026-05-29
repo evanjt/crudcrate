@@ -172,10 +172,16 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     }
                 }
             } else {
-                // Regular string columns
+                let cast_type = match backend {
+                    DatabaseBackend::MySql => "CHAR",
+                    _ => "TEXT",
+                };
                 or_conditions = or_conditions.add(
-                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
-                        .like(format!("%{}%", escaped_query.to_uppercase())),
+                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
+                        Expr::col(*col),
+                        Alias::new(cast_type),
+                    )))
+                    .like(format!("%{}%", escaped_query.to_uppercase())),
                 );
             }
         }

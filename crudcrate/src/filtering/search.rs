@@ -5,13 +5,14 @@ use sea_orm::{
 
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
-/// Escape LIKE wildcards to prevent wildcard injection attacks
-/// Escapes: % (match any) and _ (match single char)
+/// Escape LIKE wildcards to prevent wildcard injection attacks.
+/// Uses `!` as the escape character (declared via `ESCAPE '!'` in the SQL).
+/// Avoids backslash which conflicts with Postgres string quoting.
 fn escape_like_wildcards(input: &str) -> String {
     input
-        .replace('\\', "\\\\") // Escape backslash first
-        .replace('%', "\\%") // Escape %
-        .replace('_', "\\_") // Escape _
+        .replace('!', "!!")
+        .replace('%', "!%")
+        .replace('_', "!_")
 }
 
 /// Build fulltext search condition with database-specific optimizations
@@ -56,7 +57,7 @@ fn build_postgres_fulltext_condition(
     let pattern = format!("%{}%", escape_like_wildcards(sanitized));
 
     Some(Expr::cust_with_values(
-        format!("({concat_sql}) ILIKE $1 ESCAPE '\\'"),
+        format!("({concat_sql}) ILIKE ? ESCAPE '!'"),
         [pattern],
     ))
 }
@@ -86,7 +87,7 @@ fn build_mysql_fulltext_condition(
     let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
 
     Some(Expr::cust_with_values(
-        format!("UPPER({concat_sql}) LIKE ? ESCAPE '\\\\'"),
+        format!("UPPER({concat_sql}) LIKE ? ESCAPE '!'"),
         [pattern],
     ))
 }
@@ -112,7 +113,7 @@ fn build_fallback_fulltext_condition(
     let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
 
     Some(Expr::cust_with_values(
-        format!("UPPER({concat_sql}) LIKE ? ESCAPE '\\'"),
+        format!("UPPER({concat_sql}) LIKE ? ESCAPE '!'"),
         [pattern],
     ))
 }
