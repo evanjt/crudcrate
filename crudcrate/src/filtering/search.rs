@@ -56,7 +56,7 @@ fn build_postgres_fulltext_condition(
     let pattern = format!("%{}%", escape_like_wildcards(sanitized));
 
     Some(Expr::cust_with_values(
-        format!("({concat_sql}) ILIKE ? ESCAPE '\\'"),
+        format!("({concat_sql}) ILIKE $1 ESCAPE '\\'"),
         [pattern],
     ))
 }
