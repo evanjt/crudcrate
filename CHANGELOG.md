@@ -62,16 +62,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already compile-time-known, but raw `SimpleExpr::Custom(format!(...))` was
   removed everywhere user input could reach it.
 
+### Fixed
+
+- **Join loading with `operations` attribute**. Entities using
+  `#[crudcrate(operations = MyOps)]` for create/update/delete hooks had
+  their join loading silently bypassed on `get_one` and `get_all` — the
+  codegen delegated entirely to `CRUDOperations` which does plain queries
+  with no relation loading. The operations path now falls through to the
+  standard join-loading codegen when the entity has `join(...)` fields,
+  with `before_get_one`/`after_get_one` and `before_get_all`/`after_get_all`
+  hooks wrapping the join-loaded body. `get_one_scoped` and `get_all_scoped`
+  are also generated for this path (previously missing entirely).
+
+- **FK column resolution in batch loading**. The batch loader and join
+  loader now resolve FK columns from the SeaORM `RelationDef` at runtime
+  instead of guessing from the struct name convention. Joins with
+  non-standard FK names (eg. `author_ref` instead of `author_id`) now
+  load correctly.
+
 ### Changed
 
-- `crudcrate/Cargo.toml`: replaced unmaintained `impls = "1"` (no release since
-  2019) with an inline `crudcrate::impls!` macro. Same autoref-specialization
-  semantics, 30 LOC, no behavior change.
+- Replaced unmaintained `impls = "1"` (no release since 2019) with an
+  inline `crudcrate::impls!` macro. Same autoref-specialization semantics,
+  30 LOC, no behavior change.
 
-- Workspace dependencies bumped: `axum 0.8.6 → 0.8.9`, `sea-orm 1.1.19 → 1.1.20`,
-  `serde_json → 1.0.149`, `uuid → 1.23.1`, `tokio → 1.52.3`, `chrono → 0.4.44`,
-  `tower-http → 0.6.11`, `utoipa → 5.5.0`, plus proc-macro and `rust_decimal`
-  patches.
+- Workspace dependencies bumped: `axum 0.8.6 → 0.8.9`, `sea-orm 1.1.19 →
+  1.1.20`, `serde_json → 1.0.149`, `uuid → 1.23.1`, `tokio → 1.52.3`,
+  `chrono → 0.4.44`, `tower-http → 0.6.11`, `utoipa → 5.5.0`, plus
+  proc-macro and `rust_decimal` patches.
 
 - `url-escape` (unmaintained dev dep) replaced with `percent-encoding`.
 
@@ -81,6 +99,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rsa 0.9.10` (RUSTSEC-2023-0071, Marvin attack — no upstream fix).
 
 ## [0.8.1] - 2026-05-19
+
+### Security
+
+- **Filter clause limit**. Requests with more than 100 filter keys are
+  rejected with `400 Bad Request` (`MAX_FILTER_CLAUSES = 100`). Prevents
+  query-planning DoS via oversized filter payloads.
+
+- **DB error sanitization**. Internal database error messages are stripped
+  from client-facing responses. Only a generic prefix is returned; the
+  full error is logged via `tracing`.
 
 ### Added
 
@@ -113,6 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `crudcrate::filtering::ParsedFilters::joined_filters` is now consumed by
   the handler (previously only populated by the parser and read by tests).
   No API change — the field was already public.
+
+- Pruned unused dependencies from the workspace.
 
 ### Documentation
 
