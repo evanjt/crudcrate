@@ -7,6 +7,153 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-19
+
+### Security
+
+- **`SecurityProfile` config struct + presets**. New `crudcrate::SecurityProfile`
+  bundles the security-sensitive runtime defaults — strict filter parsing,
+  scope propagation, deleted-ID exposure, and request body size — under one
+  type with three presets: `SecurityProfile::secure()`, `react_admin()`, and
+  `legacy()`. Override individual fields via Rust's struct-update syntax:
+  `SecurityProfile { expose_deleted_ids: true, ..SecurityProfile::secure() }`.
+
+- **Per-resource override via derive attribute**.
+  `#[crudcrate(security_profile = "secure" | "react_admin" | "legacy")]`
+  generates a `CRUDResource::security_profile()` impl that returns the named
+  preset.
+
+- **Global override via Axum extension**. Apply
+  `.layer(Extension(SecurityProfile::secure()))` on your router to override the
+  per-resource setting at request time. Resolution order:
+  `Extension > CRUDResource::security_profile() > trait default`.
+
+- **Default profile flipped to `secure()`**. New resources ship hardened
+  defaults. See [MIGRATION_0.9.md](docs/MIGRATION_0.9.md) for the per-flag
+  breakdown and opt-out instructions.
+
+- **Explicit batch body limit**. The generated router now applies an
+  Axum `DefaultBodyLimit::max(...)` layer derived from
+  `SecurityProfile::max_request_body_bytes` (default 2 MiB, matching axum-core's
+  baseline). Previous behavior relied on Axum's implicit default and broke if
+  any consumer wired `DefaultBodyLimit::disable()` up the tree.
+
+- **Scope-propagation side-channel guard**. Under `secure()` profile,
+  joined filters (`?filter={"vehicles.color":"..."}`) on a child entity that
+  has no `exclude(scoped)` scope condition are rejected with `400 Bad Request`
+  when the request carries a `ScopeCondition`. Prevents parent-existence
+  side-channels via unscoped child columns.
+
+- **Strict filter parsing**. Under `secure()` profile, a malformed
+  `?filter=...` value returns `400` instead of silently dropping the filter
+  and returning the unfiltered result.
+
+- **Deleted-ID enumeration guard**. Under `secure()` profile, batch delete
+  responses return `{"deleted": N}` instead of the array of UUIDs that
+  actually existed in the database, removing the existence-enumeration
+  side-channel through the delete endpoint. react-admin frontends that rely on
+  the ID array for cache invalidation should pin
+  `SecurityProfile::react_admin()` or `legacy()`.
+
+- **Fulltext SQL bind parameterization**. The Postgres / MySQL /
+  SQLite fulltext condition builders now route the user query value through
+  `Expr::cust_with_values` so the value is bound as a parameter rather than
+  interpolated into the SQL string. Defense-in-depth — column names were
+  already compile-time-known, but raw `SimpleExpr::Custom(format!(...))` was
+  removed everywhere user input could reach it.
+
+### Fixed
+
+- **Join loading with `operations` attribute**. Entities using
+  `#[crudcrate(operations = MyOps)]` for create/update/delete hooks had
+  their join loading silently bypassed on `get_one` and `get_all` — the
+  codegen delegated entirely to `CRUDOperations` which does plain queries
+  with no relation loading. The operations path now falls through to the
+  standard join-loading codegen when the entity has `join(...)` fields,
+  with `before_get_one`/`after_get_one` and `before_get_all`/`after_get_all`
+  hooks wrapping the join-loaded body. `get_one_scoped` and `get_all_scoped`
+  are also generated for this path (previously missing entirely).
+
+- **FK column resolution in batch loading**. The batch loader and join
+  loader now resolve FK columns from the SeaORM `RelationDef` at runtime
+  instead of guessing from the struct name convention. Joins with
+  non-standard FK names (eg. `author_ref` instead of `author_id`) now
+  load correctly.
+
+### Changed
+
+- Replaced unmaintained `impls = "1"` (no release since 2019) with an
+  inline `crudcrate::impls!` macro. Same autoref-specialization semantics,
+  30 LOC, no behavior change.
+
+- Workspace dependencies bumped: `axum 0.8.6 → 0.8.9`, `sea-orm 1.1.19 →
+  1.1.20`, `serde_json → 1.0.149`, `uuid → 1.23.1`, `tokio → 1.52.3`,
+  `chrono → 0.4.44`, `tower-http → 0.6.11`, `utoipa → 5.5.0`, plus
+  proc-macro and `rust_decimal` patches.
+
+- `url-escape` (unmaintained dev dep) replaced with `percent-encoding`.
+
+### Documentation
+
+- `README.md`: added security caveat for the `mysql` feature, which pulls in
+  `rsa 0.9.10` (RUSTSEC-2023-0071, Marvin attack — no upstream fix).
+
+## [0.8.1] - 2026-05-19
+
+### Security
+
+- **Filter clause limit**. Requests with more than 100 filter keys are
+  rejected with `400 Bad Request` (`MAX_FILTER_CLAUSES = 100`). Prevents
+  query-planning DoS via oversized filter payloads.
+
+- **DB error sanitization**. Internal database error messages are stripped
+  from client-facing responses. Only a generic prefix is returned; the
+  full error is logged via `tracing`.
+
+### Added
+
+- **Joined filters are now applied by the default handler**. Requests like
+  `GET /customers?filter={"vehicles.make":"BMW"}` previously parsed and
+  whitelisted the filter but silently dropped it before hitting the
+  database — users got unfiltered results. The default `get_all_handler`
+  now resolves each `JoinedFilter` into a sub-query on the child table
+  (with the child's `ScopeFilterable::scope_condition()` applied), collects
+  matching parent-FK values, and adds `id IN (...)` to the main condition.
+  Query shape: one extra `SELECT parent_fk FROM child WHERE ...` per
+  joined-filter field plus the usual list + count queries — no JOIN, no
+  `DISTINCT`. Backed by `test_suite/tests/joined_filter_http_test.rs` and
+  a runnable `cargo run --example joined_filter`.
+
+- **New `CRUDResource::resolve_joined_filters` trait method**. Takes the
+  parsed condition plus the `&[JoinedFilter]` list and returns the
+  augmented condition to use for both the list query and the count query.
+  Default impl logs and returns the condition unchanged (backward
+  compatible for non-derive users); the derive macro generates an override
+  for every resource that declares `join(..., filterable(...))` on any
+  `Vec<Child>` field.
+
+- **New public helper `crudcrate::build_comparison_expr`**. Translates a
+  column + `FilterOperator` + `serde_json::Value` into an
+  `Option<SimpleExpr>` for use in custom filter resolvers.
+
+### Changed
+
+- `crudcrate::filtering::ParsedFilters::joined_filters` is now consumed by
+  the handler (previously only populated by the parser and read by tests).
+  No API change — the field was already public.
+
+- Pruned unused dependencies from the workspace.
+
+### Documentation
+
+- `docs/src/features/filtering.md` "Filtering on Related Entities"
+  rewritten to describe the actual query shape, scope-safety guarantees,
+  and the `Vec<Child>`-only limitation. Removed the stale "requires a
+  custom `read::many::body` hook" note.
+- `docs/src/features/relationships.md` migrated from the deprecated
+  `join_filterable(...)` / `join_sortable(...)` syntax to the current
+  `filterable(...)` / `sortable(...)` inside `join(...)`.
+
 ## [0.8.0] - 2026-04-17
 
 ### Security
@@ -543,7 +690,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
-[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.8.0...HEAD
+[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.9.0...HEAD
+[0.9.0]: https://github.com/evanjt/crudcrate/compare/0.8.1...0.9.0
+[0.8.1]: https://github.com/evanjt/crudcrate/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/evanjt/crudcrate/compare/0.7.2...0.8.0
 [0.7.2]: https://github.com/evanjt/crudcrate/compare/0.7.1...0.7.2
 [0.7.1]: https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1

@@ -69,6 +69,36 @@ where
         1000
     }
 
+    /// Per-resource security profile, applied unless overridden by a request-time
+    /// `axum::Extension<SecurityProfile>`. See [`crate::SecurityProfile`] for the
+    /// preset rationale and override syntax.
+    ///
+    /// Default is [`SecurityProfile::secure`] as of 0.9.0. Consumers upgrading from
+    /// 0.8.x can restore pre-0.9.0 behavior with
+    /// `#[crudcrate(security_profile = "legacy")]` on each resource, or by applying
+    /// `.layer(Extension(SecurityProfile::legacy()))` at the app level.
+    #[must_use]
+    fn security_profile() -> crate::SecurityProfile {
+        crate::SecurityProfile::secure()
+    }
+
+    /// Returns whether the named joined field's child entity carries its own
+    /// `ScopeFilterable::scope_condition()` — i.e., whether a sub-query on that
+    /// child is automatically scope-restricted.
+    ///
+    /// Consulted only when `SecurityProfile::scope_propagation_strict` is `true`
+    /// and a request carries a `ScopeCondition` extension. The handler rejects
+    /// joined filters whose target field returns `false`, preventing parent-existence
+    /// side-channels via unscoped child columns.
+    ///
+    /// The default implementation returns `false` for every field — the safe choice
+    /// when the child's scope status is unknown. The derive macro overrides this to
+    /// return `true` for joined fields whose child type has `exclude(scoped)` fields.
+    #[must_use]
+    fn joined_field_has_scope(_field: &str) -> bool {
+        false
+    }
+
     async fn get_all(
         db: &DatabaseConnection,
         condition: &Condition,
@@ -110,6 +140,40 @@ where
         limit: u64,
     ) -> Result<Vec<Self::ListModel>, ApiError> {
         Self::get_all(db, condition, order_column, order_direction, offset, limit).await
+    }
+
+    /// Resolve dot-notation joined filters (e.g. `{"vehicles.make":"BMW"}`)
+    /// into an augmented `Condition` that the caller passes to `get_all` /
+    /// `get_all_scoped` / `total_count`.
+    ///
+    /// Each [`crate::JoinedFilter`] runs as a sub-query on the child table.
+    /// The generated implementation:
+    /// - applies the child's static
+    ///   [`crate::ScopeFilterable::scope_condition()`] to the sub-query so
+    ///   that `#[crudcrate(exclude(scoped))]` privacy flags on the child are
+    ///   respected, and
+    /// - collects matching parent-FK values and adds
+    ///   `Self::ID_COLUMN.is_in(ids)` to the returned condition.
+    ///
+    /// The default implementation ignores `joined_filters` and returns the
+    /// incoming condition unchanged. The derive macro overrides this for
+    /// resources that declare `join(..., filterable(...))` on any field.
+    ///
+    /// # Errors
+    /// Returns `ApiError::Database` if any child sub-query fails.
+    async fn resolve_joined_filters(
+        db: &DatabaseConnection,
+        condition: Condition,
+        joined_filters: &[crate::JoinedFilter],
+    ) -> Result<Condition, ApiError> {
+        let _ = db;
+        if !joined_filters.is_empty() {
+            tracing::debug!(
+                count = joined_filters.len(),
+                "Default resolve_joined_filters() ignoring joined filters; override this method or use the derive macro to apply them"
+            );
+        }
+        Ok(condition)
     }
 
     async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {

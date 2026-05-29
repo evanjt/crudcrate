@@ -23,7 +23,17 @@ pub struct Model {
     #[crudcrate(filterable, exclude(scoped, create), on_create = false)]
     pub is_private: bool,
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr = true, exclude(create, update), join(one, all, depth = 5))]
+    #[crudcrate(
+        non_db_attr = true,
+        exclude(create, update),
+        join(
+            one,
+            all,
+            depth = 5,
+            filterable("make", "model", "year", "vin"),
+            sortable("year", "make")
+        )
+    )]
     pub vehicles: Vec<Vehicle>,
 }
 

@@ -125,7 +125,10 @@ pub mod core;
 pub mod database;
 pub mod errors;
 pub mod filtering;
+#[doc(hidden)]
+pub mod impls_check;
 pub mod operations;
+pub mod profile;
 pub mod relationships;
 pub mod scope;
 pub mod validation;
@@ -160,11 +163,12 @@ pub use core::{CRUDResource, MergeIntoActiveModel, UuidIdResult};
 pub use errors::{ApiError, BatchFailure, BatchResult};
 pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,
-    SortConfig, apply_filters, apply_filters_with_joins, calculate_content_range,
-    parse_dot_notation, parse_pagination, parse_range, parse_sorting, parse_sorting_with_joins,
+    SortConfig, apply_filters, apply_filters_with_joins, build_comparison_expr,
+    calculate_content_range, parse_dot_notation, parse_pagination, parse_range, parse_sorting,
+    parse_sorting_with_joins,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
+pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
 
-pub use impls::impls;
 pub use serde_with;

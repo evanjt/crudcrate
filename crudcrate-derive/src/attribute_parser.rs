@@ -34,6 +34,9 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                         Some("fulltext_language") => {
                                             meta.fulltext_language = Some(value);
                                         }
+                                        Some("security_profile") => {
+                                            meta.security_profile = Some(value);
+                                        }
                                         _ => {}
                                     }
                                 }
@@ -203,10 +206,8 @@ fn parse_struct_level_join(
                                 fk_column = Some(s.value());
                             }
                         }
-                        Lit::Int(i) => {
-                            if nv.path.is_ident("depth") {
-                                depth = i.base10_parse().ok();
-                            }
+                        Lit::Int(i) if nv.path.is_ident("depth") => {
+                            depth = i.base10_parse().ok();
                         }
                         _ => {}
                     }

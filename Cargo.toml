@@ -5,9 +5,9 @@ resolver = "2"
 
 [workspace.dependencies]
 # Procedural macro dependencies
-proc-macro2 = "1.0.103"
-quote = "1.0.41"
-syn = { version = "2.0.108", features = ["full", "derive", "parsing", "printing", "clone-impls", "proc-macro"] }
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
+syn = { version = "2.0.117", features = ["full", "derive", "parsing", "printing", "clone-impls", "proc-macro"] }
 convert_case = "0.8.0"
 # heck is kept alongside convert_case because its `to_pascal_case()` handles
 # number boundaries differently (e.g. `user_2fa` → `User2fa` vs `User2Fa`).
@@ -16,23 +16,23 @@ heck = { version = "0.5.0", default-features = false }
 
 # Core dependencies
 async-trait = "0.1.89"
-axum = "0.8.6"
-sea-orm = { version = "1.1.19", default-features = false }
+axum = "0.8.9"
+sea-orm = { version = "1.1.20", default-features = false }
 serde = "1.0.228"
-serde_json = "1.0.145"
-serde_with = "3.15.1"
-utoipa = "5.4.0"
-uuid = "1.18.1"
-chrono = "0.4.42"
-rust_decimal = "1.39.0"
+serde_json = "1.0.149"
+serde_with = "3.20.0"
+utoipa = "5.5.0"
+uuid = "1.23.1"
+chrono = "0.4.44"
+rust_decimal = "1.42.0"
 
 # Development dependencies
-tokio = "1.48.0"
-sea-orm-migration = "1.1.19"
+tokio = "1.52.3"
+sea-orm-migration = "1.1.20"
 tower = "0.5.2"
-tower-http = "0.6.6"
+tower-http = "0.6.11"
 
-url-escape = "0.1.1"
+percent-encoding = "2.3.2"
 utoipa-axum = "0.2.0"
 utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 criterion = "0.7.0"

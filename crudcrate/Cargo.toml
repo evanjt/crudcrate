@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 description = "Derive complete REST APIs from Sea-ORM entities — endpoints, filtering, pagination, batch ops, and OpenAPI on Axum"
 license = "MIT"
@@ -20,7 +20,7 @@ spring-rs = ["spring", "spring-web", "derive"]
 
 [dependencies]
 # Proc macro dependency (optional)
-crudcrate-derive = { version = "=0.8.0", optional = true, path = "../crudcrate-derive" }
+crudcrate-derive = { version = "=0.9.0", optional = true, path = "../crudcrate-derive" }
 
 # Core dependencies using workspace versions
 async-trait = { workspace = true }
@@ -32,7 +32,6 @@ serde_with = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 tracing = { workspace = true }
-impls = "1"
 
 # Spring-RS dependencies (only for examples, behind feature flag)
 spring = { version = "0.4.3", optional = true }
@@ -52,7 +51,7 @@ tokio = { workspace = true, features = ["full"] }
 tracing-subscriber = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors", "trace"] }
-url-escape = { workspace = true }
+percent-encoding = { workspace = true }
 utoipa = { workspace = true, features = ["uuid", "chrono", "decimal"] }
 utoipa-axum = { workspace = true }
 utoipa-scalar = { workspace = true }
@@ -87,6 +86,11 @@ required-features = ["derive", "sqlite"]
 [[example]]
 name = "scoped_access"
 path = "../examples/scoped_access/main.rs"
+required-features = ["derive", "sqlite"]
+
+[[example]]
+name = "joined_filter"
+path = "../examples/joined_filter/main.rs"
 required-features = ["derive", "sqlite"]
 
 

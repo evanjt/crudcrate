@@ -1,6 +1,8 @@
-use sea_orm::{DatabaseBackend, sea_query::SimpleExpr};
+use sea_orm::{
+    DatabaseBackend,
+    sea_query::{Expr, SimpleExpr},
+};
 
-// Basic safety limits
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
 /// Escape LIKE wildcards to prevent wildcard injection attacks
@@ -22,107 +24,97 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     if fulltext_columns.is_empty() {
         return None;
     }
+    let column_names: Vec<&'static str> = fulltext_columns.iter().map(|(name, _)| *name).collect();
 
     match backend {
-        DatabaseBackend::Postgres => build_postgres_fulltext_condition(query, &fulltext_columns),
-        DatabaseBackend::MySql => build_mysql_fulltext_condition(query, &fulltext_columns),
-        _ => build_fallback_fulltext_condition(query, &fulltext_columns),
+        DatabaseBackend::Postgres => build_postgres_fulltext_condition(query, &column_names),
+        DatabaseBackend::MySql => build_mysql_fulltext_condition(query, &column_names),
+        _ => build_fallback_fulltext_condition(query, &column_names),
     }
 }
 
-/// Build PostgreSQL-specific fulltext search using ILIKE for case-insensitive matching
+/// Build PostgreSQL-specific fulltext search using ILIKE for case-insensitive matching.
+///
+/// Column names come from the macro-generated `fulltext_searchable_columns()` — they are
+/// compile-time-known `&'static str` Rust identifiers and never user input. The query
+/// value is routed through a bind parameter via `Expr::cust_with_values`.
 fn build_postgres_fulltext_condition(
     query: &str,
-    columns: &[(&'static str, impl sea_orm::ColumnTrait)],
+    column_names: &[&'static str],
 ) -> Option<SimpleExpr> {
-    if columns.is_empty() || query.is_empty() {
+    if column_names.is_empty() || query.is_empty() {
         return None;
     }
 
-    let mut concat_parts = Vec::new();
+    let concat_sql = column_names
+        .iter()
+        .map(|name| format!("COALESCE({name}::text, '')"))
+        .collect::<Vec<_>>()
+        .join(" || ' ' || ");
 
-    for (name, _column) in columns {
-        // COALESCE(column_name::text, '')
-        concat_parts.push(format!("COALESCE({name}::text, '')"));
-    }
+    let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let pattern = format!("%{}%", escape_like_wildcards(sanitized));
 
-    let concat_sql = concat_parts.join(" || ' ' || ");
-    let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
-
-    // Escape both SQL quotes and LIKE wildcards
-    let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
-
-    // Use ILIKE for case-insensitive substring matching (no pg_trgm extension required)
-    // Note: LIKE wildcards are escaped, ESCAPE '\' tells PostgreSQL to respect our escaping
-    let search_sql = format!("({concat_sql}) ILIKE '%{escaped_query}%' ESCAPE '\\'");
-
-    // Use custom SQL expression
-    Some(SimpleExpr::Custom(search_sql))
+    Some(Expr::cust_with_values(
+        format!("({concat_sql}) ILIKE ? ESCAPE '\\'"),
+        [pattern],
+    ))
 }
 
-/// Build MySQL-specific fulltext search using CONCAT and LIKE
+/// Build MySQL-specific fulltext search using CONCAT and LIKE.
+///
+/// See [`build_postgres_fulltext_condition`] for the safety rationale.
 fn build_mysql_fulltext_condition(
     query: &str,
-    columns: &[(&'static str, impl sea_orm::ColumnTrait)],
+    column_names: &[&'static str],
 ) -> Option<SimpleExpr> {
-    if columns.is_empty() || query.is_empty() {
+    if column_names.is_empty() || query.is_empty() {
         return None;
     }
 
-    let mut concat_parts = Vec::new();
-
-    for (name, _column) in columns {
-        // COALESCE(CAST(column_name AS CHAR), '')
-        concat_parts.push(format!("COALESCE(CAST({name} AS CHAR), '')"));
-    }
-
-    // MySQL uses CONCAT() for string concatenation, not ||
-    let concat_sql = if concat_parts.len() == 1 {
-        concat_parts[0].clone()
+    let coalesced: Vec<String> = column_names
+        .iter()
+        .map(|name| format!("COALESCE(CAST({name} AS CHAR), '')"))
+        .collect();
+    let concat_sql = if coalesced.len() == 1 {
+        coalesced[0].clone()
     } else {
-        format!("CONCAT({})", concat_parts.join(", ' ', "))
+        format!("CONCAT({})", coalesced.join(", ' ', "))
     };
 
-    let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
 
-    // Escape both SQL quotes and LIKE wildcards
-    let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
-
-    // MySQL LIKE is case-insensitive by default for non-binary columns
-    // Use ESCAPE '\\' for wildcard escaping (MySQL uses double backslash in string literals)
-    let search_sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\\\'");
-
-    Some(SimpleExpr::Custom(search_sql))
+    Some(Expr::cust_with_values(
+        format!("UPPER({concat_sql}) LIKE ? ESCAPE '\\\\'"),
+        [pattern],
+    ))
 }
 
-/// Build fallback fulltext search for `SQLite` and other standard SQL databases
-/// Uses || for concatenation and CAST AS TEXT (standard SQL syntax)
+/// Build fallback fulltext search for `SQLite` and other standard SQL databases.
+///
+/// See [`build_postgres_fulltext_condition`] for the safety rationale.
 fn build_fallback_fulltext_condition(
     query: &str,
-    columns: &[(&'static str, impl sea_orm::ColumnTrait)],
+    column_names: &[&'static str],
 ) -> Option<SimpleExpr> {
-    if columns.is_empty() || query.is_empty() {
+    if column_names.is_empty() || query.is_empty() {
         return None;
     }
 
-    // For SQLite and other databases, use || for concatenation with LIKE
-    let mut concat_parts = Vec::new();
+    let concat_sql = column_names
+        .iter()
+        .map(|name| format!("CAST({name} AS TEXT)"))
+        .collect::<Vec<_>>()
+        .join(" || ' ' || ");
 
-    for (name, _column) in columns {
-        concat_parts.push(format!("CAST({name} AS TEXT)"));
-    }
+    let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
 
-    let concat_sql = concat_parts.join(" || ' ' || ");
-    // Additional security: validate and sanitize query
-    let sanitized_query = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
-
-    // Escape both LIKE wildcards and SQL quotes
-    let escaped_query = escape_like_wildcards(sanitized_query).replace('\'', "''");
-
-    let like_sql = format!("UPPER({concat_sql}) LIKE UPPER('%{escaped_query}%') ESCAPE '\\'",);
-
-    // Use custom SQL expression
-    Some(SimpleExpr::Custom(like_sql))
+    Some(Expr::cust_with_values(
+        format!("UPPER({concat_sql}) LIKE ? ESCAPE '\\'"),
+        [pattern],
+    ))
 }
 
 /// Build condition for string field with LIKE queries (case-insensitive)
@@ -363,5 +355,122 @@ mod tests {
             "",
             "Empty string should pass through"
         );
+    }
+
+    // --- Issue 5: Fulltext SQL must route user value through a bind parameter ---
+
+    /// Split a `CustomWithExpr` debug string into (template, values_section).
+    /// Returns (`"`..., `[`Value(...)`]`).
+    fn split_custom_with_expr(debug: &str) -> (&str, &str) {
+        let prefix = "CustomWithExpr(\"";
+        let start = debug
+            .find(prefix)
+            .map(|i| i + prefix.len())
+            .expect("not a CustomWithExpr");
+        let split = debug
+            .find("\", [")
+            .expect("CustomWithExpr without values section");
+        (&debug[start..split], &debug[split + 4..])
+    }
+
+    /// Postgres fulltext path must use a bind parameter, not string interpolation.
+    #[test]
+    fn test_postgres_fulltext_binds_query_value() {
+        let malicious = "'; DROP TABLE users; --";
+        let result = build_postgres_fulltext_condition(malicious, &["name", "email"])
+            .expect("non-empty input produces a condition");
+        let debug = format!("{result:?}");
+
+        assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+        let (template, values) = split_custom_with_expr(&debug);
+        assert!(
+            template.contains("ILIKE ?"),
+            "template must use a placeholder, got: {template}"
+        );
+        assert!(
+            !template.contains(malicious) && !template.contains("DROP TABLE"),
+            "malicious value must not appear in SQL template: {template}"
+        );
+        assert!(
+            values.contains("Value(String") && values.contains("DROP TABLE"),
+            "query value must be bound as a parameter, got: {values}"
+        );
+    }
+
+    /// MySQL fulltext path must use a bind parameter.
+    #[test]
+    fn test_mysql_fulltext_binds_query_value() {
+        let malicious = "' OR '1'='1";
+        let result = build_mysql_fulltext_condition(malicious, &["name", "email"])
+            .expect("non-empty input produces a condition");
+        let debug = format!("{result:?}");
+
+        assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+        let (template, values) = split_custom_with_expr(&debug);
+        assert!(
+            template.contains("LIKE ?"),
+            "template must use a placeholder, got: {template}"
+        );
+        assert!(
+            !template.contains(malicious),
+            "malicious value must not appear in SQL template: {template}"
+        );
+        assert!(
+            values.contains("Value(String"),
+            "query value must be bound as a parameter, got: {values}"
+        );
+    }
+
+    /// SQLite/fallback fulltext path must use a bind parameter.
+    #[test]
+    fn test_fallback_fulltext_binds_query_value() {
+        let malicious = "'; DELETE FROM customers; --";
+        let result = build_fallback_fulltext_condition(malicious, &["name"])
+            .expect("non-empty input produces a condition");
+        let debug = format!("{result:?}");
+
+        assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+        let (template, values) = split_custom_with_expr(&debug);
+        assert!(
+            template.contains("LIKE ?"),
+            "template must use a placeholder, got: {template}"
+        );
+        assert!(
+            !template.contains(malicious) && !template.contains("DELETE FROM"),
+            "malicious value must not appear in SQL template: {template}"
+        );
+        assert!(
+            values.contains("Value(String"),
+            "query value must be bound as a parameter, got: {values}"
+        );
+    }
+
+    /// LIKE wildcards in the query value remain escaped inside the bound pattern.
+    #[test]
+    fn test_postgres_fulltext_escapes_like_wildcards() {
+        let result = build_postgres_fulltext_condition("100%", &["name"])
+            .expect("non-empty input produces a condition");
+        let debug = format!("{result:?}");
+        // The bound pattern should contain the escaped form "100\%" (escaped \\%)
+        assert!(
+            debug.contains("100\\\\%") || debug.contains("100\\%"),
+            "expected LIKE wildcard escaped in pattern, got {debug}"
+        );
+    }
+
+    /// Empty column list returns None, no SQL generated.
+    #[test]
+    fn test_fulltext_empty_columns_returns_none() {
+        assert!(build_postgres_fulltext_condition("foo", &[]).is_none());
+        assert!(build_mysql_fulltext_condition("foo", &[]).is_none());
+        assert!(build_fallback_fulltext_condition("foo", &[]).is_none());
+    }
+
+    /// Empty query returns None.
+    #[test]
+    fn test_fulltext_empty_query_returns_none() {
+        assert!(build_postgres_fulltext_condition("", &["name"]).is_none());
+        assert!(build_mysql_fulltext_condition("", &["name"]).is_none());
+        assert!(build_fallback_fulltext_condition("", &["name"]).is_none());
     }
 }

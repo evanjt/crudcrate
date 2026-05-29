@@ -23,13 +23,12 @@ pub(crate) fn should_include_in_model(field: &syn::Field, model_type: &str) -> b
                 // Create/Update models: exclude ALL join fields
                 return false;
             }
-            "list_model" => {
+            "list_model"
                 // List model: only exclude join(one) fields, keep join(all)
                 // Exclude if NOT loading in get_all (on_all = false)
-                if !join_config.on_all {
+                if !join_config.on_all => {
                     return false;
                 }
-            }
             _ => {}
         }
     }

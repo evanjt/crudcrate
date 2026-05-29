@@ -1,6 +1,9 @@
 use crate::codegen::{
     handlers::{create, delete, get, update},
-    joins::get_join_config,
+    joins::{
+        get_join_config,
+        loading::{generate_joined_field_has_scope_impl, generate_resolve_joined_filters_impl},
+    },
     type_resolution::{
         extract_api_struct_type_for_recursive_call, generate_crud_type_aliases,
         generate_enum_field_checker, generate_field_entries, generate_id_column,
@@ -46,6 +49,12 @@ pub(crate) fn generate_crud_resource_impl(
     let joined_sortable_entries =
         generate_joined_column_entries(&analysis.join_filter_sort_configs, false);
 
+    // Generate resolve_joined_filters override (empty if no filterable joined cols)
+    let resolve_joined_filters_impl =
+        generate_resolve_joined_filters_impl(analysis, api_struct_name);
+    let joined_field_has_scope_impl =
+        generate_joined_field_has_scope_impl(analysis, api_struct_name);
+
     let (
         get_one_impl,
         get_all_impl,
@@ -83,6 +92,18 @@ pub(crate) fn generate_crud_resource_impl(
         }
     });
 
+    let security_profile_impl = crud_meta.security_profile.as_deref().and_then(|preset| {
+        let ctor = match preset {
+            "secure" => quote! { crudcrate::SecurityProfile::secure() },
+            "react_admin" => quote! { crudcrate::SecurityProfile::react_admin() },
+            "legacy" => quote! { crudcrate::SecurityProfile::legacy() },
+            _ => return None,
+        };
+        Some(quote! {
+            fn security_profile() -> crudcrate::SecurityProfile { #ctor }
+        })
+    });
+
     // Generate require_scope constant (only when attribute is set, otherwise use trait default)
     let require_scope_impl = if crud_meta.require_scope {
         Some(quote! {
@@ -114,6 +135,7 @@ pub(crate) fn generate_crud_resource_impl(
             #batch_limit_impl
             #require_scope_impl
             #max_page_size_impl
+            #security_profile_impl
 
             fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
                 vec![#(#sortable_entries),*]
@@ -146,6 +168,9 @@ pub(crate) fn generate_crud_resource_impl(
             fn joined_sortable_columns() -> Vec<crudcrate::JoinedColumnDef> {
                 vec![#(#joined_sortable_entries),*]
             }
+
+            #resolve_joined_filters_impl
+            #joined_field_has_scope_impl
 
             #get_one_impl
             #get_all_impl
@@ -281,24 +306,21 @@ fn generate_fk_validation_tests(
             quote! { super::#child_entity }
         };
 
-        let assert_msg = format!(
-            "crudcrate FK mismatch: convention derived '{fk_snake}' for join '{api_struct_name}.{field_name}', \
-             but SeaORM RelationDef says the FK column is '{{}}'. \
-             Fix: add fk_column = \"ActualColumnName\" to the join attribute."
+        let info_msg = format!(
+            "crudcrate: FK for '{api_struct_name}.{field_name}' — convention='{fk_snake}', \
+             actual='{{}}' (resolved from SeaORM RelationDef at runtime)"
         );
 
         tests.push(quote! {
             #[test]
             fn #test_fn_name() {
                 use sea_orm::Iden;
-                // Get the RelationDef: ChildEntity -> ParentEntity (the FK is on the child)
                 let def = <#child_entity_adjusted as sea_orm::Related<#parent_entity>>::to();
                 let mut from_col_name = String::new();
                 def.from_col.unquoted(&mut from_col_name);
-                assert_eq!(
-                    from_col_name, #fk_snake,
-                    #assert_msg, from_col_name
-                );
+                if from_col_name != #fk_snake {
+                    eprintln!(#info_msg, from_col_name);
+                }
             }
         });
     }

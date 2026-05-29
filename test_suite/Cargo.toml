@@ -1,6 +1,6 @@
 [package]
 name = "test_suite"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 description = "Test suite for crudcrate and crudcrate-derive"
 license = "MIT"
@@ -27,7 +27,7 @@ rust_decimal = { workspace = true }
 # Additional dependencies needed by tests
 tracing = { workspace = true }
 tower-http = { workspace = true, features = ["cors", "trace"] }
-url-escape = { workspace = true }
+percent-encoding = { workspace = true }
 async-trait = { workspace = true }
 serial_test = "3.2"
 

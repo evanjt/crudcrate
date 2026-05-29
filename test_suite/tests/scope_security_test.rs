@@ -18,7 +18,8 @@ use tower::ServiceExt;
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
 
 fn encode_filter(filter: &Value) -> String {
-    url_escape::encode_component(&filter.to_string()).to_string()
+    percent_encoding::utf8_percent_encode(&filter.to_string(), percent_encoding::NON_ALPHANUMERIC)
+        .to_string()
 }
 
 /// POST a record via the unscoped (admin) app, return status + JSON body.
@@ -808,7 +809,11 @@ async fn scope_sort_on_excluded_column_ignored() {
     .await;
 
     // Attempt to sort by is_private — should not error, returns 200 with data
-    let sort = url_escape::encode_component(r#"["is_private","DESC"]"#).to_string();
+    let sort = percent_encoding::utf8_percent_encode(
+        r#"["is_private","DESC"]"#,
+        percent_encoding::NON_ALPHANUMERIC,
+    )
+    .to_string();
     let (status, body, _) = get_json(&scoped, &format!("/customers?sort={sort}")).await;
     assert_eq!(status, StatusCode::OK);
     let items = body.as_array().unwrap();

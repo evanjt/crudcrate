@@ -1,397 +1,251 @@
 # Security Best Practices
 
-CRUDCrate includes built-in security features, but here's how to maximize protection.
+This page covers the security knobs CRUDCrate provides, and points at
+upstream Axum / tower-http / axum-server for the layers it
+intentionally does not provide (authentication, CORS, TLS, rate
+limiting, response headers).
 
 ## Built-in Protections
 
-### SQL Injection Prevention
+### SQL injection prevention
 
-All queries use parameterization:
+All queries use Sea-ORM's parameterized expression builders, so user
+input never reaches the SQL string:
 
 ```rust
-// User input is NEVER interpolated into SQL
 let condition = Column::Email.eq(user_input);
-
-// Generated SQL:
-// SELECT * FROM users WHERE email = $1
-// With parameter: user_input (escaped)
+// Renders as `WHERE email = $1` with `user_input` bound as a parameter.
 ```
 
-### Pagination Limits
+The fulltext-search builders route the query value through
+`Expr::cust_with_values`, so the `LIKE` pattern is bound rather than
+interpolated.
 
-Prevents denial-of-service via large queries:
+### Pagination limits
 
 ```rust
-// Built-in limits
 const MAX_PAGE_SIZE: u64 = 1000;
 const MAX_OFFSET: u64 = 1_000_000;
-
-// Even if user requests 10000 items, only 1000 returned
 ```
 
-### Overflow Protection
+Override per resource with `#[crudcrate(max_page_size = 500)]`, or by
+implementing `CRUDResource::max_page_size()` for runtime sources (env
+vars, config).
 
-Pagination calculations use saturating arithmetic to prevent integer overflow panics:
+### Overflow protection
+
+Pagination math uses saturating arithmetic. `page=u64::MAX` and
+`per_page=u64::MAX` resolve to safe values instead of panicking.
+
+### Field value and search query length limits
 
 ```rust
-// Malicious request: page=18446744073709551615&per_page=18446744073709551615
-// Would normally cause: panic on integer overflow
-
-// CRUDCrate uses saturating arithmetic:
-let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
-// Result: Returns max safe values instead of panicking
+const MAX_FIELD_VALUE_LENGTH: usize = 10_000;   // 10 KB per filter value
+const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;  // 10 KB for {"q": ...}
 ```
 
-### Field Value Length Limits
+Oversized values are truncated before they reach the query builder.
 
-Protects against memory exhaustion from oversized filter values:
+### LIKE wildcard escaping
 
-```rust
-// Built-in limit
-const MAX_FIELD_VALUE_LENGTH: usize = 10_000;  // 10KB max per field
+`%` and `_` in filter values are escaped, so `{"name": "%admin%"}`
+matches the literal string rather than every row containing `admin`.
 
-// User provides: {"name": "A".repeat(1_000_000)}
-// Result: Value truncated or rejected, not processed
-```
-
-### Fulltext Search Query Limits
-
-Prevents oversized search queries from consuming resources:
+### Filter clause count limit
 
 ```rust
-// Built-in limit
-const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;  // 10KB max
-
-// User provides: {"q": "A".repeat(1_000_000)}
-// Result: Query truncated to 10KB before processing
-```
-
-### Header Injection Prevention
-
-Sanitizes resource names to prevent HTTP header injection attacks:
-
-```rust
-// Malicious resource name: "items\r\nInjected-Header: evil"
-// Could inject headers into Content-Range response
-
-// CRUDCrate sanitizes:
-fn sanitize_resource_name(name: &str) -> String {
-    name.chars()
-        .filter(|c| c.is_ascii() && !c.is_ascii_control())
-        .collect()
-}
-// Result: Control characters stripped, header injection prevented
-```
-
-### LIKE Wildcard Escaping
-
-Prevents wildcard injection in search queries:
-
-```rust
-// User provides: {"name": "%admin%"}
-// Without escaping: matches ALL records containing "admin"
-
-// CRUDCrate escapes wildcards:
-// % → \%
-// _ → \_
-// Result: Literal search for "%admin%" string
-```
-
-### Filter Clause Count Limit
-
-Caps the number of filter clauses per request to prevent a client from driving expensive query construction:
-
-```rust
-// Built-in limit
 const MAX_FILTER_CLAUSES: usize = 100;
 ```
 
-Requests with more than 100 filter keys receive a **`400 Bad Request`** response with a clear error message. CRUDCrate deliberately does *not* silently drop over-limit filters — an unfiltered response is a worse failure mode than a rejected request, because a caller relying on the filter would see data they didn't ask for.
+Requests with more than 100 filter keys return `400 Bad Request`.
+Comparison-operator suffixes count separately:
+`{"year_gte": 2020, "year_lte": 2024}` is two clauses on one field.
 
-Remember that comparison-operator suffixes count separately: `{"year_gte": 2020, "year_lte": 2024}` is two clauses on one logical field. Legitimate admin dashboards with many filterable fields rarely approach 100 in practice.
+CRUDCrate deliberately does not silently drop over-limit filters: an
+unfiltered response is a worse failure mode than a rejected request,
+because a caller relying on the filter would see data it did not ask
+for.
 
-### Request Body Size
+### Batch operation limits
 
-**CRUDCrate does not set a default request body size limit** — your application MUST configure one. Without it, batch endpoints (`POST /batch`, `PATCH /batch`) will accept arbitrarily large JSON payloads, and a client can exhaust server memory with a single request.
+```rust
+#[crudcrate(batch_limit = 500)]   // default 100
+pub struct Model { /* ... */ }
+```
 
-Use Axum's `DefaultBodyLimit`:
+Override at runtime by implementing `CRUDResource::batch_limit()` (for
+example, reading from an environment variable).
+
+### Partial-success mode
+
+`POST /resource/batch?partial=true` (and the equivalents for `PATCH`
+and `DELETE`) returns `207 Multi-Status` with a `succeeded` / `failed`
+split instead of failing the whole batch.
+
+Each item is processed through the single-item hooks
+(`create::one::*`, etc.) and commits independently. There is no shared
+transaction. Error strings in the `failed` array use the sanitized
+`ApiError` display output, not the raw DB error.
+
+HTTP status codes:
+
+- `200` if every item succeeded.
+- `207 Multi-Status` if some succeeded and some failed.
+- `400 Bad Request` if every item failed.
+
+### Header injection prevention
+
+Resource names embedded in `Content-Range` response headers are
+filtered to ASCII non-control characters, so a malicious table-name
+substring cannot inject extra headers.
+
+The `ApiError` to `Response` translation also sanitizes the
+user-derived prefix in `DbErr::RecordNotFound` messages: only an
+alphanumeric/underscore identifier in the first word is kept, capped
+at 64 characters. Anything else falls back to a generic `Resource`
+prefix.
+
+### Error sanitization
+
+Internal DB errors are logged via `tracing` but the client only sees a
+generic message:
+
+```text
+Internal log: SQLSTATE[42P01]: relation "users" does not exist
+Client response: "A database error occurred"
+```
+
+## SecurityProfile
+
+`SecurityProfile` bundles the runtime defaults that vary between
+deployments: filter strictness, scope propagation, deleted-ID
+exposure, and request body size limit. Three presets cover the common
+cases:
+
+| Preset                       | Strict filter parsing | Strict scope propagation | Expose deleted IDs | Body limit |
+|------------------------------|-----------------------|--------------------------|--------------------|------------|
+| `secure()` (0.9.0 default)   | yes                   | yes                      | no                 | 2 MiB      |
+| `react_admin()`              | no                    | yes                      | yes                | 2 MiB      |
+| `legacy()` (pre-0.9.0)       | no                    | no                       | yes                | 2 MiB      |
+
+### Per-resource override
+
+```rust
+#[derive(EntityToModels, /* ... */)]
+#[crudcrate(api_struct = "Customer", security_profile = "react_admin")]
+pub struct Model { /* ... */ }
+```
+
+### Global override
+
+```rust
+use axum::Extension;
+use crudcrate::SecurityProfile;
+
+let app = Router::new()
+    .merge(Customer::router(&db))
+    .merge(Article::router(&db))
+    .layer(Extension(SecurityProfile::secure()));
+```
+
+The `Extension` wins over the per-resource attribute, so a global layer
+can tighten or loosen individual resources without touching each
+`impl CRUDResource`.
+
+### Custom profile
+
+Use struct-update syntax to mix fields:
+
+```rust
+let p = SecurityProfile {
+    expose_deleted_ids: true,
+    ..SecurityProfile::secure()
+};
+```
+
+### Resolution order
+
+1. `axum::Extension<SecurityProfile>` on the request, if present.
+2. `CRUDResource::security_profile()` for the resource being served
+   (the derive attribute generates this).
+3. The trait default, which is `SecurityProfile::secure()` in 0.9.0.
+
+### Build-time caveat for `max_request_body_bytes`
+
+`max_request_body_bytes` is applied via Axum's `DefaultBodyLimit`
+layer when the router is built. Changing it via an `Extension` at
+request time has no effect on the limit. The other three fields work
+fully at request time.
+
+To raise or lower the body limit, set it via the per-resource derive
+attribute, or wrap the router yourself:
 
 ```rust
 use axum::extract::DefaultBodyLimit;
 
 let app = Router::new()
-    .nest("/customers", Customer::router(&db))
-    // 2 MB global cap — tune to your batch size and field width
-    .layer(DefaultBodyLimit::max(2 * 1024 * 1024));
+    .nest("/uploads", Upload::router(&db))
+    .layer(DefaultBodyLimit::max(10 * 1024 * 1024));
 ```
 
-For routes where you want a larger limit (e.g., bulk import), override per-route:
-
-```rust
-let app = Router::new()
-    .nest("/customers", Customer::router(&db))
-    .layer(DefaultBodyLimit::max(1024 * 1024))      // 1 MB default
-    .route_layer(DefaultBodyLimit::max(10 * 1024 * 1024)); // 10 MB for bulk
-```
-
-Combine this with `batch_limit` (number of items) and Axum/tower timeouts for defence-in-depth.
-
-### Batch Operation Limits
-
-All batch operations (create, update, delete) enforce a configurable size limit to prevent resource exhaustion:
-
-```rust
-// Default: 100 items per batch
-#[crudcrate(batch_limit = 500)]  // Override per-resource
-pub struct Model { }
-```
-
-For runtime-configurable limits (e.g., from environment variables), override the trait method:
-
-```rust
-impl CRUDResource for MyResource {
-    fn batch_limit() -> usize {
-        std::env::var("MY_BATCH_LIMIT")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(100)
-    }
-    // ...
-}
-```
-
-### Partial Success Mode
-
-Batch endpoints support a `?partial=true` query parameter that changes behavior:
-
-**Response shape**: With `?partial=true`, the response wraps results in a `BatchResult<T>` instead of `Vec<T>`:
-```json
-{
-  "succeeded": [{ "id": "...", "name": "..." }],
-  "failed": [{ "index": 2, "error": "..." }]
-}
-```
-
-**Hook behavior**: Partial mode processes each item individually via single-item methods (`create`, `update`, `delete`). This means:
-- `create::many::*`, `update::many::*`, and `delete::many::*` hooks are **not called**
-- Single-item hooks (`create::one::*`, etc.) are called for each item instead
-- There is no shared transaction — each item commits independently
-
-**Error sanitization**: Error messages in the `failed` array use sanitized `ApiError::Display` output. Database errors show "A database error occurred" rather than internal details.
-
-**HTTP status codes**:
-- `200` — All items succeeded
-- `207 Multi-Status` — Some items succeeded, some failed
-- `400 Bad Request` — All items failed
-
-### Error Sanitization
-
-Internal errors are logged but not exposed:
-
-```rust
-// Internal: "SQLSTATE[42P01]: Undefined table: 7 ERROR: relation \"users\" does not exist"
-// Response: "Database error"
-```
+See [MIGRATION_0.9.md](../../MIGRATION_0.9.md) for the upgrade path
+from `legacy()` and the per-flag rationale.
 
 ## Authentication
 
-> **CRUDCrate does NOT provide authentication.** The generated routers are open by default — any request that reaches them will be processed. Applications **must** wrap the routers with an Axum middleware layer (or upstream reverse proxy) that authenticates the caller before the handler runs. See the [`scoped_access`](https://github.com/evanjt/crudcrate/tree/main/examples/scoped_access) example for an end-to-end pattern combining auth middleware with row-level scoping.
+**CRUDCrate does not authenticate callers.** The generated routers are
+open: any request that reaches them is processed. Wrap them with an
+Axum middleware layer (or an upstream reverse proxy) that
+authenticates the caller before the handler runs.
 
-Use Axum middleware:
+The [`scoped_access`](https://github.com/evanjt/crudcrate/tree/main/examples/scoped_access)
+example combines auth middleware with row-level scoping end to end.
 
-### JWT Authentication
-
-```rust
-use axum::{
-    middleware,
-    http::{Request, StatusCode},
-    response::Response,
-    extract::State,
-};
-use jsonwebtoken::{decode, Validation, DecodingKey};
-
-#[derive(Clone)]
-pub struct AuthState {
-    pub jwt_secret: String,
-}
-
-async fn auth_middleware<B>(
-    State(state): State<AuthState>,
-    mut request: Request<B>,
-    next: middleware::Next<B>,
-) -> Result<Response, StatusCode> {
-    let auth_header = request.headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    let token_data = decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
-        &Validation::default()
-    ).map_err(|_| StatusCode::UNAUTHORIZED)?;
-
-    // Add user to request extensions
-    request.extensions_mut().insert(token_data.claims.user_id);
-
-    Ok(next.run(request).await)
-}
-
-// Apply to routes
-let app = Router::new()
-    .merge(protected_router())
-    .layer(middleware::from_fn_with_state(auth_state, auth_middleware));
-```
-
-### API Key Authentication
-
-```rust
-async fn api_key_middleware<B>(
-    State(valid_keys): State<HashSet<String>>,
-    request: Request<B>,
-    next: middleware::Next<B>,
-) -> Result<Response, StatusCode> {
-    let api_key = request.headers()
-        .get("X-API-Key")
-        .and_then(|h| h.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if !valid_keys.contains(api_key) {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    Ok(next.run(request).await)
-}
-```
+For middleware patterns (JWT, API key, session cookie), see the
+[Axum middleware docs](https://docs.rs/axum/latest/axum/middleware/index.html).
 
 ## Authorization
 
-### Row-Level Security
-
-Use `before_get_all` to filter results:
-
-```rust
-impl CRUDOperations for ArticleOperations {
-    async fn before_get_all(
-        &self,
-        _db: &DatabaseConnection,
-        condition: &mut Condition,
-    ) -> Result<(), ApiError> {
-        let user = get_current_user();
-
-        if !user.is_admin {
-            // Users only see their own articles
-            *condition = condition.clone().add(Column::AuthorId.eq(user.id));
-        }
-
-        Ok(())
-    }
-}
-```
-
-### Operation-Level Authorization
+Authorization lives in the hook system. Use `before_get_all` for
+row-level filtering and `before_*` hooks for per-operation checks:
 
 ```rust
-impl CRUDOperations for ArticleOperations {
-    async fn before_update(
-        &self,
-        db: &DatabaseConnection,
-        id: Uuid,
-        _data: &mut ArticleUpdate,
-    ) -> Result<(), ApiError> {
-        let user = get_current_user();
-        let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
-
-        // Only author or admin can edit
-        if article.author_id != user.id && !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        Ok(())
-    }
-
-    async fn before_delete(
-        &self,
-        db: &DatabaseConnection,
-        id: Uuid,
-    ) -> Result<(), ApiError> {
-        let user = get_current_user();
-
-        // Only admins can delete
-        if !user.is_admin {
-            return Err(ApiError::Forbidden);
-        }
-
-        Ok(())
-    }
-}
-```
-
-### Role-Based Access Control
-
-```rust
-#[derive(Clone, Copy, PartialEq)]
-pub enum Role {
-    User,
-    Moderator,
-    Admin,
-}
-
-fn require_role(user: &User, required: Role) -> Result<(), ApiError> {
-    let user_level = match user.role {
-        Role::Admin => 3,
-        Role::Moderator => 2,
-        Role::User => 1,
-    };
-
-    let required_level = match required {
-        Role::Admin => 3,
-        Role::Moderator => 2,
-        Role::User => 1,
-    };
-
-    if user_level >= required_level {
-        Ok(())
-    } else {
-        Err(ApiError::Forbidden)
-    }
-}
-```
-
-## Input Validation
-
-### Sanitize User Input
-
-```rust
-async fn before_create(
+async fn before_get_all(
     &self,
     _db: &DatabaseConnection,
-    data: &mut ArticleCreate,
+    condition: &mut Condition,
 ) -> Result<(), ApiError> {
-    // Trim whitespace
-    data.title = data.title.trim().to_string();
-
-    // Sanitize HTML (if allowing rich text)
-    data.content = ammonia::clean(&data.content);
-
-    // Validate length
-    if data.title.len() > 200 {
-        return Err(ApiError::ValidationFailed(vec![
-            ValidationError::new("title", "Title too long (max 200 characters)")
-        ]));
+    let user = current_user();
+    if !user.is_admin {
+        *condition = condition.clone().add(Column::AuthorId.eq(user.id));
     }
+    Ok(())
+}
 
+async fn before_update(
+    &self,
+    db: &DatabaseConnection,
+    id: Uuid,
+    _data: &mut ArticleUpdate,
+) -> Result<(), ApiError> {
+    let user = current_user();
+    let article = Entity::find_by_id(id)
+        .one(db)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    if article.author_id != user.id && !user.is_admin {
+        return Err(ApiError::Forbidden);
+    }
     Ok(())
 }
 ```
 
-### Prevent Mass Assignment
+For declarative scope filtering tied to an `Extension`, see the
+[scoping tutorial](../tutorial/scoping.md).
 
-Only allow specific fields to be updated:
+### Prevent mass assignment
+
+Strip protected fields in `before_update`:
 
 ```rust
 async fn before_update(
@@ -400,194 +254,64 @@ async fn before_update(
     _id: Uuid,
     data: &mut UserUpdate,
 ) -> Result<(), ApiError> {
-    // Prevent updating sensitive fields via API
     data.is_admin = None;
-    data.email_verified = None;
     data.password_reset_token = None;
-
     Ok(())
 }
 ```
 
-## Rate Limiting
+## Layers CRUDCrate does not provide
 
-Use tower middleware:
+Use the appropriate Axum / tower-http / axum-server layer for each.
+CRUDCrate intentionally does not wrap these.
+
+- **Rate limiting**: [`tower-governor`](https://docs.rs/tower_governor),
+  or a custom `tower::Layer`.
+- **CORS**: [`tower_http::cors::CorsLayer`](https://docs.rs/tower-http/latest/tower_http/cors/index.html).
+- **TLS termination**: terminate at a reverse proxy in production, or
+  use [`axum-server`](https://docs.rs/axum-server) with `rustls` for
+  in-process TLS.
+- **Response security headers**:
+  [`tower_http::set_header::SetResponseHeaderLayer`](https://docs.rs/tower-http/latest/tower_http/set_header/index.html)
+  for `X-Content-Type-Options`, `X-Frame-Options`,
+  `Strict-Transport-Security`, and friends.
+
+## Logging
+
+Log security-relevant events through `tracing`. The hook system is the
+natural attachment point for `#[instrument]`:
 
 ```rust
-use tower_governor::{GovernorLayer, GovernorConfig};
-
-let governor_conf = GovernorConfig::default();
-
-let app = Router::new()
-    .merge(api_router())
-    .layer(GovernorLayer {
-        config: &governor_conf,
-    });
-```
-
-Or custom rate limiting:
-
-```rust
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
-struct RateLimiter {
-    requests: HashMap<String, (u32, Instant)>,
-    max_requests: u32,
-    window: Duration,
-}
-
-async fn rate_limit_middleware<B>(
-    State(limiter): State<Arc<Mutex<RateLimiter>>>,
-    request: Request<B>,
-    next: middleware::Next<B>,
-) -> Result<Response, StatusCode> {
-    let ip = request.headers()
-        .get("X-Forwarded-For")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string();
-
-    let mut limiter = limiter.lock().await;
-
-    let (count, start) = limiter.requests
-        .entry(ip.clone())
-        .or_insert((0, Instant::now()));
-
-    if start.elapsed() > limiter.window {
-        *count = 0;
-        *start = Instant::now();
-    }
-
-    *count += 1;
-
-    if *count > limiter.max_requests {
-        return Err(StatusCode::TOO_MANY_REQUESTS);
-    }
-
-    drop(limiter);
-    Ok(next.run(request).await)
+#[instrument(skip(self, db))]
+async fn before_delete(
+    &self,
+    db: &DatabaseConnection,
+    id: Uuid,
+) -> Result<(), ApiError> {
+    info!(article_id = %id, "delete attempted");
+    Ok(())
 }
 ```
 
-## CORS Configuration
+A route-mount info log is emitted at startup with the resource name,
+table, `batch_limit`, `max_page_size`, and the active security
+defaults. It renders only when a `tracing_subscriber` is installed.
 
-```rust
-use tower_http::cors::{CorsLayer, Any};
+## Security checklist
 
-// Development (permissive)
-let cors = CorsLayer::permissive();
-
-// Production (restrictive)
-let cors = CorsLayer::new()
-    .allow_origin("https://yourdomain.com".parse::<HeaderValue>().unwrap())
-    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-    .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
-    .max_age(Duration::from_secs(3600));
-
-let app = Router::new()
-    .merge(api_router())
-    .layer(cors);
-```
-
-## HTTPS
-
-Always use HTTPS in production:
-
-```rust
-// In production, terminate TLS at load balancer/reverse proxy
-// Or use rustls for direct TLS:
-
-use axum_server::tls_rustls::RustlsConfig;
-
-let config = RustlsConfig::from_pem_file("cert.pem", "key.pem").await?;
-
-axum_server::bind_rustls(addr, config)
-    .serve(app.into_make_service())
-    .await?;
-```
-
-## Security Headers
-
-```rust
-use tower_http::set_header::SetResponseHeaderLayer;
-use axum::http::header;
-
-let app = Router::new()
-    .merge(api_router())
-    .layer(SetResponseHeaderLayer::if_not_present(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff")
-    ))
-    .layer(SetResponseHeaderLayer::if_not_present(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY")
-    ))
-    .layer(SetResponseHeaderLayer::if_not_present(
-        header::STRICT_TRANSPORT_SECURITY,
-        HeaderValue::from_static("max-age=31536000; includeSubDomains")
-    ));
-```
-
-## Logging and Monitoring
-
-```rust
-use tracing::{info, warn, error, instrument};
-
-impl CRUDOperations for ArticleOperations {
-    #[instrument(skip(self, db))]
-    async fn before_delete(
-        &self,
-        db: &DatabaseConnection,
-        id: Uuid,
-    ) -> Result<(), ApiError> {
-        let user = get_current_user();
-
-        info!(
-            user_id = %user.id,
-            article_id = %id,
-            "User attempting to delete article"
-        );
-
-        // Authorization check
-        let article = Entity::find_by_id(id).one(db).await?;
-
-        if article.is_none() {
-            warn!(article_id = %id, "Attempted to delete non-existent article");
-            return Err(ApiError::NotFound);
-        }
-
-        if !user.is_admin {
-            warn!(
-                user_id = %user.id,
-                article_id = %id,
-                "Unauthorized delete attempt"
-            );
-            return Err(ApiError::Forbidden);
-        }
-
-        Ok(())
-    }
-}
-```
-
-## Security Checklist
-
-- [ ] All routes require authentication (where needed)
-- [ ] Authorization checks on all mutations
-- [ ] Input validation on all user data
-- [ ] Rate limiting configured
-- [ ] CORS restricted to allowed origins
-- [ ] HTTPS enabled in production
-- [ ] Security headers set
-- [ ] Sensitive fields excluded from responses
-- [ ] Logging enabled for security events
-- [ ] Database credentials not in code
-- [ ] Dependencies updated regularly
+- [ ] Auth middleware wraps every route that needs to be authenticated.
+- [ ] `before_*` hooks enforce authorization on mutations.
+- [ ] `SecurityProfile::secure()` (or stricter) is the active profile.
+- [ ] Rate limiting layer is in place.
+- [ ] CORS restricted to allowed origins.
+- [ ] HTTPS terminated at the load balancer or in-process.
+- [ ] Security response headers set.
+- [ ] Sensitive fields excluded via `exclude(list)` or `exclude(one)`.
+- [ ] DB credentials sourced from environment, not source.
+- [ ] `cargo audit` runs in CI.
+- [ ] Dependencies updated regularly.
 
 ## Next Steps
 
-- Learn about [Performance Optimization](./performance.md)
-- Configure [Multi-Database Support](./multi-database.md)
-- Set up [Custom Operations](./custom-operations.md)
+- [Performance Optimization](./performance.md)
+- [Custom Operations](./custom-operations.md)

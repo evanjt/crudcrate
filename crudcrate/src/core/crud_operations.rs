@@ -152,6 +152,7 @@ macro_rules! crud_handlers_impl {
             axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
+            profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
         ) -> Result<axum::response::Response, crudcrate::ApiError> {
             use axum::response::IntoResponse;
 
@@ -160,6 +161,22 @@ macro_rules! crud_handlers_impl {
                 return Err(crudcrate::ApiError::internal(
                     "Scope middleware required for this resource but not configured",
                     Some("require_scope check failed: ScopeCondition extension not found in request".into()),
+                ));
+            }
+
+            let profile = crudcrate::profile::resolve(
+                profile_ext,
+                <$resource as crudcrate::traits::CRUDResource>::security_profile,
+            );
+
+            // Strict filter parsing: reject malformed filter JSON before falling through
+            // to the lenient parser (which would silently return an unfiltered result).
+            if profile.strict_filter_parsing
+                && let Some(filter_str) = &params.filter
+                && serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(filter_str).is_err()
+            {
+                return Err(crudcrate::ApiError::bad_request(
+                    "Invalid JSON in filter parameter",
                 ));
             }
 
@@ -195,9 +212,39 @@ macro_rules! crud_handlers_impl {
 
             let mut condition = parsed_filters.main_condition;
 
+            let scope_was_present = scope.is_some();
             if let Some(axum::Extension(crudcrate::ScopeCondition { condition: extra })) = scope {
                 condition = condition.add(extra);
             };
+
+            // Strict scope propagation: reject joined filters targeting child entities
+            // that don't carry their own scope_condition. Without scope on the child,
+            // the sub-query runs unrestricted and parent existence leaks via the
+            // result's cardinality even when the parent scope filters the final rows.
+            if profile.scope_propagation_strict
+                && scope_was_present
+                && !parsed_filters.joined_filters.is_empty()
+            {
+                for jf in &parsed_filters.joined_filters {
+                    if !<$resource as crudcrate::traits::CRUDResource>::joined_field_has_scope(&jf.join_field) {
+                        return Err(crudcrate::ApiError::bad_request(format!(
+                            "Joined filter on '{}' not allowed under strict scope: child entity has no scope_condition",
+                            jf.join_field,
+                        )));
+                    }
+                }
+            }
+
+            // Resolve dot-notation joined filters (e.g. {"vehicles.make":"BMW"})
+            // into additional `Self::ID_COLUMN.is_in(...)` clauses on the main
+            // condition. The derive macro's override runs a sub-query per
+            // filter with the child's scope_condition applied. Default impl
+            // (no derive override) returns the condition unchanged.
+            let condition = <$resource as crudcrate::traits::CRUDResource>::resolve_joined_filters(
+                &db,
+                condition,
+                &parsed_filters.joined_filters,
+            ).await?;
 
             let (order_column, order_direction) = match &sort_config {
                 crudcrate::SortConfig::Column { column, direction } => (*column, direction.clone()),
@@ -304,6 +351,7 @@ macro_rules! crud_handlers_impl {
         pub async fn delete_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
+            profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
             json: axum::Json<Vec<uuid::Uuid>>,
         ) -> axum::response::Response {
@@ -312,6 +360,11 @@ macro_rules! crud_handlers_impl {
             if scope.is_some() {
                 return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
             }
+
+            let profile = crudcrate::profile::resolve(
+                profile_ext,
+                <$resource as crudcrate::traits::CRUDResource>::security_profile,
+            );
 
             let ids = json.0;
 
@@ -334,22 +387,33 @@ macro_rules! crud_handlers_impl {
                     }
                 }
 
-                // Determine response status
-                if result.all_failed() {
-                    // All failed - return 400
-                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(result)).into_response()
+                let status = if result.all_failed() {
+                    axum::http::StatusCode::BAD_REQUEST
                 } else if result.is_partial() {
-                    // Some succeeded, some failed - return 207
-                    (axum::http::StatusCode::MULTI_STATUS, axum::Json(result)).into_response()
+                    axum::http::StatusCode::MULTI_STATUS
                 } else {
-                    // All succeeded - return 200
-                    (axum::http::StatusCode::OK, axum::Json(result)).into_response()
+                    axum::http::StatusCode::OK
+                };
+
+                if profile.expose_deleted_ids {
+                    (status, axum::Json(result)).into_response()
+                } else {
+                    let secure = serde_json::json!({
+                        "succeeded_count": result.succeeded.len(),
+                        "failed": result.failed,
+                    });
+                    (status, axum::Json(secure)).into_response()
                 }
             } else {
                 // All-or-nothing mode (default)
                 match <$resource as crudcrate::traits::CRUDResource>::delete_many(&state.0, ids).await {
                     Ok(deleted_ids) => {
-                        (axum::http::StatusCode::OK, axum::Json(deleted_ids)).into_response()
+                        if profile.expose_deleted_ids {
+                            (axum::http::StatusCode::OK, axum::Json(deleted_ids)).into_response()
+                        } else {
+                            let secure = serde_json::json!({"deleted": deleted_ids.len()});
+                            (axum::http::StatusCode::OK, axum::Json(secure)).into_response()
+                        }
                     }
                     Err(e) => crudcrate::ApiError::from(e).into_response()
                 }
@@ -574,6 +638,10 @@ macro_rules! generate_crud_router {
                 .routes(routes!(update_many_handler))
                 .routes(routes!(delete_one_handler))
                 .routes(routes!(delete_many_handler))
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    <$api_struct as crudcrate::traits::CRUDResource>::security_profile()
+                        .max_request_body_bytes,
+                ))
                 .with_state(db.clone())
         }
     };
@@ -606,6 +674,10 @@ macro_rules! generate_crud_router {
                 $(
                     .routes($extra_routes)
                 )*
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    <$api_struct as crudcrate::traits::CRUDResource>::security_profile()
+                        .max_request_body_bytes,
+                ))
                 .with_state(db.clone())
         }
     };

@@ -87,37 +87,62 @@ pub fn generate_get_all_impl(
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
-    // If operations is specified, use it (takes full control)
-    if let Some(ops_path) = &crud_meta.operations {
-        return quote! {
-            async fn get_all(
-                db: &sea_orm::DatabaseConnection,
-                condition: &sea_orm::Condition,
-                order_column: Self::ColumnType,
-                order_direction: sea_orm::Order,
-                offset: u64,
-                limit: u64,
-            ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
-                let ops = #ops_path;
-                crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
-            }
-        };
-    }
-
-    // Get hooks for read::many
-    let hooks = &crud_meta.hooks.read.many;
-
-    // Generate pre hook call
-    let pre_hook = hooks.pre.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
-    });
-
     // Check if there are join(all) fields that need loading
     let has_join_all_fields = !analysis.join_on_all_fields.is_empty();
+
+    // If operations is specified and there are no joins, delegate fully
+    if let Some(ops_path) = &crud_meta.operations {
+        if !has_join_all_fields {
+            return quote! {
+                async fn get_all(
+                    db: &sea_orm::DatabaseConnection,
+                    condition: &sea_orm::Condition,
+                    order_column: Self::ColumnType,
+                    order_direction: sea_orm::Order,
+                    offset: u64,
+                    limit: u64,
+                ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
+                    let ops = #ops_path;
+                    crudcrate::CRUDOperations::get_all(&ops, db, condition, order_column, order_direction, offset, limit).await
+                }
+            };
+        }
+    }
 
     // Generate select_only() optimization for skipping heavy Option columns excluded from ListModel
     let select_only_columns = generate_select_only_columns(analysis);
     let select_clause = select_only_columns.unwrap_or_default();
+
+    // When operations is set with joins, use operations lifecycle hooks.
+    // Otherwise use per-attribute hooks.
+    let (pre_hook, transform_hook, post_hook, custom_body) =
+        if let Some(ops_path) = &crud_meta.operations {
+            let pre = Some(quote! {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::before_get_all(
+                    &ops, db, condition, order_column, &order_direction, offset, limit
+                ).await?;
+            });
+            let post = Some(quote! {
+                crudcrate::CRUDOperations::after_get_all(&ops, db, &mut result).await?;
+            });
+            (pre, None, post, None)
+        } else {
+            let hooks = &crud_meta.hooks.read.many;
+            let pre = hooks.pre.as_ref().map(|fn_path| {
+                quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+            });
+            let transform = hooks.transform.as_ref().map(|fn_path| {
+                quote! { let result = #fn_path(db, result).await?; }
+            });
+            let post = hooks.post.as_ref().map(|fn_path| {
+                quote! { #fn_path(db, &result).await?; }
+            });
+            let body_override = hooks.body.as_ref().map(|fn_path| {
+                quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+            });
+            (pre, transform, post, body_override)
+        };
 
     // Shared body builder: given a batch-loading fragment, produce the full body.
     // Used for both get_all (unscoped) and get_all_scoped variants so they share
@@ -126,9 +151,8 @@ pub fn generate_get_all_impl(
         proc_macro2::TokenStream,
         proc_macro2::TokenStream,
     )>| {
-        if let Some(fn_path) = &hooks.body {
-            // Custom body takes full control; applies to both variants.
-            quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+        if let Some(ref body_code) = custom_body {
+            body_code.clone()
         } else if let Some((pre_loop_code, in_loop_code)) = batch_loading {
             quote! {
                 use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
@@ -187,16 +211,6 @@ pub fn generate_get_all_impl(
         None
     });
 
-    // Generate transform hook call (modifies the results)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
-
-    // Generate post hook call
-    let post_hook = hooks.post.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, &result).await?; }
-    });
-
     quote! {
         async fn get_all(
             db: &sea_orm::DatabaseConnection,
@@ -242,31 +256,54 @@ pub fn generate_get_one_impl(
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
-    // If operations is specified, use it (takes full control)
-    if let Some(ops_path) = &crud_meta.operations {
-        return quote! {
-            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
-                let ops = #ops_path;
-                crudcrate::CRUDOperations::get_one(&ops, db, id).await
-            }
-        };
-    }
-
-    // Get hooks for read::one
-    let hooks = &crud_meta.hooks.read.one;
-
-    // Generate pre hook call
-    let pre_hook = hooks.pre.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, id).await?; }
-    });
-
     // Generate default implementation for get_one with recursive join support
     let has_joins =
         !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
+    // If operations is specified and there are no joins, delegate fully
+    if let Some(ops_path) = &crud_meta.operations {
+        if !has_joins {
+            return quote! {
+                async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
+                    let ops = #ops_path;
+                    crudcrate::CRUDOperations::get_one(&ops, db, id).await
+                }
+            };
+        }
+    }
+
+    // When operations is set with joins, use operations lifecycle hooks.
+    // Otherwise use per-attribute hooks.
+    let (pre_hook, transform_hook, post_hook, custom_body) =
+        if let Some(ops_path) = &crud_meta.operations {
+            let pre = Some(quote! {
+                let ops = #ops_path;
+                crudcrate::CRUDOperations::before_get_one(&ops, db, id).await?;
+            });
+            let post = Some(quote! {
+                crudcrate::CRUDOperations::after_get_one(&ops, db, &mut result).await?;
+            });
+            (pre, None, post, None)
+        } else {
+            let hooks = &crud_meta.hooks.read.one;
+            let pre = hooks.pre.as_ref().map(|fn_path| {
+                quote! { #fn_path(db, id).await?; }
+            });
+            let transform = hooks.transform.as_ref().map(|fn_path| {
+                quote! { let result = #fn_path(db, result).await?; }
+            });
+            let post = hooks.post.as_ref().map(|fn_path| {
+                quote! { #fn_path(db, &result).await?; }
+            });
+            let body_override = hooks.body.as_ref().map(|fn_path| {
+                quote! { let mut result = #fn_path(db, id).await?; }
+            });
+            (pre, transform, post, body_override)
+        };
+
     // Generate body - either custom or default
-    let body = if let Some(fn_path) = &hooks.body {
-        quote! { let result = #fn_path(db, id).await?; }
+    let body = if let Some(ref body_code) = custom_body {
+        body_code.clone()
     } else if has_joins {
         // Use consolidated join loading implementation
         let join_loading_code = generate_get_one_join_loading(analysis, api_struct_name);
@@ -278,7 +315,7 @@ pub fn generate_get_one_impl(
                 Self::EntityType::find_by_id(id).one(db)
             ).await?;
 
-            let result = match main_model {
+            let mut result = match main_model {
                 Some(model) => {
                     #join_loading_code
                 }
@@ -290,22 +327,12 @@ pub fn generate_get_one_impl(
             let model = Self::EntityType::find_by_id(id)
                 .one(db)
                 .await?;
-            let result = match model {
+            let mut result = match model {
                 Some(model) => Self::from(model),
                 None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
             };
         }
     };
-
-    // Generate transform hook call (modifies the result)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
-
-    // Generate post hook call
-    let post_hook = hooks.post.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, &result).await?; }
-    });
 
     // Generate get_one_scoped — scope-filtered query + scoped join loading.
     // Uses scope condition on the parent query AND child entity scope conditions on joins.
@@ -322,7 +349,7 @@ pub fn generate_get_one_impl(
                 Self::EntityType::find().filter(scoped_condition).one(db)
             ).await?;
 
-            let result = match main_model {
+            let mut result = match main_model {
                 Some(model) => {
                     #join_loading_code
                 }
@@ -339,7 +366,7 @@ pub fn generate_get_one_impl(
                 .filter(scoped_condition)
                 .one(db)
                 .await?;
-            let result = match model {
+            let mut result = match model {
                 Some(model) => Self::from(model),
                 None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
             };
