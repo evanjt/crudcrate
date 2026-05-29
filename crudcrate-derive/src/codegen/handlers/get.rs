@@ -115,34 +115,35 @@ pub fn generate_get_all_impl(
 
     // When operations is set with joins, use operations lifecycle hooks.
     // Otherwise use per-attribute hooks.
-    let (pre_hook, transform_hook, post_hook, custom_body) =
-        if let Some(ops_path) = &crud_meta.operations {
-            let pre = Some(quote! {
-                let ops = #ops_path;
-                crudcrate::CRUDOperations::before_get_all(
-                    &ops, db, condition, order_column, &order_direction, offset, limit
-                ).await?;
-            });
-            let post = Some(quote! {
-                crudcrate::CRUDOperations::after_get_all(&ops, db, &mut result).await?;
-            });
-            (pre, None, post, None)
-        } else {
-            let hooks = &crud_meta.hooks.read.many;
-            let pre = hooks.pre.as_ref().map(|fn_path| {
-                quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
-            });
-            let transform = hooks.transform.as_ref().map(|fn_path| {
-                quote! { let result = #fn_path(db, result).await?; }
-            });
-            let post = hooks.post.as_ref().map(|fn_path| {
-                quote! { #fn_path(db, &result).await?; }
-            });
-            let body_override = hooks.body.as_ref().map(|fn_path| {
+    let (pre_hook, transform_hook, post_hook, custom_body) = if let Some(ops_path) =
+        &crud_meta.operations
+    {
+        let pre = Some(quote! {
+            let ops = #ops_path;
+            crudcrate::CRUDOperations::before_get_all(
+                &ops, db, condition, order_column, &order_direction, offset, limit
+            ).await?;
+        });
+        let post = Some(quote! {
+            crudcrate::CRUDOperations::after_get_all(&ops, db, &mut result).await?;
+        });
+        (pre, None, post, None)
+    } else {
+        let hooks = &crud_meta.hooks.read.many;
+        let pre = hooks.pre.as_ref().map(|fn_path| {
+            quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
+        });
+        let transform = hooks.transform.as_ref().map(|fn_path| {
+            quote! { let result = #fn_path(db, result).await?; }
+        });
+        let post = hooks.post.as_ref().map(|fn_path| {
+            quote! { #fn_path(db, &result).await?; }
+        });
+        let body_override = hooks.body.as_ref().map(|fn_path| {
                 quote! { let result = #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
             });
-            (pre, transform, post, body_override)
-        };
+        (pre, transform, post, body_override)
+    };
 
     // Shared body builder: given a batch-loading fragment, produce the full body.
     // Used for both get_all (unscoped) and get_all_scoped variants so they share

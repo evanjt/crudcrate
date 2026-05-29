@@ -82,9 +82,7 @@ async fn test_operations_get_all_includes_joins() {
         .method("POST")
         .uri("/managed_authors")
         .header("content-type", "application/json")
-        .body(Body::from(
-            json!({"name": "Samuel Delany"}).to_string(),
-        ))
+        .body(Body::from(json!({"name": "Samuel Delany"}).to_string()))
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();

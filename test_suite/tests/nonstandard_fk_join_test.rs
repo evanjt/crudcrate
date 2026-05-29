@@ -12,8 +12,8 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common;
-use common::{setup_test_app, setup_test_db};
 use common::author::AuthorResponse;
+use common::{setup_test_app, setup_test_db};
 
 #[tokio::test]
 async fn test_nonstandard_fk_get_one_includes_books() {
@@ -33,7 +33,9 @@ async fn test_nonstandard_fk_get_one_includes_books() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let author: AuthorResponse = serde_json::from_slice(&body).expect("Failed to parse author");
     let author_id = author.id;
 
@@ -43,11 +45,17 @@ async fn test_nonstandard_fk_get_one_includes_books() {
             .method("POST")
             .uri("/books")
             .header("content-type", "application/json")
-            .body(Body::from(json!({"title": title, "author_ref": author_id}).to_string()))
+            .body(Body::from(
+                json!({"title": title, "author_ref": author_id}).to_string(),
+            ))
             .unwrap();
 
         let response = app.clone().oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::CREATED, "Failed to create book '{title}'");
+        assert_eq!(
+            response.status(),
+            StatusCode::CREATED,
+            "Failed to create book '{title}'"
+        );
     }
 
     // GET the author — books should be populated via join(one)
@@ -60,11 +68,14 @@ async fn test_nonstandard_fk_get_one_includes_books() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let author: AuthorResponse = serde_json::from_slice(&body).expect("Failed to parse author");
 
     assert_eq!(
-        author.books.len(), 2,
+        author.books.len(),
+        2,
         "get_one should include 2 books via join(one) with non-standard FK (author_ref)"
     );
 }
@@ -87,7 +98,9 @@ async fn test_nonstandard_fk_get_all_includes_books() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let author: AuthorResponse = serde_json::from_slice(&body).expect("Failed to parse author");
     let author_id = author.id;
 
@@ -96,7 +109,10 @@ async fn test_nonstandard_fk_get_all_includes_books() {
         .method("POST")
         .uri("/books")
         .header("content-type", "application/json")
-        .body(Body::from(json!({"title": "Do Androids Dream of Electric Sheep?", "author_ref": author_id}).to_string()))
+        .body(Body::from(
+            json!({"title": "Do Androids Dream of Electric Sheep?", "author_ref": author_id})
+                .to_string(),
+        ))
         .unwrap();
 
     let response = app.clone().oneshot(request).await.unwrap();
@@ -112,18 +128,28 @@ async fn test_nonstandard_fk_get_all_includes_books() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body_str = String::from_utf8_lossy(&body);
-    let parsed: serde_json::Value = serde_json::from_str(&body_str).expect("Failed to parse list response");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&body_str).expect("Failed to parse list response");
 
-    let authors = parsed.as_array()
+    let authors = parsed
+        .as_array()
         .or_else(|| parsed["data"].as_array())
         .expect("Expected array or { data: [...] } response");
-    let our_author = authors.iter().find(|a| a["id"] == author_id.to_string()).expect("Author not found in list");
+    let our_author = authors
+        .iter()
+        .find(|a| a["id"] == author_id.to_string())
+        .expect("Author not found in list");
 
-    let books = our_author["books"].as_array().expect("Expected books array");
+    let books = our_author["books"]
+        .as_array()
+        .expect("Expected books array");
     assert_eq!(
-        books.len(), 1,
+        books.len(),
+        1,
         "get_all batch loading should include books via join(all) with non-standard FK (author_ref)"
     );
     assert_eq!(books[0]["title"], "Do Androids Dream of Electric Sheep?");
