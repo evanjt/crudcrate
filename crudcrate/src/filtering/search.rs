@@ -118,55 +118,42 @@ fn build_fallback_fulltext_condition(
     ))
 }
 
-/// Build condition for string field with LIKE queries (case-insensitive)
+/// Build condition for string field with LIKE queries (case-insensitive).
+///
+/// Column names come from the derive macro (compile-time Rust identifiers), not user input.
+/// The search value is routed through a bind parameter via `Expr::cust_with_values`.
 #[must_use]
 pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
-    use sea_orm::sea_query::{Alias, Expr, ExprTrait, Func};
-
-    // Use Expr::col() to properly quote column names instead of string interpolation
-    let column = Expr::col(Alias::new(key));
-
-    // Escape LIKE wildcards to prevent injection attacks
     let escaped_value = escape_like_wildcards(trimmed_value);
-
-    // Build UPPER(column) LIKE UPPER('%value%') ESCAPE '\'
-    // Case-insensitive pattern matching with wildcard escaping
     let pattern = format!("%{}%", escaped_value.to_uppercase());
 
-    Func::upper(column).like(pattern)
+    Expr::cust_with_values(format!("UPPER({key}) LIKE ? ESCAPE '!'"), [pattern])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// TDD: Column names should use `Expr::col()` not string interpolation
+    /// Column name appears in the SQL template; value is a bind parameter.
     #[test]
-    fn test_column_names_use_expr_col() {
-        // After fix: column names should be wrapped in Column() AST node
+    fn test_column_name_in_template_value_bound() {
         let result = build_like_condition("user_name", "test");
-        let sql = format!("{result:?}");
+        let debug = format!("{result:?}");
 
-        // Verify we're using Expr::col() which wraps in Column()
-        // This proves we're NOT using format!("{key}") anymore
+        assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+        let (template, values) = split_custom_with_expr(&debug);
         assert!(
-            sql.contains("Column(") && sql.contains("user_name"),
-            "Column should be wrapped in Column() AST node, got: {sql}"
+            template.contains("UPPER(user_name)"),
+            "column should appear in SQL template, got: {template}"
         );
-    }
-
-    /// NOTE: Column name validation
-    /// Column names come from the derive macro (compile-time), not user input,
-    /// so they're safe Rust identifiers. If this ever changes and column names
-    /// become user-controlled, add strict validation (alphanumeric + underscore only).
-    #[test]
-    fn test_column_names_wrapped_safely() {
-        // Even with suspicious names, they're wrapped in Column() which sea-query handles
-        let result = build_like_condition("test_column", "value");
-        let sql = format!("{result:?}");
-
-        // Verify Column() wrapper exists (proves we use Expr::col not format!)
-        assert!(sql.contains("Column("), "Should use Expr::col() wrapper");
+        assert!(
+            template.contains("LIKE ? ESCAPE '!'"),
+            "template should use bind param with ESCAPE, got: {template}"
+        );
+        assert!(
+            values.contains("Value(String"),
+            "search value should be a bind parameter, got: {values}"
+        );
     }
 
     /// Test that search query values cannot inject SQL
@@ -176,13 +163,17 @@ mod tests {
 
         for malicious_value in malicious_values {
             let result = build_like_condition("title", malicious_value);
-            let sql = format!("{result:?}");
+            let debug = format!("{result:?}");
 
-            // Values are wrapped in Value() which sea-query parameterizes safely
-            // The pattern is uppercased and wrapped, so SQL injection is prevented
+            assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+            let (template, values) = split_custom_with_expr(&debug);
             assert!(
-                sql.contains("Value(String"),
-                "Values should be wrapped safely: {sql}"
+                !template.contains(malicious_value),
+                "malicious value must not appear in SQL template: {template}"
+            );
+            assert!(
+                values.contains("Value(String"),
+                "value should be a bind parameter: {values}"
             );
         }
     }
@@ -200,7 +191,7 @@ mod tests {
         );
     }
 
-    /// Security test: LIKE wildcards should be escaped
+    /// Security test: LIKE wildcards should be escaped with `!` prefix
     #[test]
     fn test_wildcard_escaping() {
         assert_eq!(
@@ -210,61 +201,61 @@ mod tests {
         );
         assert_eq!(
             escape_like_wildcards("test%"),
-            "test\\%",
+            "test!%",
             "% should be escaped"
         );
         assert_eq!(
             escape_like_wildcards("test_value"),
-            "test\\_value",
+            "test!_value",
             "_ should be escaped"
         );
         assert_eq!(
             escape_like_wildcards("100%"),
-            "100\\%",
+            "100!%",
             "% in middle should be escaped"
         );
         assert_eq!(
             escape_like_wildcards("%_"),
-            "\\%\\_",
+            "!%!_",
             "Both wildcards should be escaped"
         );
         assert_eq!(
-            escape_like_wildcards("\\"),
-            "\\\\",
-            "Backslash should be escaped"
+            escape_like_wildcards("!"),
+            "!!",
+            "Escape character itself should be escaped"
         );
         assert_eq!(
-            escape_like_wildcards("\\%"),
-            "\\\\\\%",
-            "Backslash and % should both be escaped"
+            escape_like_wildcards("!%"),
+            "!!!%",
+            "Escape char and % should both be escaped"
         );
     }
 
     /// Security test: Wildcard injection should be prevented in LIKE conditions
     #[test]
     fn test_like_condition_prevents_wildcard_injection() {
-        // Test that wildcards are properly escaped
         let result_percent = build_like_condition("title", "test%");
-        let sql_percent = format!("{result_percent:?}");
-        // Debug repr will show \\% (escaped backslash), actual SQL has \%
+        let debug_percent = format!("{result_percent:?}");
+        let (_, values_percent) = split_custom_with_expr(&debug_percent);
         assert!(
-            sql_percent.contains("\\\\%"),
-            "% should be escaped in SQL: {sql_percent}"
+            values_percent.contains("TEST!%"),
+            "% should be escaped with ! in bound value: {values_percent}"
         );
 
         let result_underscore = build_like_condition("title", "test_value");
-        let sql_underscore = format!("{result_underscore:?}");
+        let debug_underscore = format!("{result_underscore:?}");
+        let (_, values_underscore) = split_custom_with_expr(&debug_underscore);
         assert!(
-            sql_underscore.contains("\\\\_"),
-            "_ should be escaped in SQL: {sql_underscore}"
+            values_underscore.contains("TEST!_VALUE"),
+            "_ should be escaped with ! in bound value: {values_underscore}"
         );
 
-        // Test just wildcards
         let result_just_percent = build_like_condition("title", "%");
-        let sql_just_percent = format!("{result_just_percent:?}");
+        let debug_just_percent = format!("{result_just_percent:?}");
+        let (_, values_just_percent) = split_custom_with_expr(&debug_just_percent);
         assert!(
-            sql_just_percent.contains("\\\\%"),
-            "Single % should be escaped: {sql_just_percent}"
+            values_just_percent.contains("!%"),
+            "Single % should be escaped: {values_just_percent}"
         );
     }
 
@@ -452,10 +443,9 @@ mod tests {
         let result = build_postgres_fulltext_condition("100%", &["name"])
             .expect("non-empty input produces a condition");
         let debug = format!("{result:?}");
-        // The bound pattern should contain the escaped form "100\%" (escaped \\%)
         assert!(
-            debug.contains("100\\\\%") || debug.contains("100\\%"),
-            "expected LIKE wildcard escaped in pattern, got {debug}"
+            debug.contains("100!%"),
+            "expected LIKE wildcard escaped with ! in pattern, got {debug}"
         );
     }
 
