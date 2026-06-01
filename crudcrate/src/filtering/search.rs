@@ -57,7 +57,7 @@ fn build_postgres_fulltext_condition(
     let pattern = format!("%{}%", escape_like_wildcards(sanitized));
 
     Some(Expr::cust_with_values(
-        format!("({concat_sql}) ILIKE ? ESCAPE '!'"),
+        format!("({concat_sql}) ILIKE $1 ESCAPE '!'"),
         [pattern],
     ))
 }
@@ -123,11 +123,26 @@ fn build_fallback_fulltext_condition(
 /// Column names come from the derive macro (compile-time Rust identifiers), not user input.
 /// The search value is routed through a bind parameter via `Expr::cust_with_values`.
 #[must_use]
-pub fn build_like_condition(key: &str, trimmed_value: &str) -> SimpleExpr {
+pub fn build_like_condition(
+    key: &str,
+    trimmed_value: &str,
+    backend: DatabaseBackend,
+) -> SimpleExpr {
     let escaped_value = escape_like_wildcards(trimmed_value);
     let pattern = format!("%{}%", escaped_value.to_uppercase());
 
-    Expr::cust_with_values(format!("UPPER({key}) LIKE ? ESCAPE '!'"), [pattern])
+    let placeholder = placeholder_for(backend);
+    Expr::cust_with_values(
+        format!("UPPER({key}) LIKE {placeholder} ESCAPE '!'"),
+        [pattern],
+    )
+}
+
+fn placeholder_for(backend: DatabaseBackend) -> &'static str {
+    match backend {
+        DatabaseBackend::Postgres => "$1",
+        _ => "?",
+    }
 }
 
 #[cfg(test)]
@@ -137,7 +152,7 @@ mod tests {
     /// Column name appears in the SQL template; value is a bind parameter.
     #[test]
     fn test_column_name_in_template_value_bound() {
-        let result = build_like_condition("user_name", "test");
+        let result = build_like_condition("user_name", "test", DatabaseBackend::Sqlite);
         let debug = format!("{result:?}");
 
         assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
@@ -162,7 +177,7 @@ mod tests {
         let malicious_values = vec!["'; DROP TABLE users; --", "' OR '1'='1"];
 
         for malicious_value in malicious_values {
-            let result = build_like_condition("title", malicious_value);
+            let result = build_like_condition("title", malicious_value, DatabaseBackend::Sqlite);
             let debug = format!("{result:?}");
 
             assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
@@ -234,7 +249,7 @@ mod tests {
     /// Security test: Wildcard injection should be prevented in LIKE conditions
     #[test]
     fn test_like_condition_prevents_wildcard_injection() {
-        let result_percent = build_like_condition("title", "test%");
+        let result_percent = build_like_condition("title", "test%", DatabaseBackend::Sqlite);
         let debug_percent = format!("{result_percent:?}");
         let (_, values_percent) = split_custom_with_expr(&debug_percent);
         assert!(
@@ -242,7 +257,8 @@ mod tests {
             "% should be escaped with ! in bound value: {values_percent}"
         );
 
-        let result_underscore = build_like_condition("title", "test_value");
+        let result_underscore =
+            build_like_condition("title", "test_value", DatabaseBackend::Sqlite);
         let debug_underscore = format!("{result_underscore:?}");
         let (_, values_underscore) = split_custom_with_expr(&debug_underscore);
         assert!(
@@ -250,7 +266,7 @@ mod tests {
             "_ should be escaped with ! in bound value: {values_underscore}"
         );
 
-        let result_just_percent = build_like_condition("title", "%");
+        let result_just_percent = build_like_condition("title", "%", DatabaseBackend::Sqlite);
         let debug_just_percent = format!("{result_just_percent:?}");
         let (_, values_just_percent) = split_custom_with_expr(&debug_just_percent);
         assert!(
@@ -262,7 +278,7 @@ mod tests {
     /// Test build_like_condition with empty value
     #[test]
     fn test_build_like_condition_empty_value() {
-        let result = build_like_condition("field", "");
+        let result = build_like_condition("field", "", DatabaseBackend::Sqlite);
         let sql = format!("{result:?}");
         assert!(sql.contains("field"), "Should include field name");
     }
@@ -270,7 +286,7 @@ mod tests {
     /// Test build_like_condition case insensitivity
     #[test]
     fn test_build_like_condition_case_insensitive() {
-        let result = build_like_condition("title", "TeSt");
+        let result = build_like_condition("title", "TeSt", DatabaseBackend::Sqlite);
         let sql = format!("{result:?}");
         // Should use UPPER() for case-insensitive matching
         assert!(
@@ -282,7 +298,7 @@ mod tests {
     /// Test build_like_condition with special characters
     #[test]
     fn test_build_like_condition_special_chars() {
-        let result = build_like_condition("title", "test@email.com");
+        let result = build_like_condition("title", "test@email.com", DatabaseBackend::Sqlite);
         let sql = format!("{result:?}");
         assert!(sql.contains("title"), "Should handle special characters");
     }
@@ -295,7 +311,7 @@ mod tests {
     /// Test that empty query produces match-all pattern in LIKE condition
     #[test]
     fn test_like_condition_empty_query_matches_all() {
-        let result = build_like_condition("field", "");
+        let result = build_like_condition("field", "", DatabaseBackend::Sqlite);
         let sql = format!("{result:?}");
         // Empty query produces LIKE '%%' which matches everything
         assert!(
@@ -309,7 +325,7 @@ mod tests {
     fn test_like_condition_whitespace_query() {
         // Note: build_like_condition doesn't trim - it passes through
         // Trimming happens at a higher level (in conditions.rs process_string_filter)
-        let result = build_like_condition("field", "   ");
+        let result = build_like_condition("field", "   ", DatabaseBackend::Sqlite);
         let sql = format!("{result:?}");
         // Pattern will be uppercased but still contain the spaces
         assert!(sql.contains("field"), "Should include field name");
@@ -319,7 +335,7 @@ mod tests {
     #[test]
     fn test_like_condition_case_insensitive_pattern() {
         // Test that the pattern is uppercased for case-insensitive matching
-        let result = build_like_condition("field", "MiXeD CaSe");
+        let result = build_like_condition("field", "MiXeD CaSe", DatabaseBackend::Sqlite);
         let sql = format!("{result:?}");
 
         // The pattern should contain the uppercased value
@@ -376,7 +392,7 @@ mod tests {
         assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
         let (template, values) = split_custom_with_expr(&debug);
         assert!(
-            template.contains("ILIKE ?"),
+            template.contains("ILIKE $1"),
             "template must use a placeholder, got: {template}"
         );
         assert!(

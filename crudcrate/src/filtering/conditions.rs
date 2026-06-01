@@ -226,7 +226,7 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
 
     // Check if this field should use LIKE queries (only for equality, not comparison operators)
     if operator == "=" && T::like_filterable_columns().contains(&base_field) {
-        return Some(build_like_condition(base_field, trimmed_value));
+        return Some(build_like_condition(base_field, trimmed_value, backend));
     }
 
     if T::is_enum_field(base_field) {
