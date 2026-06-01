@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-06-01
+
+### Fixed
+
+- **LIKE queries broken on Postgres**. `build_like_condition` and the
+  fulltext search functions used `?` as the bind placeholder in
+  `Expr::cust_with_values` templates. Sea-query's Postgres backend uses
+  `$` as its placeholder character, so the `?` was passed through as a
+  literal — Postgres then parsed `? ESCAPE '!'` as a JSONB operator
+  followed by a type cast, producing `type "escape" does not exist`.
+  Fixed by using `$1` for Postgres and `?` for MySQL/SQLite.
+
+- **`build_like_condition` missing `ESCAPE` clause**. The LIKE condition
+  for `like_filterable` fields used sea-query's `.like()` which never
+  emitted an `ESCAPE` clause. Rewritten to use `Expr::cust_with_values`
+  with `ESCAPE '!'`, matching the fulltext functions.
+
+- **Fulltext search on non-text columns**. The fallback LIKE search path
+  (when `fulltext_searchable_columns()` is empty) applied
+  `UPPER(col) LIKE ...` to all searchable columns including booleans.
+  Postgres and MySQL reject `UPPER(boolean)`. Fixed by casting columns
+  to `TEXT` (Postgres/SQLite) or `CHAR` (MySQL) before `UPPER()`.
+
+- **LIKE escape character conflicts with Postgres string quoting**.
+  Switched `escape_like_wildcards` from backslash to `!` as the escape
+  character. Backslash inside single-quoted SQL strings is ambiguous
+  across backends (Postgres `standard_conforming_strings`).
+
+### Changed
+
+- Removed dead codegen helpers (`runtime_fk_*` functions) from
+  `crudcrate-derive`.
+
+- Resolved clippy warnings across the workspace (collapsible ifs,
+  duplicate match arms, missing error docs, `unwrap` after `is_some`).
+
+- Updated trybuild snapshot for rustc 1.96.
+
 ## [0.9.0] - 2026-05-19
 
 ### Security
