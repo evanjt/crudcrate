@@ -108,7 +108,10 @@ impl CRUDOperations for ProductOperations {
 
     // LEVEL 2: Core Method Overrides
 
-    /// Custom fetch_all - add default filters
+    /// Custom `fetch_all` - apply a published-only default filter.
+    ///
+    /// This mirrors the default `fetch_all` query/mapping; the rest of the body
+    /// is the standard find/filter/order/paginate/map pipeline.
     async fn fetch_all(
         &self,
         db: &DatabaseConnection,
@@ -120,10 +123,10 @@ impl CRUDOperations for ProductOperations {
     ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
-        // Add published=true filter by default
-        let mut custom_condition = condition.clone();
-        custom_condition = custom_condition.add(Column::Published.eq(true));
+        // The only customization: force a published-only default filter.
+        let custom_condition = condition.clone().add(Column::Published.eq(true));
 
+        // --- everything below is identical to the default fetch_all ---
         let models = <Self::Resource as CRUDResource>::EntityType::find()
             .filter(custom_condition)
             .order_by(order_column, order_direction)

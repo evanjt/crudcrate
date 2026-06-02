@@ -18,8 +18,8 @@ use models::{branch, company, department, employee, project, task};
 #[derive(OpenApi)]
 #[openapi(
     info(
-        title = "CrudCrate 5-Deep Join API (6 Levels)",
-        description = "Demonstrates TRUE 5 JOIN operations across 6 levels: Company → Branch → Department → Employee → Project → Task. All relationships are loaded automatically with a single API call, showcasing CrudCrate's depth=5 capability.",
+        title = "CrudCrate Recursive Join API (6 Levels)",
+        description = "Demonstrates recursive joins across 6 levels: Company → Branch → Department → Employee → Project → Task. Each non-leaf join uses depth = 2 so it recurses into the child's own joins; the leaf join (Project → Task) uses depth = 1. Requesting a company loads the whole hierarchy in one API call.",
         version = "1.0.0",
         contact(
             name = "CrudCrate Documentation",
@@ -30,12 +30,12 @@ use models::{branch, company, department, employee, project, task};
         (url = "http://localhost:3000", description = "Development server")
     ),
     tags(
-        (name = "companies", description = "Company management (Level 1 - loads all 6 levels / 5 joins)"),
-        (name = "branches", description = "Branch management (Level 2 - loads 5 levels down)"),
-        (name = "departments", description = "Department management (Level 3 - loads 4 levels down)"),
-        (name = "employees", description = "Employee management (Level 4 - loads 3 levels down)"),
-        (name = "projects", description = "Project management (Level 5 - loads 2 levels down)"),
-        (name = "tasks", description = "Task management (Level 6 - leaf node)")
+        (name = "companies", description = "Company management (loads the full hierarchy down to tasks)"),
+        (name = "branches", description = "Branch management (loads departments, employees, projects, tasks)"),
+        (name = "departments", description = "Department management (loads employees, projects, tasks)"),
+        (name = "employees", description = "Employee management (loads projects and tasks)"),
+        (name = "projects", description = "Project management (loads tasks)"),
+        (name = "tasks", description = "Task management (leaf node, no joins)")
     )
 )]
 struct ApiDoc;
@@ -370,24 +370,28 @@ async fn main() {
     println!("\n🚀 Server running on http://localhost:3000");
     println!("📚 OpenAPI Documentation: http://localhost:3000/scalar\n");
 
-    println!("📊 6-Level Structure with 5 JOIN Operations:");
-    println!("   Level 1: Company      (depth=5 configured)");
-    println!("   Level 2: ↳ Branches   (join #1, depth=4)");
-    println!("   Level 3:   ↳ Departments (join #2, depth=3)");
-    println!("   Level 4:     ↳ Employees (join #3, depth=2)");
-    println!("   Level 5:       ↳ Projects (join #4, depth=1)");
-    println!("   Level 6:         ↳ Tasks (join #5, leaf node)\n");
+    println!("📊 6-level hierarchy: Company → Branch → Department → Employee → Project → Task");
+    println!("   Company    → branches    (depth=2: recurse into branch's joins)");
+    println!("   Branch     → departments (depth=2: recurse into department's joins)");
+    println!("   Department → employees   (depth=2: recurse into employee's joins)");
+    println!("   Employee   → projects    (depth=2: recurse into project's joins)");
+    println!("   Project    → tasks       (depth=1: Task has no joins, loaded flat)\n");
 
-    println!("🧪 Test the full 5-JOIN deep query:");
+    println!("ℹ️  Depth rule: a join recurses into the child's own joins when depth > 1,");
+    println!("   and loads that level flat when depth = 1. The magnitude beyond 1 has no");
+    println!("   extra effect; depth = 1 is the only special value (it stops recursion).\n");
+
+    println!("🧪 Load the full hierarchy from the top:");
     println!("   curl -s http://localhost:3000/companies | jq .");
-    println!("   # This single API call performs 5 JOINS across 6 levels automatically!\n");
+    println!("   # A single company request loads branches, departments, employees,");
+    println!("   # projects, and tasks.\n");
 
-    println!("🔍 Explore individual levels:");
-    println!("   curl -s http://localhost:3000/branches | jq .      # 5 joins, 5 levels deep");
-    println!("   curl -s http://localhost:3000/departments | jq .   # 4 joins, 4 levels deep");
-    println!("   curl -s http://localhost:3000/employees | jq .     # 3 joins, 3 levels deep");
-    println!("   curl -s http://localhost:3000/projects | jq .      # 2 joins, 2 levels deep");
-    println!("   curl -s http://localhost:3000/tasks | jq .         # Leaf node, 0 joins\n");
+    println!("🔍 Explore individual entry points:");
+    println!("   curl -s http://localhost:3000/branches | jq .      # loads down to tasks");
+    println!("   curl -s http://localhost:3000/departments | jq .   # loads down to tasks");
+    println!("   curl -s http://localhost:3000/employees | jq .     # loads projects and tasks");
+    println!("   curl -s http://localhost:3000/projects | jq .      # loads tasks");
+    println!("   curl -s http://localhost:3000/tasks | jq .         # leaf node, no joins\n");
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();

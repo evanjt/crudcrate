@@ -29,9 +29,9 @@ pub struct Model {
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
-    // Level 3: Departments in this branch
+    // Departments in this branch. depth = 2 recurses into each department's own joins.
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr, join(one, all, depth = 3))]
+    #[crudcrate(non_db_attr, join(one, all, depth = 2))]
     pub departments: Vec<super::department::Department>,
 }
 

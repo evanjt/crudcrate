@@ -29,7 +29,7 @@ pub struct Model {
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
-    // Level 6: Tasks within this project
+    // Tasks within this project. Task has no further joins, so depth = 1 loads it flat.
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 1))]
     pub tasks: Vec<super::task::Task>,
