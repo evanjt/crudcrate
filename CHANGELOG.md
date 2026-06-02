@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Non-UUID primary keys.** `CRUDResource` is now generic over the entity's
+  primary-key value type via `crudcrate::PrimaryKeyType<Self>`, so integer
+  (`i32`), string, and other Sea-ORM key types work end to end (CRUD, batch,
+  filtering, sorting, pagination, relationship loading, and the generated Axum
+  routes). UUID remains fully supported and unchanged.
+- **Joined sorting.** `sort=["children.column","ASC|DESC"]` now actually orders
+  parent rows by the joined child column, via a correlated sub-query
+  (`ORDER BY (SELECT MIN(child.col) FROM child WHERE child.fk = parent.pk)`).
+  Previously the dot-notation sort was parsed but silently ignored.
+- **Automatic `Validatable` invocation.** When a Create/Update model implements
+  `crudcrate::validation::Validatable`, the generated create/update/batch
+  handlers now call `validate()` before any write (HTTP 422 on failure). Models
+  that don't implement it are unaffected (no-op).
+- **Multi-backend coverage in CI.** The PostgreSQL and MySQL CI jobs now upload
+  `cargo llvm-cov` results to Codecov, so backend-specific code paths are
+  measured (previously only the SQLite job reported coverage).
+
+### Changed
+
+- **BREAKING (trait signatures).** `CRUDResource` and `CRUDOperations` methods
+  that took `id: uuid::Uuid` / `Vec<uuid::Uuid>` now take
+  `crudcrate::PrimaryKeyType<Self>` / `Vec<PrimaryKeyType<Self>>` — including
+  `get_one`, `get_one_scoped`, `update`, `delete`, `delete_many`, `update_many`
+  and the `CRUDOperations` `before_*` / `after_*` / `perform_*` / `fetch_*`
+  hooks. For UUID resources `PrimaryKeyType<Self>` resolves to `Uuid`, so runtime
+  behavior and the generated routes are unchanged. **Migration:** downstream code
+  that *overrides* any of these trait methods/hooks must change the `Uuid`
+  parameter/return types to `crudcrate::PrimaryKeyType<Self>` (or the concrete PK
+  type). Code that only derives `EntityToModels` needs no change.
+- `POST /{resource}/batch?partial=true` now builds each item with `create_many`
+  semantics, so partial and all-or-nothing batch create return the same
+  (flat) response shape and run the same `create::many` hooks. Single
+  `POST /{resource}` still applies join loading + `read::one::transform`.
+- `delete_many` de-duplicates the returned ids so the reported count matches the
+  rows actually deleted.
+- Self-referencing `#[schema(no_recursion)]` detection now uses an exact
+  inner-type match (not a substring), and deriving `Eq` now also derives
+  `PartialEq`.
+
+### Fixed
+
+- **LIKE wildcard escaping was a no-op on SQLite** for the fulltext LIKE-fallback
+  and joined `_like` paths: escaping used a backslash but emitted no `ESCAPE`
+  clause, so user-supplied `%`/`_` stayed active wildcards. These paths now use
+  the `!` escape convention with an explicit `ESCAPE '!'` clause.
+- **Panic on oversized multi-byte search queries.** Fulltext truncation sliced at
+  a fixed byte index and panicked when it landed mid-UTF-8-codepoint; it now
+  snaps to a char boundary.
+- **React-Admin `range` pagination overflow** on a huge `end` value (now uses
+  saturating arithmetic).
+- **Scoped `get_one` masked all errors as 404**, hiding DB/internal faults; it now
+  propagates the real error (a scope miss is still 404).
+- **Validation length/email helpers counted UTF-8 bytes, not characters**, wrongly
+  rejecting multibyte input within the advertised character limit.
+- **`Option<T>` belongs_to relations were not loaded in list endpoints** (the batch
+  loader resolved the FK in the wrong direction); now resolved via `find_related`.
+- **Duplicate-key inserts returned 500** instead of the documented 409 Conflict.
+- Examples: corrected `error_handling` printed messages to match `ApiError`
+  output, fixed the misleading `recursive_join`/`recursive_join_5_levels` depth
+  claims, trimmed `joined_filter` boilerplate, and listed all examples in the
+  examples README.
+
+### Security
+
+- **Partial batch-delete leaked row existence under the secure profile.** With
+  `expose_deleted_ids = false`, the `?partial=true` response serialized per-item
+  not-found errors (embedding the submitted UUIDs), re-creating the
+  enumeration oracle that profile is meant to close. It now returns
+  `failed_count` instead of the per-item `failed` list.
+
+### Known limitations
+
+- Joined-filter sub-queries and `Vec<Child>` batch loading apply no per-relation
+  row cap — they are bounded only by `MAX_FILTER_CLAUSES` (100) and the parent
+  page size. On very large child tables this is a query-amplification
+  consideration for untrusted callers.
+- Case-insensitive fulltext and `like_filterable` matching on MySQL/SQLite is
+  ASCII-only (Rust-side `to_uppercase()` vs the database's `UPPER()`); PostgreSQL
+  (ILIKE) is unaffected.
+- Join loading assumes the entity's primary-key *field* is named `id`. The PK
+  value *type* is generic, but a join target whose PK field has a different name
+  will not compile.
+
 ## [0.9.1] - 2026-06-01
 
 ### Fixed
