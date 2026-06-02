@@ -4,7 +4,9 @@ use crate::codegen::models::shared::{
     generate_target_model_conversion, resolve_dtwtz, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::codegen::type_resolution::{is_vec_type, transform_type_to_list_variant};
+use crate::codegen::type_resolution::{
+    is_option_type, is_vec_type, transform_type_to_list_variant,
+};
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::quote;
 
@@ -44,11 +46,17 @@ pub(crate) fn generate_list_from_assignments(
         .map(|field| {
             let ident = &field.ident;
 
-            // For join(all) Vec fields, convert each element to its List variant
+            // For join(all) fields, convert the inner API struct to its List
+            // variant: Vec<Child> element-wise, Option<Child> via map.
             let is_join_all = get_join_config(field).is_some_and(|c| c.on_all);
             if is_join_all && is_vec_type(&field.ty) {
                 return quote! {
                     #ident: model.#ident.into_iter().map(Into::into).collect()
+                };
+            }
+            if is_join_all && is_option_type(&field.ty) {
+                return quote! {
+                    #ident: model.#ident.map(Into::into)
                 };
             }
 
@@ -102,11 +110,18 @@ pub(crate) fn generate_list_from_model_assignments(
             let is_join_all = get_join_config(field).is_some_and(|c| c.on_all);
 
             if is_join_all {
-                // Join(all) fields: Initialize with empty vec in From<Model> - they'll be populated by get_all() loading logic
-                // The ListModel struct includes them with Vec<APIStruct> type, so we initialize with vec![]
-                assignments.push(quote! {
-                    #field_name: vec![]
-                });
+                // Join(all) fields are populated by the get_all() loading logic;
+                // From<Model> only needs an empty placeholder. Vec<Child> uses an
+                // empty vec, Option<Child> uses None.
+                if is_option_type(&field.ty) {
+                    assignments.push(quote! {
+                        #field_name: None
+                    });
+                } else {
+                    assignments.push(quote! {
+                        #field_name: vec![]
+                    });
+                }
             } else {
                 // Regular non-DB fields: use default or specified default
                 let default_expr = get_crudcrate_expr(field, "default")

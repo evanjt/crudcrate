@@ -728,134 +728,74 @@ fn generate_batch_loading_impl(
                 });
             }
         } else {
-            // Option<T> relationships (belongs_to/has_one)
-            // These are typically 1:1 and benefit less from batch loading,
-            // but we can still optimize if there are many parents
+            // Option<T> relationships (belongs_to/has_one).
+            //
+            // The FK direction differs between the two shapes: belongs_to has
+            // the FK on the parent row, has_one has it on the child. SeaORM's
+            // `find_related()` resolves the direction from the `Related<E>`
+            // relation definition, so we load each parent's relation that way
+            // instead of hand-rolling a sub-query keyed by parent PK (which
+            // only handles the has_one direction and silently returns nothing
+            // for belongs_to). To-one relations are 1:1 and gain little from a
+            // single batched query, so iterating the already-fetched parent
+            // models keeps the loader correct for both directions.
+            //
+            // `fk_column_pascal`, `fk_field_snake`, `column_path`, `model_path`,
+            // and `use_runtime` are not needed on this path; mark them used so
+            // the Vec<T> branch's bindings don't trip unused-variable lints.
+            let _ = (
+                &fk_column_pascal,
+                &fk_field_snake,
+                &column_path,
+                &model_path,
+                use_runtime,
+            );
+
             let target_type = extract_option_or_direct_inner_type(&field.ty);
 
-            if depth_limited && use_runtime {
-                batch_loading_statements.push(quote! {
-                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden, ModelTrait};
-                        use std::str::FromStr;
-
-                        let __rel_def = <#entity_path as sea_orm::Related<
-                            <Self as crudcrate::traits::CRUDResource>::EntityType
-                        >>::to();
-                        let mut __fk_col_name = String::new();
-                        __rel_def.from_col.unquoted(&mut __fk_col_name);
-
-                        let all_related = #entity_path::find()
-                            .filter(sea_orm::sea_query::Expr::col(
-                                sea_orm::sea_query::Alias::new(&__fk_col_name)
-                            ).is_in(parent_ids.clone()))
-                            .all(db)
-                            .await?;
-
-                        let __fk_col = <<#entity_path as sea_orm::EntityTrait>::Column
-                            as FromStr>::from_str(&__fk_col_name)
-                            .expect("CrudCrate: FK column not found in child entity");
-
-                        let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
-                            std::collections::HashMap::new();
-                        for related_model in all_related {
-                            let fk_value: uuid::Uuid = match ModelTrait::get(&related_model, __fk_col.clone()) {
-                                sea_orm::sea_query::Value::Uuid(Some(v)) => *v,
-                                _ => continue,
-                            };
-                            map.insert(fk_value, #target_type::from(related_model));
-                        }
-                        Ok::<_, crudcrate::ApiError>(map)
-                    }).await?;
-                });
-            } else if depth_limited {
-                batch_loading_statements.push(quote! {
-                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
-
-                        let all_related = #entity_path::find()
-                            .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()))
-                            .all(db)
-                            .await?;
-
-                        let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
-                            std::collections::HashMap::new();
-                        for related_model in all_related {
-                            let fk_value = related_model.#fk_field_snake;
-                            map.insert(fk_value, #target_type::from(related_model));
-                        }
-                        Ok::<_, crudcrate::ApiError>(map)
-                    }).await?;
-                });
-            } else if use_runtime {
-                batch_loading_statements.push(quote! {
-                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden, ModelTrait};
-                        use std::str::FromStr;
-
-                        let __rel_def = <#entity_path as sea_orm::Related<
-                            <Self as crudcrate::traits::CRUDResource>::EntityType
-                        >>::to();
-                        let mut __fk_col_name = String::new();
-                        __rel_def.from_col.unquoted(&mut __fk_col_name);
-
-                        let all_related_models: Vec<#model_path> = #entity_path::find()
-                            .filter(sea_orm::sea_query::Expr::col(
-                                sea_orm::sea_query::Alias::new(&__fk_col_name)
-                            ).is_in(parent_ids.clone()))
-                            .all(db)
-                            .await?;
-
-                        let __fk_col = <<#entity_path as sea_orm::EntityTrait>::Column
-                            as FromStr>::from_str(&__fk_col_name)
-                            .expect("CrudCrate: FK column not found in child entity");
-
-                        let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
-                            std::collections::HashMap::new();
-                        for related_model in all_related_models {
-                            let fk_value: uuid::Uuid = match ModelTrait::get(&related_model, __fk_col.clone()) {
-                                sea_orm::sea_query::Value::Uuid(Some(v)) => *v,
-                                _ => continue,
-                            };
-                            let entity = match #target_type::get_one(db, related_model.id).await {
-                                Ok(e) => e,
-                                Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
-                                    #target_type::from(related_model)
-                                }
-                            };
-                            map.insert(fk_value, entity);
-                        }
-                        Ok::<_, crudcrate::ApiError>(map)
-                    }).await?;
-                });
+            let load_related = if depth_limited {
+                quote! {
+                    let related = Box::pin(
+                        parent_model.find_related(#entity_path).one(db)
+                    ).await?
+                    .map(#target_type::from);
+                }
             } else {
-                batch_loading_statements.push(quote! {
-                    let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
-
-                        let all_related_models: Vec<#model_path> = #entity_path::find()
-                            .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()))
-                            .all(db)
-                            .await?;
-
-                        let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
-                            std::collections::HashMap::new();
-                        for related_model in all_related_models {
-                            let fk_value = related_model.#fk_field_snake;
-                            let entity = match #target_type::get_one(db, related_model.id).await {
-                                Ok(e) => e,
+                // depth > 1: recurse via the child's get_one so the child's own
+                // nested joins are loaded too. Fall back to the flat model on error.
+                quote! {
+                    let related = match Box::pin(
+                        parent_model.find_related(#entity_path).one(db)
+                    ).await? {
+                        Some(related_model) => {
+                            match #target_type::get_one(db, related_model.id).await {
+                                Ok(e) => Some(e),
                                 Err(e) => {
                                     tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
-                                    #target_type::from(related_model)
+                                    Some(#target_type::from(related_model))
                                 }
-                            };
-                            map.insert(fk_value, entity);
+                            }
                         }
-                        Ok::<_, crudcrate::ApiError>(map)
-                    }).await?;
-                });
-            }
+                        None => None,
+                    };
+                }
+            };
+
+            batch_loading_statements.push(quote! {
+                let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
+                    use sea_orm::{EntityTrait, ModelTrait};
+
+                    let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
+                        std::collections::HashMap::new();
+                    for parent_model in models.iter() {
+                        #load_related
+                        if let Some(related) = related {
+                            map.insert(parent_model.#pk_ident, related);
+                        }
+                    }
+                    Ok::<_, crudcrate::ApiError>(map)
+                }).await?;
+            });
 
             field_assignments.push(quote! {
                 item.#field_name = #map_var.remove(&parent_id);
