@@ -1,94 +1,377 @@
-// Test: Non-UUID primary key support
-//
-// These tests validate that CRUDResource works with integer (i32) primary keys.
-// Currently ALL tests are #[ignore] because CRUDResource requires
-// PrimaryKey::ValueType: From<Uuid> + Into<Uuid>, which i32 doesn't satisfy.
-//
-// Blockers (all in crudcrate/src/core/traits.rs):
-//   1. Trait bounds: From<Uuid>/Into<Uuid> on PrimaryKey::ValueType (lines 33-35)
-//   2. Method signatures: get_one, update, delete all take `id: Uuid` directly
-//   3. UuidIdResult struct used in delete_many (line 13)
-//   4. Batch loading codegen: HashMap<uuid::Uuid, ...> in loading.rs (11 occurrences)
-//   5. parent_ids collection: Vec<uuid::Uuid> in loading.rs line 359
-//
-// See also: crudcrate-derive/tests/ui-fail/integer_pk.rs (compile-fail proof)
-//
-// To enable: make CRUDResource generic over PK type, update codegen to use
-// the entity's PrimaryKey::ValueType instead of hardcoded uuid::Uuid.
+//! Non-UUID primary key support (integer i32 PKs) end-to-end.
+//!
+//! Exercises the full CRUD HTTP surface for an entity whose primary key is an
+//! auto-increment `i32` rather than a `uuid::Uuid`: create, get_one, get_all,
+//! update, delete, batch delete, and `get_all` batch join loading keyed by an
+//! integer FK. The path parameter must parse as an integer, never a UUID.
 
-// NOTE: The Tag model below cannot be compiled today because EntityToModels
-// requires CRUDResource which requires UUID-compatible PKs. The model definition
-// is included as documentation of the target API. Once non-UUID PKs are
-// supported, uncomment the model import and test bodies.
-
-/*
-// Target model (would live in common/models/tag.rs):
-use crudcrate::{EntityToModels, traits::CRUDResource};
+use axum::body::{Body, to_bytes};
+use axum::http::{Request, StatusCode};
+use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
+use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use serde_json::{Value, json};
+use tower::ServiceExt;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
-#[sea_orm(table_name = "tags")]
-#[crudcrate(api_struct = "Tag", generate_router)]
-pub struct Model {
-    #[sea_orm(primary_key)]
-    #[crudcrate(primary_key, exclude(update))]
-    pub id: i32,
+pub mod tag {
+    use super::*;
 
-    #[crudcrate(filterable, sortable)]
-    pub name: String,
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "ipk_tags")]
+    #[crudcrate(generate_router, api_struct = "Tag", derive_partial_eq)]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        #[crudcrate(primary_key, exclude(create, update))]
+        pub id: i32,
 
-    #[crudcrate(filterable)]
-    pub color: Option<String>,
+        #[crudcrate(filterable, sortable)]
+        pub name: String,
+
+        #[crudcrate(filterable)]
+        pub color: Option<String>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
 }
-*/
+
+/// Parent entity (integer PK) with a `has_many` to `ipk_labels`, loaded in
+/// `get_all` via `join(all)` and keyed by the integer `book_id` FK on the child.
+pub mod book {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "ipk_books")]
+    #[crudcrate(generate_router, api_struct = "Book", derive_partial_eq)]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        #[crudcrate(primary_key, exclude(create, update))]
+        pub id: i32,
+
+        #[crudcrate(filterable, sortable)]
+        pub title: String,
+
+        #[sea_orm(ignore)]
+        #[crudcrate(non_db_attr = true, exclude(create, update), join(all, depth = 1))]
+        pub labels: Vec<super::label::Label>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {
+        #[sea_orm(has_many = "super::label::Entity")]
+        Labels,
+    }
+
+    impl Related<super::label::Entity> for Entity {
+        fn to() -> RelationDef {
+            Relation::Labels.def()
+        }
+    }
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+pub mod label {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "ipk_labels")]
+    #[crudcrate(generate_router, api_struct = "Label", derive_partial_eq)]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        #[crudcrate(primary_key, exclude(create, update))]
+        pub id: i32,
+
+        #[crudcrate(filterable)]
+        pub book_id: i32,
+
+        #[crudcrate(filterable, sortable)]
+        pub text: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {
+        #[sea_orm(
+            belongs_to = "super::book::Entity",
+            from = "Column::BookId",
+            to = "super::book::Column::Id"
+        )]
+        Book,
+    }
+
+    impl Related<super::book::Entity> for Entity {
+        fn to() -> RelationDef {
+            Relation::Book.def()
+        }
+    }
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
+    let db = Database::connect("sqlite::memory:").await?;
+    let backend = db.get_database_backend();
+    let schema = Schema::new(backend);
+
+    db.execute(backend.build(&schema.create_table_from_entity(tag::Entity)))
+        .await?;
+    db.execute(backend.build(&schema.create_table_from_entity(book::Entity)))
+        .await?;
+    db.execute(backend.build(&schema.create_table_from_entity(label::Entity)))
+        .await?;
+
+    Ok(db)
+}
+
+fn app(db: &DatabaseConnection) -> axum::Router {
+    axum::Router::new()
+        .nest("/tags", tag::Tag::router(db).into())
+        .nest("/books", book::Book::router(db).into())
+        .nest("/labels", label::Label::router(db).into())
+}
+
+async fn send(app: &axum::Router, req: Request<Body>) -> (StatusCode, Value) {
+    let resp = app.clone().oneshot(req).await.unwrap();
+    let status = resp.status();
+    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+    };
+    (status, value)
+}
+
+async fn create_tag(app: &axum::Router, name: &str, color: Option<&str>) -> Value {
+    let body = json!({ "name": name, "color": color });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/tags")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let (status, value) = send(app, req).await;
+    assert_eq!(status, StatusCode::CREATED, "create tag: {value:?}");
+    value
+}
 
 #[tokio::test]
-#[ignore = "blocked: CRUDResource requires PrimaryKey::ValueType: From<Uuid> + Into<Uuid>"]
 async fn test_integer_pk_create() {
-    // Should be able to create a Tag with auto-increment i32 PK.
-    // POST /tags { "name": "rust", "color": "#DEA584" }
-    // Expected: 201 Created with { "id": 1, "name": "rust", "color": "#DEA584" }
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    let tag = create_tag(&app, "rust", Some("#DEA584")).await;
+
+    assert!(
+        tag["id"].is_i64() || tag["id"].is_u64(),
+        "id should be an integer, got {:?}",
+        tag["id"]
+    );
+    assert_eq!(tag["id"], 1);
+    assert_eq!(tag["name"], "rust");
+    assert_eq!(tag["color"], "#DEA584");
 }
 
 #[tokio::test]
-#[ignore = "blocked: CRUDResource requires PrimaryKey::ValueType: From<Uuid> + Into<Uuid>"]
 async fn test_integer_pk_get_one() {
-    // Should be able to GET /tags/1 and receive the tag.
-    // Path parameter is an integer, not a UUID string.
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    create_tag(&app, "rust", Some("#DEA584")).await;
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/tags/1")
+        .body(Body::empty())
+        .unwrap();
+    let (status, value) = send(&app, req).await;
+    assert_eq!(status, StatusCode::OK, "get_one: {value:?}");
+    assert_eq!(value["id"], 1);
+    assert_eq!(value["name"], "rust");
+
+    // A non-existent integer id returns 404, not a UUID parse error.
+    let req = Request::builder()
+        .method("GET")
+        .uri("/tags/999")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = send(&app, req).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-#[ignore = "blocked: CRUDResource requires PrimaryKey::ValueType: From<Uuid> + Into<Uuid>"]
 async fn test_integer_pk_get_all() {
-    // Should be able to GET /tags and receive paginated results.
-    // IDs in response should be integers.
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    create_tag(&app, "rust", Some("#DEA584")).await;
+    create_tag(&app, "python", Some("#3776AB")).await;
+    create_tag(&app, "go", None).await;
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/tags")
+        .body(Body::empty())
+        .unwrap();
+    let (status, value) = send(&app, req).await;
+    assert_eq!(status, StatusCode::OK, "get_all: {value:?}");
+
+    let tags = value.as_array().expect("list response is an array");
+    assert_eq!(tags.len(), 3);
+    let mut ids: Vec<i64> = tags.iter().map(|t| t["id"].as_i64().unwrap()).collect();
+    ids.sort_unstable();
+    assert_eq!(ids, vec![1, 2, 3]);
 }
 
 #[tokio::test]
-#[ignore = "blocked: CRUDResource requires PrimaryKey::ValueType: From<Uuid> + Into<Uuid>"]
 async fn test_integer_pk_update() {
-    // Should be able to PATCH /tags/1 { "name": "rust-lang" }
-    // Path parameter is an integer.
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    create_tag(&app, "rust", Some("#DEA584")).await;
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/tags/1")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            json!({ "name": "rust-lang", "color": "#000000" }).to_string(),
+        ))
+        .unwrap();
+    let (status, value) = send(&app, req).await;
+    assert_eq!(status, StatusCode::OK, "update: {value:?}");
+    assert_eq!(value["id"], 1);
+    assert_eq!(value["name"], "rust-lang");
+    assert_eq!(value["color"], "#000000");
 }
 
 #[tokio::test]
-#[ignore = "blocked: CRUDResource requires PrimaryKey::ValueType: From<Uuid> + Into<Uuid>"]
 async fn test_integer_pk_delete() {
-    // Should be able to DELETE /tags/1
-    // Returns the deleted integer ID.
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    create_tag(&app, "rust", Some("#DEA584")).await;
+
+    let req = Request::builder()
+        .method("DELETE")
+        .uri("/tags/1")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = send(&app, req).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/tags/1")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = send(&app, req).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-#[ignore = "blocked: CRUDResource requires PrimaryKey::ValueType: From<Uuid> + Into<Uuid>"]
 async fn test_integer_pk_batch_delete() {
-    // Should be able to DELETE /tags/batch with [1, 2, 3]
-    // Batch loading uses HashMap<uuid::Uuid, ...> which must become generic.
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    create_tag(&app, "a", None).await;
+    create_tag(&app, "b", None).await;
+    create_tag(&app, "c", None).await;
+
+    let req = Request::builder()
+        .method("DELETE")
+        .uri("/tags/batch")
+        .header("content-type", "application/json")
+        .body(Body::from(json!([1, 2, 3]).to_string()))
+        .unwrap();
+    let (status, value) = send(&app, req).await;
+    assert_eq!(status, StatusCode::OK, "batch delete: {value:?}");
+    // Secure default profile reports a count rather than the raw integer ids.
+    assert_eq!(value["deleted"], 3);
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/tags")
+        .body(Body::empty())
+        .unwrap();
+    let (_, value) = send(&app, req).await;
+    assert_eq!(value.as_array().unwrap().len(), 0);
 }
 
 #[tokio::test]
-#[ignore = "blocked: HashMap<uuid::Uuid, ...> hardcoded in batch join loading"]
 async fn test_integer_pk_batch_loading_joins() {
-    // If a Tag model had joins, batch loading should work with i32 parent IDs.
-    // Currently loading.rs hardcodes HashMap<uuid::Uuid, Vec<T>> and
-    // Vec<uuid::Uuid> for parent_ids collection.
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    // Two books, each with labels keyed by an integer book_id FK.
+    let book_one = book::Book::create(
+        &db,
+        book::BookCreate {
+            title: "The Rust Programming Language".to_string(),
+        },
+    )
+    .await
+    .expect("create book one");
+    let book_two = book::Book::create(
+        &db,
+        book::BookCreate {
+            title: "Programming Rust".to_string(),
+        },
+    )
+    .await
+    .expect("create book two");
+
+    for text in ["systems", "memory-safety"] {
+        label::Label::create(
+            &db,
+            label::LabelCreate {
+                book_id: book_one.id,
+                text: text.to_string(),
+            },
+        )
+        .await
+        .expect("create label for book one");
+    }
+    label::Label::create(
+        &db,
+        label::LabelCreate {
+            book_id: book_two.id,
+            text: "ownership".to_string(),
+        },
+    )
+    .await
+    .expect("create label for book two");
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/books")
+        .body(Body::empty())
+        .unwrap();
+    let (status, value) = send(&app, req).await;
+    assert_eq!(status, StatusCode::OK, "books list: {value:?}");
+
+    let books = value.as_array().expect("books list is an array");
+    assert_eq!(books.len(), 2);
+
+    let found_one = books
+        .iter()
+        .find(|b| b["id"] == json!(book_one.id))
+        .expect("book one present");
+    let found_two = books
+        .iter()
+        .find(|b| b["id"] == json!(book_two.id))
+        .expect("book two present");
+
+    assert_eq!(
+        found_one["labels"].as_array().map(Vec::len),
+        Some(2),
+        "book one should batch-load 2 labels via integer FK join: {found_one:?}"
+    );
+    assert_eq!(
+        found_two["labels"].as_array().map(Vec::len),
+        Some(1),
+        "book two should batch-load 1 label via integer FK join: {found_two:?}"
+    );
 }

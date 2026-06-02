@@ -159,7 +159,7 @@ pub mod traits {
 
 pub use crudcrate_derive::*;
 
-pub use core::{CRUDResource, MergeIntoActiveModel, UuidIdResult};
+pub use core::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};
 pub use errors::{ApiError, BatchFailure, BatchResult};
 pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,

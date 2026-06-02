@@ -266,7 +266,7 @@ pub fn generate_get_one_impl(
     // If operations is specified and there are no joins, delegate fully
     if let Some(ops_path) = crud_meta.operations.as_ref().filter(|_| !has_joins) {
         return quote! {
-            async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
+            async fn get_one(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<Self, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::get_one(&ops, db, id).await
             }
@@ -311,9 +311,11 @@ pub fn generate_get_one_impl(
         quote! {
             use sea_orm::{EntityTrait, ModelTrait, Related};
 
-            // Load the main entity first — Box::pin to keep future off the stack
+            // Load the main entity first — Box::pin to keep future off the stack.
+            // Clone the id so it stays available for the not-found message below
+            // (the PK value type is not required to be Copy).
             let main_model = Box::pin(
-                Self::EntityType::find_by_id(id).one(db)
+                Self::EntityType::find_by_id(id.clone()).one(db)
             ).await?;
 
             let mut result = match main_model {
@@ -325,7 +327,7 @@ pub fn generate_get_one_impl(
         }
     } else {
         quote! {
-            let model = Self::EntityType::find_by_id(id)
+            let model = Self::EntityType::find_by_id(id.clone())
                 .one(db)
                 .await?;
             let mut result = match model {
@@ -343,7 +345,7 @@ pub fn generate_get_one_impl(
             use sea_orm::{EntityTrait, ModelTrait, Related, QueryFilter};
 
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id))
+                .add(Self::ID_COLUMN.eq(id.clone()))
                 .add(scope.clone());
 
             let main_model = Box::pin(
@@ -361,7 +363,7 @@ pub fn generate_get_one_impl(
         quote! {
             use sea_orm::QueryFilter;
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id))
+                .add(Self::ID_COLUMN.eq(id.clone()))
                 .add(scope.clone());
             let model = Self::EntityType::find()
                 .filter(scoped_condition)
@@ -375,7 +377,7 @@ pub fn generate_get_one_impl(
     };
 
     quote! {
-        async fn get_one(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<Self, crudcrate::ApiError> {
+        async fn get_one(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<Self, crudcrate::ApiError> {
             #pre_hook
             #body
             #transform_hook
@@ -385,7 +387,7 @@ pub fn generate_get_one_impl(
 
         async fn get_one_scoped(
             db: &sea_orm::DatabaseConnection,
-            id: uuid::Uuid,
+            id: crudcrate::PrimaryKeyType<Self>,
             scope: &sea_orm::Condition,
         ) -> Result<Self, crudcrate::ApiError> {
             #pre_hook

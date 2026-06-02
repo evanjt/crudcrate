@@ -252,9 +252,9 @@ pub fn generate_resolve_joined_filters_impl(
                         .expect("CrudCrate: FK column not found");
                     __matches
                         .into_iter()
-                        .filter_map(|__m| match ModelTrait::get(&__m, __fk_col.clone()) {
-                            sea_orm::sea_query::Value::Uuid(Some(v)) => Some(*v),
-                            _ => None,
+                        .filter_map(|__m| {
+                            let __v = ModelTrait::get(&__m, __fk_col.clone());
+                            <crudcrate::PrimaryKeyType<Self> as sea_orm::sea_query::ValueType>::try_from(__v).ok()
                         })
                         .collect()
                 }
@@ -290,7 +290,7 @@ pub fn generate_resolve_joined_filters_impl(
                     }
 
                     let __matches = __q.all(db).await.map_err(crudcrate::ApiError::database)?;
-                    let __matching_ids: Vec<uuid::Uuid> = #fk_collect;
+                    let __matching_ids: Vec<crudcrate::PrimaryKeyType<Self>> = #fk_collect;
 
                     __augmented = __augmented.add(Self::ID_COLUMN.is_in(__matching_ids));
                 }
@@ -651,6 +651,12 @@ fn generate_batch_loading_impl(
     let mut batch_loading_statements = Vec::new();
     let mut field_assignments = Vec::new();
 
+    // The parent's primary-key value type. Used as the HashMap key and the
+    // `parent_ids` element type so batch loading works for UUID, integer, or
+    // String primary keys (not just `uuid::Uuid`). Generated inside the
+    // `impl CRUDResource for ParentApiStruct`, so `Self` resolves to the parent.
+    let parent_pk_ty = quote! { crudcrate::PrimaryKeyType<Self> };
+
     for field in join_fields {
         let Some(field_name) = &field.ident else {
             continue;
@@ -748,7 +754,7 @@ fn generate_batch_loading_impl(
                 if is_self_referencing {
                     // Self-referencing: FK column derived via derive_fk_idents
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
+                        let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                             let query = #entity_path::find()
@@ -756,7 +762,7 @@ fn generate_batch_loading_impl(
                             #scope_filter_for_vec
                             let all_related = query.all(db).await?;
 
-                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                            let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
                             for related_model in all_related {
                                 if let Some(parent_id) = related_model.#fk_field_snake {
@@ -771,7 +777,7 @@ fn generate_batch_loading_impl(
                 } else if use_runtime {
                     // Runtime FK resolution from SeaORM RelationDef
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
+                        let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden, ModelTrait};
                             use std::str::FromStr;
 
@@ -792,12 +798,14 @@ fn generate_batch_loading_impl(
                                 as FromStr>::from_str(&__fk_col_name)
                                 .expect("CrudCrate: FK column not found in child entity");
 
-                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                            let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
                             for related_model in all_related {
-                                let fk_value: uuid::Uuid = match ModelTrait::get(&related_model, __fk_col.clone()) {
-                                    sea_orm::sea_query::Value::Uuid(Some(v)) => *v,
-                                    _ => continue,
+                                let fk_value: #parent_pk_ty = match <#parent_pk_ty as sea_orm::sea_query::ValueType>::try_from(
+                                    ModelTrait::get(&related_model, __fk_col.clone())
+                                ) {
+                                    Ok(v) => v,
+                                    Err(_) => continue,
                                 };
                                 map.entry(fk_value)
                                     .or_insert_with(Vec::new)
@@ -809,7 +817,7 @@ fn generate_batch_loading_impl(
                 } else {
                     // Static FK column (explicit fk_column override)
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
+                        let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                             let query = #entity_path::find()
@@ -817,10 +825,10 @@ fn generate_batch_loading_impl(
                             #scope_filter_for_vec
                             let all_related = query.all(db).await?;
 
-                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                            let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
                             for related_model in all_related {
-                                let fk_value = related_model.#fk_field_snake;
+                                let fk_value = related_model.#fk_field_snake.clone();
                                 map.entry(fk_value)
                                     .or_insert_with(Vec::new)
                                     .push(#api_struct_type::from(related_model));
@@ -872,7 +880,7 @@ fn generate_batch_loading_impl(
 
                 if use_runtime {
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
+                        let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden, ModelTrait};
                             use std::str::FromStr;
 
@@ -893,12 +901,14 @@ fn generate_batch_loading_impl(
                                 as FromStr>::from_str(&__fk_col_name)
                                 .expect("CrudCrate: FK column not found in child entity");
 
-                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                            let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
                             for related_model in all_related_models {
-                                let fk_value: uuid::Uuid = match ModelTrait::get(&related_model, __fk_col.clone()) {
-                                    sea_orm::sea_query::Value::Uuid(Some(v)) => *v,
-                                    _ => continue,
+                                let fk_value: #parent_pk_ty = match <#parent_pk_ty as sea_orm::sea_query::ValueType>::try_from(
+                                    ModelTrait::get(&related_model, __fk_col.clone())
+                                ) {
+                                    Ok(v) => v,
+                                    Err(_) => continue,
                                 };
                                 #recursive_fetch
                                 map.entry(fk_value)
@@ -910,7 +920,7 @@ fn generate_batch_loading_impl(
                     });
                 } else {
                     batch_loading_statements.push(quote! {
-                        let mut #map_var: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> = Box::pin(async {
+                        let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
                             use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
 
                             let query = #entity_path::find()
@@ -918,10 +928,10 @@ fn generate_batch_loading_impl(
                             #scope_filter_for_vec
                             let all_related_models: Vec<#model_path> = query.all(db).await?;
 
-                            let mut map: std::collections::HashMap<uuid::Uuid, Vec<#api_struct_type>> =
+                            let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
                             for related_model in all_related_models {
-                                let fk_value = related_model.#fk_field_snake;
+                                let fk_value = related_model.#fk_field_snake.clone();
                                 #recursive_fetch
                                 map.entry(fk_value)
                                     .or_insert_with(Vec::new)
@@ -991,15 +1001,15 @@ fn generate_batch_loading_impl(
             };
 
             batch_loading_statements.push(quote! {
-                let mut #map_var: std::collections::HashMap<uuid::Uuid, #target_type> = Box::pin(async {
+                let mut #map_var: std::collections::HashMap<#parent_pk_ty, #target_type> = Box::pin(async {
                     use sea_orm::{EntityTrait, ModelTrait};
 
-                    let mut map: std::collections::HashMap<uuid::Uuid, #target_type> =
+                    let mut map: std::collections::HashMap<#parent_pk_ty, #target_type> =
                         std::collections::HashMap::new();
                     for parent_model in models.iter() {
                         #load_related
                         if let Some(related) = related {
-                            map.insert(parent_model.#pk_ident, related);
+                            map.insert(parent_model.#pk_ident.clone(), related);
                         }
                     }
                     Ok::<_, crudcrate::ApiError>(map)
@@ -1013,14 +1023,18 @@ fn generate_batch_loading_impl(
     }
 
     let pre_loop_code = quote! {
-        // Collect all parent IDs for batch loading
-        let parent_ids: Vec<uuid::Uuid> = models.iter().map(|m| m.#pk_ident).collect();
+        // Collect all parent IDs for batch loading. Clone each PK so the parent
+        // models stay intact for later conversion (the PK value type is not
+        // required to be Copy — e.g. String primary keys).
+        let parent_ids: Vec<#parent_pk_ty> = models.iter().map(|m| m.#pk_ident.clone()).collect();
 
         #( #batch_loading_statements )*
     };
 
     let in_loop_code = quote! {
-        let parent_id = model.#pk_ident;
+        // Clone the PK before moving `model` into `Self::from` so non-Copy PK
+        // types (String) don't trigger a partial-move error.
+        let parent_id = model.#pk_ident.clone();
         let mut item = Self::from(model);
         #( #field_assignments )*
         item
