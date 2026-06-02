@@ -324,6 +324,215 @@ pub fn generate_resolve_joined_filters_impl(
     }
 }
 
+/// Generate `get_all_joined_sorted` method for `CRUDResource` impl.
+///
+/// For each `join(..., sortable(...))` field on a `Vec<Child>`, emits a match
+/// arm that orders the parent query by a correlated sub-query over the child
+/// column: `ORDER BY (SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
+/// parent.<pk>) <dir>`. `MIN` is used for both directions so each parent maps
+/// to a single ordering key (no JOIN, no `DISTINCT`, parents stay unique) and
+/// to-many relations have a deterministic key.
+///
+/// `Option<Child>` fields (`belongs_to`) and fields without declared sortable
+/// columns are skipped. Unknown `join_field`/`column` combinations fall back to
+/// ordering by the parent's default index column — matching the trait default's
+/// no-op behavior so the request never mis-orders silently.
+///
+/// Returns empty tokens if there are no sortable joined columns (letting the
+/// default trait method handle the fallback case).
+pub fn generate_get_all_joined_sorted_impl(
+    analysis: &EntityFieldAnalysis,
+    api_struct_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
+    // Collect Vec<Child> fields that have non-empty sortable_columns. Mirrors
+    // generate_resolve_joined_filters_impl: Option<Child> (belongs_to) has the
+    // FK on the parent, so the correlated sub-query direction is reversed and is
+    // not handled here.
+    let candidates: Vec<(&syn::Field, String, Vec<String>)> = analysis
+        .join_on_all_fields
+        .iter()
+        .filter_map(|&field| {
+            if !is_vec_type(&field.ty) {
+                return None;
+            }
+            let field_name = field.ident.as_ref()?.to_string();
+            let config = analysis
+                .join_filter_sort_configs
+                .iter()
+                .find(|c| c.field_name == field_name)?;
+            if config.sortable_columns.is_empty() {
+                None
+            } else {
+                Some((field, field_name, config.sortable_columns.clone()))
+            }
+        })
+        .collect();
+
+    if candidates.is_empty() {
+        // No override needed — default trait impl falls back to default_index_column
+        return quote! {};
+    }
+
+    let field_arms = candidates.iter().map(|(field, field_name, sortable_columns)| {
+        let join_config = get_join_config(field).unwrap_or_default();
+
+        let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
+        let inner_type_string = inner_type.to_string();
+        let api_struct_name_string = api_struct_name.to_string();
+        let is_self_referencing = inner_type_string.trim() == api_struct_name_string.trim();
+
+        // Entity / Column paths for the child table
+        let (entity_path, column_path) = if let Some(custom_path) = &join_config.path {
+            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() {
+                (
+                    quote! { #path_tokens::Entity },
+                    quote! { #path_tokens::Column },
+                )
+            } else {
+                let error_msg = format!("Invalid join path '{custom_path}' for field '{field_name}'");
+                return quote! { compile_error!(#error_msg); };
+            }
+        } else {
+            (
+                get_path_from_field_type(&field.ty, "Entity"),
+                get_path_from_field_type(&field.ty, "Column"),
+            )
+        };
+
+        let (fk_column_pascal, _fk_field_snake, use_runtime_filter) =
+            derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
+
+        // The correlated sub-query references the child FK column and the parent
+        // PK column. Static FK columns and self-referencing fields use the typed
+        // `ColumnTrait::as_column_ref()`; the convention-derived path resolves the
+        // FK name from the SeaORM RelationDef at runtime (matching the batch
+        // loader) and builds a table-qualified Alias ref.
+        let fk_col_ref = if is_self_referencing || !use_runtime_filter {
+            quote! {
+                {
+                    let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
+                        &#column_path::#fk_column_pascal
+                    );
+                    sea_orm::sea_query::ColumnRef::TableColumn(__t, __c)
+                }
+            }
+        } else {
+            quote! {
+                {
+                    use sea_orm::Iden;
+                    let __rel_def = <#entity_path as sea_orm::Related<
+                        <Self as crudcrate::traits::CRUDResource>::EntityType
+                    >>::to();
+                    let mut __fk_col_name = String::new();
+                    __rel_def.from_col.unquoted(&mut __fk_col_name);
+                    let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
+                    sea_orm::sea_query::ColumnRef::TableColumn(
+                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__child_tbl)),
+                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__fk_col_name)),
+                    )
+                }
+            }
+        };
+
+        // Column match arms: "year" => Some(column::Year), ...
+        let column_arms = sortable_columns.iter().map(|col| {
+            let col_pascal = quote::format_ident!(
+                "{}",
+                col.split('_')
+                    .map(|part| {
+                        let mut chars = part.chars();
+                        chars.next().map_or_else(String::new, |c| {
+                            c.to_uppercase().collect::<String>() + chars.as_str()
+                        })
+                    })
+                    .collect::<String>()
+            );
+            quote! {
+                #col => {
+                    let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
+                        &#column_path::#col_pascal
+                    );
+                    Some(sea_orm::sea_query::ColumnRef::TableColumn(__t, __c))
+                }
+            }
+        });
+
+        quote! {
+            #field_name => {
+                let __child_col_ref: Option<sea_orm::sea_query::ColumnRef> = match column {
+                    #( #column_arms )*
+                    _ => None,
+                };
+
+                if let Some(__child_col_ref) = __child_col_ref {
+                    use sea_orm::sea_query::{Expr, Query};
+
+                    let __parent_pk_ref = <Self::ColumnType as sea_orm::ColumnTrait>::as_column_ref(
+                        &Self::ID_COLUMN
+                    );
+                    let __fk_ref: sea_orm::sea_query::ColumnRef = #fk_col_ref;
+
+                    let __subquery = Query::select()
+                        .expr(Expr::col(__child_col_ref).min())
+                        .from(#entity_path)
+                        .and_where(Expr::col(__fk_ref).equals(__parent_pk_ref))
+                        .to_owned();
+
+                    let __order_expr = sea_orm::sea_query::SimpleExpr::SubQuery(
+                        None,
+                        Box::new(__subquery.into_sub_query_statement()),
+                    );
+
+                    let __models = Self::EntityType::find()
+                        .filter(condition.clone())
+                        .order_by(__order_expr, direction)
+                        .offset(offset)
+                        .limit(limit)
+                        .all(db)
+                        .await
+                        .map_err(crudcrate::ApiError::database)?;
+
+                    return Ok(__models
+                        .into_iter()
+                        .map(|__m| <Self::ListModel as From<Self>>::from(Self::from(__m)))
+                        .collect());
+                }
+            }
+        }
+    });
+
+    quote! {
+        async fn get_all_joined_sorted(
+            db: &sea_orm::DatabaseConnection,
+            condition: &sea_orm::Condition,
+            join_field: &str,
+            column: &str,
+            direction: sea_orm::Order,
+            offset: u64,
+            limit: u64,
+        ) -> Result<Vec<Self::ListModel>, crudcrate::ApiError> {
+            use sea_orm::{EntityTrait, ColumnTrait, QueryFilter, QueryOrder, QuerySelect};
+
+            match join_field {
+                #( #field_arms )*
+                _ => {}
+            }
+
+            // Unknown join_field/column: fall back to the parent default index
+            // column (the same key the trait default uses). Never mis-orders.
+            Self::get_all(
+                db,
+                condition,
+                Self::default_index_column(),
+                direction,
+                offset,
+                limit,
+            )
+            .await
+        }
+    }
+}
+
 /// Generate join loading code for `get_one()` method
 ///
 /// Returns code that evaluates to `Self` (not wrapped in Result).

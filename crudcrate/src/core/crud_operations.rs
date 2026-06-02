@@ -246,21 +246,33 @@ macro_rules! crud_handlers_impl {
                 &parsed_filters.joined_filters,
             ).await?;
 
-            let (order_column, order_direction) = match &sort_config {
-                crudcrate::SortConfig::Column { column, direction } => (*column, direction.clone()),
-                crudcrate::SortConfig::Joined { direction, .. } => {
-                    (<$resource as crudcrate::traits::CRUDResource>::default_index_column(), direction.clone())
+            let items = match &sort_config {
+                crudcrate::SortConfig::Column { column, direction } => {
+                    let order_column = *column;
+                    let order_direction = direction.clone();
+                    if is_scoped {
+                        <$resource as crudcrate::traits::CRUDResource>::get_all_scoped(&db, &condition, order_column, order_direction, offset, limit)
+                            .await
+                            .map_err(crudcrate::ApiError::from)?
+                    } else {
+                        <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
+                            .await
+                            .map_err(crudcrate::ApiError::from)?
+                    }
                 }
-            };
-
-            let items = if is_scoped {
-                <$resource as crudcrate::traits::CRUDResource>::get_all_scoped(&db, &condition, order_column, order_direction, offset, limit)
+                crudcrate::SortConfig::Joined { join_field, column, direction } => {
+                    // Joined sort orders the parent query by a correlated sub-query
+                    // over the child column (see `get_all_joined_sorted`). The scoped
+                    // branch does not yet propagate child scope into the ordering
+                    // sub-query, so it falls back to the same parent-level ordering
+                    // without the scoped child batch loading; the parent rows
+                    // themselves remain scope-filtered via `condition`.
+                    <$resource as crudcrate::traits::CRUDResource>::get_all_joined_sorted(
+                        &db, &condition, join_field, column, direction.clone(), offset, limit,
+                    )
                     .await
                     .map_err(crudcrate::ApiError::from)?
-            } else {
-                <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
-                    .await
-                    .map_err(crudcrate::ApiError::from)?
+                }
             };
             let total_count = <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
             let headers = crudcrate::pagination::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);

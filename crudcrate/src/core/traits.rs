@@ -142,6 +142,46 @@ where
         Self::get_all(db, condition, order_column, order_direction, offset, limit).await
     }
 
+    /// Order parent rows by a column on a joined child entity (dot-notation
+    /// sort, e.g. `sort=["vehicles.year","DESC"]`).
+    ///
+    /// The parent query is ordered by a correlated sub-query over the child
+    /// table — `(SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
+    /// parent.<pk>)` — so each parent keeps a single row (no JOIN, no
+    /// `DISTINCT`) and to-many relations have a well-defined ordering key.
+    /// `MIN` is used for both ASC and DESC: ascending lists parents by their
+    /// smallest child value first, descending by their largest smallest-value
+    /// last. Parents with no children sort as `NULL`.
+    ///
+    /// The default implementation ignores `join_field`/`column` and falls back
+    /// to ordering by [`Self::default_index_column`], so resources without
+    /// joined sortable columns (and the trait default) behave exactly like a
+    /// plain `get_all`. The derive macro overrides this for resources that
+    /// declare `join(..., sortable(...))` on a `Vec<Child>` field.
+    ///
+    /// # Errors
+    /// Returns `ApiError::Database` if the parent query fails.
+    async fn get_all_joined_sorted(
+        db: &DatabaseConnection,
+        condition: &Condition,
+        join_field: &str,
+        column: &str,
+        direction: Order,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<Self::ListModel>, ApiError> {
+        let _ = (join_field, column);
+        Self::get_all(
+            db,
+            condition,
+            Self::default_index_column(),
+            direction,
+            offset,
+            limit,
+        )
+        .await
+    }
+
     /// Resolve dot-notation joined filters (e.g. `{"vehicles.make":"BMW"}`)
     /// into an augmented `Condition` that the caller passes to `get_all` /
     /// `get_all_scoped` / `total_count`.
