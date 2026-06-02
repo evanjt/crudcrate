@@ -22,7 +22,7 @@ use models::{customer, maintenance_record, vehicle, vehicle_part};
 #[openapi(
     info(
         title = "CrudCrate Recursive Join API",
-        description = "Demonstrates automatic relationship loading with deep recursive joins (up to depth=5). Customer → Vehicle → Parts/MaintenanceRecord relationships are loaded automatically in API responses, showcasing CrudCrate's ability to handle complex multi-level joins without N+1 query problems.",
+        description = "Demonstrates automatic relationship loading: Customer → Vehicle → Parts/MaintenanceRecord are populated in API responses via join(...). A join recurses into the child's own joins when depth > 1, and loads that level flat at depth = 1 — so the customer→vehicles join uses depth = 2 and the leaf vehicle→parts/maintenance joins use depth = 1.",
         version = "1.0.0",
         contact(
             name = "CrudCrate Documentation",
