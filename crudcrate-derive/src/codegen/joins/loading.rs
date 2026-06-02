@@ -51,6 +51,7 @@ use crate::codegen::type_resolution::{
     get_path_from_field_type, is_vec_type,
 };
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
+use heck::ToPascalCase;
 use quote::quote;
 
 /// Generate `joined_field_has_scope` method for `CRUDResource` impl.
@@ -210,17 +211,7 @@ pub fn generate_resolve_joined_filters_impl(
 
         // Column match arms: "make" => Some(column::Make), ...
         let column_arms = filterable_columns.iter().map(|col| {
-            let col_pascal = quote::format_ident!(
-                "{}",
-                col.split('_')
-                    .map(|part| {
-                        let mut chars = part.chars();
-                        chars.next().map_or_else(String::new, |c| {
-                            c.to_uppercase().collect::<String>() + chars.as_str()
-                        })
-                    })
-                    .collect::<String>()
-            );
+            let col_pascal = quote::format_ident!("{}", col.to_pascal_case());
             quote! {
                 #col => crudcrate::build_comparison_expr(
                     #column_path::#col_pascal,
@@ -436,17 +427,7 @@ pub fn generate_get_all_joined_sorted_impl(
 
         // Column match arms: "year" => Some(column::Year), ...
         let column_arms = sortable_columns.iter().map(|col| {
-            let col_pascal = quote::format_ident!(
-                "{}",
-                col.split('_')
-                    .map(|part| {
-                        let mut chars = part.chars();
-                        chars.next().map_or_else(String::new, |c| {
-                            c.to_uppercase().collect::<String>() + chars.as_str()
-                        })
-                    })
-                    .collect::<String>()
-            );
+            let col_pascal = quote::format_ident!("{}", col.to_pascal_case());
             quote! {
                 #col => {
                     let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(

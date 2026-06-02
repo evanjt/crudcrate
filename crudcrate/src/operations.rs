@@ -11,7 +11,12 @@
 //! impl CRUDOperations for AssetOps {
 //!     type Resource = Asset;
 //!
-//!     async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+//!     // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+//!     async fn delete(
+//!         &self,
+//!         db: &DatabaseConnection,
+//!         id: crudcrate::PrimaryKeyType<Self::Resource>,
+//!     ) -> Result<crudcrate::PrimaryKeyType<Self::Resource>, ApiError> {
 //!         let asset = Asset::get_one(db, id).await?;
 //!         delete_from_s3(&asset.s3_key).await
 //!             .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {e}"), None))?;
@@ -68,7 +73,12 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 ///
 /// **Level 2: Core Logic** (custom queries, business logic)
 /// ```rust,ignore
-/// async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Resource, DbErr> {
+/// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+/// async fn fetch_one(
+///     &self,
+///     db: &DatabaseConnection,
+///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+/// ) -> Result<Self::Resource, ApiError> {
 ///     // Custom query with joins
 ///     Entity::find_by_id(id).find_with_related(Related).one(db).await?.ok_or(...)
 /// }
@@ -76,7 +86,12 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 ///
 /// **Level 3: Full Override** (complete control)
 /// ```rust,ignore
-/// async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+/// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+/// async fn delete(
+///     &self,
+///     db: &DatabaseConnection,
+///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+/// ) -> Result<crudcrate::PrimaryKeyType<Self::Resource>, ApiError> {
 ///     // Completely custom implementation
 ///     cleanup_s3(id).await?;
 ///     Entity::delete_by_id(id).exec(db).await?;
@@ -101,7 +116,12 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+    /// async fn before_get_one(
+    ///     &self,
+    ///     _db: &DatabaseConnection,
+    ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+    /// ) -> Result<(), ApiError> {
     ///     if !has_permission(id) {
     ///         return Err(ApiError::forbidden("Access denied"));
     ///     }
@@ -320,7 +340,12 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+    /// async fn before_delete(
+    ///     &self,
+    ///     db: &DatabaseConnection,
+    ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+    /// ) -> Result<(), ApiError> {
     ///     if !user_can_delete(id) {
     ///         return Err(ApiError::forbidden("You don't have permission to delete this resource"));
     ///     }

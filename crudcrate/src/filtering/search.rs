@@ -215,16 +215,43 @@ mod tests {
         }
     }
 
-    /// Test that excessively long queries are truncated in fulltext search
+    /// `truncate_to_char_boundary` caps the byte length at the limit and always
+    /// returns a string that ends on a UTF-8 char boundary, including when the
+    /// limit lands inside a multi-byte codepoint.
     #[test]
     fn test_search_query_length_limit() {
         let very_long_query = "a".repeat(20_000);
-        // Test the inlined sanitization logic
-        let sanitized = &very_long_query[..very_long_query.len().min(MAX_SEARCH_QUERY_LENGTH)];
+        let sanitized = truncate_to_char_boundary(&very_long_query, MAX_SEARCH_QUERY_LENGTH);
+        assert_eq!(
+            sanitized.len(),
+            MAX_SEARCH_QUERY_LENGTH,
+            "ASCII query should truncate exactly to the byte limit"
+        );
 
+        // 9_999 ASCII bytes then `é` (2 bytes) puts the cap inside the `é`, so the
+        // boundary must snap back to 9_999 rather than slice the codepoint in half.
+        let multibyte = format!("{}é", "a".repeat(MAX_SEARCH_QUERY_LENGTH - 1));
+        let sanitized = truncate_to_char_boundary(&multibyte, MAX_SEARCH_QUERY_LENGTH);
         assert!(
             sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
-            "Query should be truncated to max length"
+            "multi-byte query must stay within the byte limit, got {}",
+            sanitized.len()
+        );
+        assert!(
+            multibyte.is_char_boundary(sanitized.len()),
+            "truncation must end on a char boundary, got len {}",
+            sanitized.len()
+        );
+        assert_eq!(
+            sanitized.len(),
+            MAX_SEARCH_QUERY_LENGTH - 1,
+            "boundary should snap back past the start of the `é`"
+        );
+
+        // A string already within the limit is returned unchanged.
+        assert_eq!(
+            truncate_to_char_boundary("short", MAX_SEARCH_QUERY_LENGTH),
+            "short"
         );
     }
 

@@ -2,21 +2,15 @@
 //! default secure `SecurityProfile`.
 //!
 //! Scenario: a partial batch-delete mixes existing IDs with a non-existent one. Under the
-//! secure profile (`expose_deleted_ids = false`, the default) the `succeeded` ID array is
-//! redacted to a `succeeded_count` scalar so the response no longer enumerates which submitted
-//! IDs existed. We contrast that against the legacy profile, which returns the full
-//! `BatchResult` with a populated `succeeded`/`failed` array.
+//! secure profile (`expose_deleted_ids = false`, the default) the response collapses to scalar
+//! counts: `{ "succeeded_count": N, "failed_count": M }`. Neither the `succeeded` ID array nor
+//! the `failed` entry array is present, and the submitted non-existent UUID does not appear
+//! anywhere in the body, so the response cannot be used to enumerate which submitted IDs
+//! existed.
 //!
-//! ACTUAL-vs-SPEC NOTE (A6, current branch): the redaction is partial. The secure response
-//! shape is `{ "succeeded_count": N, "failed": [{ index, error }] }`. Two points diverge from
-//! a "no existence leak" expectation:
-//!   1. There is no `failed_count` scalar — failures are returned as the full `failed` array.
-//!   2. Each `failed[].error` is the per-item not-found message, which embeds the submitted
-//!      non-existent UUID (e.g. `"spd_items with ID '<uuid>' not found"`). So the secure
-//!      profile still leaks row existence for the FAILED ids via the error strings, even
-//!      though the SUCCEEDED ids are now redacted to a count.
-//!
-//! The secure test below asserts this actual behaviour rather than the (not-yet-true) spec.
+//! We contrast that against the legacy profile, which returns the full `BatchResult` with
+//! populated `succeeded`/`failed` arrays, including per-item indices and error messages that
+//! echo the submitted IDs.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -81,11 +75,8 @@ async fn create_item(db: &DatabaseConnection, name: &str) -> String {
 }
 
 /// Under the default secure profile a partial batch-delete with a non-existent ID returns
-/// 207 Multi-Status. The `succeeded` ID array is redacted to a `succeeded_count` scalar.
-///
-/// Documents ACTUAL behaviour: the redaction does not extend to the `failed` array, whose
-/// per-item error messages still embed the submitted non-existent UUID. See the module-level
-/// note (A6).
+/// 207 Multi-Status. Both arrays are redacted to scalars (`succeeded_count`, `failed_count`),
+/// and the submitted non-existent UUID is absent from the response body.
 #[tokio::test]
 async fn secure_partial_delete_redacts_succeeded_ids() {
     let db = setup_test_db().await.expect("setup db");
@@ -137,7 +128,7 @@ async fn secure_partial_delete_redacts_succeeded_ids() {
         "two real IDs should be deleted"
     );
 
-    // A6 fix: under the secure profile the partial-delete response collapses failures to a
+    // Under the secure profile the partial-delete response collapses failures to a
     // `failed_count` scalar — it must NOT expose a `failed` array, and must NOT leak the
     // submitted non-existent UUID (which the per-item not-found message would otherwise echo,
     // re-creating the existence-enumeration oracle that expose_deleted_ids=false closes).
