@@ -394,7 +394,9 @@ macro_rules! crud_handlers_impl {
 
                 for (index, id) in ids.into_iter().enumerate() {
                     match <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, id).await {
-                        Ok(_) => result.add_success(id),
+                        // Use the deleted id returned by `delete` rather than the moved
+                        // `id` — the PK value type may be non-`Copy` (e.g. a `String` PK).
+                        Ok(deleted) => result.add_success(deleted),
                         Err(e) => result.add_failure(index, e.to_string()),
                     }
                 }
