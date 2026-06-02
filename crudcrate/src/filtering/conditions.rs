@@ -1,11 +1,11 @@
 use sea_orm::{
     Condition, DatabaseBackend,
-    sea_query::{Alias, Expr, ExprTrait, SimpleExpr},
+    sea_query::{Alias, Expr, ExprTrait, LikeExpr, SimpleExpr},
 };
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use super::search::{build_fulltext_condition, build_like_condition};
+use super::search::{build_fulltext_condition, build_like_condition, escape_like_wildcards};
 
 // Basic safety limits
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
@@ -23,15 +23,6 @@ const MAX_OFFSET: u64 = 1_000_000;
 /// deliberately does *not* silently drop filters, because a silently-unfiltered
 /// response is worse than a failed request.
 const MAX_FILTER_CLAUSES: usize = 100;
-
-/// Escape LIKE wildcards to prevent wildcard injection attacks
-/// Escapes: % (match any) and _ (match single char)
-fn escape_like_wildcards(input: &str) -> String {
-    input
-        .replace('\\', "\\\\") // Escape backslash first
-        .replace('%', "\\%") // Escape %
-        .replace('_', "\\_") // Escape _
-}
 
 /// Basic field name validation
 fn is_valid_field_name(field_name: &str) -> bool {
@@ -158,7 +149,10 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
                                 Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
                             ))
-                            .like(format!("%{}%", escaped_query.to_uppercase())),
+                            .like(
+                                LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
+                                    .escape('!'),
+                            ),
                         );
                     }
                     _ => {
@@ -167,7 +161,10 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                             SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
                                 *col,
                             )))
-                            .like(format!("%{}%", escaped_query.to_uppercase())),
+                            .like(
+                                LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
+                                    .escape('!'),
+                            ),
                         );
                     }
                 }
@@ -181,7 +178,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                         Expr::col(*col),
                         Alias::new(cast_type),
                     )))
-                    .like(format!("%{}%", escaped_query.to_uppercase())),
+                    .like(LikeExpr::new(format!("%{}%", escaped_query.to_uppercase())).escape('!')),
                 );
             }
         }
@@ -404,7 +401,7 @@ where
                 FilterOperator::Lte => Some(col().lte(trimmed)),
                 FilterOperator::Like => {
                     let escaped = escape_like_wildcards(trimmed);
-                    Some(col().like(format!("%{escaped}%")))
+                    Some(col().like(LikeExpr::new(format!("%{escaped}%")).escape('!')))
                 }
                 FilterOperator::In | FilterOperator::IsNull => None,
             }
@@ -559,7 +556,12 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     } else if let Some(range) = &params.range {
         // React Admin pagination
         let (start, end) = parse_range(Some(range.clone()));
-        let limit = (end.saturating_sub(start) + 1).min(MAX_PAGE_SIZE);
+        // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
+        // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
+        let limit = end
+            .saturating_sub(start)
+            .saturating_add(1)
+            .min(MAX_PAGE_SIZE);
         let safe_start = start.min(MAX_OFFSET);
         (safe_start, limit)
     } else {
@@ -815,16 +817,288 @@ mod tests {
         assert_eq!(parse_comparison_operator("age"), None);
     }
 
-    /// Test wildcard escaping for LIKE queries
+    /// The LIKE paths in this module share search.rs's `!`-based escaper, which is
+    /// always paired with an explicit `ESCAPE '!'` clause (see
+    /// `test_build_comparison_expr_like_escapes_wildcards`). Backslash escaping was
+    /// removed because it is a no-op on SQLite (`.like()` emits no ESCAPE clause).
     #[test]
     fn test_escape_like_wildcards() {
         assert_eq!(escape_like_wildcards("normal text"), "normal text");
-        assert_eq!(escape_like_wildcards("test%"), "test\\%");
-        assert_eq!(escape_like_wildcards("test_value"), "test\\_value");
-        assert_eq!(escape_like_wildcards("%_"), "\\%\\_");
-        assert_eq!(escape_like_wildcards("\\"), "\\\\");
-        assert_eq!(escape_like_wildcards("\\%"), "\\\\\\%");
-        assert_eq!(escape_like_wildcards("100% complete"), "100\\% complete");
+        assert_eq!(escape_like_wildcards("test%"), "test!%");
+        assert_eq!(escape_like_wildcards("test_value"), "test!_value");
+        assert_eq!(escape_like_wildcards("%_"), "!%!_");
+        assert_eq!(escape_like_wildcards("!"), "!!");
+        assert_eq!(escape_like_wildcards("100% complete"), "100!% complete");
+    }
+
+    // ========================================================================
+    // build_comparison_expr — direct coverage of the public joined-filter
+    // expression builder used by derive-generated resolve_joined_filters.
+    // ========================================================================
+
+    mod cmp_entity {
+        use sea_orm::entity::prelude::*;
+
+        #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+        #[sea_orm(table_name = "cmp_things")]
+        pub struct Model {
+            #[sea_orm(primary_key)]
+            pub id: i32,
+            pub name: String,
+        }
+
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        pub enum Relation {}
+
+        impl ActiveModelBehavior for ActiveModel {}
+    }
+
+    use crate::filtering::joined::FilterOperator;
+
+    /// Render an expression to inlined SQLite SQL so the ESCAPE clause and the
+    /// (escaped) bound pattern are both visible as text.
+    fn cmp_sql(expr: SimpleExpr) -> String {
+        use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+        Query::select()
+            .column(cmp_entity::Column::Id)
+            .from(cmp_entity::Entity)
+            .and_where(expr)
+            .to_string(SqliteQueryBuilder)
+    }
+
+    /// A1 regression: the joined `_like` path must escape user wildcards with `!`
+    /// AND declare `ESCAPE '!'` so the escaping is not a no-op on SQLite.
+    #[test]
+    fn test_build_comparison_expr_like_escapes_wildcards() {
+        let expr = build_comparison_expr(
+            cmp_entity::Column::Name,
+            FilterOperator::Like,
+            &serde_json::json!("100%"),
+        )
+        .expect("Like on a string builds an expression");
+        let sql = cmp_sql(expr);
+        assert!(
+            sql.contains("ESCAPE '!'"),
+            "LIKE must declare ESCAPE '!': {sql}"
+        );
+        assert!(
+            sql.contains("100!%"),
+            "user-supplied wildcard must be escaped with !: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_build_comparison_expr_string_ops_build() {
+        for op in [
+            FilterOperator::Eq,
+            FilterOperator::Neq,
+            FilterOperator::Gt,
+            FilterOperator::Gte,
+            FilterOperator::Lt,
+            FilterOperator::Lte,
+        ] {
+            assert!(
+                build_comparison_expr(cmp_entity::Column::Name, op, &serde_json::json!("abc"))
+                    .is_some(),
+                "string {op:?} should build an expression"
+            );
+        }
+    }
+
+    #[test]
+    fn test_build_comparison_expr_empty_and_overlong_string_none() {
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::json!("")
+            )
+            .is_none()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::json!("   "),
+            )
+            .is_none()
+        );
+        let overlong = "a".repeat(10_001);
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::json!(overlong),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_build_comparison_expr_uuid_only_eq_neq() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::json!(uuid)
+            )
+            .is_some()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Neq,
+                &serde_json::json!(uuid)
+            )
+            .is_some()
+        );
+        // Ranges and LIKE on a UUID are meaningless -> None.
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Gt,
+                &serde_json::json!(uuid)
+            )
+            .is_none()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Like,
+                &serde_json::json!(uuid)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_build_comparison_expr_number_ops_and_rejections() {
+        for op in [
+            FilterOperator::Eq,
+            FilterOperator::Neq,
+            FilterOperator::Gt,
+            FilterOperator::Gte,
+            FilterOperator::Lt,
+            FilterOperator::Lte,
+        ] {
+            assert!(
+                build_comparison_expr(cmp_entity::Column::Id, op, &serde_json::json!(42)).is_some()
+            );
+            assert!(
+                build_comparison_expr(cmp_entity::Column::Id, op, &serde_json::json!(3.5))
+                    .is_some()
+            );
+        }
+        // In / IsNull are not valid against a scalar number -> None.
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Id,
+                FilterOperator::In,
+                &serde_json::json!(42)
+            )
+            .is_none()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Id,
+                FilterOperator::IsNull,
+                &serde_json::json!(42),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_build_comparison_expr_bool_eq_neq_only() {
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::json!(true)
+            )
+            .is_some()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Neq,
+                &serde_json::json!(false),
+            )
+            .is_some()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Gt,
+                &serde_json::json!(true)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_build_comparison_expr_array_null_object() {
+        // Non-empty array -> IN.
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::In,
+                &serde_json::json!(["a", "b"]),
+            )
+            .is_some()
+        );
+        // Empty array, or an array of only objects (no extractable scalars) -> None.
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::In,
+                &serde_json::json!([])
+            )
+            .is_none()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::In,
+                &serde_json::json!([{"k": "v"}]),
+            )
+            .is_none()
+        );
+        // Null + Eq/IsNull -> IS NULL; other operators -> None.
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::Value::Null
+            )
+            .is_some()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::IsNull,
+                &serde_json::Value::Null,
+            )
+            .is_some()
+        );
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Gt,
+                &serde_json::Value::Null
+            )
+            .is_none()
+        );
+        // Object value is unsupported -> None.
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Name,
+                FilterOperator::Eq,
+                &serde_json::json!({"k": "v"}),
+            )
+            .is_none()
+        );
     }
 
     /// Test numeric comparison operators
@@ -1085,5 +1359,26 @@ mod tests {
             "Range offset should be capped at {}",
             MAX_OFFSET
         );
+    }
+
+    /// A3 regression: a huge `end` in the range branch must not overflow the `+ 1`
+    /// (which panics under overflow-checks). Should cap cleanly instead.
+    #[test]
+    fn test_pagination_range_huge_end_does_not_overflow() {
+        let params = crate::models::FilterOptions {
+            range: Some(format!("[0,{}]", u64::MAX)),
+            ..Default::default()
+        };
+        let (offset, limit) = parse_pagination(&params);
+        assert!(limit <= MAX_PAGE_SIZE, "limit must be capped, got {limit}");
+        assert!(offset <= MAX_OFFSET, "offset must be capped, got {offset}");
+
+        // Reversed range (end < start) must not panic either.
+        let params = crate::models::FilterOptions {
+            range: Some(format!("[{},{}]", u64::MAX, u64::MAX)),
+            ..Default::default()
+        };
+        let (_offset, limit) = parse_pagination(&params);
+        assert!(limit <= MAX_PAGE_SIZE);
     }
 }

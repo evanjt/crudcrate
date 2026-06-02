@@ -131,8 +131,11 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
                         .await?;
                 }
 
-                // Return only IDs that actually existed (preserving input order)
-                ids.into_iter().filter(|id| existing_set.contains(id)).collect()
+                // Return only IDs that actually existed, de-duplicated while preserving
+                // input order. The DELETE is de-duplicated via existing_set, so echoing
+                // duplicate input ids would over-report the rows actually deleted.
+                let mut seen = std::collections::HashSet::new();
+                ids.into_iter().filter(|id| existing_set.contains(id) && seen.insert(*id)).collect()
             };
         }
     };

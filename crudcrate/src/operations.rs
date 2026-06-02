@@ -412,10 +412,12 @@ pub trait CRUDOperations: Send + Sync {
                 .map_err(ApiError::database)?;
         }
 
-        // Return only IDs that actually existed (preserving input order)
+        // Return only IDs that actually existed, de-duplicated while preserving input
+        // order — duplicate input ids would otherwise over-report the rows deleted.
+        let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()
-            .filter(|id| existing_set.contains(id))
+            .filter(|id| existing_set.contains(id) && seen.insert(*id))
             .collect())
     }
 

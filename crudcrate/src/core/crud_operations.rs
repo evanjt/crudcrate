@@ -103,12 +103,12 @@ macro_rules! crud_handlers_impl {
                 // Atomic scoped fetch: ID + scope condition in a single query.
                 // Prevents TOCTOU race where scope-relevant columns could change
                 // between a fetch and a separate verification query.
+                // get_one_scoped already returns NotFound (404) when the scope condition
+                // excludes the row, so existence stays masked. Propagate the real error
+                // instead of rewriting everything to 404 — genuine DB/internal faults
+                // must surface as 500 (and be logged), not masquerade as a missing row.
                 let result = <$resource as crudcrate::traits::CRUDResource>::get_one_scoped(&db, id, &extra)
-                    .await
-                    .map_err(|_| crudcrate::ApiError::not_found(
-                        <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
-                        Some(id.to_string()),
-                    ))?;
+                    .await?;
 
                 let response: $response_model = result.into();
                 let scoped: $scoped_response = response.into();
@@ -398,9 +398,13 @@ macro_rules! crud_handlers_impl {
                 if profile.expose_deleted_ids {
                     (status, axum::Json(result)).into_response()
                 } else {
+                    // expose_deleted_ids=false must also hide WHICH ids failed: each
+                    // per-item not-found error embeds the (missing) UUID, so serializing
+                    // `failed` verbatim would be an existence-enumeration oracle — the very
+                    // side-channel the non-partial path collapses to `{deleted: count}`.
                     let secure = serde_json::json!({
                         "succeeded_count": result.succeeded.len(),
-                        "failed": result.failed,
+                        "failed_count": result.failed.len(),
                     });
                     (status, axum::Json(secure)).into_response()
                 }
@@ -487,12 +491,20 @@ macro_rules! crud_handlers_impl {
             }
 
             if options.partial {
-                // Partial success mode: process each item individually
+                // Partial success mode: process each item individually.
+                // Use create_many with a single-item batch (not the single `create`,
+                // which on the derive path re-fetches via get_one and applies join
+                // loading + read::one::transform). This keeps the partial response the
+                // same flat shape as the all-or-nothing path below (which calls
+                // create_many) and runs the same create::many hooks for both modes.
                 let mut result: crudcrate::BatchResult<$response_model> = crudcrate::BatchResult::new();
 
                 for (index, create_model) in data.into_iter().enumerate() {
-                    match <$resource as crudcrate::traits::CRUDResource>::create(&state.0, create_model).await {
-                        Ok(created) => result.add_success(created.into()),
+                    match <$resource as crudcrate::traits::CRUDResource>::create_many(&state.0, vec![create_model]).await {
+                        Ok(mut created) => match created.pop() {
+                            Some(item) => result.add_success(item.into()),
+                            None => result.add_failure(index, "create produced no row".to_string()),
+                        },
                         Err(e) => result.add_failure(index, e.to_string()),
                     }
                 }

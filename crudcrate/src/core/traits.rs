@@ -297,10 +297,14 @@ where
                 .map_err(ApiError::database)?;
         }
 
-        // Return only IDs that actually existed (preserving input order)
+        // Return only IDs that actually existed, de-duplicated while preserving input
+        // order. The DELETE itself is de-duplicated via `existing_set`, so echoing a
+        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted
+        // — both as the `{deleted: count}` integer and the returned array.
+        let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()
-            .filter(|id| existing_set.contains(id))
+            .filter(|id| existing_set.contains(id) && seen.insert(*id))
             .collect())
     }
 
