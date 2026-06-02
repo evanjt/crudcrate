@@ -108,7 +108,7 @@
 //! - [`filtering`] — Query parameter parsing, filter conditions, pagination, sorting, fulltext search
 //! - [`operations`] — [`CRUDOperations`] trait for struct-based customization
 //! - [`errors`] — [`ApiError`] type with automatic HTTP status codes and internal logging
-//! - [`database`] — Index analysis utilities
+//! - [`database`] — reserved for future database-specific features
 //! - [`validation`] — Input validation helpers
 //!
 //! # Feature flags
