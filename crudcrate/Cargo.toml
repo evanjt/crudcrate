@@ -45,6 +45,7 @@ proc-macro = false
 [dev-dependencies]
 chrono = { workspace = true, features = ["serde"] }
 criterion = { workspace = true, features = ["html_reports"] }
+proptest = "1"
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls", "macros", "with-chrono", "with-rust_decimal"] }
 sea-orm-migration = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
