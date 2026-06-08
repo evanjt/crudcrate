@@ -15,6 +15,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
+use sea_orm::sea_query::Table;
 use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -47,9 +48,23 @@ pub mod foh_record {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+    let db = Database::connect(&url).await?;
     let backend = db.get_database_backend();
     let schema = Schema::new(backend);
+
+    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
+    // drop first so every test starts from a clean schema and empty data. On
+    // sqlite::memory: each connection is a fresh database, so the drops are no-ops.
+    db.execute(
+        backend.build(
+            &Table::drop()
+                .table(foh_record::Entity)
+                .if_exists()
+                .to_owned(),
+        ),
+    )
+    .await?;
     db.execute(backend.build(&schema.create_table_from_entity(foh_record::Entity)))
         .await?;
     Ok(db)

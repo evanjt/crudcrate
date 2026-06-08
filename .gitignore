@@ -2,6 +2,7 @@
 docs/test-links/target/
 .history/
 *.log
+*.profraw
 .claude/
 CLAUDE.md
 AGENTS.md

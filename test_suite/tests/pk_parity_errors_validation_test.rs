@@ -24,6 +24,7 @@ use axum::response::IntoResponse;
 use crudcrate::validation::{Validatable, ValidationError};
 use crudcrate::{ApiError, CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
+use sea_orm::sea_query::Table;
 use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -80,20 +81,31 @@ impl Validatable for ppe_thing::PpeThingCreate {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+    let db = Database::connect(&url).await?;
     let backend = db.get_database_backend();
     let schema = Schema::new(backend);
 
+    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
+    // drop first so every test starts from a clean schema. On sqlite::memory: each
+    // connection is a fresh database, so the drop is a harmless no-op.
+    db.execute(
+        backend.build(
+            &Table::drop()
+                .table(ppe_thing::Entity)
+                .if_exists()
+                .to_owned(),
+        ),
+    )
+    .await?;
     db.execute(backend.build(&schema.create_table_from_entity(ppe_thing::Entity)))
         .await?;
 
     // Belt-and-suspenders: ensure the unique index on `email` exists regardless
     // of whether `create_table_from_entity` emitted the `#[sea_orm(unique)]` one,
     // matching duplicate_key_conflict_test's setup.
-    db.execute_unprepared(
-        "CREATE UNIQUE INDEX IF NOT EXISTS ppe_things_email_unique ON ppe_things (email)",
-    )
-    .await?;
+    db.execute_unprepared("CREATE UNIQUE INDEX ppe_things_email_unique ON ppe_things (email)")
+        .await?;
 
     Ok(db)
 }

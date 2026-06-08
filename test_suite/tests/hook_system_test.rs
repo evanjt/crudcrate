@@ -368,22 +368,23 @@ fn test_update_model_all_optional() {
 mod integration {
     use super::*;
     use crudcrate::CRUDResource;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::sea_query::Table;
+    use sea_orm::{Database, DatabaseConnection, Schema};
     use serial_test::serial;
 
     async fn setup_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
-        let db = Database::connect("sqlite::memory:").await?;
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db = Database::connect(&url).await?;
+        let backend = db.get_database_backend();
+        let schema = Schema::new(backend);
 
-        db.execute(sea_orm::Statement::from_string(
-            db.get_database_backend(),
-            r"CREATE TABLE hook_test_items (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )"
-            .to_owned(),
-        ))
-        .await?;
+        // Persistent backends (Postgres/MySQL) keep tables across tests; drop first so
+        // every test starts from a clean schema. On sqlite::memory: each connection is a
+        // fresh database, so the drops are no-ops.
+        db.execute(backend.build(&Table::drop().table(Entity).if_exists().to_owned()))
+            .await?;
+        db.execute(backend.build(&schema.create_table_from_entity(Entity)))
+            .await?;
 
         Ok(db)
     }
@@ -1202,18 +1203,18 @@ mod integration {
     // ========================================================================
 
     async fn setup_transform_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
-        let db = Database::connect("sqlite::memory:").await?;
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db = Database::connect(&url).await?;
+        let backend = db.get_database_backend();
+        let schema = Schema::new(backend);
 
-        db.execute(sea_orm::Statement::from_string(
-            db.get_database_backend(),
-            r"CREATE TABLE transform_test_items (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )"
-            .to_owned(),
-        ))
-        .await?;
+        // Persistent backends (Postgres/MySQL) keep tables across tests; drop first so
+        // every test starts from a clean schema. On sqlite::memory: each connection is a
+        // fresh database, so the drops are no-ops.
+        db.execute(backend.build(&Table::drop().table(TransformEntity).if_exists().to_owned()))
+            .await?;
+        db.execute(backend.build(&schema.create_table_from_entity(TransformEntity)))
+            .await?;
 
         Ok(db)
     }

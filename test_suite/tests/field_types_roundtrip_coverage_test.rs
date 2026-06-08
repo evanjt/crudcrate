@@ -15,6 +15,7 @@ use axum::http::{Request, StatusCode};
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
+use sea_orm::sea_query::Table;
 use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
 use serde_json::json;
 use tower::ServiceExt;
@@ -65,9 +66,16 @@ pub mod gadget {
 use gadget::{Entity as GadgetEntity, FtrGadget, FtrGadgetCreate, FtrGadgetUpdate};
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+    let db = Database::connect(&url).await?;
     let backend = db.get_database_backend();
     let schema = Schema::new(backend);
+
+    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
+    // drop first so every test starts from a clean schema and empty data. On
+    // sqlite::memory: each connection is a fresh database, so the drops are no-ops.
+    db.execute(backend.build(&Table::drop().table(GadgetEntity).if_exists().to_owned()))
+        .await?;
     db.execute(backend.build(&schema.create_table_from_entity(GadgetEntity)))
         .await?;
     Ok(db)
@@ -353,8 +361,11 @@ async fn created_at_stable_updated_at_advances() {
     // Both timestamps are set from on_create expressions at insert time.
     assert!((parsed_created - parsed_updated).num_seconds().abs() <= 1);
 
-    // Ensure measurable wall-clock movement between the two on_update evaluations.
-    tokio::time::sleep(std::time::Duration::from_millis(15)).await;
+    // Ensure the update lands in a later whole second than the create. MySQL's
+    // default TIMESTAMP/DATETIME columns have one-second resolution (no fractional
+    // seconds), so a sub-second gap would round to the same value; sleeping past a
+    // full second guarantees updated_at advances on every backend.
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
     let (status, updated) = patch_update(&db, id, json!({ "name": "Theta-2" })).await;
     assert_eq!(status, StatusCode::OK);

@@ -6,7 +6,8 @@ use axum::body::Body;
 use axum::http::Request;
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDResource, EntityToModels};
-use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
+use sea_orm::sea_query::Table;
+use sea_orm::{Database, DatabaseConnection, Schema, entity::prelude::*};
 use serde_json::json;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -74,24 +75,18 @@ impl ActiveModelBehavior for ActiveModel {}
 // ============================================================================
 
 async fn setup_products_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
-    let db = Database::connect("sqlite::memory:").await?;
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+    let db = Database::connect(&url).await?;
+    let backend = db.get_database_backend();
+    let schema = Schema::new(backend);
 
-    db.execute(sea_orm::Statement::from_string(
-        db.get_database_backend(),
-        r"CREATE TABLE products (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            price REAL NOT NULL,
-            description TEXT,
-            specifications TEXT,
-            weight_kg REAL,
-            dimensions TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )"
-        .to_owned(),
-    ))
-    .await?;
+    // Persistent backends (Postgres/MySQL) keep tables across tests; drop first so every
+    // test starts from a clean schema. On sqlite::memory: each connection is a fresh
+    // database, so the drops are no-ops.
+    db.execute(backend.build(&Table::drop().table(Entity).if_exists().to_owned()))
+        .await?;
+    db.execute(backend.build(&schema.create_table_from_entity(Entity)))
+        .await?;
 
     Ok(db)
 }
