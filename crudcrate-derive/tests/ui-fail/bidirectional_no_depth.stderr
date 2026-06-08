@@ -1,0 +1,11 @@
+error[E0080]: evaluation panicked: Bidirectional SeaORM relation on join 'children' in 'Parent' with no explicit depth (defaults to 5).
+
+              Parent and the target of 'children' have mutual Related<> impls. Without an explicit depth, this would load nested objects 5 levels deep, producing large redundant responses.
+
+              Fix: set an explicit depth:
+              - depth = 1: load immediate children only (recommended)
+              - depth = N: load N levels (causes data duplication at each level)
+  --> tests/ui-fail/bidirectional_no_depth.rs:18:47
+   |
+18 |     #[derive(Clone, Debug, DeriveEntityModel, EntityToModels, Serialize, Deserialize, ToSchema)]
+   |                                               ^^^^^^^^^^^^^^ evaluation of `parent::_` failed here

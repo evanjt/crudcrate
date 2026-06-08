@@ -1,0 +1,8 @@
+error: EntityToModels only supports structs
+  --> tests/ui-fail/not_a_struct.rs:7:1
+   |
+ 7 | / enum NotAStruct {
+ 8 | |     A,
+ 9 | |     B,
+10 | | }
+   | |_^
