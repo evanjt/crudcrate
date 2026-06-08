@@ -172,3 +172,8 @@ pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
 
 pub use serde_with;
+
+/// Re-exported so derive-generated join code can call `crudcrate::tracing::warn!`
+/// without requiring downstream crates to declare a direct `tracing` dependency.
+#[doc(hidden)]
+pub use tracing;

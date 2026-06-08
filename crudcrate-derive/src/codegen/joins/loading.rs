@@ -834,14 +834,14 @@ fn generate_batch_loading_impl(
                             Some(cs) => match #api_struct_type::get_one_scoped(db, related_model.id, cs).await {
                                 Ok(e) => e,
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
                                     #api_struct_type::from(related_model)
                                 }
                             },
                             None => match #api_struct_type::get_one(db, related_model.id).await {
                                 Ok(e) => e,
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                     #api_struct_type::from(related_model)
                                 }
                             },
@@ -852,7 +852,7 @@ fn generate_batch_loading_impl(
                         let entity = match #api_struct_type::get_one(db, related_model.id).await {
                             Ok(e) => e,
                             Err(e) => {
-                                tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                 #api_struct_type::from(related_model)
                             }
                         };
@@ -971,7 +971,7 @@ fn generate_batch_loading_impl(
                             match #target_type::get_one(db, related_model.id).await {
                                 Ok(e) => Some(e),
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                     Some(#target_type::from(related_model))
                                 }
                             }
@@ -1233,14 +1233,14 @@ fn generate_join_loading_impl(
                             Some(cs) => match #api_struct_type::get_one_scoped(db, related_model.id, &cs).await {
                                 Ok(entity) => result.push(entity),
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
                                     result.push(related_model.into());
                                 }
                             },
                             None => match #api_struct_type::get_one(db, related_model.id).await {
                                 Ok(entity) => result.push(entity),
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                     result.push(related_model.into());
                                 }
                             },
@@ -1251,7 +1251,7 @@ fn generate_join_loading_impl(
                         match #api_struct_type::get_one(db, related_model.id).await {
                             Ok(entity) => result.push(entity),
                             Err(e) => {
-                                tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                 result.push(related_model.into());
                             }
                         }
@@ -1322,14 +1322,14 @@ fn generate_join_loading_impl(
                             Some(cs) => match #target_type::get_one_scoped(db, related_model.id, &cs).await {
                                 Ok(entity) => Some(entity),
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
                                     Some(related_model.into())
                                 }
                             },
                             None => match #target_type::get_one(db, related_model.id).await {
                                 Ok(entity) => Some(entity),
                                 Err(e) => {
-                                    tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                     Some(related_model.into())
                                 }
                             },
@@ -1340,7 +1340,7 @@ fn generate_join_loading_impl(
                         match #target_type::get_one(db, related_model.id).await {
                             Ok(entity) => Some(entity),
                             Err(e) => {
-                                tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
+                                crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
                                 Some(related_model.into())
                             }
                         }
