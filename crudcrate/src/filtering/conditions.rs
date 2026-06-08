@@ -285,6 +285,46 @@ fn process_number_filter(
     None
 }
 
+/// Build a type-matched `IN (...)` expression for a homogeneous JSON array so the
+/// bound values match the column type on strict backends. Postgres rejects
+/// `int_col IN ('1','3')` and `bool_col IN ('true')` (`operator does not exist:
+/// integer = text`); SQLite's loose typing silently accepted the stringified form.
+/// Returns `None` unless every element is an integer, every element is a number,
+/// or every element is a boolean — callers fall back to a string IN list for
+/// string/enum/mixed arrays.
+fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
+    column: C,
+    array_values: &[serde_json::Value],
+) -> Option<SimpleExpr> {
+    if array_values.is_empty() {
+        return None;
+    }
+    if array_values.iter().all(serde_json::Value::is_i64) {
+        let ints: Vec<i64> = array_values
+            .iter()
+            .filter_map(serde_json::Value::as_i64)
+            .collect();
+        return Some(Expr::col(column).is_in(ints));
+    }
+    if array_values.iter().all(serde_json::Value::is_number) {
+        let nums: Vec<f64> = array_values
+            .iter()
+            .filter_map(serde_json::Value::as_f64)
+            .collect();
+        if nums.len() == array_values.len() {
+            return Some(Expr::col(column).is_in(nums));
+        }
+    }
+    if array_values.iter().all(serde_json::Value::is_boolean) {
+        let bools: Vec<bool> = array_values
+            .iter()
+            .filter_map(serde_json::Value::as_bool)
+            .collect();
+        return Some(Expr::col(column).is_in(bools));
+    }
+    None
+}
+
 fn process_array_filter(
     array_values: &[serde_json::Value],
     column: impl sea_orm::ColumnTrait + Copy,
@@ -311,6 +351,13 @@ fn process_array_filter(
 
     if all_uuids && !uuid_values.is_empty() {
         return Some(Expr::col(column).is_in(uuid_values));
+    }
+
+    // Type-matched IN list (integers/floats/bools) so the bound values match the
+    // column type on strict backends. Enum columns keep the string path below —
+    // their casted/uppercased comparison needs text binds.
+    if !is_enum && let Some(expr) = typed_array_in_list(column, array_values) {
+        return Some(expr);
     }
 
     // Fall back to string-based IN for non-UUID values
@@ -439,6 +486,11 @@ where
         Value::Array(arr) => {
             if arr.is_empty() {
                 return None;
+            }
+            // Type-matched IN list so integer/float/bool arrays bind as their
+            // native type (Postgres rejects `int_col IN ('1','3')`).
+            if let Some(expr) = typed_array_in_list(column, arr) {
+                return Some(expr);
             }
             let strings: Vec<String> = arr
                 .iter()
