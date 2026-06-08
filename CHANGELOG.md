@@ -66,6 +66,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`Option<T>` belongs_to relations were not loaded in list endpoints** (the batch
   loader resolved the FK in the wrong direction); now resolved via `find_related`.
 - **Duplicate-key inserts returned 500** instead of the documented 409 Conflict.
+- **Foreign-key violations returned 500** instead of 409 Conflict; they are now
+  mapped to 409 like unique-constraint violations (matching the documented
+  response), across all backends.
+- **Array filters on integer/boolean columns returned 500 on PostgreSQL.**
+  `?filter={"id":[1,3]}` built `id IN ('1','3')` (string literals), which
+  PostgreSQL rejects as `operator does not exist: integer = text`; SQLite's loose
+  typing hid it. Array values are now bound as their native JSON type.
+- **Generated `depth > 1` join code required a `tracing` dependency** in the
+  downstream crate (it emitted unqualified `tracing::warn!`). The generated calls
+  are now qualified as `crudcrate::tracing::warn!`, so consumers no longer need to
+  depend on `tracing` directly.
 - Examples: corrected `error_handling` printed messages to match `ApiError`
   output, fixed the misleading `recursive_join`/`recursive_join_5_levels` depth
   claims, trimmed `joined_filter` boilerplate, and listed all examples in the

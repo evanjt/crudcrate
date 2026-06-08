@@ -274,6 +274,14 @@ impl ApiError {
                 message: "A record with these details already exists".to_string(),
             };
         }
+        // A foreign-key violation (referencing a missing record, or removing one that
+        // is still referenced) is likewise a client conflict (409), not an opaque 500,
+        // matching the documented response. The message is generic so no driver text leaks.
+        if let Some(sea_orm::SqlErr::ForeignKeyConstraintViolation(_)) = err.sql_err() {
+            return Self::Conflict {
+                message: "The operation conflicts with a related record".to_string(),
+            };
+        }
         Self::Database {
             message: "A database error occurred".to_string(),
             internal: err,
@@ -493,6 +501,13 @@ impl From<DbErr> for ApiError {
         if let Some(sea_orm::SqlErr::UniqueConstraintViolation(_)) = err.sql_err() {
             return Self::Conflict {
                 message: "A record with these details already exists".to_string(),
+            };
+        }
+        // Foreign-key violations are also normalised by sea-orm across backends and
+        // map to 409 Conflict rather than an opaque 500.
+        if let Some(sea_orm::SqlErr::ForeignKeyConstraintViolation(_)) = err.sql_err() {
+            return Self::Conflict {
+                message: "The operation conflicts with a related record".to_string(),
             };
         }
         match &err {
