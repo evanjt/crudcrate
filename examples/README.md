@@ -6,7 +6,7 @@ This directory contains examples demonstrating various features of crudcrate.
 
 ### Minimal Example (`minimal/`)
 
-A complete CRUD API implemented in just ~60 lines of code.
+A complete CRUD API in ~85 lines across two files (`main.rs` wiring + `todo.rs` model).
 
 ```bash
 cargo run --example minimal
@@ -18,7 +18,7 @@ cargo run --example minimal
 
 ### CRUD Operations (`crud_operations.rs`)
 
-Demonstrates the `CRUDOperations` trait for advanced customization:
+Demonstrates the `CRUDOperations` trait for customization:
 - Lifecycle hooks (`before_create`, `after_get_one`, etc.)
 - Core method overrides (`fetch_all`, `fetch_one`)
 - Full operation overrides with external service integration
@@ -29,7 +29,7 @@ cargo run --example crud_operations
 
 ### Error Handling (`error_handling.rs`)
 
-Comprehensive error handling patterns with `ApiError`.
+Error-handling patterns with `ApiError` and the HTTP status codes each variant maps to.
 
 ```bash
 cargo run --example error_handling
@@ -37,10 +37,37 @@ cargo run --example error_handling
 
 ### Recursive Joins (`recursive_join/`)
 
-Demonstrates recursive entity relationships with depth control.
+Customer → Vehicle → Parts/Maintenance relationships loaded automatically via `join(...)`.
 
 ```bash
 cargo run --example recursive_join
+```
+
+### Recursive Joins, 5 Levels (`recursive_join_5_levels/`)
+
+A deeper Company → Branch → Department → Employee → Project hierarchy demonstrating how `depth`
+controls how far nested joins recurse.
+
+```bash
+cargo run --example recursive_join_5_levels
+```
+
+### Joined Filter (`joined_filter/`)
+
+Filtering parent records by columns on related entities using dot-notation query parameters
+(e.g. `?filter={"vehicles.make":"BMW"}`).
+
+```bash
+cargo run --example joined_filter
+```
+
+### Scoped Access (`scoped_access/`)
+
+`ScopeCondition` + `read_only_router` for public/filtered API endpoints — rows are restricted at
+the SQL level and write verbs are rejected in a scoped context.
+
+```bash
+cargo run --example scoped_access
 ```
 
 ## Hook System

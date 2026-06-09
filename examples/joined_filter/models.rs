@@ -6,19 +6,8 @@ pub mod vehicle {
     use super::{DeriveEntityModel, EntityToModels, Uuid};
     use crudcrate::CRUDResource;
     use sea_orm::entity::prelude::*;
-    use serde::{Deserialize, Serialize};
 
-    #[derive(
-        Clone,
-        Debug,
-        PartialEq,
-        Eq,
-        DeriveEntityModel,
-        EntityToModels,
-        Serialize,
-        Deserialize,
-        utoipa::ToSchema,
-    )]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "vehicles")]
     #[crudcrate(
         api_struct = "Vehicle",
@@ -64,18 +53,8 @@ pub mod customer {
     use super::{DeriveEntityModel, EntityToModels, Uuid};
     use crudcrate::CRUDResource;
     use sea_orm::entity::prelude::*;
-    use serde::{Deserialize, Serialize};
 
-    #[derive(
-        Clone,
-        Debug,
-        PartialEq,
-        DeriveEntityModel,
-        EntityToModels,
-        Serialize,
-        Deserialize,
-        utoipa::ToSchema,
-    )]
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "customers")]
     #[crudcrate(
         api_struct = "Customer",
@@ -93,19 +72,13 @@ pub mod customer {
         #[crudcrate(filterable)]
         pub email: String,
 
-        /// Joined filterable/sortable columns declared here enable
-        /// `?filter={"vehicles.make":"BMW"}` and `?sort=["vehicles.year","DESC"]`.
+        /// Joined filterable columns declared here enable
+        /// `?filter={"vehicles.make":"BMW"}` on the customer endpoint.
         #[sea_orm(ignore)]
         #[crudcrate(
-            non_db_attr = true,
+            non_db_attr,
             exclude(create, update),
-            join(
-                one,
-                all,
-                depth = 2,
-                filterable("make", "year"),
-                sortable("year", "make")
-            )
+            join(one, all, depth = 1, filterable("make", "year"))
         )]
         pub vehicles: Vec<Vehicle>,
     }

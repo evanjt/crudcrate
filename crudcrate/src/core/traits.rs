@@ -14,6 +14,15 @@ pub struct UuidIdResult {
     pub id: Uuid,
 }
 
+/// The primary-key value type of a [`CRUDResource`]'s entity.
+///
+/// Resolves to `<<<R::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType`
+/// — e.g. `uuid::Uuid`, `i32`, or `String` depending on the entity's `#[sea_orm(primary_key)]`
+/// column. Used throughout the CRUD stack so identifier-taking methods stay generic over the
+/// concrete PK type rather than hardcoding `Uuid`.
+pub type PrimaryKeyType<R> =
+    <<<R as CRUDResource>::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType;
+
 pub trait MergeIntoActiveModel<ActiveModelType> {
     /// Merge this update model into an existing active model
     ///
@@ -30,9 +39,21 @@ where
     Self::EntityType: EntityTrait + Sync,
     Self::ActiveModelType: ActiveModelTrait + ActiveModelBehavior + Send + Sync,
     <Self::EntityType as EntityTrait>::Model: Sync + IntoActiveModel<Self::ActiveModelType>,
-    <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: From<Uuid>,
-    <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
-    <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType: Into<Uuid>,
+    // The PK value type must be usable across the whole CRUD stack: cloned for
+    // re-use after a move, compared/hashed for the delete_many existence set,
+    // displayed in not-found errors, deserialized from the Axum `Path`, and
+    // bound into SeaORM queries via `Into<sea_orm::Value>`. Both `uuid::Uuid`
+    // and `i32` (and `String`) satisfy all of these.
+    <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType:
+        Clone
+            + Eq
+            + std::hash::Hash
+            + std::fmt::Display
+            + Send
+            + Sync
+            + serde::de::DeserializeOwned
+            + Into<sea_orm::Value>
+            + 'static,
     Self: From<<Self::EntityType as EntityTrait>::Model>,
 {
     type EntityType: EntityTrait + Sync;
@@ -142,6 +163,46 @@ where
         Self::get_all(db, condition, order_column, order_direction, offset, limit).await
     }
 
+    /// Order parent rows by a column on a joined child entity (dot-notation
+    /// sort, e.g. `sort=["vehicles.year","DESC"]`).
+    ///
+    /// The parent query is ordered by a correlated sub-query over the child
+    /// table — `(SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
+    /// parent.<pk>)` — so each parent keeps a single row (no JOIN, no
+    /// `DISTINCT`) and to-many relations have a well-defined ordering key.
+    /// `MIN` is used for both ASC and DESC: ascending lists parents by their
+    /// smallest child value first, descending by their largest smallest-value
+    /// last. Parents with no children sort as `NULL`.
+    ///
+    /// The default implementation ignores `join_field`/`column` and falls back
+    /// to ordering by [`Self::default_index_column`], so resources without
+    /// joined sortable columns (and the trait default) behave exactly like a
+    /// plain `get_all`. The derive macro overrides this for resources that
+    /// declare `join(..., sortable(...))` on a `Vec<Child>` field.
+    ///
+    /// # Errors
+    /// Returns `ApiError::Database` if the parent query fails.
+    async fn get_all_joined_sorted(
+        db: &DatabaseConnection,
+        condition: &Condition,
+        join_field: &str,
+        column: &str,
+        direction: Order,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<Self::ListModel>, ApiError> {
+        let _ = (join_field, column);
+        Self::get_all(
+            db,
+            condition,
+            Self::default_index_column(),
+            direction,
+            offset,
+            limit,
+        )
+        .await
+    }
+
     /// Resolve dot-notation joined filters (e.g. `{"vehicles.make":"BMW"}`)
     /// into an augmented `Condition` that the caller passes to `get_all` /
     /// `get_all_scoped` / `total_count`.
@@ -176,8 +237,8 @@ where
         Ok(condition)
     }
 
-    async fn get_one(db: &DatabaseConnection, id: Uuid) -> Result<Self, ApiError> {
-        let model = Self::EntityType::find_by_id(id)
+    async fn get_one(db: &DatabaseConnection, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
+        let model = Self::EntityType::find_by_id(id.clone())
             .one(db)
             .await
             .map_err(ApiError::database)?
@@ -197,12 +258,12 @@ where
     /// The derive macro overrides this to include join loading.
     async fn get_one_scoped(
         db: &DatabaseConnection,
-        id: Uuid,
+        id: PrimaryKeyType<Self>,
         scope: &Condition,
     ) -> Result<Self, ApiError> {
         use sea_orm::QueryFilter;
         let condition = Condition::all()
-            .add(Self::ID_COLUMN.eq(id))
+            .add(Self::ID_COLUMN.eq(id.clone()))
             .add(scope.clone());
         let model = Self::EntityType::find()
             .filter(condition)
@@ -233,10 +294,10 @@ where
 
     async fn update(
         db: &DatabaseConnection,
-        id: Uuid,
+        id: PrimaryKeyType<Self>,
         update_model: Self::UpdateModel,
     ) -> Result<Self, ApiError> {
-        let model = Self::EntityType::find_by_id(id)
+        let model = Self::EntityType::find_by_id(id.clone())
             .one(db)
             .await
             .map_err(ApiError::database)?
@@ -249,8 +310,11 @@ where
         Ok(Self::from(updated))
     }
 
-    async fn delete(db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
-        let res = Self::EntityType::delete_by_id(id)
+    async fn delete(
+        db: &DatabaseConnection,
+        id: PrimaryKeyType<Self>,
+    ) -> Result<PrimaryKeyType<Self>, ApiError> {
+        let res = Self::EntityType::delete_by_id(id.clone())
             .exec(db)
             .await
             .map_err(ApiError::database)?;
@@ -263,7 +327,10 @@ where
         }
     }
 
-    async fn delete_many(db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError> {
+    async fn delete_many(
+        db: &DatabaseConnection,
+        ids: Vec<PrimaryKeyType<Self>>,
+    ) -> Result<Vec<PrimaryKeyType<Self>>, ApiError> {
         if ids.len() > Self::batch_limit() {
             return Err(ApiError::bad_request(format!(
                 "Batch delete limited to {} items. Received {} items.",
@@ -276,31 +343,37 @@ where
             return Ok(vec![]);
         }
 
-        // Pre-query: which IDs actually exist?
-        let existing: Vec<UuidIdResult> = Self::EntityType::find()
+        // Pre-query: which IDs actually exist? Select the PK column generically
+        // into the entity's own PK value type so this works for UUID, integer, or
+        // String primary keys without a UUID-specific FromQueryResult helper.
+        let existing: Vec<PrimaryKeyType<Self>> = Self::EntityType::find()
             .select_only()
-            .column_as(Self::ID_COLUMN, "id")
+            .column(Self::ID_COLUMN)
             .filter(Self::ID_COLUMN.is_in(ids.clone()))
-            .into_model::<UuidIdResult>()
+            .into_tuple::<PrimaryKeyType<Self>>()
             .all(db)
             .await
             .map_err(ApiError::database)?;
-        let existing_set: std::collections::HashSet<Uuid> =
-            existing.into_iter().map(|r| r.id).collect();
+        let existing_set: std::collections::HashSet<PrimaryKeyType<Self>> =
+            existing.into_iter().collect();
 
         // Delete only existing IDs
         if !existing_set.is_empty() {
             Self::EntityType::delete_many()
-                .filter(Self::ID_COLUMN.is_in(existing_set.iter().copied().collect::<Vec<_>>()))
+                .filter(Self::ID_COLUMN.is_in(existing_set.iter().cloned().collect::<Vec<_>>()))
                 .exec(db)
                 .await
                 .map_err(ApiError::database)?;
         }
 
-        // Return only IDs that actually existed (preserving input order)
+        // Return only IDs that actually existed, de-duplicated while preserving input
+        // order. The DELETE itself is de-duplicated via `existing_set`, so echoing a
+        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted
+        // — both as the `{deleted: count}` integer and the returned array.
+        let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()
-            .filter(|id| existing_set.contains(id))
+            .filter(|id| existing_set.contains(id) && seen.insert(id.clone()))
             .collect())
     }
 
@@ -369,7 +442,7 @@ where
     /// Returns an `ApiError` if any update fails (entire batch is rolled back)
     async fn update_many(
         db: &DatabaseConnection,
-        updates: Vec<(Uuid, Self::UpdateModel)>,
+        updates: Vec<(PrimaryKeyType<Self>, Self::UpdateModel)>,
     ) -> Result<Vec<Self>, ApiError> {
         use sea_orm::TransactionTrait;
 
@@ -387,7 +460,7 @@ where
 
         let mut results = Vec::with_capacity(updates.len());
         for (id, update_model) in updates {
-            let model = Self::EntityType::find_by_id(id)
+            let model = Self::EntityType::find_by_id(id.clone())
                 .one(&txn)
                 .await
                 .map_err(ApiError::database)?

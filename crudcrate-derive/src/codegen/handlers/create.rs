@@ -10,10 +10,22 @@ use quote::quote;
 /// - `create::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `create::one::post`: Side effects after create (receives `&Self`)
 pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+    // Auto-validation: runs `Validatable::validate` when the CreateModel implements it,
+    // and is a no-op otherwise (autoref specialization in `crudcrate::validation::__auto`).
+    let validate = quote! {
+        {
+            use crudcrate::validation::__auto::ValidatableFallback as _;
+            crudcrate::validation::__auto::Probe(&data)
+                .crudcrate_auto_validate()
+                .map_err(crudcrate::ApiError::from)?;
+        }
+    };
+
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
             async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
+                #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::create(&ops, db, data).await
             }
@@ -51,6 +63,7 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 
     quote! {
         async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
+            #validate
             #pre_hook
             #body
             #transform_hook
@@ -71,10 +84,24 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// **Security Note**: The default implementation limits batch creates to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
 pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+    // Auto-validation: validate every item before any insert (no-op for CreateModels
+    // that don't implement Validatable). See `crudcrate::validation::__auto`.
+    let validate = quote! {
+        {
+            use crudcrate::validation::__auto::ValidatableFallback as _;
+            for __cc_item in &data {
+                crudcrate::validation::__auto::Probe(__cc_item)
+                    .crudcrate_auto_validate()
+                    .map_err(crudcrate::ApiError::from)?;
+            }
+        }
+    };
+
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
             async fn create_many(db: &sea_orm::DatabaseConnection, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
+                #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::create_many(&ops, db, data).await
             }
@@ -133,6 +160,7 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
 
     quote! {
         async fn create_many(db: &sea_orm::DatabaseConnection, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
+            #validate
             #pre_hook
             #body
             #transform_hook

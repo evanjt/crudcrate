@@ -114,7 +114,15 @@ pub enum SortConfig<C> {
         column: C,
         direction: sea_orm::Order,
     },
-    /// Sort by a column on a joined entity
+    /// Sort by a column on a joined entity.
+    ///
+    /// The `get_all` handler dispatches this to
+    /// [`crate::CRUDResource::get_all_joined_sorted`], which orders parent rows
+    /// by a correlated sub-query over the child column
+    /// (`ORDER BY (SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
+    /// parent.<pk>)`). The derive macro generates the override; resources
+    /// without joined sortable columns fall back to the parent's default index
+    /// column.
     Joined {
         /// Join field name (e.g., "vehicles")
         join_field: String,

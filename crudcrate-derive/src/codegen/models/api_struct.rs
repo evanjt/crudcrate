@@ -11,7 +11,7 @@ use crate::attribute_parser;
 use crate::codegen::joins::get_join_config;
 use crate::codegen::models::shared::resolve_dtwtz;
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use quote::{ToTokens, quote};
+use quote::quote;
 
 /// Generates API struct fields and From<Model> conversion assignments
 /// Returns (`field_definitions`, `from_model_assignments`)
@@ -64,8 +64,15 @@ pub(crate) fn generate_api_struct_content(
 
         // Add schema(no_recursion) for join and self-referencing fields to prevent
         // infinite recursion in OpenAPI schema generation
-        let field_type_string = field_type.to_token_stream().to_string();
-        let is_self_referencing = field_type_string.contains(&api_struct_name.to_string());
+        // Exact inner-type match (after unwrapping Vec/Option), not a substring of the
+        // whole type string — otherwise a field typed e.g. `VehiclePart` on a `Vehicle`
+        // struct would be misdetected as self-referencing. Matches the convention used by
+        // the join-loading codegen.
+        let is_self_referencing =
+            crate::codegen::type_resolution::extract_api_struct_type_for_recursive_call(field_type)
+                .to_string()
+                .trim()
+                == api_struct_name.to_string().trim();
         let is_join_field = get_join_config(field).is_some();
 
         let schema_attrs = if is_join_field || is_self_referencing {
@@ -162,7 +169,12 @@ pub(crate) fn generate_api_struct(
             has_fields_needing_default && !has_join_fields,
             quote!(Default),
         ),
-        (crud_meta.derive_partial_eq, quote!(PartialEq)),
+        // Eq requires PartialEq (Eq: PartialEq), so deriving Eq alone would emit
+        // uncompilable code. Force PartialEq on whenever Eq is requested.
+        (
+            crud_meta.derive_partial_eq || crud_meta.derive_eq,
+            quote!(PartialEq),
+        ),
         (crud_meta.derive_eq, quote!(Eq)),
     ]
     .into_iter()

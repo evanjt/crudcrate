@@ -8,11 +8,33 @@ const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 /// Escape LIKE wildcards to prevent wildcard injection attacks.
 /// Uses `!` as the escape character (declared via `ESCAPE '!'` in the SQL).
 /// Avoids backslash which conflicts with Postgres string quoting.
-fn escape_like_wildcards(input: &str) -> String {
+///
+/// Shared with [`crate::filtering::conditions`] so the LIKE-fallback and joined
+/// `_like` paths use the same escape convention and always pair it with an
+/// explicit `ESCAPE '!'` clause.
+pub(crate) fn escape_like_wildcards(input: &str) -> String {
     input
         .replace('!', "!!")
         .replace('%', "!%")
         .replace('_', "!_")
+}
+
+/// Truncate `s` to at most `max_bytes`, snapping down to the nearest UTF-8 char
+/// boundary so we never slice through a multi-byte codepoint.
+///
+/// A raw `&s[..max_bytes]` panics when `max_bytes` lands inside a multi-byte
+/// character (e.g. an attacker-supplied query of 9_999 ASCII bytes followed by
+/// `é`). `str::floor_char_boundary` would do this but is still unstable, so we
+/// walk back to a boundary manually.
+fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 /// Build fulltext search condition with database-specific optimizations
@@ -53,7 +75,7 @@ fn build_postgres_fulltext_condition(
         .collect::<Vec<_>>()
         .join(" || ' ' || ");
 
-    let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let sanitized = truncate_to_char_boundary(query, MAX_SEARCH_QUERY_LENGTH).trim();
     let pattern = format!("%{}%", escape_like_wildcards(sanitized));
 
     Some(Expr::cust_with_values(
@@ -83,7 +105,7 @@ fn build_mysql_fulltext_condition(
         format!("CONCAT({})", coalesced.join(", ' ', "))
     };
 
-    let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let sanitized = truncate_to_char_boundary(query, MAX_SEARCH_QUERY_LENGTH).trim();
     let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
 
     Some(Expr::cust_with_values(
@@ -109,7 +131,7 @@ fn build_fallback_fulltext_condition(
         .collect::<Vec<_>>()
         .join(" || ' ' || ");
 
-    let sanitized = query[..query.len().min(MAX_SEARCH_QUERY_LENGTH)].trim();
+    let sanitized = truncate_to_char_boundary(query, MAX_SEARCH_QUERY_LENGTH).trim();
     let pattern = format!("%{}%", escape_like_wildcards(sanitized).to_uppercase());
 
     Some(Expr::cust_with_values(
@@ -193,16 +215,43 @@ mod tests {
         }
     }
 
-    /// Test that excessively long queries are truncated in fulltext search
+    /// `truncate_to_char_boundary` caps the byte length at the limit and always
+    /// returns a string that ends on a UTF-8 char boundary, including when the
+    /// limit lands inside a multi-byte codepoint.
     #[test]
     fn test_search_query_length_limit() {
         let very_long_query = "a".repeat(20_000);
-        // Test the inlined sanitization logic
-        let sanitized = &very_long_query[..very_long_query.len().min(MAX_SEARCH_QUERY_LENGTH)];
+        let sanitized = truncate_to_char_boundary(&very_long_query, MAX_SEARCH_QUERY_LENGTH);
+        assert_eq!(
+            sanitized.len(),
+            MAX_SEARCH_QUERY_LENGTH,
+            "ASCII query should truncate exactly to the byte limit"
+        );
 
+        // 9_999 ASCII bytes then `é` (2 bytes) puts the cap inside the `é`, so the
+        // boundary must snap back to 9_999 rather than slice the codepoint in half.
+        let multibyte = format!("{}é", "a".repeat(MAX_SEARCH_QUERY_LENGTH - 1));
+        let sanitized = truncate_to_char_boundary(&multibyte, MAX_SEARCH_QUERY_LENGTH);
         assert!(
             sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
-            "Query should be truncated to max length"
+            "multi-byte query must stay within the byte limit, got {}",
+            sanitized.len()
+        );
+        assert!(
+            multibyte.is_char_boundary(sanitized.len()),
+            "truncation must end on a char boundary, got len {}",
+            sanitized.len()
+        );
+        assert_eq!(
+            sanitized.len(),
+            MAX_SEARCH_QUERY_LENGTH - 1,
+            "boundary should snap back past the start of the `é`"
+        );
+
+        // A string already within the limit is returned unchanged.
+        assert_eq!(
+            truncate_to_char_boundary("short", MAX_SEARCH_QUERY_LENGTH),
+            "short"
         );
     }
 
@@ -479,5 +528,105 @@ mod tests {
         assert!(build_postgres_fulltext_condition("", &["name"]).is_none());
         assert!(build_mysql_fulltext_condition("", &["name"]).is_none());
         assert!(build_fallback_fulltext_condition("", &["name"]).is_none());
+    }
+
+    /// A2 regression: a query longer than the byte cap whose boundary lands inside
+    /// a multi-byte codepoint must not panic the truncation slice. 9_999 ASCII bytes
+    /// followed by `é` (2 bytes) puts byte index 10_000 inside the `é`.
+    #[test]
+    fn test_fulltext_multibyte_truncation_does_not_panic() {
+        let query = format!("{}é", "a".repeat(MAX_SEARCH_QUERY_LENGTH - 1));
+        assert!(query.len() > MAX_SEARCH_QUERY_LENGTH);
+        // None of these should panic on the byte-index slice.
+        assert!(build_postgres_fulltext_condition(&query, &["name"]).is_some());
+        assert!(build_mysql_fulltext_condition(&query, &["name"]).is_some());
+        assert!(build_fallback_fulltext_condition(&query, &["name"]).is_some());
+    }
+
+    /// `build_like_condition` on Postgres must use the `$1` placeholder, not `?`.
+    /// All other unit tests use SQLite; this covers the Postgres `placeholder_for` arm.
+    #[test]
+    fn test_build_like_condition_postgres_placeholder() {
+        let result = build_like_condition("title", "x", DatabaseBackend::Postgres);
+        let debug = format!("{result:?}");
+        let (template, _values) = split_custom_with_expr(&debug);
+        assert!(
+            template.contains("LIKE $1 ESCAPE '!'"),
+            "Postgres must use $1 placeholder, got: {template}"
+        );
+    }
+
+    /// MySQL single-column fulltext uses a bare `COALESCE(...)` (no `CONCAT`), unlike
+    /// the multi-column path. Exercises the `coalesced.len() == 1` branch.
+    #[test]
+    fn test_mysql_fulltext_single_column_no_concat() {
+        let result = build_mysql_fulltext_condition("hello", &["name"])
+            .expect("non-empty input produces a condition");
+        let debug = format!("{result:?}");
+        let (template, _values) = split_custom_with_expr(&debug);
+        assert!(
+            !template.contains("CONCAT"),
+            "single-column MySQL fulltext should not wrap in CONCAT: {template}"
+        );
+        assert!(
+            template.contains("COALESCE"),
+            "expected COALESCE in template: {template}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// Reverse the `!`-escaping that `escape_like_wildcards` applies, per SQL
+    /// `LIKE ... ESCAPE '!'` semantics: a `!` consumes and literalises the next
+    /// character. Used to prove escaping is lossless.
+    fn unescape_like(escaped: &str) -> String {
+        let mut out = String::new();
+        let mut chars = escaped.chars();
+        while let Some(c) = chars.next() {
+            if c == '!' {
+                if let Some(n) = chars.next() {
+                    out.push(n);
+                }
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
+
+    proptest! {
+        /// Escaping any string is lossless (de-escaping recovers the original) and
+        /// leaves no live `%`/`_` wildcard: every one is preceded by the `!` escape.
+        #[test]
+        fn escape_like_wildcards_is_lossless_and_neutralises_wildcards(s in ".*") {
+            let escaped = escape_like_wildcards(&s);
+            prop_assert_eq!(unescape_like(&escaped), s.clone());
+
+            let chars: Vec<char> = escaped.chars().collect();
+            for (i, &c) in chars.iter().enumerate() {
+                if c == '%' || c == '_' {
+                    prop_assert!(
+                        i > 0 && chars[i - 1] == '!',
+                        "wildcard {:?} at {} not escaped in {:?}",
+                        c, i, escaped
+                    );
+                }
+            }
+        }
+
+        /// Truncation never panics on a multi-byte boundary, returns a prefix of the
+        /// input, and respects the byte budget.
+        #[test]
+        fn truncate_to_char_boundary_never_panics(s in ".*", n in 0usize..64) {
+            let t = truncate_to_char_boundary(&s, n);
+            prop_assert!(t.len() <= n);
+            prop_assert!(s.starts_with(t));
+            // The result is always valid UTF-8 (it is a &str slice) — the implicit
+            // guarantee that the raw `&s[..n]` slice would violate mid-codepoint.
+        }
     }
 }

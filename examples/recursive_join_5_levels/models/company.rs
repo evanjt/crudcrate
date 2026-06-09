@@ -23,9 +23,10 @@ pub struct Model {
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
-    // Level 2: Branches of this company (with depth=5 to load all the way down!)
+    // Branches of this company. depth = 2 means each branch is loaded along with
+    // its own joins (departments, and their joins in turn).
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr, join(one, all, depth = 5))]
+    #[crudcrate(non_db_attr, join(one, all, depth = 2))]
     pub branches: Vec<super::branch::Branch>,
 }
 

@@ -379,69 +379,6 @@ async fn test_batch_update_partial_success() {
     );
 }
 
-/// Batch create with validation errors returns partial success
-/// Note: This test assumes custom validation that rejects empty names.
-/// Since we don't have validation in the test model, we can only test
-/// basic partial success with DB-level errors.
-#[tokio::test]
-#[ignore = "Requires custom validation hooks to test properly"]
-async fn test_batch_create_validation_partial_success() {
-    let db = setup_test_db()
-        .await
-        .expect("Failed to setup test database");
-    let app = setup_test_app(&db);
-
-    // Create batch with some invalid items (assuming name validation exists)
-    let customers = json!([
-        {"name": "Valid Customer 1", "email": "valid1@test.com"},
-        {"name": "", "email": "invalid@test.com"},  // Invalid: empty name
-        {"name": "Valid Customer 2", "email": "valid2@test.com"},
-        {"name": "   ", "email": "whitespace@test.com"}  // Invalid: whitespace only
-    ]);
-
-    let request = Request::builder()
-        .method("POST")
-        .uri("/customers/batch?partial=true")
-        .header("content-type", "application/json")
-        .body(Body::from(customers.to_string()))
-        .unwrap();
-
-    let response = app.clone().oneshot(request).await.unwrap();
-
-    // Should return 207 Multi-Status for partial success
-    assert_eq!(
-        response.status(),
-        StatusCode::MULTI_STATUS,
-        "Partial success should return 207"
-    );
-
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let result: serde_json::Value = serde_json::from_slice(&body).unwrap();
-
-    // Check succeeded items
-    let succeeded = result["succeeded"]
-        .as_array()
-        .expect("Should have succeeded array");
-    assert_eq!(succeeded.len(), 2, "Should have 2 successful creates");
-
-    // Check failed items
-    let failed = result["failed"]
-        .as_array()
-        .expect("Should have failed array");
-    assert_eq!(failed.len(), 2, "Should have 2 failed creates");
-
-    // Verify error messages
-    for failure in failed {
-        assert!(
-            failure["error"].as_str().unwrap().contains("validation")
-                || failure["error"].as_str().unwrap().contains("name"),
-            "Error should mention validation issue"
-        );
-    }
-}
-
 /// Batch delete with mixed existing/nonexisting IDs
 #[tokio::test]
 async fn test_batch_delete_partial_success() {

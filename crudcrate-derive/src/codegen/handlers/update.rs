@@ -9,10 +9,22 @@ use quote::quote;
 /// - `update::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `update::one::post`: Side effects after update (receives `&Self`)
 pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+    // Auto-validation: runs `Validatable::validate` when the UpdateModel implements it,
+    // and is a no-op otherwise (autoref specialization in `crudcrate::validation::__auto`).
+    let validate = quote! {
+        {
+            use crudcrate::validation::__auto::ValidatableFallback as _;
+            crudcrate::validation::__auto::Probe(&data)
+                .crudcrate_auto_validate()
+                .map_err(crudcrate::ApiError::from)?;
+        }
+    };
+
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+            async fn update(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+                #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::update(&ops, db, id, data).await
             }
@@ -22,9 +34,10 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     // Get hooks for update::one
     let hooks = &crud_meta.hooks.update.one;
 
-    // Generate pre hook call
+    // Generate pre hook call. Clone the id so it stays available for the body
+    // (the PK value type is not required to be Copy).
     let pre_hook = hooks.pre.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, id, &data).await?; }
+        quote! { #fn_path(db, id.clone(), &data).await?; }
     });
 
     // Generate body - either custom or default
@@ -35,7 +48,7 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
             use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait};
             use crudcrate::traits::MergeIntoActiveModel;
 
-            let model = Self::EntityType::find_by_id(id)
+            let model = Self::EntityType::find_by_id(id.clone())
                 .one(db)
                 .await?
                 .ok_or_else(|| crudcrate::ApiError::not_found(
@@ -60,7 +73,8 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     });
 
     quote! {
-        async fn update(db: &sea_orm::DatabaseConnection, id: uuid::Uuid, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+        async fn update(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+            #validate
             #pre_hook
             #body
             #transform_hook
@@ -80,10 +94,24 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 /// **Security Note**: The default implementation limits batch updates to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
 pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+    // Auto-validation: validate every update model before any write (no-op for
+    // UpdateModels that don't implement Validatable). See `crudcrate::validation::__auto`.
+    let validate = quote! {
+        {
+            use crudcrate::validation::__auto::ValidatableFallback as _;
+            for (_, __cc_item) in &updates {
+                crudcrate::validation::__auto::Probe(__cc_item)
+                    .crudcrate_auto_validate()
+                    .map_err(crudcrate::ApiError::from)?;
+            }
+        }
+    };
+
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(uuid::Uuid, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+            async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+                #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::update_many(&ops, db, updates).await
             }
@@ -118,7 +146,7 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
 
             let mut result = Vec::with_capacity(updates.len());
             for (id, update_model) in updates {
-                let model = Self::EntityType::find_by_id(id)
+                let model = Self::EntityType::find_by_id(id.clone())
                     .one(&txn)
                     .await?
                     .ok_or_else(|| crudcrate::ApiError::not_found(
@@ -146,7 +174,8 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
     });
 
     quote! {
-        async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(uuid::Uuid, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+        async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+            #validate
             #pre_hook
             #body
             #transform_hook

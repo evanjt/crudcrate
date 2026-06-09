@@ -13,7 +13,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, crudcrate::ApiError> {
+            async fn delete(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::delete(&ops, db, id).await
             }
@@ -23,9 +23,10 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     // Get hooks for delete::one
     let hooks = &crud_meta.hooks.delete.one;
 
-    // Generate pre hook call
+    // Generate pre hook call. Clone the id so it stays available for the body
+    // (the PK value type is not required to be Copy).
     let pre_hook = hooks.pre.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, id).await?; }
+        quote! { #fn_path(db, id.clone()).await?; }
     });
 
     // Generate body - either custom or default
@@ -35,7 +36,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         quote! {
             use sea_orm::EntityTrait;
 
-            let res = Self::EntityType::delete_by_id(id).exec(db).await?;
+            let res = Self::EntityType::delete_by_id(id.clone()).exec(db).await?;
             let result = match res.rows_affected {
                 0 => return Err(crudcrate::ApiError::not_found(
                     Self::RESOURCE_NAME_SINGULAR,
@@ -51,13 +52,14 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
         quote! { let result = #fn_path(db, result).await?; }
     });
 
-    // Generate post hook call
+    // Generate post hook call. Clone the result so the deleted id can still be
+    // returned afterwards (the PK value type is not required to be Copy).
     let post_hook = hooks.post.as_ref().map(|fn_path| {
-        quote! { #fn_path(db, result).await?; }
+        quote! { #fn_path(db, result.clone()).await?; }
     });
 
     quote! {
-        async fn delete(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) -> Result<uuid::Uuid, crudcrate::ApiError> {
+        async fn delete(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
             #pre_hook
             #body
             #transform_hook
@@ -81,7 +83,7 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
+            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<crudcrate::PrimaryKeyType<Self>>) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::delete_many(&ops, db, ids).await
             }
@@ -113,26 +115,31 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
             let result = if ids.is_empty() {
                 vec![]
             } else {
-                // Pre-query: which IDs actually exist?
-                let existing: Vec<crudcrate::UuidIdResult> = Self::EntityType::find()
+                // Pre-query: which IDs actually exist? Select the PK column generically
+                // into the entity's PK value type so this works for UUID, integer, or
+                // String primary keys without a UUID-specific FromQueryResult helper.
+                let existing: Vec<crudcrate::PrimaryKeyType<Self>> = Self::EntityType::find()
                     .select_only()
-                    .column_as(Self::ID_COLUMN, "id")
+                    .column(Self::ID_COLUMN)
                     .filter(Self::ID_COLUMN.is_in(ids.clone()))
-                    .into_model::<crudcrate::UuidIdResult>()
+                    .into_tuple::<crudcrate::PrimaryKeyType<Self>>()
                     .all(db)
                     .await?;
-                let existing_set: std::collections::HashSet<uuid::Uuid> = existing.into_iter().map(|r| r.id).collect();
+                let existing_set: std::collections::HashSet<crudcrate::PrimaryKeyType<Self>> = existing.into_iter().collect();
 
                 // Delete only existing IDs
                 if !existing_set.is_empty() {
                     Self::EntityType::delete_many()
-                        .filter(Self::ID_COLUMN.is_in(existing_set.iter().copied().collect::<Vec<_>>()))
+                        .filter(Self::ID_COLUMN.is_in(existing_set.iter().cloned().collect::<Vec<_>>()))
                         .exec(db)
                         .await?;
                 }
 
-                // Return only IDs that actually existed (preserving input order)
-                ids.into_iter().filter(|id| existing_set.contains(id)).collect()
+                // Return only IDs that actually existed, de-duplicated while preserving
+                // input order. The DELETE is de-duplicated via existing_set, so echoing
+                // duplicate input ids would over-report the rows actually deleted.
+                let mut seen = std::collections::HashSet::new();
+                ids.into_iter().filter(|id| existing_set.contains(id) && seen.insert(id.clone())).collect()
             };
         }
     };
@@ -148,7 +155,7 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
     });
 
     quote! {
-        async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<uuid::Uuid>) -> Result<Vec<uuid::Uuid>, crudcrate::ApiError> {
+        async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<crudcrate::PrimaryKeyType<Self>>) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
             #pre_hook
             #body
             #transform_hook

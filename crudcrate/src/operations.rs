@@ -11,7 +11,12 @@
 //! impl CRUDOperations for AssetOps {
 //!     type Resource = Asset;
 //!
-//!     async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+//!     // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+//!     async fn delete(
+//!         &self,
+//!         db: &DatabaseConnection,
+//!         id: crudcrate::PrimaryKeyType<Self::Resource>,
+//!     ) -> Result<crudcrate::PrimaryKeyType<Self::Resource>, ApiError> {
 //!         let asset = Asset::get_one(db, id).await?;
 //!         delete_from_s3(&asset.s3_key).await
 //!             .map_err(|e| ApiError::internal(format!("S3 cleanup failed: {e}"), None))?;
@@ -26,10 +31,18 @@
 
 use async_trait::async_trait;
 use sea_orm::{Condition, DatabaseConnection, Order};
-use uuid::Uuid;
 
 use crate::ApiError;
 use crate::core::CRUDResource;
+use crate::core::traits::PrimaryKeyType;
+
+/// The primary-key value type of the resource this operations impl drives.
+///
+/// Shorthand for [`PrimaryKeyType`] applied to `O::Resource`, keeping the trait
+/// method signatures readable while staying generic over the entity's PK type.
+/// `PrimaryKeyType<R>` already carries the `CRUDResource` bound on `R`, so
+/// `ResourceId<Self>` is well-formed wherever `Self: CRUDOperations`.
+type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 
 /// Trait for defining CRUD operations with customizable behavior
 ///
@@ -60,7 +73,12 @@ use crate::core::CRUDResource;
 ///
 /// **Level 2: Core Logic** (custom queries, business logic)
 /// ```rust,ignore
-/// async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Resource, DbErr> {
+/// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+/// async fn fetch_one(
+///     &self,
+///     db: &DatabaseConnection,
+///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+/// ) -> Result<Self::Resource, ApiError> {
 ///     // Custom query with joins
 ///     Entity::find_by_id(id).find_with_related(Related).one(db).await?.ok_or(...)
 /// }
@@ -68,7 +86,12 @@ use crate::core::CRUDResource;
 ///
 /// **Level 3: Full Override** (complete control)
 /// ```rust,ignore
-/// async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, DbErr> {
+/// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+/// async fn delete(
+///     &self,
+///     db: &DatabaseConnection,
+///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+/// ) -> Result<crudcrate::PrimaryKeyType<Self::Resource>, ApiError> {
 ///     // Completely custom implementation
 ///     cleanup_s3(id).await?;
 ///     Entity::delete_by_id(id).exec(db).await?;
@@ -93,14 +116,23 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+    /// async fn before_get_one(
+    ///     &self,
+    ///     _db: &DatabaseConnection,
+    ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+    /// ) -> Result<(), ApiError> {
     ///     if !has_permission(id) {
     ///         return Err(ApiError::forbidden("Access denied"));
     ///     }
     ///     Ok(())
     /// }
     /// ```
-    async fn before_get_one(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
+    async fn before_get_one(
+        &self,
+        _db: &DatabaseConnection,
+        _id: ResourceId<Self>,
+    ) -> Result<(), ApiError> {
         Ok(()) // Default: no-op
     }
 
@@ -127,11 +159,11 @@ pub trait CRUDOperations: Send + Sync {
     async fn fetch_one(
         &self,
         db: &DatabaseConnection,
-        id: Uuid,
+        id: ResourceId<Self>,
     ) -> Result<Self::Resource, ApiError> {
         use sea_orm::EntityTrait;
 
-        let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id)
+        let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id.clone())
             .one(db)
             .await
             .map_err(ApiError::database)?
@@ -257,7 +289,7 @@ pub trait CRUDOperations: Send + Sync {
     async fn before_update(
         &self,
         _db: &DatabaseConnection,
-        _id: Uuid,
+        _id: ResourceId<Self>,
         _data: &<Self::Resource as CRUDResource>::UpdateModel,
     ) -> Result<(), ApiError> {
         Ok(())
@@ -276,13 +308,13 @@ pub trait CRUDOperations: Send + Sync {
     async fn perform_update(
         &self,
         db: &DatabaseConnection,
-        id: Uuid,
+        id: ResourceId<Self>,
         data: <Self::Resource as CRUDResource>::UpdateModel,
     ) -> Result<Self::Resource, ApiError> {
         use crate::core::MergeIntoActiveModel;
         use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
 
-        let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id)
+        let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id.clone())
             .one(db)
             .await
             .map_err(ApiError::database)?
@@ -308,29 +340,46 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
+    /// async fn before_delete(
+    ///     &self,
+    ///     db: &DatabaseConnection,
+    ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
+    /// ) -> Result<(), ApiError> {
     ///     if !user_can_delete(id) {
     ///         return Err(ApiError::forbidden("You don't have permission to delete this resource"));
     ///     }
     ///     Ok(())
     /// }
     /// ```
-    async fn before_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
+    async fn before_delete(
+        &self,
+        _db: &DatabaseConnection,
+        _id: ResourceId<Self>,
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Hook called after deleting an entity
     ///
     /// Use for: cache invalidation, notifications, audit logging
-    async fn after_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
+    async fn after_delete(
+        &self,
+        _db: &DatabaseConnection,
+        _id: ResourceId<Self>,
+    ) -> Result<(), ApiError> {
         Ok(())
     }
 
     /// Core database delete logic
-    async fn perform_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+    async fn perform_delete(
+        &self,
+        db: &DatabaseConnection,
+        id: ResourceId<Self>,
+    ) -> Result<ResourceId<Self>, ApiError> {
         use sea_orm::EntityTrait;
 
-        let res = <Self::Resource as CRUDResource>::EntityType::delete_by_id(id)
+        let res = <Self::Resource as CRUDResource>::EntityType::delete_by_id(id.clone())
             .exec(db)
             .await
             .map_err(ApiError::database)?;
@@ -351,7 +400,7 @@ pub trait CRUDOperations: Send + Sync {
     async fn before_delete_many(
         &self,
         _db: &DatabaseConnection,
-        _ids: &[Uuid],
+        _ids: &[ResourceId<Self>],
     ) -> Result<(), ApiError> {
         Ok(())
     }
@@ -360,7 +409,7 @@ pub trait CRUDOperations: Send + Sync {
     async fn after_delete_many(
         &self,
         _db: &DatabaseConnection,
-        _ids: &[Uuid],
+        _ids: &[ResourceId<Self>],
     ) -> Result<(), ApiError> {
         Ok(())
     }
@@ -369,9 +418,8 @@ pub trait CRUDOperations: Send + Sync {
     async fn perform_delete_many(
         &self,
         db: &DatabaseConnection,
-        ids: Vec<Uuid>,
-    ) -> Result<Vec<Uuid>, ApiError> {
-        use crate::core::UuidIdResult;
+        ids: Vec<ResourceId<Self>>,
+    ) -> Result<Vec<ResourceId<Self>>, ApiError> {
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
         // Security: Limit batch size to prevent DoS attacks (uses resource's configured limit)
@@ -388,34 +436,37 @@ pub trait CRUDOperations: Send + Sync {
             return Ok(vec![]);
         }
 
-        // Pre-query: which IDs actually exist?
-        let existing: Vec<UuidIdResult> = <Self::Resource as CRUDResource>::EntityType::find()
+        // Pre-query: which IDs actually exist? Select the PK column generically into
+        // the entity's PK value type so this works for UUID, integer, or String PKs.
+        let existing: Vec<ResourceId<Self>> = <Self::Resource as CRUDResource>::EntityType::find()
             .select_only()
-            .column_as(<Self::Resource as CRUDResource>::ID_COLUMN, "id")
+            .column(<Self::Resource as CRUDResource>::ID_COLUMN)
             .filter(<Self::Resource as CRUDResource>::ID_COLUMN.is_in(ids.clone()))
-            .into_model::<UuidIdResult>()
+            .into_tuple::<ResourceId<Self>>()
             .all(db)
             .await
             .map_err(ApiError::database)?;
-        let existing_set: std::collections::HashSet<Uuid> =
-            existing.into_iter().map(|r| r.id).collect();
+        let existing_set: std::collections::HashSet<ResourceId<Self>> =
+            existing.into_iter().collect();
 
         // Delete only existing IDs
         if !existing_set.is_empty() {
             <Self::Resource as CRUDResource>::EntityType::delete_many()
                 .filter(
                     <Self::Resource as CRUDResource>::ID_COLUMN
-                        .is_in(existing_set.iter().copied().collect::<Vec<_>>()),
+                        .is_in(existing_set.iter().cloned().collect::<Vec<_>>()),
                 )
                 .exec(db)
                 .await
                 .map_err(ApiError::database)?;
         }
 
-        // Return only IDs that actually existed (preserving input order)
+        // Return only IDs that actually existed, de-duplicated while preserving input
+        // order — duplicate input ids would otherwise over-report the rows deleted.
+        let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()
-            .filter(|id| existing_set.contains(id))
+            .filter(|id| existing_set.contains(id) && seen.insert(id.clone()))
             .collect())
     }
 
@@ -434,9 +485,13 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or core logic fails
-    async fn get_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError> {
+    async fn get_one(
+        &self,
+        db: &DatabaseConnection,
+        id: ResourceId<Self>,
+    ) -> Result<Self::Resource, ApiError> {
         // 1. Before hook
-        self.before_get_one(db, id).await?;
+        self.before_get_one(db, id.clone()).await?;
 
         // 2. Core logic (fetch)
         let mut entity = self.fetch_one(db, id).await?;
@@ -531,11 +586,11 @@ pub trait CRUDOperations: Send + Sync {
     async fn update(
         &self,
         db: &DatabaseConnection,
-        id: Uuid,
+        id: ResourceId<Self>,
         data: <Self::Resource as CRUDResource>::UpdateModel,
     ) -> Result<Self::Resource, ApiError> {
         // 1. Before hook
-        self.before_update(db, id, &data).await?;
+        self.before_update(db, id.clone(), &data).await?;
 
         // 2. Core logic (update)
         let mut entity = self.perform_update(db, id, data).await?;
@@ -557,15 +612,19 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or database deletion fails
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+    async fn delete(
+        &self,
+        db: &DatabaseConnection,
+        id: ResourceId<Self>,
+    ) -> Result<ResourceId<Self>, ApiError> {
         // 1. Before hook
-        self.before_delete(db, id).await?;
+        self.before_delete(db, id.clone()).await?;
 
         // 2. Core logic (delete)
         let deleted_id = self.perform_delete(db, id).await?;
 
         // 3. After hook
-        self.after_delete(db, deleted_id).await?;
+        self.after_delete(db, deleted_id.clone()).await?;
 
         Ok(deleted_id)
     }
@@ -586,8 +645,8 @@ pub trait CRUDOperations: Send + Sync {
     async fn delete_many(
         &self,
         db: &DatabaseConnection,
-        ids: Vec<Uuid>,
-    ) -> Result<Vec<Uuid>, ApiError> {
+        ids: Vec<ResourceId<Self>>,
+    ) -> Result<Vec<ResourceId<Self>>, ApiError> {
         // 1. Before hook
         self.before_delete_many(db, &ids).await?;
 
@@ -637,7 +696,10 @@ pub trait CRUDOperations: Send + Sync {
     async fn update_many(
         &self,
         db: &DatabaseConnection,
-        updates: Vec<(Uuid, <Self::Resource as CRUDResource>::UpdateModel)>,
+        updates: Vec<(
+            ResourceId<Self>,
+            <Self::Resource as CRUDResource>::UpdateModel,
+        )>,
     ) -> Result<Vec<Self::Resource>, ApiError> {
         Self::Resource::update_many(db, updates).await
     }

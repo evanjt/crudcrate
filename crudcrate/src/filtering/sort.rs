@@ -118,6 +118,13 @@ where
 /// - `SortConfig::Column` for regular column sorting
 /// - `SortConfig::Joined` for sorting by a column on a joined entity
 ///
+/// A dot-notation path (e.g. `vehicles.year`) yields `SortConfig::Joined` only
+/// when it appears in [`crate::traits::CRUDResource::joined_sortable_columns`];
+/// any other dot path falls back to a regular `SortConfig::Column` on the
+/// default index column. The `get_all` handler dispatches `SortConfig::Joined`
+/// to [`crate::traits::CRUDResource::get_all_joined_sorted`], which orders the
+/// parent rows by a correlated sub-query over the child column.
+///
 /// # Example
 /// ```ignore
 /// // Regular sort
@@ -127,6 +134,7 @@ where
 /// // Joined sort
 /// GET /customers?sort=["vehicles.year","DESC"]
 /// // -> SortConfig::Joined { join_field: "vehicles", column: "year", direction: Desc }
+/// // handler orders customers by (SELECT MIN(vehicles.year) WHERE customer_id = customers.id) DESC
 /// ```
 pub fn parse_sorting_with_joins<T, C>(
     params: &crate::models::FilterOptions,

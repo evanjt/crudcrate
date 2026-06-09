@@ -264,6 +264,24 @@ impl ApiError {
     /// ```
     #[must_use]
     pub fn database(err: DbErr) -> Self {
+        // A unique-constraint violation is a client error (409), not an opaque 500.
+        // The generated create/update handlers wrap insert/update errors via this
+        // function (`.map_err(ApiError::database)`) and return `Result<_, ApiError>`,
+        // so the `From<DbErr>` impl is bypassed on those paths — the mapping must live
+        // here too for the documented 409 "Duplicate record" response to be reachable.
+        if let Some(sea_orm::SqlErr::UniqueConstraintViolation(_)) = err.sql_err() {
+            return Self::Conflict {
+                message: "A record with these details already exists".to_string(),
+            };
+        }
+        // A foreign-key violation (referencing a missing record, or removing one that
+        // is still referenced) is likewise a client conflict (409), not an opaque 500,
+        // matching the documented response. The message is generic so no driver text leaks.
+        if let Some(sea_orm::SqlErr::ForeignKeyConstraintViolation(_)) = err.sql_err() {
+            return Self::Conflict {
+                message: "The operation conflicts with a related record".to_string(),
+            };
+        }
         Self::Database {
             message: "A database error occurred".to_string(),
             internal: err,
@@ -476,6 +494,22 @@ impl std::error::Error for ApiError {}
 /// ```
 impl From<DbErr> for ApiError {
     fn from(err: DbErr) -> Self {
+        // A unique-constraint violation is a client error (409), not an opaque
+        // 500. sea-orm normalises the driver-specific signal (Postgres SQLSTATE
+        // 23505, SQLite "UNIQUE constraint failed", etc.) into `SqlErr`, so this
+        // detection is database-agnostic. We don't reflect the raw driver text.
+        if let Some(sea_orm::SqlErr::UniqueConstraintViolation(_)) = err.sql_err() {
+            return Self::Conflict {
+                message: "A record with these details already exists".to_string(),
+            };
+        }
+        // Foreign-key violations are also normalised by sea-orm across backends and
+        // map to 409 Conflict rather than an opaque 500.
+        if let Some(sea_orm::SqlErr::ForeignKeyConstraintViolation(_)) = err.sql_err() {
+            return Self::Conflict {
+                message: "The operation conflicts with a related record".to_string(),
+            };
+        }
         match &err {
             DbErr::RecordNotFound(msg) => {
                 // Try to extract resource name from error message. Only accept
@@ -501,6 +535,17 @@ impl From<DbErr> for ApiError {
                 message: "A database error occurred".to_string(),
                 internal: err,
             },
+        }
+    }
+}
+
+/// A failed [`crate::validation::Validatable::validate`] maps to 422 Unprocessable
+/// Entity. The field/message are safe to surface (they come from the application's
+/// own validation logic, not the database driver).
+impl From<crate::validation::ValidationError> for ApiError {
+    fn from(err: crate::validation::ValidationError) -> Self {
+        Self::ValidationFailed {
+            errors: vec![err.to_string()],
         }
     }
 }

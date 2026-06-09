@@ -24,6 +24,7 @@ Build a task manager from scratch, adding features as you need them.
 # Advanced
 
 - [Security Best Practices](./advanced/security.md)
+- [Multi-Tenant Scoping](./advanced/multi-tenant.md)
 - [Performance](./advanced/performance.md)
 - [Custom Operations](./advanced/custom-operations.md)
 

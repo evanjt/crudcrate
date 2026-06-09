@@ -141,43 +141,136 @@ async fn test_fulltext_search_with_paginate_as_documented() {
 }
 
 // =============================================================================
-// DATABASE-SPECIFIC TESTS (fulltext-search.md lines 40-80)
-// Note: These require actual database setup, documented here for completeness
+// BACKEND-SPANNING BEHAVIOUR TESTS
+//
+// These run against whatever DATABASE_URL the suite is pointed at (SQLite by
+// default, real Postgres/MySQL in CI), so the assertions hold on every backend.
+// The fulltext path is case-insensitive *substring* matching on all three:
+// Postgres uses `ILIKE` (search.rs build_postgres_fulltext_condition), MySQL and
+// SQLite use `UPPER(col) LIKE UPPER(?)`. There is no `pg_trgm`/trigram similarity
+// and no fuzzy/typo tolerance anywhere — these tests pin that actual behaviour.
+// Data is ASCII so case-folding is symmetric on all backends (non-ASCII folding
+// is ASCII-only on MySQL/SQLite, a documented limitation, and is not exercised
+// here on purpose).
 // =============================================================================
 
-// PostgreSQL Trigram Similarity Test
-// This tests the documented behavior but is database-dependent
-#[tokio::test]
-async fn test_fulltext_postgresql_trigram_documented_behavior() {
-    // Note: This test documents that PostgreSQL uses trigram similarity
-    // Actual trigram fuzzy matching (typo tolerance) requires PostgreSQL
-    // with pg_trgm extension enabled.
-    //
-    // Documented behavior (fulltext-search.md lines 40-68):
-    // - Uses ILIKE combined with pg_trgm similarity
-    // - Similarity threshold: > 0.1
-    // - Handles typos via trigram similarity
-    // - Example: "progamming" may find "programming"
-    //
-    // This behavior is tested in the implementation (search.rs),
-    // but requires PostgreSQL database for full integration testing.
-    // SQLite/MySQL fall back to LIKE-based search without fuzzy matching.
+fn q_filter_uri(q: &str) -> String {
+    // Percent-encode `filter={"q":"<q>"}`. Test queries are ASCII words, so only
+    // the JSON punctuation and spaces need encoding.
+    let filter = format!("{{\"q\":\"{q}\"}}");
+    let encoded: String = filter
+        .chars()
+        .map(|c| match c {
+            '{' => "%7B".to_string(),
+            '}' => "%7D".to_string(),
+            '"' => "%22".to_string(),
+            ':' => "%3A".to_string(),
+            ' ' => "%20".to_string(),
+            other => other.to_string(),
+        })
+        .collect();
+    format!("/customers?filter={encoded}")
 }
 
-// MySQL & SQLite LIKE Fallback Test
-// Documented behavior for non-PostgreSQL databases
+async fn post_customer(app: &axum::Router, name: &str, email: &str) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/customers")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({ "name": name, "email": email }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED, "seed customer {name}");
+}
+
+async fn search_customers(app: &axum::Router, q: &str) -> Vec<CustomerList> {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(q_filter_uri(q))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "search q={q}");
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    serde_json::from_slice(&body).unwrap()
+}
+
+/// `q` search matches case-insensitively, in both directions (query case and
+/// stored case are independent), as a substring — on every backend. This is the
+/// assertion the previously-empty database-specific tests never made.
 #[tokio::test]
-async fn test_fulltext_mysql_sqlite_like_fallback_documented_behavior() {
-    // Note: This test documents that MySQL & SQLite use LIKE fallback
-    //
-    // Documented behavior (fulltext-search.md lines 70-82):
-    // - Uses case-insensitive LIKE queries
-    // - No fuzzy matching (exact substring match only)
-    // - Query treated as single phrase
-    // - UPPER() conversion for case-insensitivity
-    //
-    // This is the default behavior tested in all our tests when not
-    // using PostgreSQL with pg_trgm.
+async fn test_fulltext_case_insensitive_substring_match() {
+    let db = setup_test_db().await.expect("setup db");
+    let app = setup_test_app(&db);
+
+    post_customer(&app, "Senior RUST Developer", "dev@example.com").await;
+    post_customer(&app, "rust junior engineer", "junior@example.com").await;
+    post_customer(&app, "PostgreSQL Database Admin", "dba@example.com").await;
+
+    // Lowercase query matches names stored in mixed/upper case.
+    let lower = search_customers(&app, "rust").await;
+    assert_eq!(
+        lower.len(),
+        2,
+        "lowercase 'rust' matches both rust customers"
+    );
+    assert!(
+        lower.iter().all(|c| c.name.to_lowercase().contains("rust")),
+        "every match actually contains 'rust'"
+    );
+
+    // Uppercase query returns the same set: folding is applied to both sides.
+    let upper = search_customers(&app, "RUST").await;
+    assert_eq!(upper.len(), 2, "uppercase 'RUST' matches the same two rows");
+
+    // Substring (not whole-word) and case-insensitive against a mixed-case name.
+    let database = search_customers(&app, "database").await;
+    assert_eq!(
+        database.len(),
+        1,
+        "'database' matches 'PostgreSQL Database Admin'"
+    );
+    assert_eq!(database[0].name, "PostgreSQL Database Admin");
+
+    // A mid-token substring still matches (ILIKE/UPPER-LIKE are %term%).
+    let infix = search_customers(&app, "ust").await;
+    assert_eq!(infix.len(), 2, "'ust' is an infix of both 'rust' rows");
+}
+
+/// The fulltext path is exact substring matching, NOT fuzzy/trigram. A typo does
+/// not match — pinning the real behaviour against the (incorrect) docs that once
+/// claimed Postgres `pg_trgm` typo tolerance. Holds on every backend.
+#[tokio::test]
+async fn test_fulltext_is_substring_not_fuzzy() {
+    let db = setup_test_db().await.expect("setup db");
+    let app = setup_test_app(&db);
+
+    post_customer(&app, "Rust Programming Expert", "prog@example.com").await;
+
+    // Exact substring matches.
+    assert_eq!(search_customers(&app, "programming").await.len(), 1);
+    // A one-character typo must NOT match: there is no trigram/fuzzy similarity.
+    assert_eq!(
+        search_customers(&app, "progamming").await.len(),
+        0,
+        "typo 'progamming' must not fuzzy-match 'Programming' (substring, not trigram)"
+    );
+    // An unrelated term does not match either.
+    assert_eq!(search_customers(&app, "python").await.len(), 0);
 }
 
 // =============================================================================

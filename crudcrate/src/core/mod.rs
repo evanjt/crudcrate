@@ -48,4 +48,4 @@ pub mod crud_operations;
 pub mod traits;
 
 // Re-export commonly used items
-pub use traits::{CRUDResource, MergeIntoActiveModel, UuidIdResult};
+pub use traits::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};

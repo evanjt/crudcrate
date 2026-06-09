@@ -2,7 +2,10 @@ use crate::codegen::{
     handlers::{create, delete, get, update},
     joins::{
         get_join_config,
-        loading::{generate_joined_field_has_scope_impl, generate_resolve_joined_filters_impl},
+        loading::{
+            generate_get_all_joined_sorted_impl, generate_joined_field_has_scope_impl,
+            generate_resolve_joined_filters_impl,
+        },
     },
     type_resolution::{
         extract_api_struct_type_for_recursive_call, generate_crud_type_aliases,
@@ -54,6 +57,8 @@ pub(crate) fn generate_crud_resource_impl(
         generate_resolve_joined_filters_impl(analysis, api_struct_name);
     let joined_field_has_scope_impl =
         generate_joined_field_has_scope_impl(analysis, api_struct_name);
+    // Generate get_all_joined_sorted override (empty if no sortable joined cols)
+    let get_all_joined_sorted_impl = generate_get_all_joined_sorted_impl(analysis, api_struct_name);
 
     let (
         get_one_impl,
@@ -171,6 +176,7 @@ pub(crate) fn generate_crud_resource_impl(
 
             #resolve_joined_filters_impl
             #joined_field_has_scope_impl
+            #get_all_joined_sorted_impl
 
             #get_one_impl
             #get_all_impl

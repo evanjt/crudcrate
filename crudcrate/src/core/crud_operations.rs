@@ -86,7 +86,7 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn get_one_handler(
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
-            axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+            axum::extract::Path(id): axum::extract::Path<crudcrate::PrimaryKeyType<$resource>>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
         ) -> Result<axum::response::Response, crudcrate::ApiError> {
             use axum::response::IntoResponse;
@@ -103,12 +103,12 @@ macro_rules! crud_handlers_impl {
                 // Atomic scoped fetch: ID + scope condition in a single query.
                 // Prevents TOCTOU race where scope-relevant columns could change
                 // between a fetch and a separate verification query.
+                // get_one_scoped already returns NotFound (404) when the scope condition
+                // excludes the row, so existence stays masked. Propagate the real error
+                // instead of rewriting everything to 404 — genuine DB/internal faults
+                // must surface as 500 (and be logged), not masquerade as a missing row.
                 let result = <$resource as crudcrate::traits::CRUDResource>::get_one_scoped(&db, id, &extra)
-                    .await
-                    .map_err(|_| crudcrate::ApiError::not_found(
-                        <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
-                        Some(id.to_string()),
-                    ))?;
+                    .await?;
 
                 let response: $response_model = result.into();
                 let scoped: $scoped_response = response.into();
@@ -246,21 +246,33 @@ macro_rules! crud_handlers_impl {
                 &parsed_filters.joined_filters,
             ).await?;
 
-            let (order_column, order_direction) = match &sort_config {
-                crudcrate::SortConfig::Column { column, direction } => (*column, direction.clone()),
-                crudcrate::SortConfig::Joined { direction, .. } => {
-                    (<$resource as crudcrate::traits::CRUDResource>::default_index_column(), direction.clone())
+            let items = match &sort_config {
+                crudcrate::SortConfig::Column { column, direction } => {
+                    let order_column = *column;
+                    let order_direction = direction.clone();
+                    if is_scoped {
+                        <$resource as crudcrate::traits::CRUDResource>::get_all_scoped(&db, &condition, order_column, order_direction, offset, limit)
+                            .await
+                            .map_err(crudcrate::ApiError::from)?
+                    } else {
+                        <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
+                            .await
+                            .map_err(crudcrate::ApiError::from)?
+                    }
                 }
-            };
-
-            let items = if is_scoped {
-                <$resource as crudcrate::traits::CRUDResource>::get_all_scoped(&db, &condition, order_column, order_direction, offset, limit)
+                crudcrate::SortConfig::Joined { join_field, column, direction } => {
+                    // Joined sort orders the parent query by a correlated sub-query
+                    // over the child column (see `get_all_joined_sorted`). The scoped
+                    // branch does not yet propagate child scope into the ordering
+                    // sub-query, so it falls back to the same parent-level ordering
+                    // without the scoped child batch loading; the parent rows
+                    // themselves remain scope-filtered via `condition`.
+                    <$resource as crudcrate::traits::CRUDResource>::get_all_joined_sorted(
+                        &db, &condition, join_field, column, direction.clone(), offset, limit,
+                    )
                     .await
                     .map_err(crudcrate::ApiError::from)?
-            } else {
-                <$resource as crudcrate::traits::CRUDResource>::get_all(&db, &condition, order_column, order_direction, offset, limit)
-                    .await
-                    .map_err(crudcrate::ApiError::from)?
+                }
             };
             let total_count = <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
             let headers = crudcrate::pagination::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);
@@ -289,7 +301,7 @@ macro_rules! crud_handlers_impl {
         pub async fn delete_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
-            path: axum::extract::Path<uuid::Uuid>,
+            path: axum::extract::Path<crudcrate::PrimaryKeyType<$resource>>,
         ) -> Result<axum::http::StatusCode, crudcrate::ApiError> {
             if scope.is_some() {
                 return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
@@ -339,7 +351,7 @@ macro_rules! crud_handlers_impl {
             path = "/batch",
             params(crudcrate::BatchOptions),
             responses(
-                (status = axum::http::StatusCode::OK, description = "Resources deleted successfully", body = [uuid::Uuid]),
+                (status = axum::http::StatusCode::OK, description = "Resources deleted successfully", body = [String]),
                 (status = 207, description = "Partial success - some items deleted, some failed"),
                 (status = axum::http::StatusCode::BAD_REQUEST, description = "Bad request - batch size exceeded", body = String),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
@@ -353,7 +365,7 @@ macro_rules! crud_handlers_impl {
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
-            json: axum::Json<Vec<uuid::Uuid>>,
+            json: axum::Json<Vec<crudcrate::PrimaryKeyType<$resource>>>,
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
 
@@ -378,11 +390,13 @@ macro_rules! crud_handlers_impl {
 
             if options.partial {
                 // Partial success mode: process each item individually
-                let mut result: crudcrate::BatchResult<uuid::Uuid> = crudcrate::BatchResult::new();
+                let mut result: crudcrate::BatchResult<crudcrate::PrimaryKeyType<$resource>> = crudcrate::BatchResult::new();
 
                 for (index, id) in ids.into_iter().enumerate() {
                     match <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, id).await {
-                        Ok(_) => result.add_success(id),
+                        // Use the deleted id returned by `delete` rather than the moved
+                        // `id` — the PK value type may be non-`Copy` (e.g. a `String` PK).
+                        Ok(deleted) => result.add_success(deleted),
                         Err(e) => result.add_failure(index, e.to_string()),
                     }
                 }
@@ -398,9 +412,13 @@ macro_rules! crud_handlers_impl {
                 if profile.expose_deleted_ids {
                     (status, axum::Json(result)).into_response()
                 } else {
+                    // expose_deleted_ids=false must also hide WHICH ids failed: each
+                    // per-item not-found error embeds the (missing) UUID, so serializing
+                    // `failed` verbatim would be an existence-enumeration oracle — the very
+                    // side-channel the non-partial path collapses to `{deleted: count}`.
                     let secure = serde_json::json!({
                         "succeeded_count": result.succeeded.len(),
-                        "failed": result.failed,
+                        "failed_count": result.failed.len(),
                     });
                     (status, axum::Json(secure)).into_response()
                 }
@@ -436,7 +454,7 @@ macro_rules! crud_handlers_impl {
         pub async fn update_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
-            path: axum::extract::Path<uuid::Uuid>,
+            path: axum::extract::Path<crudcrate::PrimaryKeyType<$resource>>,
             json: axum::Json<$update_model>,
         ) -> Result<axum::Json<$response_model>, crudcrate::ApiError> {
             if scope.is_some() {
@@ -487,12 +505,20 @@ macro_rules! crud_handlers_impl {
             }
 
             if options.partial {
-                // Partial success mode: process each item individually
+                // Partial success mode: process each item individually.
+                // Use create_many with a single-item batch (not the single `create`,
+                // which on the derive path re-fetches via get_one and applies join
+                // loading + read::one::transform). This keeps the partial response the
+                // same flat shape as the all-or-nothing path below (which calls
+                // create_many) and runs the same create::many hooks for both modes.
                 let mut result: crudcrate::BatchResult<$response_model> = crudcrate::BatchResult::new();
 
                 for (index, create_model) in data.into_iter().enumerate() {
-                    match <$resource as crudcrate::traits::CRUDResource>::create(&state.0, create_model).await {
-                        Ok(created) => result.add_success(created.into()),
+                    match <$resource as crudcrate::traits::CRUDResource>::create_many(&state.0, vec![create_model]).await {
+                        Ok(mut created) => match created.pop() {
+                            Some(item) => result.add_success(item.into()),
+                            None => result.add_failure(index, "create produced no row".to_string()),
+                        },
                         Err(e) => result.add_failure(index, e.to_string()),
                     }
                 }
@@ -526,7 +552,8 @@ macro_rules! crud_handlers_impl {
         #[allow(dead_code)]
         pub struct BatchUpdateRequest {
             /// The ID of the resource to update
-            pub id: uuid::Uuid,
+            #[schema(value_type = String)]
+            pub id: crudcrate::PrimaryKeyType<$resource>,
             /// Additional update fields (flattened)
             #[serde(flatten)]
             pub data: $update_model,
@@ -561,7 +588,7 @@ macro_rules! crud_handlers_impl {
                 return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
             }
 
-            let updates: Vec<(uuid::Uuid, $update_model)> = json.0
+            let updates: Vec<(crudcrate::PrimaryKeyType<$resource>, $update_model)> = json.0
                 .into_iter()
                 .map(|item| (item.id, item.data))
                 .collect();

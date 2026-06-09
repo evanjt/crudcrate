@@ -29,7 +29,7 @@ pub struct Model {
     #[crudcrate(sortable, exclude(create, update), on_create = Utc::now(), on_update = Utc::now())]
     pub updated_at: DateTime<Utc>,
 
-    // Level 5: Projects assigned to this employee
+    // Projects assigned to this employee. depth = 2 recurses into each project's own joins.
     #[sea_orm(ignore)]
     #[crudcrate(non_db_attr, join(one, all, depth = 2))]
     pub projects: Vec<super::project::Project>,

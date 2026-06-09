@@ -127,14 +127,61 @@ impl std::error::Error for ValidationErrors {}
 /// Trait for types that can be validated
 ///
 /// Implement this trait on your Create/Update models to add custom validation.
-/// The validation will be called automatically before database operations if
-/// you use the generated CRUD handlers.
+/// When you use the generated CRUD handlers (`#[crudcrate(generate_router)]`), the
+/// generated `create`/`create_many`/`update`/`update_many` implementations call
+/// `validate()` automatically before any database write, returning HTTP 422 on
+/// failure. Models that do not implement `Validatable` are unaffected (the
+/// generated check is a no-op for them — see [`__auto`]).
 pub trait Validatable {
     /// Validate the instance.
     ///
     /// # Errors
     /// Returns `Err(ValidationError)` if validation fails.
     fn validate(&self) -> Result<(), ValidationError>;
+}
+
+/// Autoref-specialization machinery used by the derive-generated CRUD handlers to
+/// invoke [`Validatable::validate`] only for models that implement it, with a no-op
+/// fallback otherwise — without requiring nightly `specialization`.
+///
+/// The generated code calls `Probe(&model).crudcrate_auto_validate()`. When the
+/// model implements [`Validatable`], the inherent method on [`Probe`] wins method
+/// resolution and runs the real validation; otherwise the blanket
+/// [`ValidatableFallback`] trait method is used and does nothing.
+#[doc(hidden)]
+pub mod __auto {
+    use super::{Validatable, ValidationError};
+
+    /// No-op fallback implemented for every type. Lower priority than the inherent
+    /// method on `Probe<T: Validatable>`.
+    pub trait ValidatableFallback {
+        /// No-op validation for types that do not implement [`Validatable`].
+        ///
+        /// # Errors
+        /// Never returns an error.
+        fn crudcrate_auto_validate(&self) -> Result<(), ValidationError>;
+    }
+
+    impl<T> ValidatableFallback for T {
+        fn crudcrate_auto_validate(&self) -> Result<(), ValidationError> {
+            Ok(())
+        }
+    }
+
+    /// Wrapper whose inherent method shadows the [`ValidatableFallback`] trait
+    /// method when the wrapped type implements [`Validatable`].
+    pub struct Probe<'a, T>(pub &'a T);
+
+    impl<T: Validatable> Probe<'_, T> {
+        /// Runs the real [`Validatable::validate`]. Selected over the fallback
+        /// because inherent methods take priority in method resolution.
+        ///
+        /// # Errors
+        /// Returns the wrapped type's [`ValidationError`] on failure.
+        pub fn crudcrate_auto_validate(&self) -> Result<(), ValidationError> {
+            self.0.validate()
+        }
+    }
 }
 
 /// Helper validators for common patterns
@@ -151,7 +198,10 @@ pub mod validators {
         min: Option<usize>,
         max: Option<usize>,
     ) -> Result<(), ValidationError> {
-        let len = value.len();
+        // Count Unicode scalar values, not UTF-8 bytes: the messages promise a limit
+        // in "characters", so a multibyte value (accented names, CJK) within the
+        // character limit must not be rejected for exceeding a byte count.
+        let len = value.chars().count();
 
         if let Some(min_len) = min
             && len < min_len
@@ -215,7 +265,7 @@ pub mod validators {
             return Err(ValidationError::new(field, "Invalid email format"));
         }
 
-        if value.len() > 255 {
+        if value.chars().count() > 255 {
             return Err(ValidationError::new(
                 field,
                 "Email must be at most 255 characters",
@@ -276,6 +326,23 @@ mod tests {
 
         // Just right
         assert!(validate_length("name", "abc", Some(3), Some(5)).is_ok());
+    }
+
+    /// A7 regression: limits are in characters, not UTF-8 bytes. "José" is 4 chars
+    /// but 5 bytes, and "日本語" is 3 chars but 9 bytes — both must pass a max of 4/3.
+    #[test]
+    fn test_validate_length_counts_characters_not_bytes() {
+        use validators::validate_length;
+        assert!(
+            validate_length("name", "José", None, Some(4)).is_ok(),
+            "4-char multibyte value must pass a 4-char max"
+        );
+        assert!(
+            validate_length("name", "日本語", Some(3), Some(3)).is_ok(),
+            "3-char CJK value must satisfy a 3-char min/max"
+        );
+        // And a genuinely-too-long multibyte value is still rejected.
+        assert!(validate_length("name", "Joséé", None, Some(4)).is_err());
     }
 
     #[test]

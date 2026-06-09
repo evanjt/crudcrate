@@ -166,13 +166,13 @@ impl CRUDOperations for ProductOperations {
     async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Product, ApiError> {
         use sea_orm::EntityTrait;
 
-        // This returns Result<Model, DbErr>
-        // The ? operator automatically converts to ApiError:
-        // - DbErr::RecordNotFound → ApiError::NotFound (404)
-        // - Other DbErr → ApiError::Database (500, sanitized)
+        // `.one(db)` returns Result<Option<Model>, DbErr>. The `?` converts any real
+        // DbErr into an ApiError (e.g. a connection failure → ApiError::Database, 500,
+        // sanitized). A missing row is `Ok(None)`, not an error, so the 404 below is
+        // produced by `.ok_or_else(...)` — not by the `?`.
         let model = <Product as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
-            .await? // ← Automatic conversion! No manual handling needed
+            .await?
             .ok_or_else(|| ApiError::not_found("Product", Some(id.to_string())))?;
 
         Ok(Product::from(model))
@@ -241,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   curl -X POST http://localhost:3000/products \\");
     println!("     -H 'Content-Type: application/json' \\");
     println!("     -d '{{\"name\": \"Test\", \"price\": -10}}' | jq .");
-    println!("   ❌ User sees: \"Invalid price: must be greater than 0\"");
+    println!("   ❌ User sees: \"Price must be greater than 0\"");
     println!("   📋 Console logs: [TRACE] level details\n");
 
     println!("🔴 2. Not Found Error (404)");
@@ -249,7 +249,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "   curl -s http://localhost:3000/products/00000000-0000-0000-0000-000000000000 | jq ."
     );
-    println!("   ❌ User sees: \"Product not found\"");
+    println!(
+        "   ❌ User sees: \"Product with ID '00000000-0000-0000-0000-000000000000' not found\""
+    );
     println!("   📋 Console logs: Debug-level error\n");
 
     println!("🔴 3. Database Error (500 Internal Server Error)");

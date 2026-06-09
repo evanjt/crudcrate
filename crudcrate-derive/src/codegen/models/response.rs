@@ -7,7 +7,7 @@
 use crate::attribute_parser::get_crudcrate_bool;
 use crate::codegen::joins::config::get_join_config;
 use crate::codegen::models::shared::resolve_dtwtz;
-use quote::{ToTokens, quote};
+use quote::quote;
 
 /// Generate field assignment expressions for converting API struct to Response.
 ///
@@ -57,9 +57,14 @@ pub(crate) fn generate_response_struct_fields(
                 })
                 .collect();
 
-            // Check if this is a self-referencing or join field
-            let field_type_string = ty.to_token_stream().to_string();
-            let is_self_referencing = field_type_string.contains(&api_struct_name.to_string());
+            // Check if this is a self-referencing or join field. Use an exact inner-type
+            // match (after unwrapping Vec/Option), not a substring of the whole type string,
+            // so a field typed e.g. `VehiclePart` on a `Vehicle` struct is not misdetected.
+            let is_self_referencing =
+                crate::codegen::type_resolution::extract_api_struct_type_for_recursive_call(ty)
+                    .to_string()
+                    .trim()
+                    == api_struct_name.to_string().trim();
             let is_join_field = get_join_config(field).is_some();
 
             // Add schema(no_recursion) for self-referencing or join fields to prevent
