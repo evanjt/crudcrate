@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Struct Attributes - CRUDCrate Documentation</title>
+        <title>Multi-Tenant Scoping - CRUDCrate Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -178,255 +178,132 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="struct-attributes-reference"><a class="header" href="#struct-attributes-reference">Struct Attributes Reference</a></h1>
-<p>Complete reference for <code>#[crudcrate(...)]</code> attributes on structs.</p>
-<h2 id="syntax"><a class="header" href="#syntax">Syntax</a></h2>
-<pre><code class="language-rust">#[derive(EntityToModels)]
-#[crudcrate(attribute1, attribute2 = value, ...)]
-pub struct Model { }</code></pre>
-<h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
-<h3 id="generate_router"><a class="header" href="#generate_router"><code>generate_router</code></a></h3>
-<p>Generates an Axum router function for all CRUD operations.</p>
-<pre><code class="language-rust">#[crudcrate(generate_router)]
-pub struct Model { }
+                        <h1 id="multi-tenant-scoping"><a class="header" href="#multi-tenant-scoping">Multi-Tenant Scoping</a></h1>
+<p>The <a href="../tutorial/scoping.html">scoping tutorial</a> showed a <strong>public vs. private</strong> split: an
+unauthenticated tier that is read-only and hides private rows. Multi-tenancy is a different shape
+of the same primitive:</p>
+<ul>
+<li>Every caller is <strong>authenticated</strong>, and each one is confined to <strong>their own tenant’s</strong> rows.</li>
+<li>Scoped callers usually still need to <strong>create and update</strong> within their tenant.</li>
+</ul>
+<p>You build it from the same <code>ScopeCondition</code>, with two differences from the public/private case:
+the condition is <strong>per-tenant</strong> (a value, not an <code>is_private</code> boolean), and you have to be
+deliberate about <strong>writes</strong>.</p>
+<h2 id="the-catch-a-present-scope-blocks-all-writes"><a class="header" href="#the-catch-a-present-scope-blocks-all-writes">The catch: a present scope blocks all writes</a></h2>
+<p>When a <code>ScopeCondition</code> extension is on the request, the generated <code>POST</code>/<code>PUT</code>/<code>DELETE</code> handlers
+return <code>403 Forbidden</code> (“Write access denied in scoped context”). That’s the behaviour you want for
+a read-only public tier, but in a multi-tenant app it would stop a tenant from writing their <em>own</em> data.</p>
+<p>The fix: <strong>inject the scope only on read requests.</strong> Reads get confined by the
+<code>ScopeCondition</code>; writes are confined by your own guard (next section), so a tenant can still
+create and update within their tenant.</p>
+<pre><code class="language-rust">use axum::{extract::Request, http::Method, middleware::Next, response::Response};
+use crudcrate::ScopeCondition;
+use sea_orm::{ColumnTrait, Condition};
 
-// Generates:
-pub fn model_router() -&gt; Router { }</code></pre>
-<p><strong>Type:</strong> Flag (no value)</p>
-<hr>
-<h3 id="api_struct"><a class="header" href="#api_struct"><code>api_struct</code></a></h3>
-<p>Override the name of generated API structs.</p>
-<pre><code class="language-rust">#[crudcrate(api_struct = "Product")]
-pub struct Model { }
+async fn scope_reads(request: Request, next: Next) -&gt; Response {
+    // Your auth middleware has already put the caller's tenant into the request extensions.
+    let tenant = current_tenant(&amp;request);
 
-// Generates: Product, ProductCreate, ProductUpdate, ProductList</code></pre>
-<p><strong>Type:</strong> String literal
-<strong>Default:</strong> Derives from table name (e.g., “products” → “Product”)</p>
-<hr>
-<h3 id="name_singular"><a class="header" href="#name_singular"><code>name_singular</code></a></h3>
-<p>Override the singular resource name for routing and headers.</p>
-<pre><code class="language-rust">#[crudcrate(name_singular = "person")]
-pub struct Model { }
-
-// Used in: Content-Range header
-// Content-Range: person 0-9/100</code></pre>
-<p><strong>Type:</strong> String literal
-<strong>Default:</strong> Lowercase struct name</p>
-<hr>
-<h3 id="name_plural"><a class="header" href="#name_plural"><code>name_plural</code></a></h3>
-<p>Override the plural resource name for routing.</p>
-<pre><code class="language-rust">#[crudcrate(name_plural = "people")]
-pub struct Model { }
-
-// Routes: GET /people, POST /people, etc.</code></pre>
-<p><strong>Type:</strong> String literal
-<strong>Default:</strong> <code>{name_singular}s</code></p>
-<hr>
-<h3 id="operations"><a class="header" href="#operations"><code>operations</code></a></h3>
-<p>Specify a custom <code>CRUDOperations</code> implementation.</p>
-<pre><code class="language-rust">#[crudcrate(operations = MyOperations)]
-pub struct Model { }
-
-// MyOperations must implement CRUDOperations trait
-pub struct MyOperations;
-
-impl CRUDOperations for MyOperations {
-    type Resource = Model;
-    // ...
+    // Only GET/HEAD get a ScopeCondition. If we injected it on writes too, every tenant write
+    // would 403, so writes flow through unscoped here and are confined by `confine_writes`.
+    if let (Some(tenant_id), true) =
+        (tenant, matches!(*request.method(), Method::GET | Method::HEAD))
+    {
+        let mut request = request;
+        request.extensions_mut().insert(ScopeCondition::new(
+            Condition::all().add(widget::Column::TenantId.eq(tenant_id)),
+        ));
+        return next.run(request).await;
+    }
+    next.run(request).await
 }</code></pre>
-<p><strong>Type:</strong> Type path
-<strong>Default:</strong> <code>DefaultCRUDOperations&lt;Self&gt;</code></p>
-<hr>
-<h3 id="description"><a class="header" href="#description"><code>description</code></a></h3>
-<p>Add description for OpenAPI documentation.</p>
-<pre><code class="language-rust">#[crudcrate(description = "Blog articles with comments")]
-pub struct Model { }</code></pre>
-<p><strong>Type:</strong> String literal
-<strong>Default:</strong> None</p>
-<hr>
-<h3 id="fulltext_language"><a class="header" href="#fulltext_language"><code>fulltext_language</code></a></h3>
-<p>Set language for PostgreSQL fulltext search.</p>
-<pre><code class="language-rust">#[crudcrate(fulltext_language = "spanish")]
-pub struct Model { }</code></pre>
-<p><strong>Type:</strong> String literal
-<strong>Default:</strong> <code>"english"</code>
-<strong>Options:</strong> <code>"english"</code>, <code>"spanish"</code>, <code>"german"</code>, <code>"french"</code>, <code>"simple"</code>, etc.</p>
-<hr>
-<h3 id="batch_limit"><a class="header" href="#batch_limit"><code>batch_limit</code></a></h3>
-<p>Set the maximum number of items for batch create/update/delete operations.</p>
-<pre><code class="language-rust">#[crudcrate(batch_limit = 500)]
-pub struct Model { }</code></pre>
-<p><strong>Type:</strong> Integer
-<strong>Default:</strong> <code>100</code>
-<strong>Runtime override:</strong> Implement <code>fn batch_limit() -&gt; usize</code> on your <code>CRUDResource</code> impl for dynamic values (env vars, config).</p>
-<hr>
-<h3 id="max_page_size"><a class="header" href="#max_page_size"><code>max_page_size</code></a></h3>
-<p>Set the maximum items per page for pagination.</p>
-<pre><code class="language-rust">#[crudcrate(max_page_size = 500)]
-pub struct Model { }</code></pre>
-<p><strong>Type:</strong> Integer
-<strong>Default:</strong> <code>1000</code>
-<strong>Runtime override:</strong> Implement <code>fn max_page_size() -&gt; u64</code> on your <code>CRUDResource</code> impl for dynamic values.</p>
-<hr>
-<h2 id="lifecycle-hook-attributes"><a class="header" href="#lifecycle-hook-attributes">Lifecycle Hook Attributes</a></h2>
-<h3 id="createonepre"><a class="header" href="#createonepre"><code>create::one::pre</code></a></h3>
-<p>Function called before create operation.</p>
-<pre><code class="language-rust">#[crudcrate(create::one::pre = validate_create)]
+<p>An <strong>unscoped</strong> caller (e.g. a platform admin with <code>current_tenant == None</code>) gets no extension and
+therefore sees and edits everything, the same “absence of scope = full access” rule as the
+tutorial.</p>
+<h2 id="a-per-tenant-condition-across-a-join-typed-injection-safe"><a class="header" href="#a-per-tenant-condition-across-a-join-typed-injection-safe">A per-tenant condition across a join (typed, injection-safe)</a></h2>
+<p>Often the <code>tenant_id</code> lives on a parent table and the entity you’re serving only has a foreign key
+to it. A <code>Condition</code> works on the entity’s own columns, but it can hold a <strong>subquery</strong>, so you
+scope the child by the set of parent ids the tenant owns in one statement, with no extra round-trip.</p>
+<p>The tutorial used <code>Expr::cust()</code> (raw SQL, with a SQL-injection warning). Prefer the <strong>typed</strong>
+builder when you can. It can’t be injected into and it survives column renames:</p>
+<pre><code class="language-rust">use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QuerySelect, QueryTrait};
 
-async fn validate_create(
-    db: &amp;DatabaseConnection,
-    data: &amp;mut ModelCreate,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="createonepost"><a class="header" href="#createonepost"><code>create::one::post</code></a></h3>
-<p>Function called after successful create.</p>
-<pre><code class="language-rust">#[crudcrate(create::one::post = notify_created)]
+// `gadget` only has `widget_id`; the tenant lives on `widget`.
+fn gadget_scope(tenant_id: Uuid) -&gt; Condition {
+    let widgets_in_tenant = widget::Entity::find()
+        .select_only()
+        .column(widget::Column::Id)
+        .filter(widget::Column::TenantId.eq(tenant_id))
+        .into_query(); // -&gt; sea_query::SelectStatement
 
-async fn notify_created(
-    db: &amp;DatabaseConnection,
-    created: &amp;Model,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="createonebody"><a class="header" href="#createonebody"><code>create::one::body</code></a></h3>
-<p>Replace entire create logic.</p>
-<pre><code class="language-rust">#[crudcrate(create::one::body = custom_create)]
-
-async fn custom_create(
-    db: &amp;DatabaseConnection,
-    data: ModelCreate,
-) -&gt; Result&lt;Model, ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="updateonepre"><a class="header" href="#updateonepre"><code>update::one::pre</code></a></h3>
-<p>Function called before update operation.</p>
-<pre><code class="language-rust">#[crudcrate(update::one::pre = check_update_permission)]
-
-async fn check_update_permission(
-    db: &amp;DatabaseConnection,
-    id: PrimaryKeyType,
-    data: &amp;mut ModelUpdate,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="updateonepost"><a class="header" href="#updateonepost"><code>update::one::post</code></a></h3>
-<p>Function called after successful update.</p>
-<pre><code class="language-rust">#[crudcrate(update::one::post = invalidate_cache)]
-
-async fn invalidate_cache(
-    db: &amp;DatabaseConnection,
-    updated: &amp;Model,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="updateonebody"><a class="header" href="#updateonebody"><code>update::one::body</code></a></h3>
-<p>Replace entire update logic.</p>
-<pre><code class="language-rust">#[crudcrate(update::one::body = custom_update)]
-
-async fn custom_update(
-    db: &amp;DatabaseConnection,
-    id: PrimaryKeyType,
-    data: ModelUpdate,
-) -&gt; Result&lt;Model, ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="deleteonepre"><a class="header" href="#deleteonepre"><code>delete::one::pre</code></a></h3>
-<p>Function called before delete operation.</p>
-<pre><code class="language-rust">#[crudcrate(delete::one::pre = check_delete_permission)]
-
-async fn check_delete_permission(
-    db: &amp;DatabaseConnection,
-    id: PrimaryKeyType,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="deleteonepost"><a class="header" href="#deleteonepost"><code>delete::one::post</code></a></h3>
-<p>Function called after successful delete.</p>
-<pre><code class="language-rust">#[crudcrate(delete::one::post = cleanup_related)]
-
-async fn cleanup_related(
-    db: &amp;DatabaseConnection,
-    id: PrimaryKeyType,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="deleteonebody"><a class="header" href="#deleteonebody"><code>delete::one::body</code></a></h3>
-<p>Replace entire delete logic (e.g., for soft delete).</p>
-<pre><code class="language-rust">#[crudcrate(delete::one::body = soft_delete)]
-
-async fn soft_delete(
-    db: &amp;DatabaseConnection,
-    id: PrimaryKeyType,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="getonepre"><a class="header" href="#getonepre"><code>get::one::pre</code></a></h3>
-<p>Function called before get_one operation.</p>
-<pre><code class="language-rust">#[crudcrate(get::one::pre = check_view_permission)]
-
-async fn check_view_permission(
-    db: &amp;DatabaseConnection,
-    id: PrimaryKeyType,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h3 id="getallpre"><a class="header" href="#getallpre"><code>get::all::pre</code></a></h3>
-<p>Function called before get_all operation, can modify condition.</p>
-<pre><code class="language-rust">#[crudcrate(get::all::pre = filter_by_tenant)]
-
-async fn filter_by_tenant(
-    db: &amp;DatabaseConnection,
-    condition: &amp;mut Condition,
-) -&gt; Result&lt;(), ApiError&gt; { }</code></pre>
-<hr>
-<h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<pre><code class="language-rust">#[derive(EntityToModels)]
-#[crudcrate(
-    generate_router,
-    api_struct = "Article",
-    name_singular = "article",
-    name_plural = "articles",
-    operations = ArticleOperations,
-    description = "Blog articles with comments",
-    fulltext_language = "english",
-    create::one::pre = validate_article,
-    create::one::post = index_for_search,
-    update::one::pre = check_edit_permission,
-    delete::one::body = soft_delete_article,
-    get::all::pre = filter_published_only,
-)]
-#[sea_orm(table_name = "articles")]
-pub struct Model {
-    // ...
+    Condition::all().add(gadget::Column::WidgetId.in_subquery(widgets_in_tenant))
 }</code></pre>
-<h2 id="foreign-key-naming-convention"><a class="header" href="#foreign-key-naming-convention">Foreign Key Naming Convention</a></h2>
-<p>When using <code>join()</code> for batch loading in <code>get_all()</code>, CRUDCrate derives the foreign key column name from the parent struct name using PascalCase convention:</p>
-<ul>
-<li><strong>Parent struct</strong> <code>Customer</code> → <strong>FK column</strong> <code>CustomerId</code> (SeaORM Column enum) / <code>customer_id</code> (field name)</li>
-<li><strong>Parent struct</strong> <code>VehiclePart</code> → <strong>FK column</strong> <code>VehiclePartId</code> / <code>vehicle_part_id</code></li>
-</ul>
-<p>Your related entity’s SeaORM model must have a matching foreign key field. For example, if <code>Customer</code> has <code>vehicles: Vec&lt;Vehicle&gt;</code>, the <code>Vehicle</code> model must have a <code>customer_id: Uuid</code> field and a <code>Column::CustomerId</code> variant.</p>
-<blockquote>
-<p><strong>Note</strong>: Custom FK names (e.g., <code>owner_id</code> instead of <code>customer_id</code>) are not yet supported via attributes. If your FK name doesn’t follow the convention, use a custom <code>read::many::body</code> hook to implement the loading logic.</p>
-</blockquote>
-<h3 id="batch-loading-query-behavior"><a class="header" href="#batch-loading-query-behavior">Batch Loading Query Behavior</a></h3>
-<p>For <code>get_all()</code> with <code>join(all)</code> or <code>join(one, all)</code>, CRUDCrate uses batch loading:</p>
-<ul>
-<li><strong>Depth=1 joins</strong>: 2 queries total (1 for parents + 1 per join field using <code>WHERE fk IN (...)</code>)</li>
-<li><strong>Depth &gt; 1 joins</strong>: Additional per-item queries for nested children (falls back to <code>get_one()</code> calls)</li>
-<li><strong><code>get_one()</code> with <code>join(one)</code></strong>: Per-item queries (single entity, no batching needed)</li>
-</ul>
-<blockquote>
-<p><strong>Note</strong>: Batch loading currently requires UUID primary keys, consistent with the <code>CRUDResource</code> trait contract.</p>
-</blockquote>
-<p>See <a href="../advanced/security.html">Security</a> for partial success and batch limit configuration.</p>
-<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
-<ul>
-<li><a href="./field-attributes.html">Field Attributes Reference</a></li>
-<li><a href="../tutorial/hooks.html">Custom Logic with Hooks</a></li>
-<li><a href="../advanced/custom-operations.html">Custom Operations</a></li>
-</ul>
+<p>Rows whose foreign key is <code>NULL</code> (an unassigned child) drop out of an <code>IN (subquery)</code> by
+construction, usually exactly what you want for a scoped caller.</p>
+<h2 id="confining-writes"><a class="header" href="#confining-writes">Confining writes</a></h2>
+<p>Reads are handled. For writes, add a small guard that resolves the <strong>target’s</strong> tenant and rejects
+a mismatch. There’s nothing CrudCrate-specific here; it’s your ownership policy:</p>
+<pre><code class="language-rust">async fn confine_writes(
+    State(db): State&lt;DatabaseConnection&gt;,
+    request: Request,
+    next: Next,
+) -&gt; Response {
+    let Some(tenant_id) = current_tenant(&amp;request) else {
+        return next.run(request).await; // unscoped admin, no restriction
+    };
+    if matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+        return next.run(request).await; // reads are confined by `scope_reads`
+    }
+
+    // For PUT/DELETE: look up the existing row's owning tenant by id.
+    // For POST: read the owning tenant from the create body's foreign key.
+    // Reject anything that doesn't resolve to `tenant_id` with 403. Fail closed:
+    // if you can't resolve an owner (e.g. a global/shared table), deny.
+    match resolve_owner_tenant(&amp;db, &amp;request).await {
+        Some(owner) if owner == tenant_id =&gt; next.run(request).await,
+        _ =&gt; forbidden("token is scoped to a different tenant"),
+    }
+}</code></pre>
+<p>Keeping reads and writes in separate guards is deliberate: read scoping stays a pure query filter
+(<code>ScopeCondition</code>), while the write guard owns the mutation policy. They never fight, because the
+read scope is never present on a write.</p>
+<h2 id="fail-closed-with-require_scope"><a class="header" href="#fail-closed-with-require_scope">Fail closed with <code>REQUIRE_SCOPE</code></a></h2>
+<p>For an entity that must <strong>never</strong> be served without a scope (a misrouted handler would otherwise
+leak every tenant’s rows), set <code>REQUIRE_SCOPE</code>. The generated read handlers then return <code>500</code> when
+no <code>ScopeCondition</code> is present, instead of silently returning everything:</p>
+<pre><code class="language-rust">#[crudcrate(require_scope, generate_router)]
+pub struct Widget { /* ... */ }</code></pre>
+<p>Leave it <strong>off</strong> for entities that have a legitimate unscoped (admin) caller; there, the absence
+of the extension is the intended “see everything” path.</p>
+<h2 id="quick-reference"><a class="header" href="#quick-reference">Quick reference</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Concern</th><th>Where it lives</th></tr>
+</thead>
+<tbody>
+<tr><td>Confine <strong>reads</strong> to a tenant</td><td><code>ScopeCondition</code> injected <strong>on GET/HEAD only</strong></td></tr>
+<tr><td>Scope across a join</td><td><code>Column::Fk.in_subquery(parent_ids_for_tenant)</code> (typed, not raw SQL)</td></tr>
+<tr><td>Let tenants <strong>write</strong> their own data</td><td>Don’t inject the scope on writes; add a write guard</td></tr>
+<tr><td>Confine <strong>writes</strong> to a tenant</td><td>Your own middleware: resolve the target’s tenant, 403 on mismatch</td></tr>
+<tr><td>Never serve unscoped by accident</td><td><code>#[crudcrate(require_scope)]</code></td></tr>
+<tr><td>Hide a column from scoped reads</td><td><code>exclude(scoped)</code> on the field (see the tutorial)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<p><strong>See also:</strong> <a href="../tutorial/scoping.html">Public &amp; Private Endpoints</a> for the read-only/public tier
+and <code>exclude(scoped)</code>, and <a href="./security.html">Security Best Practices</a>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../concepts/generated-models.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/security.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../reference/field-attributes.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/performance.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -436,11 +313,11 @@ pub struct Model {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../concepts/generated-models.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/security.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../reference/field-attributes.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/performance.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
