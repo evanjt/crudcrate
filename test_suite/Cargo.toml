@@ -20,7 +20,7 @@ tokio = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["util"] }
 uuid = { workspace = true, features = ["serde", "v4"] }
 chrono = { workspace = true, features = ["serde"] }
-utoipa = { workspace = true, features = ["uuid", "chrono", "decimal"] }
+utoipa = { workspace = true, features = ["uuid", "chrono", "decimal", "axum_extras"] }
 utoipa-axum = { workspace = true }
 rust_decimal = { workspace = true }
 

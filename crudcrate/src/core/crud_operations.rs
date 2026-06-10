@@ -70,10 +70,26 @@ macro_rules! crud_handlers_impl {
         use axum::http::HeaderMap;
         use sea_orm::{DbErr, SqlErr};
 
+        // utoipa's `axum_extras` feature parses handler parameter types to infer
+        // OpenAPI params/bodies. A `:ty` macro fragment nested inside a path's
+        // generic arguments (`crudcrate::PrimaryKeyType<$resource>`) reaches the
+        // utoipa proc-macro as an opaque nonterminal it cannot descend into,
+        // surfacing as a spurious "expected expression, found `let`" parse error
+        // in any downstream consumer that enables `axum_extras`. Aliasing the
+        // primary-key type to a plain path name lets the generated handler
+        // signatures reference it without exposing the fragment to utoipa.
+        #[allow(dead_code)]
+        type CrudPrimaryKey = crudcrate::PrimaryKeyType<$resource>;
+
 
         #[utoipa::path(
             get,
             path = "/{id}",
+            // Declared explicitly (String) so utoipa's `axum_extras` does not infer the
+            // param schema from `Path<CrudPrimaryKey>` — which would require the primary-key
+            // type to implement `ToSchema`/`PartialSchema`. Mirrors `BatchUpdateRequest`'s
+            // `#[schema(value_type = String)]`. The path value is always a stringified id.
+            params(("id" = String, Path, description = "Resource identifier")),
             responses(
                 (status = axum::http::StatusCode::OK, description = "The requested resource", body = $response_model),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
@@ -86,7 +102,7 @@ macro_rules! crud_handlers_impl {
         )]
         pub async fn get_one_handler(
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
-            axum::extract::Path(id): axum::extract::Path<crudcrate::PrimaryKeyType<$resource>>,
+            axum::extract::Path(id): axum::extract::Path<CrudPrimaryKey>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
         ) -> Result<axum::response::Response, crudcrate::ApiError> {
             use axum::response::IntoResponse;
@@ -308,6 +324,11 @@ macro_rules! crud_handlers_impl {
         #[utoipa::path(
             delete,
             path = "/{id}",
+            // Declared explicitly (String) so utoipa's `axum_extras` does not infer the
+            // param schema from `Path<CrudPrimaryKey>` — which would require the primary-key
+            // type to implement `ToSchema`/`PartialSchema`. Mirrors `BatchUpdateRequest`'s
+            // `#[schema(value_type = String)]`. The path value is always a stringified id.
+            params(("id" = String, Path, description = "Resource identifier")),
             responses(
                 (status = axum::http::StatusCode::NO_CONTENT, description = "Resource deleted successfully"),
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
@@ -320,7 +341,7 @@ macro_rules! crud_handlers_impl {
         pub async fn delete_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
-            path: axum::extract::Path<crudcrate::PrimaryKeyType<$resource>>,
+            path: axum::extract::Path<CrudPrimaryKey>,
         ) -> Result<axum::http::StatusCode, crudcrate::ApiError> {
             if scope.is_some() {
                 return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
@@ -369,6 +390,10 @@ macro_rules! crud_handlers_impl {
             delete,
             path = "/batch",
             params(crudcrate::BatchOptions),
+            // Explicit so utoipa does not infer the body from `Json<Vec<CrudPrimaryKey>>`,
+            // which would require the primary-key type to implement `ToSchema`. Ids are
+            // accepted as their string form.
+            request_body = Vec<String>,
             responses(
                 (status = axum::http::StatusCode::OK, description = "Resources deleted successfully", body = [String]),
                 (status = 207, description = "Partial success - some items deleted, some failed"),
@@ -384,7 +409,7 @@ macro_rules! crud_handlers_impl {
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
             axum::extract::Query(options): axum::extract::Query<crudcrate::BatchOptions>,
-            json: axum::Json<Vec<crudcrate::PrimaryKeyType<$resource>>>,
+            json: axum::Json<Vec<CrudPrimaryKey>>,
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
 
@@ -460,6 +485,11 @@ macro_rules! crud_handlers_impl {
         #[utoipa::path(
             put,
             path = "/{id}",
+            // Declared explicitly (String) so utoipa's `axum_extras` does not infer the
+            // param schema from `Path<CrudPrimaryKey>` — which would require the primary-key
+            // type to implement `ToSchema`/`PartialSchema`. Mirrors `BatchUpdateRequest`'s
+            // `#[schema(value_type = String)]`. The path value is always a stringified id.
+            params(("id" = String, Path, description = "Resource identifier")),
             request_body = $update_model,
             responses(
             (status =  axum::http::StatusCode::OK, description = "Resource updated successfully", body = $response_model),
@@ -473,7 +503,7 @@ macro_rules! crud_handlers_impl {
         pub async fn update_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
-            path: axum::extract::Path<crudcrate::PrimaryKeyType<$resource>>,
+            path: axum::extract::Path<CrudPrimaryKey>,
             json: axum::Json<$update_model>,
         ) -> Result<axum::Json<$response_model>, crudcrate::ApiError> {
             if scope.is_some() {
