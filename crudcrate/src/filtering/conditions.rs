@@ -557,6 +557,7 @@ where
         }
         Value::Null => match operator {
             FilterOperator::Eq | FilterOperator::IsNull => Some(col().is_null()),
+            FilterOperator::Neq => Some(col().is_not_null()),
             _ => None,
         },
         Value::Object(_) => None,
@@ -620,7 +621,11 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
                     T::is_enum_field(base_field),
                     backend,
                 ),
-                serde_json::Value::Null => Some(Expr::col(*column).is_null()),
+                serde_json::Value::Null => Some(if operator == "!=" {
+                    Expr::col(*column).is_not_null()
+                } else {
+                    Expr::col(*column).is_null()
+                }),
                 serde_json::Value::Object(_) => None, // Skip unsupported value types
             };
 
@@ -766,7 +771,11 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
                     T::is_enum_field(base_field),
                     backend,
                 ),
-                serde_json::Value::Null => Some(Expr::col(*column).is_null()),
+                serde_json::Value::Null => Some(if operator == "!=" {
+                    Expr::col(*column).is_not_null()
+                } else {
+                    Expr::col(*column).is_null()
+                }),
                 serde_json::Value::Object(_) => None,
             };
 
@@ -1204,14 +1213,16 @@ mod tests {
             )
             .is_none()
         );
-        // Null + Eq/IsNull -> IS NULL; other operators -> None.
+        // Null + Eq/IsNull -> IS NULL; Null + Neq -> IS NOT NULL; other operators -> None.
+        let eq_null = build_comparison_expr(
+            cmp_entity::Column::Name,
+            FilterOperator::Eq,
+            &serde_json::Value::Null,
+        )
+        .expect("Eq + null builds an expression");
         assert!(
-            build_comparison_expr(
-                cmp_entity::Column::Name,
-                FilterOperator::Eq,
-                &serde_json::Value::Null
-            )
-            .is_some()
+            cmp_sql(eq_null).contains("IS NULL"),
+            "Eq + null must render IS NULL"
         );
         assert!(
             build_comparison_expr(
@@ -1220,6 +1231,16 @@ mod tests {
                 &serde_json::Value::Null,
             )
             .is_some()
+        );
+        let neq_null = build_comparison_expr(
+            cmp_entity::Column::Name,
+            FilterOperator::Neq,
+            &serde_json::Value::Null,
+        )
+        .expect("Neq + null builds an expression");
+        assert!(
+            cmp_sql(neq_null).contains("IS NOT NULL"),
+            "Neq + null must render IS NOT NULL (paired/has-value filter)"
         );
         assert!(
             build_comparison_expr(
