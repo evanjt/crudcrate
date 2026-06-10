@@ -195,7 +195,7 @@ pub fn generate_resolve_joined_filters_impl(
             )
         };
 
-        let (fk_column_pascal, fk_field_snake, use_runtime_filter) =
+        let (fk_column_pascal, _fk_field_snake, use_runtime_filter) =
             derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
 
         // Child List type path for ScopeFilterable::scope_condition()
@@ -221,48 +221,36 @@ pub fn generate_resolve_joined_filters_impl(
             }
         });
 
-        let fk_collect = if is_self_referencing {
-            quote! {
-                __matches
-                    .into_iter()
-                    .filter_map(|__m| __m.#fk_field_snake)
-                    .collect()
-            }
-        } else if use_runtime_filter {
+        // FK column on the child, referenced in the subquery's SELECT. Static and
+        // self-referencing fields use the typed column. The convention-derived path
+        // resolves the FK name from the RelationDef at runtime (as the sort path does),
+        // avoiding a FromStr round-trip that could panic.
+        let fk_col_ref = if is_self_referencing || !use_runtime_filter {
             quote! {
                 {
-                    use sea_orm::{Iden, ModelTrait};
-                    use std::str::FromStr;
+                    let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
+                        &#column_path::#fk_column_pascal
+                    );
+                    sea_orm::sea_query::ColumnRef::TableColumn(__t, __c)
+                }
+            }
+        } else {
+            quote! {
+                {
+                    use sea_orm::Iden;
                     let __rel_def = <#entity_path as sea_orm::Related<
                         <Self as crudcrate::traits::CRUDResource>::EntityType
                     >>::to();
                     let mut __fk_col_name = String::new();
                     __rel_def.from_col.unquoted(&mut __fk_col_name);
-                    let __fk_col = <<#entity_path as sea_orm::EntityTrait>::Column
-                        as FromStr>::from_str(&__fk_col_name)
-                        .expect("CrudCrate: FK column not found");
-                    __matches
-                        .into_iter()
-                        .filter_map(|__m| {
-                            let __v = ModelTrait::get(&__m, __fk_col.clone());
-                            <crudcrate::PrimaryKeyType<Self> as sea_orm::sea_query::ValueType>::try_from(__v).ok()
-                        })
-                        .collect()
+                    let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
+                    sea_orm::sea_query::ColumnRef::TableColumn(
+                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__child_tbl)),
+                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__fk_col_name)),
+                    )
                 }
             }
-        } else {
-            quote! {
-                __matches
-                    .into_iter()
-                    .map(|__m| __m.#fk_field_snake)
-                    .collect()
-            }
         };
-
-        // Suppress unused-variable warnings for fk_column_pascal — it's referenced
-        // implicitly via the column enum, not the FK snake ident. Keep it in scope
-        // in case future changes need it.
-        let _ = &fk_column_pascal;
 
         quote! {
             #field_name => {
@@ -272,18 +260,30 @@ pub fn generate_resolve_joined_filters_impl(
                 };
 
                 if let Some(__sub_expr) = __sub_expr {
+                    use sea_orm::sea_query::{Expr, Query};
+
                     let __child_scope: Option<sea_orm::Condition> =
                         <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
 
-                    let mut __q = #entity_path::find().filter(__sub_expr);
+                    // Match parents with `id IN (SELECT <fk> FROM child WHERE <expr>
+                    // [AND <child scope>])`. The database does the work, so no child
+                    // rows are materialised and the bound-parameter count is
+                    // independent of how many children match.
+                    let mut __where = sea_orm::Condition::all().add(__sub_expr);
                     if let Some(__cs) = __child_scope {
-                        __q = __q.filter(__cs);
+                        __where = __where.add(__cs);
                     }
 
-                    let __matches = __q.all(db).await.map_err(crudcrate::ApiError::database)?;
-                    let __matching_ids: Vec<crudcrate::PrimaryKeyType<Self>> = #fk_collect;
+                    let __fk_ref: sea_orm::sea_query::ColumnRef = #fk_col_ref;
+                    let __subquery = Query::select()
+                        .expr(Expr::col(__fk_ref))
+                        .from(#entity_path)
+                        .cond_where(__where)
+                        .to_owned();
 
-                    __augmented = __augmented.add(Self::ID_COLUMN.is_in(__matching_ids));
+                    let (__pt, __pc) = sea_orm::ColumnTrait::as_column_ref(&Self::ID_COLUMN);
+                    let __parent_ref = sea_orm::sea_query::ColumnRef::TableColumn(__pt, __pc);
+                    __augmented = __augmented.add(Expr::col(__parent_ref).in_subquery(__subquery));
                 }
             }
         }
@@ -291,7 +291,7 @@ pub fn generate_resolve_joined_filters_impl(
 
     quote! {
         async fn resolve_joined_filters(
-            db: &sea_orm::DatabaseConnection,
+            _db: &sea_orm::DatabaseConnection,
             condition: sea_orm::Condition,
             joined_filters: &[crudcrate::JoinedFilter],
         ) -> Result<sea_orm::Condition, crudcrate::ApiError> {
@@ -299,14 +299,12 @@ pub fn generate_resolve_joined_filters_impl(
                 return Ok(condition);
             }
 
-            use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
-
             let mut __augmented = condition;
 
             for __jf in joined_filters {
                 match __jf.join_field.as_str() {
                     #( #field_arms )*
-                    _ => {} // Unknown join_field — silently skip (matches parser-level behavior)
+                    _ => {} // Unknown join_field, silently skip (matches parser-level behaviour)
                 }
             }
 
@@ -775,9 +773,15 @@ fn generate_batch_loading_impl(
                             #scope_filter_for_vec
                             let all_related = query.all(db).await?;
 
-                            let __fk_col = <<#entity_path as sea_orm::EntityTrait>::Column
+                            let __fk_col = match <<#entity_path as sea_orm::EntityTrait>::Column
                                 as FromStr>::from_str(&__fk_col_name)
-                                .expect("CrudCrate: FK column not found in child entity");
+                            {
+                                Ok(__c) => __c,
+                                Err(_) => return Err(crudcrate::ApiError::internal(
+                                    "CrudCrate: foreign key column not found on child entity",
+                                    None,
+                                )),
+                            };
 
                             let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
@@ -878,9 +882,15 @@ fn generate_batch_loading_impl(
                             #scope_filter_for_vec
                             let all_related_models: Vec<#model_path> = query.all(db).await?;
 
-                            let __fk_col = <<#entity_path as sea_orm::EntityTrait>::Column
+                            let __fk_col = match <<#entity_path as sea_orm::EntityTrait>::Column
                                 as FromStr>::from_str(&__fk_col_name)
-                                .expect("CrudCrate: FK column not found in child entity");
+                            {
+                                Ok(__c) => __c,
+                                Err(_) => return Err(crudcrate::ApiError::internal(
+                                    "CrudCrate: foreign key column not found on child entity",
+                                    None,
+                                )),
+                            };
 
                             let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
@@ -959,6 +969,41 @@ fn generate_batch_loading_impl(
                         parent_model.find_related(#entity_path).one(db)
                     ).await?
                     .map(#target_type::from);
+                }
+            } else if scoped {
+                // depth > 1, scoped: recurse via get_one_scoped (when the child carries
+                // a scope_condition) so the child's own nested joins stay scope-filtered.
+                // The Vec<T> branch already does this. Without it an Option<Child> leaks
+                // private grandchildren into a scoped response.
+                let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
+                let inner_type_str = inner_type.to_string();
+                let struct_name = inner_type_str
+                    .split("::")
+                    .last()
+                    .unwrap_or(&inner_type_str)
+                    .trim();
+                let list_suffix = format!("{struct_name}List");
+                let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+                quote! {
+                    let related = match Box::pin(
+                        parent_model.find_related(#entity_path).one(db)
+                    ).await? {
+                        Some(related_model) => {
+                            let __child_scope = <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
+                            let __loaded = match __child_scope {
+                                Some(cs) => #target_type::get_one_scoped(db, related_model.id, &cs).await,
+                                None => #target_type::get_one(db, related_model.id).await,
+                            };
+                            match __loaded {
+                                Ok(e) => Some(e),
+                                Err(e) => {
+                                    crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
+                                    Some(#target_type::from(related_model))
+                                }
+                            }
+                        }
+                        None => None,
+                    };
                 }
             } else {
                 // depth > 1: recurse via the child's get_one so the child's own

@@ -388,8 +388,12 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config =
-            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
+        let sort_config = parse_sorting_with_joins::<Customer, _>(
+            &params,
+            &sortable_columns,
+            default_column,
+            &[],
+        );
 
         // Should be a Column sort
         match sort_config {
@@ -412,8 +416,12 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config =
-            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
+        let sort_config = parse_sorting_with_joins::<Customer, _>(
+            &params,
+            &sortable_columns,
+            default_column,
+            &[],
+        );
 
         // Should be a Joined sort
         match sort_config {
@@ -443,8 +451,12 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config =
-            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
+        let sort_config = parse_sorting_with_joins::<Customer, _>(
+            &params,
+            &sortable_columns,
+            default_column,
+            &[],
+        );
 
         // Should fall back to Column sort (invalid joined sort)
         match sort_config {
@@ -467,8 +479,12 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config =
-            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
+        let sort_config = parse_sorting_with_joins::<Customer, _>(
+            &params,
+            &sortable_columns,
+            default_column,
+            &[],
+        );
 
         assert!(sort_config.is_joined());
     }
@@ -483,8 +499,12 @@ mod sort_parsing_tests {
         let sortable_columns = Customer::sortable_columns();
         let default_column = Customer::default_index_column();
 
-        let sort_config =
-            parse_sorting_with_joins::<Customer, _>(&params, &sortable_columns, default_column);
+        let sort_config = parse_sorting_with_joins::<Customer, _>(
+            &params,
+            &sortable_columns,
+            default_column,
+            &[],
+        );
 
         assert_eq!(sort_config.direction(), sea_orm::Order::Asc);
     }
