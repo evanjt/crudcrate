@@ -185,18 +185,22 @@ macro_rules! crud_handlers_impl {
 
             let is_scoped = scope.is_some();
 
-            // When scoped, strip excluded columns from filterable/sortable lists
-            // to prevent schema probing by unauthenticated users
-            let filterable_columns = <$resource as CRUDResource>::filterable_columns();
-            let sortable_columns = <$resource as crudcrate::traits::CRUDResource>::sortable_columns();
-            let (filterable_columns, sortable_columns) = if is_scoped {
-                let excluded = <$resource as crudcrate::traits::CRUDResource>::scoped_excluded_columns();
-                let f: Vec<_> = filterable_columns.into_iter().filter(|(name, _)| !excluded.contains(name)).collect();
-                let s: Vec<_> = sortable_columns.into_iter().filter(|(name, _)| !excluded.contains(name)).collect();
-                (f, s)
+            // When scoped, drop excluded columns from the filterable/sortable lists
+            // (and from joined sorts, below) so unauthenticated callers can't probe
+            // them. Unscoped requests get the full lists.
+            let scoped_excluded: &[&str] = if is_scoped {
+                <$resource as crudcrate::traits::CRUDResource>::scoped_excluded_columns()
             } else {
-                (filterable_columns, sortable_columns)
+                &[]
             };
+            let filterable_columns: Vec<_> = <$resource as CRUDResource>::filterable_columns()
+                .into_iter()
+                .filter(|(name, _)| !scoped_excluded.contains(name))
+                .collect();
+            let sortable_columns: Vec<_> = <$resource as crudcrate::traits::CRUDResource>::sortable_columns()
+                .into_iter()
+                .filter(|(name, _)| !scoped_excluded.contains(name))
+                .collect();
 
             let parsed_filters = crudcrate::apply_filters_with_joins::<$resource>(
                 params.filter.clone(),
@@ -208,6 +212,7 @@ macro_rules! crud_handlers_impl {
                 &params,
                 &sortable_columns,
                 <$resource as crudcrate::traits::CRUDResource>::default_index_column(),
+                scoped_excluded,
             );
 
             let mut condition = parsed_filters.main_condition;
@@ -232,6 +237,20 @@ macro_rules! crud_handlers_impl {
                             jf.join_field,
                         )));
                     }
+                }
+            }
+
+            // Same guard for joined sorts: ordering parent rows by a column on an
+            // unscoped child leaks child existence through the row order, so reject it
+            // under strict scope just as the joined-filter path above does.
+            if let crudcrate::SortConfig::Joined { join_field, .. } = &sort_config {
+                if profile.scope_propagation_strict
+                    && scope_was_present
+                    && !<$resource as crudcrate::traits::CRUDResource>::joined_field_has_scope(join_field)
+                {
+                    return Err(crudcrate::ApiError::bad_request(format!(
+                        "Joined sort on '{join_field}' not allowed under strict scope: child entity has no scope_condition",
+                    )));
                 }
             }
 

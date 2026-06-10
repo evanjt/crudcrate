@@ -31,7 +31,7 @@ pub struct Model {
             all,
             depth = 5,
             filterable("make", "model", "year", "vin"),
-            sortable("year", "make")
+            sortable("year", "make", "is_private")
         )
     )]
     pub vehicles: Vec<Vehicle>,

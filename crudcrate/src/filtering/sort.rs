@@ -140,6 +140,7 @@ pub fn parse_sorting_with_joins<T, C>(
     params: &crate::models::FilterOptions,
     order_column_logic: &[(&str, C)],
     default_column: C,
+    scoped_excluded: &[&str],
 ) -> super::joined::SortConfig<C>
 where
     T: crate::traits::CRUDResource,
@@ -185,9 +186,12 @@ where
             let join_field = parts[0];
             let column = parts[1];
 
-            // Validate against allowed joined sortable columns
+            // Validate against allowed joined sortable columns. When scoped, drop any
+            // whose column is scope-excluded, so a hidden column can't be ordered on
+            // through a join.
             let joined_sortable = T::joined_sortable_columns();
-            let is_allowed = joined_sortable.iter().any(|c| c.full_path == sort_column);
+            let is_allowed = joined_sortable.iter().any(|c| c.full_path == sort_column)
+                && !scoped_excluded.contains(&column);
 
             if is_allowed {
                 return SortConfig::Joined {

@@ -11,6 +11,17 @@ use super::search::{build_fulltext_condition, build_like_condition, escape_like_
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
 const MAX_PAGE_SIZE: u64 = 1000;
 const MAX_OFFSET: u64 = 1_000_000;
+/// Maximum number of elements accepted in a single array-valued filter.
+///
+/// An array filter (`filter={"id":[...]}`) becomes one SQL `IN (...)` clause with
+/// one bind parameter per element. `MAX_FILTER_CLAUSES` caps the number of keys, not
+/// the length of any single array, so without this cap a single key could carry tens
+/// of thousands of elements and blow past the backend bind-parameter ceiling (SQLite
+/// 32766, Postgres/MySQL 65535). A 500 at the top, a query-planning DoS below it.
+/// This bound is also reachable over GET, whose query string is not covered by the
+/// request body-size limit. Exceeding it produces `400 Bad Request`, matching the
+/// reject-don't-silently-drop policy of `MAX_FILTER_CLAUSES`.
+const MAX_FILTER_ARRAY_LEN: usize = 1000;
 /// Maximum number of filter clauses accepted per request.
 ///
 /// A malicious client could otherwise submit a filter object with thousands of
@@ -30,7 +41,9 @@ fn is_valid_field_name(field_name: &str) -> bool {
     // Note: Actual field names are validated against a whitelist, but this adds an extra layer
     !field_name.is_empty()
         && field_name.len() <= 100
-        && field_name.chars().all(|c| c.is_alphanumeric() || c == '_')
+        && field_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
         && !field_name.starts_with('_')
         && !field_name.starts_with(|c: char| c.is_ascii_digit())
 }
@@ -101,6 +114,23 @@ fn parse_filter_json(
                 );
                 return Err(crate::errors::ApiError::bad_request(format!(
                     "Filter contains too many clauses (max {MAX_FILTER_CLAUSES})"
+                )));
+            }
+            // Cap array-valued filters here, at the shared chokepoint, so the bound
+            // applies to every element type (UUID/int/string/bool) before it fans out
+            // into an `IN (...)` list, and to joined `In` filters too, which also
+            // flow through this parser.
+            if let Some((key, len)) = parsed.iter().find_map(|(k, v)| match v {
+                serde_json::Value::Array(a) if a.len() > MAX_FILTER_ARRAY_LEN => {
+                    Some((k.clone(), a.len()))
+                }
+                _ => None,
+            }) {
+                tracing::debug!(
+                    "Filter key '{key}' has {len} array elements, exceeding MAX_FILTER_ARRAY_LEN ({MAX_FILTER_ARRAY_LEN})"
+                );
+                return Err(crate::errors::ApiError::bad_request(format!(
+                    "Filter array for '{key}' has too many elements (max {MAX_FILTER_ARRAY_LEN})"
                 )));
             }
             Ok(parsed)
@@ -270,6 +300,10 @@ fn process_number_filter(
         {
             if let Some(int_value) = number.as_i64() {
                 return Some(apply_numeric_comparison(base_field, operator, int_value));
+            } else if let Some(uint_value) = number.as_u64() {
+                // Values above i64::MAX (e.g. a BIGINT UNSIGNED column) must bind as
+                // u64, not fall through to a lossy f64 that mis-matches rows.
+                return Some(apply_numeric_comparison(base_field, operator, uint_value));
             } else if let Some(float_value) = number.as_f64() {
                 return Some(apply_numeric_comparison(base_field, operator, float_value));
             }
@@ -278,6 +312,8 @@ fn process_number_filter(
         // Regular number equality
         if let Some(int_value) = number.as_i64() {
             return Some(Expr::col(column).eq(int_value));
+        } else if let Some(uint_value) = number.as_u64() {
+            return Some(Expr::col(column).eq(uint_value));
         } else if let Some(float_value) = number.as_f64() {
             return Some(Expr::col(column).eq(float_value));
         }
@@ -296,7 +332,7 @@ fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
     column: C,
     array_values: &[serde_json::Value],
 ) -> Option<SimpleExpr> {
-    if array_values.is_empty() {
+    if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
         return None;
     }
     if array_values.iter().all(serde_json::Value::is_i64) {
@@ -331,7 +367,7 @@ fn process_array_filter(
     is_enum: bool,
     backend: DatabaseBackend,
 ) -> Option<SimpleExpr> {
-    if array_values.is_empty() {
+    if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
         return None;
     }
 
@@ -465,6 +501,19 @@ where
                     _ => None,
                 };
             }
+            // Values above i64::MAX bind as u64 rather than falling through to a
+            // lossy f64 (a BIGINT UNSIGNED column would otherwise mis-compare).
+            if let Some(u) = n.as_u64() {
+                return match operator {
+                    FilterOperator::Eq => Some(col().eq(u)),
+                    FilterOperator::Neq => Some(col().ne(u)),
+                    FilterOperator::Gt => Some(col().gt(u)),
+                    FilterOperator::Gte => Some(col().gte(u)),
+                    FilterOperator::Lt => Some(col().lt(u)),
+                    FilterOperator::Lte => Some(col().lte(u)),
+                    _ => None,
+                };
+            }
             if let Some(f) = n.as_f64() {
                 return match operator {
                     FilterOperator::Eq => Some(col().eq(f)),
@@ -484,7 +533,7 @@ where
             _ => None,
         },
         Value::Array(arr) => {
-            if arr.is_empty() {
+            if arr.is_empty() || arr.len() > MAX_FILTER_ARRAY_LEN {
                 return None;
             }
             // Type-matched IN list so integer/float/bool arrays bind as their
@@ -1061,6 +1110,44 @@ mod tests {
         );
     }
 
+    /// A JSON integer above `i64::MAX` must bind as an exact `u64`, not fall through
+    /// to a lossy `f64`. 9223372036854775810 (= i64::MAX as u64 + 3) is NOT exactly
+    /// representable in `f64` (it rounds to 9223372036854775808), so the rendered SQL
+    /// proves whether the value was preserved.
+    #[test]
+    fn test_build_comparison_expr_u64_above_i64_max_binds_exact() {
+        let big: u64 = (i64::MAX as u64) + 3;
+        assert_eq!(big, 9_223_372_036_854_775_810);
+        let v = serde_json::json!(big);
+        assert!(v.as_i64().is_none(), "value must exceed i64::MAX");
+
+        let expr = build_comparison_expr(cmp_entity::Column::Id, FilterOperator::Gte, &v)
+            .expect("u64 value builds an expression");
+        let sql = cmp_sql(expr);
+        assert!(
+            sql.contains("9223372036854775810"),
+            "u64 above i64::MAX must bind exactly, got lossy SQL: {sql}"
+        );
+    }
+
+    /// Direct callers of the public `build_comparison_expr` are also protected: an
+    /// array longer than the element cap yields `None` instead of an oversized `IN`.
+    #[test]
+    fn test_build_comparison_expr_rejects_overlong_array() {
+        let arr: Vec<serde_json::Value> = (0..=super::MAX_FILTER_ARRAY_LEN as i64)
+            .map(|n| serde_json::json!(n))
+            .collect();
+        assert!(
+            build_comparison_expr(
+                cmp_entity::Column::Id,
+                FilterOperator::In,
+                &serde_json::Value::Array(arr)
+            )
+            .is_none(),
+            "array over MAX_FILTER_ARRAY_LEN must not build an IN expression"
+        );
+    }
+
     #[test]
     fn test_build_comparison_expr_bool_eq_neq_only() {
         assert!(
@@ -1236,6 +1323,25 @@ mod tests {
         let filter_str = Some(format!("{{{}}}", entries.join(",")));
         let err = parse_filter_json(filter_str)
             .expect_err("over-limit filter must be rejected, not silently dropped");
+        assert!(
+            matches!(err, crate::errors::ApiError::BadRequest { .. }),
+            "expected BadRequest, got {err:?}"
+        );
+    }
+
+    /// An array-valued filter at the element cap is accepted, and one element over is
+    /// rejected with `BadRequest` rather than fanning out into an oversized `IN (...)`.
+    #[test]
+    fn test_parse_filter_json_rejects_overlong_array() {
+        let at_limit: Vec<i64> = (0..MAX_FILTER_ARRAY_LEN as i64).collect();
+        let filter_str = Some(serde_json::json!({ "id": at_limit }).to_string());
+        let parsed = parse_filter_json(filter_str).expect("array at the cap is accepted");
+        assert_eq!(parsed.len(), 1);
+
+        let over_limit: Vec<i64> = (0..=MAX_FILTER_ARRAY_LEN as i64).collect();
+        let filter_str = Some(serde_json::json!({ "id": over_limit }).to_string());
+        let err = parse_filter_json(filter_str)
+            .expect_err("array one element over the cap must be rejected");
         assert!(
             matches!(err, crate::errors::ApiError::BadRequest { .. }),
             "expected BadRequest, got {err:?}"
@@ -1473,6 +1579,8 @@ mod prop_tests {
     fn json_value() -> impl Strategy<Value = serde_json::Value> {
         prop_oneof![
             any::<i64>().prop_map(|n| serde_json::json!(n)),
+            // u64 covers values above i64::MAX, which must bind without a lossy f64 cast.
+            any::<u64>().prop_map(|n| serde_json::json!(n)),
             any::<f64>().prop_map(|f| serde_json::json!(f)),
             any::<bool>().prop_map(|b| serde_json::json!(b)),
             "[a-zA-Z0-9 %_!.-]{0,24}".prop_map(|s| serde_json::json!(s)),
@@ -1498,6 +1606,23 @@ mod prop_tests {
                 let d = build_comparison_expr(pe::Column::Name, op, &value).is_some();
                 prop_assert_eq!(c, d);
             }
+        }
+
+        /// Attacker-controlled string filter values are always bound as parameters,
+        /// never spliced into the SQL text. Proven by rendering the parameterised form
+        /// and checking the value rides a placeholder.
+        #[test]
+        fn build_comparison_expr_binds_string_values(s in "[a-z][a-zA-Z0-9 ';-]{0,23}") {
+            use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+            let expr = build_comparison_expr(pe::Column::Name, FilterOperator::Eq, &serde_json::json!(s));
+            prop_assert!(expr.is_some());
+            let (sql, values) = Query::select()
+                .column(pe::Column::Id)
+                .from(pe::Entity)
+                .and_where(expr.unwrap())
+                .build(SqliteQueryBuilder);
+            prop_assert!(sql.contains('?'), "value must ride a bound placeholder: {sql}");
+            prop_assert_eq!(values.0.len(), 1);
         }
 
         /// REST page/per_page pagination always stays within the configured caps and

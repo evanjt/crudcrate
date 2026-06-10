@@ -85,7 +85,7 @@ pub struct Model {
     #[crudcrate(
         non_db_attr = true,
         exclude(create, update),
-        join(one, all, depth = 3, filterable("name", "category"))
+        join(one, all, depth = 3, filterable("name", "category"), sortable("name"))
     )]
     pub parts: Vec<VehiclePart>,
     #[sea_orm(ignore)]

@@ -29,6 +29,23 @@ jobs:
     - name: Build examples
       run: cargo build --examples
 
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Install cargo-audit
+      uses: taiki-e/install-action@cargo-audit
+
+    - name: Audit dependencies
+      run: cargo audit
+
   test-sqlite:
     name: SQLite - Test & Benchmark
     runs-on: ubuntu-latest
