@@ -90,15 +90,13 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op.
     db.execute(
-        backend.build(
-            &Table::drop()
-                .table(ppe_thing::Entity)
-                .if_exists()
-                .to_owned(),
-        ),
+        &Table::drop()
+            .table(ppe_thing::Entity)
+            .if_exists()
+            .to_owned(),
     )
     .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(ppe_thing::Entity)))
+    db.execute(&schema.create_table_from_entity(ppe_thing::Entity))
         .await?;
 
     // Belt-and-suspenders: ensure the unique index on `email` exists regardless

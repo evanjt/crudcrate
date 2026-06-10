@@ -181,7 +181,8 @@ macro_rules! crud_handlers_impl {
             }
 
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
-            let limit = limit.min(<$resource as crudcrate::traits::CRUDResource>::max_page_size());
+            // Ord::min: expansion site may have sea-query's ExprTrait::min in scope
+            let limit = Ord::min(limit, <$resource as crudcrate::traits::CRUDResource>::max_page_size());
 
             let is_scoped = scope.is_some();
 

@@ -74,15 +74,13 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // drop first so every test starts from a clean schema and empty data. On
     // sqlite::memory: each connection is a fresh database, so the drops are no-ops.
     db.execute(
-        backend.build(
-            &Table::drop()
-                .table(cod_widget::Entity)
-                .if_exists()
-                .to_owned(),
-        ),
+        &Table::drop()
+            .table(cod_widget::Entity)
+            .if_exists()
+            .to_owned(),
     )
     .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(cod_widget::Entity)))
+    db.execute(&schema.create_table_from_entity(cod_widget::Entity))
         .await?;
     Ok(db)
 }

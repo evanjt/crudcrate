@@ -72,28 +72,28 @@ async fn create_tables(db: &DatabaseConnection) {
     // Create all tables
     println!("Creating customers table...");
     let stmt = schema.create_table_from_entity(customer::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ customers table created"),
         Err(e) => println!("❌ Failed to create customers table: {e:?}"),
     }
 
     println!("Creating vehicles table...");
     let stmt = schema.create_table_from_entity(vehicle::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ vehicles table created"),
         Err(e) => println!("❌ Failed to create vehicles table: {e:?}"),
     }
 
     println!("Creating vehicle_parts table...");
     let stmt = schema.create_table_from_entity(vehicle_part::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ vehicle_parts table created"),
         Err(e) => println!("❌ Failed to create vehicle_parts table: {e:?}"),
     }
 
     println!("Creating maintenance_records table...");
     let stmt = schema.create_table_from_entity(maintenance_record::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ maintenance_records table created"),
         Err(e) => println!("❌ Failed to create maintenance_records table: {e:?}"),
     }

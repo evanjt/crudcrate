@@ -260,7 +260,7 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
         // Handle enum fields with case-insensitive matching
         let col_expr = match backend {
             DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-            _ => Expr::col(column).into(),
+            _ => Expr::col(column),
         };
         let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
         let val_upper = trimmed_value.to_uppercase();
@@ -413,7 +413,7 @@ fn process_array_filter(
             // so that native PostgreSQL ENUMs work with string bind parameters
             let col_expr = match backend {
                 DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-                _ => Expr::col(column).into(),
+                _ => Expr::col(column),
             };
             let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
             let upper_values: Vec<String> = in_values.iter().map(|v| v.to_uppercase()).collect();
@@ -645,13 +645,14 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
         // Enforce maximum page size to prevent DoS
-        let safe_per_page = per_page.min(MAX_PAGE_SIZE);
+        // Ord::min disambiguates from sea-query's ExprTrait::min blanket impl
+        let safe_per_page = Ord::min(per_page, MAX_PAGE_SIZE);
 
         // Use saturating_mul to prevent overflow panic
         let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
 
         // Enforce maximum offset to prevent excessive database queries
-        let safe_offset = offset.min(MAX_OFFSET);
+        let safe_offset = Ord::min(offset, MAX_OFFSET);
 
         (safe_offset, safe_per_page)
     } else if let Some(range) = &params.range {
@@ -659,11 +660,8 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
         let (start, end) = parse_range(Some(range.clone()));
         // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
         // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
-        let limit = end
-            .saturating_sub(start)
-            .saturating_add(1)
-            .min(MAX_PAGE_SIZE);
-        let safe_start = start.min(MAX_OFFSET);
+        let limit = Ord::min(end.saturating_sub(start).saturating_add(1), MAX_PAGE_SIZE);
+        let safe_start = Ord::min(start, MAX_OFFSET);
         (safe_start, limit)
     } else {
         // Default pagination

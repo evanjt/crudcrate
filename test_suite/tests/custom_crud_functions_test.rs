@@ -172,10 +172,9 @@ async fn setup_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests; drop first so every
     // test starts from a clean schema. On sqlite::memory: each connection is a fresh
     // database, so the drops are no-ops.
-    db.execute(backend.build(&Table::drop().table(Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(Entity)))
-        .await?;
+    db.execute(&schema.create_table_from_entity(Entity)).await?;
 
     Ok(db)
 }

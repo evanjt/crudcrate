@@ -52,7 +52,8 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     match backend {
         DatabaseBackend::Postgres => build_postgres_fulltext_condition(query, &column_names),
         DatabaseBackend::MySql => build_mysql_fulltext_condition(query, &column_names),
-        DatabaseBackend::Sqlite => build_fallback_fulltext_condition(query, &column_names),
+        // Sqlite and any future backends use the generic LIKE fallback
+        _ => build_fallback_fulltext_condition(query, &column_names),
     }
 }
 

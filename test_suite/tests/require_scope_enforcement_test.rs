@@ -80,12 +80,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
             .if_exists()
             .to_owned(),
     ] {
-        db.execute(backend.build(&stmt)).await?;
+        db.execute(&stmt).await?;
     }
 
-    db.execute(backend.build(&schema.create_table_from_entity(rse_item::Entity)))
+    db.execute(&schema.create_table_from_entity(rse_item::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(rse_other::Entity)))
+    db.execute(&schema.create_table_from_entity(rse_other::Entity))
         .await?;
 
     Ok(db)

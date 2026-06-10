@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING (dependency).** crudcrate now targets Sea-ORM 2.0
+  (pinned to `=2.0.0-rc.40`, with sea-query 1.0 and sqlx 0.9). All consumers
+  must upgrade their own `sea-orm` dependency to the same release candidate.
+  The pin is exact because release candidates have broken APIs between
+  releases. It will move to `2.0.0` when the final release ships.
+  Notable knock-on changes for downstream code:
+  - `ConnectionTrait::execute`/`query_one`/`query_all` now take a SeaQuery
+    statement builder by reference (`db.execute(&stmt)`). Raw SQL moved to
+    `execute_raw`/`query_one_raw`/`query_all_raw`.
+  - Expression operators (`eq`, `is_in`, `in_subquery`, ...) on
+    `Expr` now come from `sea_query::ExprTrait`, which must be in scope.
+  - Manual `Iden` implementations use the new
+    `fn unquoted(&self) -> &str` signature.
+
 ### Added
 
 - **Non-UUID primary keys.** `CRUDResource` is now generic over the entity's

@@ -17,7 +17,7 @@ heck = { version = "0.5.0", default-features = false }
 # Core dependencies
 async-trait = "0.1.89"
 axum = "0.8.9"
-sea-orm = { version = "1.1.20", default-features = false }
+sea-orm = { version = "=2.0.0-rc.40", default-features = false }
 serde = "1.0.228"
 serde_json = "1.0.149"
 serde_with = "3.20.0"
@@ -28,7 +28,7 @@ rust_decimal = "1.42.0"
 
 # Development dependencies
 tokio = "1.52.3"
-sea-orm-migration = "1.1.20"
+sea-orm-migration = "=2.0.0-rc.40"
 tower = "0.5.2"
 tower-http = "0.6.11"
 
