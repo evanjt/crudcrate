@@ -1,8 +1,11 @@
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime};
+use rust_decimal::Decimal;
 use sea_orm::{
     Condition, DatabaseBackend,
-    sea_query::{Alias, Expr, ExprTrait, LikeExpr, SimpleExpr},
+    sea_query::{Alias, ColumnType, Expr, ExprTrait, LikeExpr, SimpleExpr},
 };
 use std::collections::HashMap;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use super::search::{build_fulltext_condition, build_like_condition, escape_like_wildcards};
@@ -81,12 +84,14 @@ fn parse_comparison_operator(field_name: &str) -> Option<(&str, &str)> {
     )
 }
 
-/// Apply numeric comparison for any numeric type (i64, f64, etc.)
-fn apply_numeric_comparison<V>(field_name: &str, operator: &str, value: V) -> SimpleExpr
-where
-    V: Into<sea_orm::Value> + Copy,
-{
-    let column = Expr::col(Alias::new(field_name));
+/// Apply a comparison operator against a real column with a typed value, binding a
+/// native parameter (`"col" >= $1`) rather than wrapping the column in `UPPER(...)`.
+fn apply_typed_comparison<V: Into<sea_orm::Value>>(
+    column: impl sea_orm::ColumnTrait + Copy,
+    operator: &str,
+    value: V,
+) -> SimpleExpr {
+    let column = Expr::col(column);
     match operator {
         ">=" => column.gte(value),
         "<=" => column.lte(value),
@@ -95,6 +100,83 @@ where
         "!=" => column.ne(value),
         _ => column.eq(value), // fallback to equality
     }
+}
+
+/// Columns whose comparison filters bind a typed `sea_orm::Value` parsed from the
+/// request string. Text/enum/json and other types keep case-insensitive string
+/// comparison (see `process_string_filter`).
+fn binds_typed_value(col_type: &ColumnType) -> bool {
+    matches!(
+        col_type,
+        ColumnType::Date
+            | ColumnType::Time
+            | ColumnType::DateTime
+            | ColumnType::Timestamp
+            | ColumnType::TimestampWithTimeZone
+            | ColumnType::Decimal(_)
+            | ColumnType::Money(_)
+            | ColumnType::Uuid
+            | ColumnType::Float
+            | ColumnType::Double
+            | ColumnType::TinyInteger
+            | ColumnType::SmallInteger
+            | ColumnType::Integer
+            | ColumnType::BigInteger
+            | ColumnType::TinyUnsigned
+            | ColumnType::SmallUnsigned
+            | ColumnType::Unsigned
+            | ColumnType::BigUnsigned
+            | ColumnType::Boolean
+    )
+}
+
+/// Parse a raw filter string into a `sea_orm::Value` matching the column's SQL type.
+/// Returns `None` when the value can't be parsed to that type, so the caller drops
+/// the clause rather than emitting a comparison the backend will reject.
+fn typed_value_for_column(col_type: &ColumnType, raw: &str) -> Option<sea_orm::Value> {
+    match col_type {
+        ColumnType::Date => NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+            .ok()
+            .map(sea_orm::Value::from),
+        ColumnType::Time => NaiveTime::parse_from_str(raw, "%H:%M:%S")
+            .ok()
+            .map(sea_orm::Value::from),
+        ColumnType::DateTime | ColumnType::Timestamp => {
+            parse_naive_datetime(raw).map(sea_orm::Value::from)
+        }
+        ColumnType::TimestampWithTimeZone => DateTime::<FixedOffset>::parse_from_rfc3339(raw)
+            .ok()
+            .map(sea_orm::Value::from),
+        ColumnType::Decimal(_) | ColumnType::Money(_) => {
+            Decimal::from_str(raw).ok().map(sea_orm::Value::from)
+        }
+        ColumnType::Uuid => Uuid::parse_str(raw).ok().map(sea_orm::Value::from),
+        ColumnType::Float => raw.parse::<f32>().ok().map(sea_orm::Value::from),
+        ColumnType::Double => raw.parse::<f64>().ok().map(sea_orm::Value::from),
+        ColumnType::TinyInteger
+        | ColumnType::SmallInteger
+        | ColumnType::Integer
+        | ColumnType::BigInteger => raw.parse::<i64>().ok().map(sea_orm::Value::from),
+        ColumnType::TinyUnsigned
+        | ColumnType::SmallUnsigned
+        | ColumnType::Unsigned
+        | ColumnType::BigUnsigned => raw.parse::<u64>().ok().map(sea_orm::Value::from),
+        ColumnType::Boolean => raw.parse::<bool>().ok().map(sea_orm::Value::from),
+        _ => None,
+    }
+}
+
+/// Accept a bare `YYYY-MM-DDTHH:MM:SS` / space-separated datetime, or a full RFC 3339
+/// timestamp (normalised to naive UTC), for naive datetime columns.
+fn parse_naive_datetime(raw: &str) -> Option<NaiveDateTime> {
+    NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S")
+        .or_else(|_| NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S"))
+        .ok()
+        .or_else(|| {
+            DateTime::parse_from_rfc3339(raw)
+                .ok()
+                .map(|dt| dt.naive_utc())
+        })
 }
 
 fn parse_filter_json(
@@ -274,12 +356,15 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
         });
     }
 
-    // Try to parse as UUID first (only for equality/inequality)
-    if let Ok(uuid_value) = Uuid::parse_str(trimmed_value) {
-        return Some(match operator {
-            "!=" => Expr::col(column).ne(uuid_value),
-            _ => Expr::col(column).eq(uuid_value),
-        });
+    // Route by the column's SQL type. Non-text columns bind a typed value so the
+    // backend compares natively; wrapping them in UPPER() errors on Postgres (dates,
+    // numbers, uuids, ...) and orders lexically where it doesn't. Text/enum/json keep
+    // case-insensitive comparison; an unparseable value drops the clause.
+    let column_def = column.def();
+    let col_type = column_def.get_column_type();
+    if binds_typed_value(col_type) {
+        return typed_value_for_column(col_type, trimmed_value)
+            .map(|value| apply_typed_comparison(column, operator, value));
     }
 
     // Case-insensitive string comparison with operator
@@ -299,13 +384,13 @@ fn process_number_filter(
             .any(|(col_name, _)| *col_name == base_field)
         {
             if let Some(int_value) = number.as_i64() {
-                return Some(apply_numeric_comparison(base_field, operator, int_value));
+                return Some(apply_typed_comparison(column, operator, int_value));
             } else if let Some(uint_value) = number.as_u64() {
                 // Values above i64::MAX (e.g. a BIGINT UNSIGNED column) must bind as
                 // u64, not fall through to a lossy f64 that mis-matches rows.
-                return Some(apply_numeric_comparison(base_field, operator, uint_value));
+                return Some(apply_typed_comparison(column, operator, uint_value));
             } else if let Some(float_value) = number.as_f64() {
-                return Some(apply_numeric_comparison(base_field, operator, float_value));
+                return Some(apply_typed_comparison(column, operator, float_value));
             }
         }
     } else {
@@ -1261,34 +1346,28 @@ mod tests {
         );
     }
 
-    /// Test numeric comparison operators
+    /// Each operator renders a native `col <op> value` against the real column, with
+    /// no `UPPER()` wrapper and the value bound rather than spliced. The unknown
+    /// operator falls back to equality.
     #[test]
-    fn test_apply_numeric_comparison() {
-        // Test that we can apply various comparison operators
-        let gte_expr = apply_numeric_comparison("age", ">=", 18);
-        let sql = format!("{gte_expr:?}");
-        assert!(sql.contains("age") && sql.contains("18"));
-
-        let lte_expr = apply_numeric_comparison("price", "<=", 100.50);
-        let sql = format!("{lte_expr:?}");
-        assert!(sql.contains("price"));
-
-        let gt_expr = apply_numeric_comparison("count", ">", 0);
-        let sql = format!("{gt_expr:?}");
-        assert!(sql.contains("count") && sql.contains("0"));
-
-        let lt_expr = apply_numeric_comparison("score", "<", 50);
-        let sql = format!("{lt_expr:?}");
-        assert!(sql.contains("score") && sql.contains("50"));
-
-        let neq_expr = apply_numeric_comparison("status", "!=", 404);
-        let sql = format!("{neq_expr:?}");
-        assert!(sql.contains("status") && sql.contains("404"));
-
-        // Test fallback to equality for unknown operator
-        let eq_expr = apply_numeric_comparison("id", "unknown", 123);
-        let sql = format!("{eq_expr:?}");
-        assert!(sql.contains("id") && sql.contains("123"));
+    fn test_apply_typed_comparison_operators() {
+        // (input operator, symbol sea-query renders — inequality is `<>`, not `!=`)
+        let cases = [
+            (">=", ">="),
+            ("<=", "<="),
+            (">", ">"),
+            ("<", "<"),
+            ("!=", "<>"),
+            ("unknown", "="),
+        ];
+        for (op, rendered) in cases {
+            let expr = apply_typed_comparison(cmp_entity::Column::Id, op, 18_i64);
+            let sql = cmp_sql(expr);
+            assert!(
+                sql.contains(&format!(r#""id" {rendered} 18"#)),
+                "operator {op} should render `id {rendered} 18`: {sql}"
+            );
+        }
     }
 
     /// Test JSON filter parsing
@@ -1401,23 +1480,20 @@ mod tests {
         assert!(!is_valid_field_name("_private"));
     }
 
-    /// Test numeric comparison with different numeric types
+    /// The typed builder accepts the numeric Rust types the number-filter path feeds
+    /// it (i64, f64, and u64 above i64::MAX), binding each without a lossy cast.
     #[test]
-    fn test_apply_numeric_comparison_various_types() {
-        // i64
-        let expr_i64 = apply_numeric_comparison("count", ">=", 100_i64);
-        let sql = format!("{expr_i64:?}");
-        assert!(sql.contains("count"));
+    fn test_apply_typed_comparison_various_types() {
+        let i64_sql = cmp_sql(apply_typed_comparison(cmp_entity::Column::Id, ">=", 100_i64));
+        assert!(i64_sql.contains(r#""id" >= 100"#), "{i64_sql}");
 
-        // f64
-        let expr_f64 = apply_numeric_comparison("price", "<=", 99.99_f64);
-        let sql = format!("{expr_f64:?}");
-        assert!(sql.contains("price"));
+        let f64_sql = cmp_sql(apply_typed_comparison(cmp_entity::Column::Id, "<=", 99.99_f64));
+        assert!(f64_sql.contains(r#""id" <= "#) && f64_sql.contains("99.99"), "{f64_sql}");
 
-        // i32
-        let expr_i32 = apply_numeric_comparison("age", ">", 18_i32);
-        let sql = format!("{expr_i32:?}");
-        assert!(sql.contains("age"));
+        // A u64 above i64::MAX must bind exactly, not fall through to a lossy f64.
+        let big: u64 = (i64::MAX as u64) + 3;
+        let u64_sql = cmp_sql(apply_typed_comparison(cmp_entity::Column::Id, ">", big));
+        assert!(u64_sql.contains("9223372036854775810"), "{u64_sql}");
     }
 
     // ========================================================================
