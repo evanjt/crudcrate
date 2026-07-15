@@ -1507,6 +1507,132 @@ mod tests {
         assert!(u64_sql.contains("9223372036854775810"), "{u64_sql}");
     }
 
+    /// `typed_value_for_column` parses a valid string for every supported column
+    /// type; text-like types return `None` so the caller keeps the string path.
+    #[test]
+    fn typed_value_for_column_parses_supported_types() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let ok = [
+            (ColumnType::Date, "2026-01-15"),
+            (ColumnType::Time, "13:45:30"),
+            (ColumnType::DateTime, "2026-01-15T13:45:30"),
+            (ColumnType::Timestamp, "2026-01-15 13:45:30"),
+            (
+                ColumnType::TimestampWithTimeZone,
+                "2026-01-15T13:45:30+02:00",
+            ),
+            (ColumnType::Decimal(None), "10.50"),
+            (ColumnType::Money(None), "10.50"),
+            (ColumnType::Uuid, uuid),
+            (ColumnType::Float, "1.5"),
+            (ColumnType::Double, "1.5"),
+            (ColumnType::TinyInteger, "1"),
+            (ColumnType::SmallInteger, "-7"),
+            (ColumnType::Integer, "42"),
+            (ColumnType::BigInteger, "9000000000"),
+            (ColumnType::TinyUnsigned, "1"),
+            (ColumnType::SmallUnsigned, "7"),
+            (ColumnType::Unsigned, "42"),
+            (ColumnType::BigUnsigned, "9000000000"),
+            (ColumnType::Boolean, "true"),
+        ];
+        for (col_type, raw) in ok {
+            assert!(
+                typed_value_for_column(&col_type, raw).is_some(),
+                "{col_type:?} should parse {raw:?} to a typed value"
+            );
+        }
+        // Text-like columns are not typed-bound; the caller keeps the string path.
+        assert!(typed_value_for_column(&ColumnType::Text, "anything").is_none());
+        assert!(typed_value_for_column(&ColumnType::Char(None), "x").is_none());
+    }
+
+    /// An unparseable value for a typed column yields `None`, so the caller drops
+    /// that clause (fail-closed) rather than emitting a comparison the backend rejects.
+    #[test]
+    fn typed_value_for_column_rejects_unparseable_values() {
+        let bad = [
+            (ColumnType::Date, "not-a-date"),
+            (ColumnType::Time, "25:99:99"),
+            (ColumnType::DateTime, "nope"),
+            (ColumnType::TimestampWithTimeZone, "2026-01-15"), // missing time/offset
+            (ColumnType::Decimal(None), "abc"),
+            (ColumnType::Uuid, "not-a-uuid"),
+            (ColumnType::Float, "one"),
+            (ColumnType::Double, "1.2.3"),
+            (ColumnType::Integer, "3.5"), // not an integer
+            (ColumnType::Unsigned, "-1"), // negative on an unsigned column
+            (ColumnType::Boolean, "1"),   // only literal true/false parse
+        ];
+        for (col_type, raw) in bad {
+            assert!(
+                typed_value_for_column(&col_type, raw).is_none(),
+                "{col_type:?} should reject {raw:?}"
+            );
+        }
+    }
+
+    /// `parse_naive_datetime` accepts the `T`-separated and space-separated forms and
+    /// a full RFC 3339 timestamp (normalised to naive UTC), and rejects junk.
+    #[test]
+    fn parse_naive_datetime_accepts_supported_formats() {
+        assert!(parse_naive_datetime("2026-01-15T13:45:30").is_some());
+        assert!(parse_naive_datetime("2026-01-15 13:45:30").is_some());
+        assert!(parse_naive_datetime("2026-01-15T13:45:30+02:00").is_some());
+        assert!(parse_naive_datetime("garbage").is_none());
+    }
+
+    /// `binds_typed_value` selects the typed path for non-text columns and leaves
+    /// text/char columns on the case-insensitive string path.
+    #[test]
+    fn binds_typed_value_covers_non_text_columns() {
+        for col_type in [
+            ColumnType::Date,
+            ColumnType::TimestampWithTimeZone,
+            ColumnType::Decimal(None),
+            ColumnType::Uuid,
+            ColumnType::Double,
+            ColumnType::BigInteger,
+            ColumnType::Boolean,
+        ] {
+            assert!(
+                binds_typed_value(&col_type),
+                "{col_type:?} should bind typed"
+            );
+        }
+        assert!(!binds_typed_value(&ColumnType::Text));
+        assert!(!binds_typed_value(&ColumnType::Char(None)));
+    }
+
+    /// The number-filter range path binds the real column with a typed value for each
+    /// JSON numeric kind (i64, u64 above i64::MAX, f64); a bare key is plain equality,
+    /// and a key whose base field isn't searchable is dropped.
+    #[test]
+    fn process_number_filter_binds_typed_values() {
+        let cols: &[(&str, cmp_entity::Column)] = &[("id", cmp_entity::Column::Id)];
+
+        let i = serde_json::Number::from(42_i64);
+        let gte = process_number_filter("id_gte", &i, cmp_entity::Column::Id, cols).unwrap();
+        assert!(cmp_sql(gte).contains(r#""id" >= 42"#));
+
+        // A u64 above i64::MAX must bind exactly, not fall through to a lossy f64.
+        let big = serde_json::Number::from((i64::MAX as u64) + 3);
+        let lte = process_number_filter("id_lte", &big, cmp_entity::Column::Id, cols).unwrap();
+        assert!(cmp_sql(lte).contains("9223372036854775810"));
+
+        let f = serde_json::Number::from_f64(1.5).unwrap();
+        let lt = process_number_filter("id_lt", &f, cmp_entity::Column::Id, cols).unwrap();
+        let sql = cmp_sql(lt);
+        assert!(sql.contains(r#""id" < "#) && sql.contains("1.5"), "{sql}");
+
+        // Bare key -> equality.
+        let eq = process_number_filter("id", &i, cmp_entity::Column::Id, cols).unwrap();
+        assert!(cmp_sql(eq).contains(r#""id" = 42"#));
+
+        // Base field not in the searchable set -> dropped.
+        assert!(process_number_filter("missing_gte", &i, cmp_entity::Column::Id, cols).is_none());
+    }
+
     // ========================================================================
     // PAGINATION TESTS - Range parsing and default pagination
     // ========================================================================
