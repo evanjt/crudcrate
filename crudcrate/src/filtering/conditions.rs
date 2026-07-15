@@ -1484,11 +1484,22 @@ mod tests {
     /// it (i64, f64, and u64 above i64::MAX), binding each without a lossy cast.
     #[test]
     fn test_apply_typed_comparison_various_types() {
-        let i64_sql = cmp_sql(apply_typed_comparison(cmp_entity::Column::Id, ">=", 100_i64));
+        let i64_sql = cmp_sql(apply_typed_comparison(
+            cmp_entity::Column::Id,
+            ">=",
+            100_i64,
+        ));
         assert!(i64_sql.contains(r#""id" >= 100"#), "{i64_sql}");
 
-        let f64_sql = cmp_sql(apply_typed_comparison(cmp_entity::Column::Id, "<=", 99.99_f64));
-        assert!(f64_sql.contains(r#""id" <= "#) && f64_sql.contains("99.99"), "{f64_sql}");
+        let f64_sql = cmp_sql(apply_typed_comparison(
+            cmp_entity::Column::Id,
+            "<=",
+            99.99_f64,
+        ));
+        assert!(
+            f64_sql.contains(r#""id" <= "#) && f64_sql.contains("99.99"),
+            "{f64_sql}"
+        );
 
         // A u64 above i64::MAX must bind exactly, not fall through to a lossy f64.
         let big: u64 = (i64::MAX as u64) + 3;
