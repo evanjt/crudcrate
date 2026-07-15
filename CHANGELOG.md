@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-07-15
+
+### Fixed
+
+- **Comparison filters on non-text columns returned 500 on PostgreSQL.** A
+  `_gte`/`_lte`/`_gt`/`_lt`/`_neq` (or equality) filter whose value arrived as a
+  JSON string wrapped the column in `UPPER(col)`, which PostgreSQL rejects for
+  date, timestamp, numeric, uuid and boolean columns
+  (`function upper(timestamp with time zone) does not exist`); SQLite's loose
+  typing hid it, and even there the comparison ordered lexically (`'9' > '10'`).
+  Comparison values are now parsed to the column's Sea-ORM `ColumnType` and bound
+  as a typed parameter, so the backend compares natively. Text and enum columns
+  keep case-insensitive matching. Requires the `with-chrono` and
+  `with-rust_decimal` Sea-ORM features (now enabled by default).
+
+## [0.9.2] - 2026-06-10
+
 ### Added
 
 - **Non-UUID primary keys.** `CRUDResource` is now generic over the entity's
@@ -73,16 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `?filter={"id":[1,3]}` built `id IN ('1','3')` (string literals), which
   PostgreSQL rejects as `operator does not exist: integer = text`; SQLite's loose
   typing hid it. Array values are now bound as their native JSON type.
-- **Comparison filters on non-text columns returned 500 on PostgreSQL.** A
-  `_gte`/`_lte`/`_gt`/`_lt`/`_neq` (or equality) filter whose value arrived as a
-  JSON string wrapped the column in `UPPER(col)`, which PostgreSQL rejects for
-  date, timestamp, numeric, uuid and boolean columns
-  (`function upper(timestamp with time zone) does not exist`); SQLite's loose
-  typing hid it, and even there the comparison ordered lexically (`'9' > '10'`).
-  Comparison values are now parsed to the column's Sea-ORM `ColumnType` and bound
-  as a typed parameter, so the backend compares natively. Text and enum columns
-  keep case-insensitive matching. Requires the `with-chrono` and
-  `with-rust_decimal` Sea-ORM features (now enabled by default).
 - **Generated `depth > 1` join code required a `tracing` dependency** in the
   downstream crate (it emitted unqualified `tracing::warn!`). The generated calls
   are now qualified as `crudcrate::tracing::warn!`, so consumers no longer need to
@@ -834,7 +841,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
-[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.9.0...HEAD
+[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.9.3...HEAD
+[0.9.3]: https://github.com/evanjt/crudcrate/compare/0.9.2...0.9.3
+[0.9.2]: https://github.com/evanjt/crudcrate/compare/0.9.1...0.9.2
+[0.9.1]: https://github.com/evanjt/crudcrate/compare/0.9.0...0.9.1
 [0.9.0]: https://github.com/evanjt/crudcrate/compare/0.8.1...0.9.0
 [0.8.1]: https://github.com/evanjt/crudcrate/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/evanjt/crudcrate/compare/0.7.2...0.8.0
