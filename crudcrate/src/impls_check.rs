@@ -16,7 +16,10 @@
 macro_rules! impls {
     ($type:ty: $($trait_expr:tt)+) => {{
         // Local-only trait so this macro composes inside any context without
-        // polluting the surrounding namespace.
+        // polluting the surrounding namespace. `dead_code` is allowed because the
+        // fallback goes unused whenever `$type: $trait` holds (the inherent
+        // `Wrapper` const wins), which is exactly the positive case.
+        #[allow(dead_code)]
         trait DoesNotImpl {
             const IMPLS: bool = false;
         }
