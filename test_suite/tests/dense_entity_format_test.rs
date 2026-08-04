@@ -71,6 +71,55 @@ pub mod dense_book {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+// Dense entity with no relation fields: the ModelEx companion has no relation
+// wrapper fields either, so the derives skip it purely by its generated name.
+pub mod dense_plain {
+    use crudcrate::{CRUDResource, EntityToModels};
+    use sea_orm::entity::prelude::*;
+    use uuid::Uuid;
+
+    #[sea_orm::model]
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "dense_plain_items")]
+    #[crudcrate(generate_router, api_struct = "DensePlain")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+        pub id: Uuid,
+
+        #[crudcrate(filterable, sortable)]
+        pub label: String,
+    }
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// Classic compact entity opted into the transitional `#[sea_orm::compact_model]`
+// macro, which generates the same ModelEx companion.
+pub mod compact_item {
+    use crudcrate::{CRUDResource, EntityToModels};
+    use sea_orm::entity::prelude::*;
+    use uuid::Uuid;
+
+    #[sea_orm::compact_model]
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "compact_items")]
+    #[crudcrate(generate_router, api_struct = "CompactItem")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+        pub id: Uuid,
+
+        #[crudcrate(filterable, sortable)]
+        pub label: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
     let db = Database::connect(&url).await?;
@@ -196,6 +245,68 @@ async fn dense_entity_crudcrate_join_loads_children() {
         .collect();
     assert_eq!(titles.len(), 2);
     assert!(titles.contains(&"Frankenstein") && titles.contains(&"Mathilda"));
+}
+
+#[tokio::test]
+async fn zero_relation_dense_entity_generates_working_api() {
+    let db = setup_test_db().await.expect("setup failed");
+    let backend = db.get_database_backend();
+    let schema = Schema::new(backend);
+    db.execute(
+        &Table::drop()
+            .table(dense_plain::Entity)
+            .if_exists()
+            .to_owned(),
+    )
+    .await
+    .unwrap();
+    db.execute(&schema.create_table_from_entity(dense_plain::Entity))
+        .await
+        .unwrap();
+
+    let created = dense_plain::DensePlain::create(
+        &db,
+        dense_plain::DensePlainCreate {
+            label: "plain".to_string(),
+        },
+    )
+    .await
+    .expect("create failed");
+    let fetched = dense_plain::DensePlain::get_one(&db, created.id)
+        .await
+        .expect("get_one failed");
+    assert_eq!(fetched.label, "plain");
+}
+
+#[tokio::test]
+async fn compact_model_entity_generates_working_api() {
+    let db = setup_test_db().await.expect("setup failed");
+    let backend = db.get_database_backend();
+    let schema = Schema::new(backend);
+    db.execute(
+        &Table::drop()
+            .table(compact_item::Entity)
+            .if_exists()
+            .to_owned(),
+    )
+    .await
+    .unwrap();
+    db.execute(&schema.create_table_from_entity(compact_item::Entity))
+        .await
+        .unwrap();
+
+    let created = compact_item::CompactItem::create(
+        &db,
+        compact_item::CompactItemCreate {
+            label: "compact".to_string(),
+        },
+    )
+    .await
+    .expect("create failed");
+    let fetched = compact_item::CompactItem::get_one(&db, created.id)
+        .await
+        .expect("get_one failed");
+    assert_eq!(fetched.label, "compact");
 }
 
 #[tokio::test]
