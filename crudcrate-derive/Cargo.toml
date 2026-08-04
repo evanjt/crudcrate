@@ -6,7 +6,7 @@ description = "Derive macros for crudcrate — generate CRUD endpoints from Sea-
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/evanjt/crudcrate"
-documentation = "https://docs.rs/crudcrate"
+documentation = "https://docs.rs/crudcrate-derive"
 keywords = ["crud", "api", "axum", "sea-orm", "derive"]
 categories = ["web-programming", "database"]
 
