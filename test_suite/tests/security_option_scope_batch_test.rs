@@ -135,7 +135,7 @@ async fn setup() -> DatabaseConnection {
         schema.create_table_from_entity(widget::Entity),
         schema.create_table_from_entity(gizmo::Entity),
     ] {
-        db.execute(db.get_database_backend().build(&stmt))
+        db.execute(&stmt)
             .await
             .unwrap();
     }

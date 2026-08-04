@@ -158,14 +158,14 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
         Table::drop().table(team::Entity).if_exists().to_owned(),
         Table::drop().table(org::Entity).if_exists().to_owned(),
     ] {
-        db.execute(backend.build(&stmt)).await?;
+        db.execute(&stmt).await?;
     }
 
-    db.execute(backend.build(&schema.create_table_from_entity(org::Entity)))
+    db.execute(&schema.create_table_from_entity(org::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(team::Entity)))
+    db.execute(&schema.create_table_from_entity(team::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(member::Entity)))
+    db.execute(&schema.create_table_from_entity(member::Entity))
         .await?;
 
     Ok(db)

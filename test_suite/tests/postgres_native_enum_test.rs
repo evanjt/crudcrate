@@ -171,7 +171,7 @@ async fn test_native_postgres_enum_cast_filter() {
 
     // Test the exact SQL pattern crudcrate generates: UPPER(CAST(color AS TEXT))
     let result = db
-        .query_all(sea_orm::Statement::from_string(
+        .query_all_raw(sea_orm::Statement::from_string(
             DatabaseBackend::Postgres,
             "SELECT * FROM widgets WHERE UPPER(CAST(color AS TEXT)) = 'RED'".to_string(),
         ))
@@ -185,7 +185,7 @@ async fn test_native_postgres_enum_cast_filter() {
 
     // Test the array/IN pattern: UPPER(CAST(color AS TEXT)) IN (...)
     let result = db
-        .query_all(sea_orm::Statement::from_string(
+        .query_all_raw(sea_orm::Statement::from_string(
             DatabaseBackend::Postgres,
             "SELECT * FROM widgets WHERE UPPER(CAST(color AS TEXT)) IN ('RED', 'BLUE')".to_string(),
         ))

@@ -210,7 +210,7 @@ async fn demo(db: &DatabaseConnection) -> Result<(), ApiError> {
 
 async fn create_schema(db: &DatabaseConnection) -> Result<(), ApiError> {
     use sea_orm::{ConnectionTrait, Statement};
-    db.execute(Statement::from_string(
+    db.execute_raw(Statement::from_string(
         sea_orm::DatabaseBackend::Sqlite,
         "CREATE TABLE IF NOT EXISTS products (
             id TEXT PRIMARY KEY,

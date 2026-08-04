@@ -38,8 +38,8 @@ rust_decimal = { workspace = true }
 tracing = { workspace = true }
 
 # Spring-RS dependencies (only for examples, behind feature flag)
-spring = { version = "0.4.3", optional = true }
-spring-web = { version = "0.4.3", optional = true }
+spring = { version = "0.4.8", optional = true }
+spring-web = { version = "0.4.8", optional = true }
 
 
 

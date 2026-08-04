@@ -244,33 +244,29 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // connection is a fresh database, so the drops are harmless no-ops.
     // create_table_from_entity emits FK constraints from belongs_to relations, so
     // drop children before parents (reverse of the create order below).
-    db.execute(
-        backend.build(
-            &Table::drop()
+    db.execute(&Table::drop()
                 .table(membership::Entity)
                 .if_exists()
-                .to_owned(),
-        ),
-    )
+                .to_owned())
     .await?;
-    db.execute(backend.build(&Table::drop().table(reader::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(reader::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&Table::drop().table(chapter::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(chapter::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&Table::drop().table(book::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(book::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&Table::drop().table(author::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(author::Entity).if_exists().to_owned())
         .await?;
 
-    db.execute(backend.build(&schema.create_table_from_entity(author::Entity)))
+    db.execute(&schema.create_table_from_entity(author::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(book::Entity)))
+    db.execute(&schema.create_table_from_entity(book::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(chapter::Entity)))
+    db.execute(&schema.create_table_from_entity(chapter::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(reader::Entity)))
+    db.execute(&schema.create_table_from_entity(reader::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(membership::Entity)))
+    db.execute(&schema.create_table_from_entity(membership::Entity))
         .await?;
 
     Ok(db)

@@ -294,7 +294,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn create_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
     use sea_orm::{ConnectionTrait, Statement};
 
-    db.execute(Statement::from_string(
+    db.execute_raw(Statement::from_string(
         sea_orm::DatabaseBackend::Sqlite,
         r#"
         CREATE TABLE IF NOT EXISTS products (

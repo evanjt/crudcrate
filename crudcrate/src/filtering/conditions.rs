@@ -342,7 +342,7 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
         // Handle enum fields with case-insensitive matching
         let col_expr = match backend {
             DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-            _ => Expr::col(column).into(),
+            _ => Expr::col(column),
         };
         let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
         let val_upper = trimmed_value.to_uppercase();
@@ -498,7 +498,7 @@ fn process_array_filter(
             // so that native PostgreSQL ENUMs work with string bind parameters
             let col_expr = match backend {
                 DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-                _ => Expr::col(column).into(),
+                _ => Expr::col(column),
             };
             let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
             let upper_values: Vec<String> = in_values.iter().map(|v| v.to_uppercase()).collect();
@@ -649,6 +649,28 @@ where
     }
 }
 
+/// Build a table-qualified column reference (`"table"."column"`).
+///
+/// Used by the derive-macro-generated join code to name a child-table column
+/// inside a sub-query, and available to hand-written
+/// [`CRUDResource::resolve_joined_filters`](crate::traits::CRUDResource::resolve_joined_filters)
+/// implementations. Both arguments accept anything convertible to a Sea-Query
+/// identifier, including the `(table, column)` pair returned by
+/// [`sea_orm::ColumnTrait::as_column_ref`].
+#[must_use]
+pub fn table_column_ref<T, C>(table: T, column: C) -> sea_orm::sea_query::ColumnRef
+where
+    T: sea_orm::sea_query::IntoIden,
+    C: sea_orm::sea_query::IntoIden,
+{
+    use sea_orm::sea_query::{ColumnName, ColumnRef, TableName};
+
+    ColumnRef::Column(ColumnName(
+        Some(TableName(None, table.into_iden())),
+        column.into_iden(),
+    ))
+}
+
 /// Build a Sea-ORM `Condition` from a JSON filter string.
 ///
 /// # Errors
@@ -732,16 +754,18 @@ pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
 
 #[must_use]
 pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
+    // `std::cmp::min` is spelled out throughout: SeaQuery's blanket `ExprTrait` impl
+    // covers every type, so the `.min()` method call is ambiguous with `Ord::min`.
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
         // Enforce maximum page size to prevent DoS
-        let safe_per_page = per_page.min(MAX_PAGE_SIZE);
+        let safe_per_page = std::cmp::min(per_page, MAX_PAGE_SIZE);
 
         // Use saturating_mul to prevent overflow panic
         let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
 
         // Enforce maximum offset to prevent excessive database queries
-        let safe_offset = offset.min(MAX_OFFSET);
+        let safe_offset = std::cmp::min(offset, MAX_OFFSET);
 
         (safe_offset, safe_per_page)
     } else if let Some(range) = &params.range {
@@ -749,11 +773,11 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
         let (start, end) = parse_range(Some(range.clone()));
         // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
         // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
-        let limit = end
-            .saturating_sub(start)
-            .saturating_add(1)
-            .min(MAX_PAGE_SIZE);
-        let safe_start = start.min(MAX_OFFSET);
+        let limit = std::cmp::min(
+            end.saturating_sub(start).saturating_add(1),
+            MAX_PAGE_SIZE,
+        );
+        let safe_start = std::cmp::min(start, MAX_OFFSET);
         (safe_start, limit)
     } else {
         // Default pagination

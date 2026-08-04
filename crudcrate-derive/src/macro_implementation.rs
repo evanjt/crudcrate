@@ -231,7 +231,7 @@ fn generate_joined_column_entries(
 ///
 /// For each Vec<T> join field, generates a test that:
 /// 1. Fetches the `RelationDef` via `<ChildEntity as Related<ParentEntity>>::to()`
-/// 2. Extracts the `from_col` column name via `Iden::unquoted()`
+/// 2. Extracts the `from_col` column name via `Iden::to_string()`
 /// 3. Asserts it matches our convention-derived FK column name
 ///
 /// This catches FK naming convention mismatches in CI before they reach production.
@@ -320,10 +320,8 @@ fn generate_fk_validation_tests(
         tests.push(quote! {
             #[test]
             fn #test_fn_name() {
-                use sea_orm::Iden;
                 let def = <#child_entity_adjusted as sea_orm::Related<#parent_entity>>::to();
-                let mut from_col_name = String::new();
-                def.from_col.unquoted(&mut from_col_name);
+                let from_col_name = sea_orm::Iden::to_string(&def.from_col);
                 if from_col_name != #fk_snake {
                     eprintln!(#info_msg, from_col_name);
                 }

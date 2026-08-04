@@ -68,6 +68,7 @@ pub mod sort;
 // Re-export commonly used items
 pub use conditions::{
     apply_filters, apply_filters_with_joins, build_comparison_expr, parse_pagination, parse_range,
+    table_column_ref,
 };
 pub use joined::{
     FilterOperator, JoinedColumnDef, JoinedFilter, ParsedFilters, SortConfig, parse_dot_notation,

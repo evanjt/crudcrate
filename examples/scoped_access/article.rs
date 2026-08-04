@@ -31,7 +31,7 @@ pub async fn setup_article_database(
 ) -> Result<DatabaseConnection, Box<dyn std::error::Error>> {
     let db = Database::connect(database_url).await?;
 
-    db.execute(sea_orm::Statement::from_string(
+    db.execute_raw(sea_orm::Statement::from_string(
         db.get_database_backend(),
         r"CREATE TABLE IF NOT EXISTS articles (
             id TEXT PRIMARY KEY NOT NULL,

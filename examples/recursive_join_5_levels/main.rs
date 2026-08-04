@@ -64,42 +64,42 @@ async fn create_tables(db: &DatabaseConnection) {
 
     println!("Creating companies table...");
     let stmt = schema.create_table_from_entity(company::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ companies table created"),
         Err(e) => println!("❌ Failed: {e:?}"),
     }
 
     println!("Creating branches table...");
     let stmt = schema.create_table_from_entity(branch::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ branches table created"),
         Err(e) => println!("❌ Failed: {e:?}"),
     }
 
     println!("Creating departments table...");
     let stmt = schema.create_table_from_entity(department::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ departments table created"),
         Err(e) => println!("❌ Failed: {e:?}"),
     }
 
     println!("Creating employees table...");
     let stmt = schema.create_table_from_entity(employee::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ employees table created"),
         Err(e) => println!("❌ Failed: {e:?}"),
     }
 
     println!("Creating projects table...");
     let stmt = schema.create_table_from_entity(project::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ projects table created"),
         Err(e) => println!("❌ Failed: {e:?}"),
     }
 
     println!("Creating tasks table...");
     let stmt = schema.create_table_from_entity(task::Entity);
-    match db.execute(db.get_database_backend().build(&stmt)).await {
+    match db.execute(&stmt).await {
         Ok(_) => println!("✅ tasks table created"),
         Err(e) => println!("❌ Failed: {e:?}"),
     }

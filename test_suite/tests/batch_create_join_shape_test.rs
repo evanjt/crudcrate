@@ -151,12 +151,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
             .if_exists()
             .to_owned(),
     ] {
-        db.execute(backend.build(&stmt)).await?;
+        db.execute(&stmt).await?;
     }
 
-    db.execute(backend.build(&schema.create_table_from_entity(bcjs_parent::Entity)))
+    db.execute(&schema.create_table_from_entity(bcjs_parent::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(bcjs_child::Entity)))
+    db.execute(&schema.create_table_from_entity(bcjs_child::Entity))
         .await?;
     Ok(db)
 }

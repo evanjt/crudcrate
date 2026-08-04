@@ -49,16 +49,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let backend = db.get_database_backend();
     let schema = Schema::new(backend);
 
-    db.execute(
-        backend.build(
-            &Table::drop()
+    db.execute(&Table::drop()
                 .table(nullable_record::Entity)
                 .if_exists()
-                .to_owned(),
-        ),
-    )
+                .to_owned())
     .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(nullable_record::Entity)))
+    db.execute(&schema.create_table_from_entity(nullable_record::Entity))
         .await?;
     Ok(db)
 }

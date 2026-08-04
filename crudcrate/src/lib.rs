@@ -165,7 +165,7 @@ pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,
     SortConfig, apply_filters, apply_filters_with_joins, build_comparison_expr,
     calculate_content_range, parse_dot_notation, parse_pagination, parse_range, parse_sorting,
-    parse_sorting_with_joins,
+    parse_sorting_with_joins, table_column_ref,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
 pub use profile::SecurityProfile;

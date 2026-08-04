@@ -197,7 +197,12 @@ macro_rules! crud_handlers_impl {
             }
 
             let (offset, limit) = crudcrate::filter::parse_pagination(&params);
-            let limit = limit.min(<$resource as crudcrate::traits::CRUDResource>::max_page_size());
+            // `std::cmp::min` rather than `.min()`: Sea-Query's blanket `ExprTrait` impl
+            // covers every type, so the method call is ambiguous wherever it is in scope.
+            let limit = std::cmp::min(
+                limit,
+                <$resource as crudcrate::traits::CRUDResource>::max_page_size(),
+            );
 
             let is_scoped = scope.is_some();
 
