@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`crudcrate::table_column_ref(table, column)`** builds a table-qualified
   `ColumnRef` for custom `resolve_joined_filters` implementations, replacing
   the `ColumnRef::TableColumn` variant removed in SeaQuery 1.0.
+- **Guided compile errors for misplaced dense-format relations.** A
+  `HasMany`/`HasOne`/`BelongsTo` field on a struct not processed by
+  `#[sea_orm::model]` now produces a spanned error naming the fix instead of
+  silently generating nothing. Both crates also declare `rust-version = "1.85"`
+  so an old toolchain fails with a clear MSRV message.
 
 ### Notes
 
