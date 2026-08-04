@@ -1086,7 +1086,7 @@ mod tests {
     }
 
     /// `table_column_ref` must render as a table-qualified column, matching what
-    /// the removed `ColumnRef::TableColumn` produced in SeaQuery 0.x.
+    /// the removed `ColumnRef::TableColumn` produced in Sea-Query 0.x.
     #[test]
     fn test_table_column_ref_renders_qualified() {
         use sea_orm::sea_query::{Query, SqliteQueryBuilder};
