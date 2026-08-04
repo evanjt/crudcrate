@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loop inside the transaction. Response order, all-or-nothing semantics, 409
   duplicate-key mapping and `?partial=true` behaviour are unchanged. The
   `sqlite` feature now enables SeaORM's `sqlite-use-returning-for-3_35`.
+  Behaviour change: custom `ActiveModelBehavior::before_save`/`after_save`
+  implementations are no longer invoked per row during batch create on the
+  RETURNING backends (they still run on MySQL, and single create never invoked
+  them). Response order relies on the engine emitting RETURNING rows in VALUES
+  order, which PostgreSQL and SQLite implement but do not formally guarantee.
 
 ### Added
 

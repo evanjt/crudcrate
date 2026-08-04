@@ -23,6 +23,12 @@ to stay on SeaORM 1.x, stay on crudcrate 0.9.x.
   all-or-nothing on failure, duplicate keys map to 409, `?partial=true` is
   unaffected. The `sqlite` feature now enables SeaORM's
   `sqlite-use-returning-for-3_35`.
+
+  One caveat: if your entities implement a custom
+  `ActiveModelBehavior::before_save`/`after_save`, those callbacks no longer
+  run during batch create on the RETURNING backends (single create never ran
+  them; MySQL batch create still does). Use crudcrate's `create::many` hooks
+  for batch-level side effects instead.
 - **New public helper** `crudcrate::table_column_ref(table, column)` builds a
   table-qualified `ColumnRef` (SeaQuery 1.0 restructured the `ColumnRef` enum).
 - No changes to `#[crudcrate(...)]` attributes, routes, filtering, sorting,
@@ -54,6 +60,12 @@ pub struct Model {
 Relation wrapper fields (`HasMany<..>`, `HasOne<..>`, `BelongsTo<..>`) do not
 appear in the generated Create/Update/List models or API responses. To expose
 related entities through the API, keep using crudcrate `join(...)` fields.
+
+Note: the crudcrate derives detect the `ModelEx` companion that
+`#[sea_orm::model]` generates (by its name, or by relation wrapper fields on
+the struct) and expand to nothing for it. A hand-written struct with fields of
+a type named `HasMany`/`HasOne`/`BelongsTo` therefore gets no generated code
+from these derives.
 crudcrate's join loading does not use SeaORM 2.0's Entity Loader; the
 reasoning is documented in the relationships chapter.
 

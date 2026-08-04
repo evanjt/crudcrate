@@ -140,6 +140,15 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
             // Single multi-row INSERT ... RETURNING where the backend supports it
             // (Postgres, SQLite >= 3.35). Backends without RETURNING (MySQL) insert
             // per row, which also preserves input-order results via read-back.
+            //
+            // Input-order results on the RETURNING path rely on the engine emitting
+            // RETURNING rows in VALUES order. Neither Postgres nor SQLite formally
+            // guarantees this, but both implement it (serial DML execution) and
+            // Sea-ORM's own exec_with_returning_keys depends on it. Re-sorting here
+            // is not possible in general: auto-increment keys are NotSet pre-insert.
+            //
+            // Unlike the per-row path, insert_many does not invoke
+            // ActiveModelBehavior::before_save/after_save.
             let result: Vec<Self> = if db.support_returning() {
                 let active_models: Vec<Self::ActiveModelType> =
                     data.into_iter().map(Into::into).collect();
