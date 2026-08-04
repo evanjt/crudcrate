@@ -100,34 +100,55 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, parse_macro_input};
 use traits::crudresource::structs::CRUDResourceMeta;
 
-/// Detect the `ModelEx` companion struct that Sea-ORM 2.0's `#[sea_orm::model]`
-/// attribute macro emits alongside the scalar `Model`.
-///
-/// The attribute macro copies every remaining derive (including ours) onto both
-/// structs. Only the scalar `Model` is a valid derive target; expanding on the
-/// companion would generate a colliding duplicate API. The companion is
-/// recognised by its generated name (`{Model}Ex`) or by carrying relation
-/// wrapper fields (`HasMany<..>`, `HasOne<..>`, `BelongsTo<..>`), which never
-/// appear on a column-backed model.
-fn is_model_ex_companion(input: &DeriveInput) -> bool {
+/// Outcome of screening a derive target against Sea-ORM 2.0's dense entity
+/// format expansion.
+enum ModelExScreen {
+    /// An ordinary column-backed model; expand normally.
+    Normal,
+    /// The `ModelEx` companion that `#[sea_orm::model]` emits alongside the
+    /// scalar `Model`. The attribute macro copies every remaining derive
+    /// (including ours) onto both structs; expanding on the companion would
+    /// generate a colliding duplicate API, so it is skipped silently.
+    Companion,
+    /// A struct that carries relation wrapper fields (`HasMany<..>`,
+    /// `HasOne<..>`, `BelongsTo<..>`) but is not the generated companion:
+    /// the user wrote dense-format relations without `#[sea_orm::model]`.
+    /// Expanding would treat the wrapper as a column; skipping silently would
+    /// surface as confusing "cannot find type" errors downstream. Gate with
+    /// a spanned error carrying the fix.
+    MisplacedRelationField(Box<syn::Error>),
+}
+
+fn screen_model_ex(input: &DeriveInput) -> ModelExScreen {
     if input.ident == "ModelEx" {
-        return true;
+        return ModelExScreen::Companion;
     }
-    match &input.data {
-        syn::Data::Struct(data) => data.fields.iter().any(|field| {
+    if let syn::Data::Struct(data) = &input.data {
+        for field in &data.fields {
             if let syn::Type::Path(type_path) = &field.ty {
-                type_path.path.segments.last().is_some_and(|segment| {
+                let is_wrapper = type_path.path.segments.last().is_some_and(|segment| {
                     matches!(
                         segment.ident.to_string().as_str(),
                         "HasMany" | "HasOne" | "BelongsTo"
                     )
-                })
-            } else {
-                false
+                });
+                if is_wrapper {
+                    return ModelExScreen::MisplacedRelationField(Box::new(
+                        syn::Error::new_spanned(
+                            field,
+                            "relation wrapper fields (HasMany/HasOne/BelongsTo) require the \
+                             Sea-ORM 2.0 dense entity format: add #[sea_orm::model] above the \
+                             derives so relations move to the generated ModelEx companion. \
+                             crudcrate derives operate on column-backed fields only; to expose \
+                             related entities through the API, use a #[crudcrate(non_db_attr, \
+                             join(...))] field.",
+                        ),
+                    ));
+                }
             }
-        }),
-        _ => false,
+        }
     }
+    ModelExScreen::Normal
 }
 
 fn extract_active_model_type(
@@ -158,8 +179,12 @@ fn extract_active_model_type(
 #[proc_macro_derive(ToCreateModel, attributes(crudcrate, active_model))]
 pub fn to_create_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    if is_model_ex_companion(&input) {
-        return TokenStream::new();
+    match screen_model_ex(&input) {
+        ModelExScreen::Companion => return TokenStream::new(),
+        ModelExScreen::MisplacedRelationField(err) => {
+            return err.to_compile_error().into();
+        }
+        ModelExScreen::Normal => {}
     }
     let name = &input.ident;
     let create_name = format_ident!("{}Create", name);
@@ -204,8 +229,12 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(ToUpdateModel, attributes(crudcrate, active_model))]
 pub fn to_update_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    if is_model_ex_companion(&input) {
-        return TokenStream::new();
+    match screen_model_ex(&input) {
+        ModelExScreen::Companion => return TokenStream::new(),
+        ModelExScreen::MisplacedRelationField(err) => {
+            return err.to_compile_error().into();
+        }
+        ModelExScreen::Normal => {}
     }
     let name = &input.ident;
     let update_name = format_ident!("{}Update", name);
@@ -259,8 +288,12 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(ToListModel, attributes(crudcrate))]
 pub fn to_list_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    if is_model_ex_companion(&input) {
-        return TokenStream::new();
+    match screen_model_ex(&input) {
+        ModelExScreen::Companion => return TokenStream::new(),
+        ModelExScreen::MisplacedRelationField(err) => {
+            return err.to_compile_error().into();
+        }
+        ModelExScreen::Normal => {}
     }
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
@@ -312,8 +345,12 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(EntityToModels, attributes(crudcrate))]
 pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    if is_model_ex_companion(&input) {
-        return TokenStream::new();
+    match screen_model_ex(&input) {
+        ModelExScreen::Companion => return TokenStream::new(),
+        ModelExScreen::MisplacedRelationField(err) => {
+            return err.to_compile_error().into();
+        }
+        ModelExScreen::Normal => {}
     }
     let struct_name = &input.ident;
 

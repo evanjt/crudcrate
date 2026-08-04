@@ -62,10 +62,9 @@ appear in the generated Create/Update/List models or API responses. To expose
 related entities through the API, keep using crudcrate `join(...)` fields.
 
 Note: the crudcrate derives detect the `ModelEx` companion that
-`#[sea_orm::model]` generates (by its name, or by relation wrapper fields on
-the struct) and expand to nothing for it. A hand-written struct with fields of
-a type named `HasMany`/`HasOne`/`BelongsTo` therefore gets no generated code
-from these derives.
+`#[sea_orm::model]` generates and expand to nothing for it. Relation wrapper
+fields on any other struct (ie. dense-format relations written without
+`#[sea_orm::model]`) produce a compile error pointing at the fix.
 crudcrate's join loading does not use SeaORM 2.0's Entity Loader; the
 reasoning is documented in the relationships chapter.
 

@@ -1,0 +1,40 @@
+error: relation wrapper fields (HasMany/HasOne/BelongsTo) require the Sea-ORM 2.0 dense entity format: add #[sea_orm::model] above the derives so relations move to the generated ModelEx companion. crudcrate derives operate on column-backed fields only; to expose related entities through the API, use a #[crudcrate(non_db_attr, join(...))] field.
+  --> tests/ui-fail/dense_relation_without_model_macro.rs:45:9
+   |
+45 | /         #[sea_orm(has_many)]
+46 | |         pub books: HasMany<super::book::Entity>,
+   | |_______________________________________________^
+
+error[E0277]: the trait bound `sea_orm::prelude::HasMany<book::Entity>: ValueType` is not satisfied
+  --> tests/ui-fail/dense_relation_without_model_macro.rs:45:9
+   |
+45 |         #[sea_orm(has_many)]
+   |         ^ the trait `ValueType` is not implemented for `sea_orm::prelude::HasMany<book::Entity>`
+   |
+   = help: the following other types implement trait `ValueType`:
+             Braced
+             ChronoUnixTimestamp
+             ChronoUnixTimestampMillis
+             Cow<'_, str>
+             Hyphenated
+             JsonValue
+             NaiveDate
+             NaiveDateTime
+           and $N others
+
+error[E0004]: non-exhaustive patterns: `author::Column::Books` not covered
+  --> tests/ui-fail/dense_relation_without_model_macro.rs:35:28
+   |
+35 |     #[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
+   |                            ^^^^^^^^^^^^^^^^^ pattern `author::Column::Books` not covered
+   |
+note: `author::Column` defined here
+  --> tests/ui-fail/dense_relation_without_model_macro.rs:35:28
+   |
+35 |     #[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
+   |                            ^^^^^^^^^^^^^^^^^
+...
+46 |         pub books: HasMany<super::book::Entity>,
+   |             ----- not covered
+   = note: the matched value is of type `author::Column`
+   = note: this error originates in the derive macro `DeriveEntityModel` (in Nightly builds, run with -Z macro-backtrace for more info)

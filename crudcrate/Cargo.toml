@@ -2,6 +2,7 @@
 name = "crudcrate"
 version = "0.10.0"
 edition = "2024"
+rust-version = "1.85"
 description = "Derive complete REST APIs from Sea-ORM entities — endpoints, filtering, pagination, batch ops, and OpenAPI on Axum"
 license = "MIT"
 readme = "../README.md"
