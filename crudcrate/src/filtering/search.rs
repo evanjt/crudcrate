@@ -1,6 +1,6 @@
 use sea_orm::{
     DatabaseBackend,
-    sea_query::{Expr, SimpleExpr},
+    sea_query::Expr,
 };
 
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
@@ -42,7 +42,7 @@ fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
 pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     query: &str,
     backend: DatabaseBackend,
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     let fulltext_columns = T::fulltext_searchable_columns();
     if fulltext_columns.is_empty() {
         return None;
@@ -66,7 +66,7 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
 fn build_postgres_fulltext_condition(
     query: &str,
     column_names: &[&'static str],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -92,7 +92,7 @@ fn build_postgres_fulltext_condition(
 fn build_mysql_fulltext_condition(
     query: &str,
     column_names: &[&'static str],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -122,7 +122,7 @@ fn build_mysql_fulltext_condition(
 fn build_fallback_fulltext_condition(
     query: &str,
     column_names: &[&'static str],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -151,7 +151,7 @@ pub fn build_like_condition(
     key: &str,
     trimmed_value: &str,
     backend: DatabaseBackend,
-) -> SimpleExpr {
+) -> Expr {
     let escaped_value = escape_like_wildcards(trimmed_value);
     let pattern = format!("%{}%", escaped_value.to_uppercase());
 

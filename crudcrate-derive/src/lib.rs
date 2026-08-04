@@ -100,7 +100,7 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, parse_macro_input};
 use traits::crudresource::structs::CRUDResourceMeta;
 
-/// Detect the `ModelEx` companion struct that SeaORM 2.0's `#[sea_orm::model]`
+/// Detect the `ModelEx` companion struct that Sea-ORM 2.0's `#[sea_orm::model]`
 /// attribute macro emits alongside the scalar `Model`.
 ///
 /// The attribute macro copies every remaining derive (including ours) onto both

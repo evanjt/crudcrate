@@ -95,7 +95,7 @@ async fn batch_create_preserves_input_order() {
             format!("item_{i:03}"),
             "response order must match input order at index {i}"
         );
-        assert_eq!(item["position"], i as i64);
+        assert_eq!(item["position"], i64::try_from(i).unwrap());
         assert!(
             Uuid::parse_str(item["id"].as_str().unwrap()).is_ok(),
             "server-generated id must be present"

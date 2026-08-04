@@ -2,7 +2,7 @@ use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime};
 use rust_decimal::Decimal;
 use sea_orm::{
     Condition, DatabaseBackend,
-    sea_query::{Alias, ColumnType, Expr, ExprTrait, LikeExpr, SimpleExpr},
+    sea_query::{ColumnType, Expr, ExprTrait, LikeExpr},
 };
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -90,7 +90,7 @@ fn apply_typed_comparison<V: Into<sea_orm::Value>>(
     column: impl sea_orm::ColumnTrait + Copy,
     operator: &str,
     value: V,
-) -> SimpleExpr {
+) -> Expr {
     let column = Expr::col(column);
     match operator {
         ">=" => column.gte(value),
@@ -258,8 +258,8 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                 match backend {
                     DatabaseBackend::Postgres => {
                         or_conditions = or_conditions.add(
-                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
+                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(
+                                Expr::cast_as(Expr::col(*col), "TEXT"),
                             ))
                             .like(
                                 LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
@@ -270,7 +270,7 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     _ => {
                         // For SQLite/MySQL, treat enum as string
                         or_conditions = or_conditions.add(
-                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
+                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
                                 *col,
                             )))
                             .like(
@@ -286,9 +286,9 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     _ => "TEXT",
                 };
                 or_conditions = or_conditions.add(
-                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
+                    Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
                         Expr::col(*col),
-                        Alias::new(cast_type),
+                        cast_type,
                     )))
                     .like(LikeExpr::new(format!("%{}%", escaped_query.to_uppercase())).escape('!')),
                 );
@@ -304,8 +304,8 @@ fn apply_string_comparison(
     column: impl sea_orm::ColumnTrait + Copy,
     operator: &str,
     trimmed_value: &str,
-) -> SimpleExpr {
-    let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)));
+) -> Expr {
+    let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)));
     let val_upper = trimmed_value.to_uppercase();
     match operator {
         "!=" => col_upper.ne(val_upper),
@@ -323,7 +323,7 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     string_value: &str,
     column: impl sea_orm::ColumnTrait + Copy,
     backend: DatabaseBackend,
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if !validate_field_value(string_value) {
         return None;
     }
@@ -341,10 +341,10 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     if T::is_enum_field(base_field) {
         // Handle enum fields with case-insensitive matching
         let col_expr = match backend {
-            DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
+            DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), "TEXT"),
             _ => Expr::col(column),
         };
-        let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+        let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
         let val_upper = trimmed_value.to_uppercase();
         return Some(match operator {
             "!=" => col_upper.ne(val_upper),
@@ -376,7 +376,7 @@ fn process_number_filter(
     number: &serde_json::Number,
     column: impl sea_orm::ColumnTrait + Copy,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if let Some((base_field, operator)) = parse_comparison_operator(key) {
         // Check if the base field exists in searchable columns
         if searchable_columns
@@ -416,7 +416,7 @@ fn process_number_filter(
 fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
     column: C,
     array_values: &[serde_json::Value],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
         return None;
     }
@@ -451,7 +451,7 @@ fn process_array_filter(
     column: impl sea_orm::ColumnTrait + Copy,
     is_enum: bool,
     backend: DatabaseBackend,
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
         return None;
     }
@@ -497,10 +497,10 @@ fn process_array_filter(
             // For enum fields, cast column to TEXT and uppercase both sides
             // so that native PostgreSQL ENUMs work with string bind parameters
             let col_expr = match backend {
-                DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
+                DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), "TEXT"),
                 _ => Expr::col(column),
             };
-            let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+            let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
             let upper_values: Vec<String> = in_values.iter().map(|v| v.to_uppercase()).collect();
             return Some(col_upper.is_in(upper_values));
         }
@@ -509,7 +509,7 @@ fn process_array_filter(
     None
 }
 
-/// Build a Sea-ORM `SimpleExpr` from a column, operator, and a JSON value.
+/// Build a Sea-ORM `Expr` from a column, operator, and a JSON value.
 ///
 /// Used by the derive-macro-generated `resolve_joined_filters` to translate
 /// parsed [`crate::filtering::joined::JoinedFilter`] entries into concrete
@@ -532,7 +532,7 @@ pub fn build_comparison_expr<C>(
     column: C,
     operator: super::joined::FilterOperator,
     value: &serde_json::Value,
-) -> Option<SimpleExpr>
+) -> Option<Expr>
 where
     C: sea_orm::ColumnTrait + Copy,
 {
@@ -1076,7 +1076,7 @@ mod tests {
 
     /// Render an expression to inlined SQLite SQL so the ESCAPE clause and the
     /// (escaped) bound pattern are both visible as text.
-    fn cmp_sql(expr: SimpleExpr) -> String {
+    fn cmp_sql(expr: Expr) -> String {
         use sea_orm::sea_query::{Query, SqliteQueryBuilder};
         Query::select()
             .column(cmp_entity::Column::Id)

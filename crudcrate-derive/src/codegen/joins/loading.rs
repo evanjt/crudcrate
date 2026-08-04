@@ -249,7 +249,7 @@ pub fn generate_resolve_joined_filters_impl(
 
         quote! {
             #field_name => {
-                let __sub_expr: Option<sea_orm::sea_query::SimpleExpr> = match __jf.column.as_str() {
+                let __sub_expr: Option<sea_orm::sea_query::Expr> = match __jf.column.as_str() {
                     #( #column_arms )*
                     _ => None,
                 };
@@ -449,7 +449,7 @@ pub fn generate_get_all_joined_sorted_impl(
                         .and_where(Expr::col(__fk_ref).equals(__parent_pk_ref))
                         .to_owned();
 
-                    let __order_expr = sea_orm::sea_query::SimpleExpr::SubQuery(
+                    let __order_expr = sea_orm::sea_query::Expr::SubQuery(
                         None,
                         Box::new(__subquery.into_sub_query_statement()),
                     );
