@@ -16,7 +16,7 @@ CRUDCrate works with PostgreSQL, MySQL, and SQLite, with database-specific optim
 
 ```toml
 [dependencies]
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 ```
 
 ```rust
@@ -32,7 +32,7 @@ let db = Database::connect("postgres://user:pass@localhost/mydb").await?;
 
 ```toml
 [dependencies]
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-mysql"] }
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-mysql"] }
 ```
 
 ```rust
@@ -48,7 +48,7 @@ let db = Database::connect("mysql://user:pass@localhost/mydb").await?;
 
 ```toml
 [dependencies]
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 ```
 
 ```rust

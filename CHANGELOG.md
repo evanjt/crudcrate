@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-04
+
+### Changed
+
+- **SeaORM 2.0.** The workspace now builds against `sea-orm = "2.0"`
+  (SeaQuery 1.0, SQLx 0.9). Applications must upgrade their own `sea-orm`
+  dependency in the same step; crudcrate 0.9.x remains available for
+  SeaORM 1.x. See `docs/MIGRATION_0.10.md`.
+- **Batch create uses a single multi-row `INSERT ... RETURNING`** on backends
+  that support it (PostgreSQL, SQLite >= 3.35); MySQL keeps the per-row insert
+  loop inside the transaction. Response order, all-or-nothing semantics, 409
+  duplicate-key mapping and `?partial=true` behaviour are unchanged. The
+  `sqlite` feature now enables SeaORM's `sqlite-use-returning-for-3_35`.
+
+### Added
+
+- **Dense entity format support.** Entities written with SeaORM 2.0's
+  `#[sea_orm::model]` (inline `HasMany`/`HasOne`/`BelongsTo` relation fields)
+  can derive `EntityToModels` directly. The derive attaches to the scalar
+  `Model` and ignores the generated `ModelEx` companion, so relation wrapper
+  fields never leak into Create/Update/List models.
+- **`crudcrate::table_column_ref(table, column)`** builds a table-qualified
+  `ColumnRef` for custom `resolve_joined_filters` implementations, replacing
+  the `ColumnRef::TableColumn` variant removed in SeaQuery 1.0.
+
+### Notes
+
+- SeaORM 2.0's Entity Loader was evaluated and not adopted for join loading:
+  it requires the dense entity format on user entities and offers no hook for
+  per-child scope conditions. Typed `COLUMN` constants were likewise evaluated
+  and skipped; generated code keeps using the `Column` enum paths. Rationale
+  in the relationships documentation.
+
 ## [0.9.3] - 2026-07-15
 
 ### Fixed
