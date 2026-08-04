@@ -121,7 +121,7 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
         quote! { let result = #fn_path(db, data).await?; }
     } else {
         quote! {
-            use sea_orm::{ActiveModelTrait, TransactionTrait};
+            use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, TransactionTrait};
 
             if data.is_empty() {
                 return Ok(vec![]);
@@ -137,12 +137,27 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
             // Use a transaction for all-or-nothing semantics
             let txn = db.begin().await?;
 
-            let mut result = Vec::with_capacity(data.len());
-            for create_model in data {
-                let active_model: Self::ActiveModelType = create_model.into();
-                let model = active_model.insert(&txn).await?;
-                result.push(Self::from(model));
-            }
+            // Single multi-row INSERT ... RETURNING where the backend supports it
+            // (Postgres, SQLite >= 3.35). Backends without RETURNING (MySQL) insert
+            // per row, which also preserves input-order results via read-back.
+            let result: Vec<Self> = if db.support_returning() {
+                let active_models: Vec<Self::ActiveModelType> =
+                    data.into_iter().map(Into::into).collect();
+                Self::EntityType::insert_many(active_models)
+                    .exec_with_returning(&txn)
+                    .await?
+                    .into_iter()
+                    .map(Self::from)
+                    .collect()
+            } else {
+                let mut result = Vec::with_capacity(data.len());
+                for create_model in data {
+                    let active_model: Self::ActiveModelType = create_model.into();
+                    let model = active_model.insert(&txn).await?;
+                    result.push(Self::from(model));
+                }
+                result
+            };
 
             txn.commit().await?;
         }

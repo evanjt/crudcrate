@@ -15,7 +15,7 @@ default = ["sqlite", "derive"]
 derive = ["crudcrate-derive"]
 mysql = ["sea-orm/sqlx-mysql"]
 postgresql = ["sea-orm/sqlx-postgres"]
-sqlite = ["sea-orm/sqlx-sqlite"]
+sqlite = ["sea-orm/sqlx-sqlite", "sea-orm/sqlite-use-returning-for-3_35"]
 spring-rs = ["spring", "spring-web", "derive"]
 
 [dependencies]
