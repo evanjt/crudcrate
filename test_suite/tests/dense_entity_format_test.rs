@@ -33,6 +33,12 @@ pub mod dense_author {
 
         #[sea_orm(has_many)]
         pub books: HasMany<super::dense_book::Entity>,
+
+        // crudcrate join field alongside the dense relation: this is how related
+        // entities are exposed through the API.
+        #[sea_orm(ignore)]
+        #[crudcrate(non_db_attr, join(one, all, depth = 1))]
+        pub book_list: Vec<super::dense_book::DenseBook>,
     }
 
     impl ActiveModelBehavior for ActiveModel {}
@@ -46,7 +52,7 @@ pub mod dense_book {
     #[sea_orm::model]
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "dense_books")]
-    #[crudcrate(generate_router, api_struct = "DenseBook")]
+    #[crudcrate(generate_router, api_struct = "DenseBook", derive_partial_eq)]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
         #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -137,6 +143,59 @@ async fn dense_entity_crud_roundtrip() {
     let body = to_bytes(list.into_body(), usize::MAX).await.unwrap();
     let listed: Vec<Value> = serde_json::from_slice(&body).unwrap();
     assert_eq!(listed.len(), 1);
+}
+
+// Scenario: a crudcrate `join(...)` field coexists with dense relation fields
+// on the same entity.
+// Expected behaviour: the join field loads children exactly as it does on
+// classic entities, resolving the FK through the Related impl that
+// `#[sea_orm::model]` generates from the inline `belongs_to`.
+#[tokio::test]
+async fn dense_entity_crudcrate_join_loads_children() {
+    let db = setup_test_db().await.expect("setup failed");
+
+    let author = dense_author::DenseAuthor::create(
+        &db,
+        dense_author::DenseAuthorCreate {
+            name: "Mary".to_string(),
+        },
+    )
+    .await
+    .expect("author create failed");
+
+    for title in ["Frankenstein", "Mathilda"] {
+        dense_book::DenseBook::create(
+            &db,
+            dense_book::DenseBookCreate {
+                title: title.to_string(),
+                author_id: author.id,
+            },
+        )
+        .await
+        .expect("book create failed");
+    }
+
+    let response = app(&db)
+        .oneshot(
+            Request::builder()
+                .uri(format!("/authors/{}", author.id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let fetched: Value = serde_json::from_slice(&body).unwrap();
+    let titles: Vec<&str> = fetched["book_list"]
+        .as_array()
+        .expect("book_list must be a populated join field")
+        .iter()
+        .map(|b| b["title"].as_str().unwrap())
+        .collect();
+    assert_eq!(titles.len(), 2);
+    assert!(titles.contains(&"Frankenstein") && titles.contains(&"Mathilda"));
 }
 
 #[tokio::test]

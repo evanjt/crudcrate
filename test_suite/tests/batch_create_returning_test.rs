@@ -34,6 +34,8 @@ pub mod bcr_item {
 
         #[crudcrate(filterable, sortable)]
         pub position: i32,
+
+        pub note: Option<String>,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -101,6 +103,32 @@ async fn batch_create_preserves_input_order() {
             "server-generated id must be present"
         );
     }
+}
+
+// Scenario: rows in one batch differ in which optional fields carry values.
+// Expected behaviour: the multi-row VALUES insert binds NULL for the absent
+// ones and every row round-trips its own value.
+#[tokio::test]
+async fn batch_create_mixed_optional_fields() {
+    let db = setup_test_db().await.expect("setup failed");
+
+    let response = post_batch(
+        &db,
+        json!([
+            { "label": "with_note", "position": 0, "note": "hello" },
+            { "label": "without_note", "position": 1 },
+            { "label": "null_note", "position": 2, "note": null },
+        ]),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let created: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(created.len(), 3);
+    assert_eq!(created[0]["note"], "hello");
+    assert_eq!(created[1]["note"], Value::Null);
+    assert_eq!(created[2]["note"], Value::Null);
 }
 
 #[tokio::test]

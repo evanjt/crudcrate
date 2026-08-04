@@ -675,7 +675,7 @@ where
 ///
 /// # Errors
 /// Returns `ApiError::BadRequest` if the filter contains more than
-/// [`MAX_FILTER_CLAUSES`] keys.
+/// `MAX_FILTER_CLAUSES` (100) keys.
 pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -802,7 +802,7 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
 ///
 /// # Errors
 /// Returns `ApiError::BadRequest` if the filter contains more than
-/// [`MAX_FILTER_CLAUSES`] keys.
+/// `MAX_FILTER_CLAUSES` (100) keys.
 pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -1083,6 +1083,38 @@ mod tests {
             .from(cmp_entity::Entity)
             .and_where(expr)
             .to_string(SqliteQueryBuilder)
+    }
+
+    /// `table_column_ref` must render as a table-qualified column, matching what
+    /// the removed `ColumnRef::TableColumn` produced in SeaQuery 0.x.
+    #[test]
+    fn test_table_column_ref_renders_qualified() {
+        use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+        let sql = Query::select()
+            .column(table_column_ref("vehicles", "customer_id"))
+            .from(cmp_entity::Entity)
+            .to_string(SqliteQueryBuilder);
+        assert!(
+            sql.contains(r#""vehicles"."customer_id""#),
+            "expected table-qualified column: {sql}"
+        );
+    }
+
+    /// `table_column_ref` accepts the `(DynIden, DynIden)` pair returned by
+    /// `ColumnTrait::as_column_ref`, the form the generated join code uses.
+    #[test]
+    fn test_table_column_ref_accepts_as_column_ref_pair() {
+        use sea_orm::ColumnTrait;
+        use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+        let (table, column) = cmp_entity::Column::Name.as_column_ref();
+        let sql = Query::select()
+            .column(table_column_ref(table, column))
+            .from(cmp_entity::Entity)
+            .to_string(SqliteQueryBuilder);
+        assert!(
+            sql.contains(r#""cmp_things"."name""#),
+            "expected table-qualified column: {sql}"
+        );
     }
 
     /// A1 regression: the joined `_like` path must escape user wildcards with `!`

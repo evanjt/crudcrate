@@ -94,7 +94,7 @@ where
     /// `axum::Extension<SecurityProfile>`. See [`crate::SecurityProfile`] for the
     /// preset rationale and override syntax.
     ///
-    /// Default is [`SecurityProfile::secure`] as of 0.9.0. Consumers upgrading from
+    /// Default is [`SecurityProfile::secure`](crate::SecurityProfile::secure) as of 0.9.0. Consumers upgrading from
     /// 0.8.x can restore pre-0.9.0 behavior with
     /// `#[crudcrate(security_profile = "legacy")]` on each resource, or by applying
     /// `.layer(Extension(SecurityProfile::legacy()))` at the app level.
