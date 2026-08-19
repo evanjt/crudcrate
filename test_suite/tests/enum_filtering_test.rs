@@ -1,6 +1,6 @@
 // Enum Field Auto-Detection Tests
 // Tests that crudcrate automatically detects Sea-ORM enum fields (types implementing
-// ActiveEnum) at compile time using the inherent impl trick — NO explicit
+// ActiveEnum) at compile time using the inherent impl trick: NO explicit
 // `#[crudcrate(enum_field)]` annotation required.
 //
 // Two independent enums are tested (FuelType and Transmission) to prove the
@@ -130,7 +130,7 @@ async fn test_enum_field_filter_case_insensitive() {
     assert_eq!(vehicles[0].fuel_type, Some(FuelType::Gasoline));
 }
 
-/// Test array/IN filtering on an enum field — this is the code path we fixed
+/// Test array/IN filtering on an enum field: this is the code path we fixed
 /// in process_array_filter (added CAST(col AS TEXT) + UPPER for enum fields)
 #[tokio::test]
 async fn test_enum_field_filter_array_in() {
@@ -156,7 +156,7 @@ async fn test_enum_field_filter_array_in() {
     assert!(!fuel_types.contains(&&Some(FuelType::Diesel)));
 }
 
-/// Test array/IN filtering with mixed case — should be case-insensitive
+/// Test array/IN filtering with mixed case: should be case-insensitive
 #[tokio::test]
 async fn test_enum_field_filter_array_case_insensitive() {
     let db = setup_test_db()
@@ -214,7 +214,7 @@ async fn test_enum_field_sort() {
 
 /// Test that the OpenAPI documentation endpoint serves correctly at runtime,
 /// including the enum type schema. This hits the actual /api-docs endpoint
-/// through the router — the same path a real client would use.
+/// through the router, the same path a real client would use.
 #[tokio::test]
 async fn test_enum_field_openapi_docs_endpoint() {
     let db = setup_test_db()
@@ -235,7 +235,7 @@ async fn test_enum_field_openapi_docs_endpoint() {
         }),
     );
 
-    // Hit the docs endpoint via HTTP — this is what utoipa renders at runtime
+    // Hit the docs endpoint via HTTP: this is what utoipa renders at runtime
     let response = app
         .oneshot(
             Request::builder()
@@ -333,7 +333,7 @@ fn test_enum_auto_detection_all_field_types() {
     use common::vehicle::Vehicle;
     use crudcrate::traits::CRUDResource;
 
-    // Enum types — should be auto-detected as true
+    // Enum types: should be auto-detected as true
     assert!(
         Vehicle::is_enum_field("fuel_type"),
         "FuelType (DeriveActiveEnum) should be detected"
@@ -343,7 +343,7 @@ fn test_enum_auto_detection_all_field_types() {
         "Transmission (DeriveActiveEnum) should be detected"
     );
 
-    // Non-enum types — must be false
+    // Non-enum types: must be false
     assert!(
         !Vehicle::is_enum_field("id"),
         "Uuid should NOT be detected as enum"
@@ -377,7 +377,7 @@ fn test_enum_auto_detection_all_field_types() {
         "DateTime<Utc> should NOT be detected as enum"
     );
 
-    // Unknown fields — must be false
+    // Unknown fields: must be false
     assert!(
         !Vehicle::is_enum_field("nonexistent"),
         "Unknown fields should return false"
@@ -385,7 +385,7 @@ fn test_enum_auto_detection_all_field_types() {
 }
 
 /// Integration test: the SECOND enum (Transmission) also works for filtering
-/// without any enum_field annotation — proves detection is truly generic
+/// without any enum_field annotation: proves detection is truly generic
 #[tokio::test]
 async fn test_second_enum_filter_works_without_annotation() {
     let db = setup_test_db()
@@ -432,7 +432,7 @@ async fn test_second_enum_filter_works_without_annotation() {
         );
     }
 
-    // Single-value filter — case-insensitive: "manual" matches DB value "Manual"
+    // Single-value filter, case-insensitive: "manual" matches DB value "Manual"
     let vehicles = get_vehicles(&app, &json!({"transmission": "manual"})).await;
     assert_eq!(
         vehicles.len(),
@@ -441,7 +441,7 @@ async fn test_second_enum_filter_works_without_annotation() {
     );
     assert_eq!(vehicles[0].transmission, Some(Transmission::Manual));
 
-    // Array/IN filter — case-insensitive: "cvt" matches DB value "CVT", "automatic" matches "Automatic"
+    // Array/IN filter, case-insensitive: "cvt" matches DB value "CVT", "automatic" matches "Automatic"
     let vehicles = get_vehicles(&app, &json!({"transmission": ["cvt", "automatic"]})).await;
     assert_eq!(
         vehicles.len(),

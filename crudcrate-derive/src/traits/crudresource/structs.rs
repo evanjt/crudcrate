@@ -26,7 +26,7 @@ pub(crate) struct CrudHooks {
 }
 
 /// A join field defined at the struct level rather than as a field on the Model.
-/// This keeps the `SeaORM` Model lightweight — the field only exists on the generated API struct.
+/// This keeps the `SeaORM` Model lightweight; the field only exists on the generated API struct.
 #[derive(Clone)]
 pub(crate) struct StructLevelJoin {
     pub(crate) name: String,
@@ -65,6 +65,8 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) struct_level_joins: Vec<StructLevelJoin>,
     // Require scope middleware on read endpoints (returns 500 if missing)
     pub(crate) require_scope: bool,
+    // Reject create/update payloads carrying keys the model does not accept
+    pub(crate) deny_unknown_fields: bool,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

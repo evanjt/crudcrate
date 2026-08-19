@@ -1,7 +1,4 @@
-use sea_orm::{
-    DatabaseBackend,
-    sea_query::{Expr, SimpleExpr},
-};
+use sea_orm::{DatabaseBackend, sea_query::Expr};
 
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
@@ -23,7 +20,7 @@ pub(crate) fn escape_like_wildcards(input: &str) -> String {
 /// boundary so we never slice through a multi-byte codepoint.
 ///
 /// A raw `&s[..max_bytes]` panics when `max_bytes` lands inside a multi-byte
-/// character (e.g. an attacker-supplied query of 9_999 ASCII bytes followed by
+/// character (e.g. an attacker-supplied query of `9_999` ASCII bytes followed by
 /// `é`). `str::floor_char_boundary` would do this but is still unstable, so we
 /// walk back to a boundary manually.
 fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
@@ -42,7 +39,7 @@ fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
 pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     query: &str,
     backend: DatabaseBackend,
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     let fulltext_columns = T::fulltext_searchable_columns();
     if fulltext_columns.is_empty() {
         return None;
@@ -52,19 +49,18 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
     match backend {
         DatabaseBackend::Postgres => build_postgres_fulltext_condition(query, &column_names),
         DatabaseBackend::MySql => build_mysql_fulltext_condition(query, &column_names),
-        DatabaseBackend::Sqlite => build_fallback_fulltext_condition(query, &column_names),
+        // SQLite, and any backend added to the non-exhaustive `DatabaseBackend`, use the
+        // portable LIKE-based fallback.
+        _ => build_fallback_fulltext_condition(query, &column_names),
     }
 }
 
 /// Build PostgreSQL-specific fulltext search using ILIKE for case-insensitive matching.
 ///
-/// Column names come from the macro-generated `fulltext_searchable_columns()` — they are
+/// Column names come from the macro-generated `fulltext_searchable_columns()`; they are
 /// compile-time-known `&'static str` Rust identifiers and never user input. The query
 /// value is routed through a bind parameter via `Expr::cust_with_values`.
-fn build_postgres_fulltext_condition(
-    query: &str,
-    column_names: &[&'static str],
-) -> Option<SimpleExpr> {
+fn build_postgres_fulltext_condition(query: &str, column_names: &[&'static str]) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -87,10 +83,7 @@ fn build_postgres_fulltext_condition(
 /// Build MySQL-specific fulltext search using CONCAT and LIKE.
 ///
 /// See [`build_postgres_fulltext_condition`] for the safety rationale.
-fn build_mysql_fulltext_condition(
-    query: &str,
-    column_names: &[&'static str],
-) -> Option<SimpleExpr> {
+fn build_mysql_fulltext_condition(query: &str, column_names: &[&'static str]) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -117,10 +110,7 @@ fn build_mysql_fulltext_condition(
 /// Build fallback fulltext search for `SQLite` and other standard SQL databases.
 ///
 /// See [`build_postgres_fulltext_condition`] for the safety rationale.
-fn build_fallback_fulltext_condition(
-    query: &str,
-    column_names: &[&'static str],
-) -> Option<SimpleExpr> {
+fn build_fallback_fulltext_condition(query: &str, column_names: &[&'static str]) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -145,11 +135,7 @@ fn build_fallback_fulltext_condition(
 /// Column names come from the derive macro (compile-time Rust identifiers), not user input.
 /// The search value is routed through a bind parameter via `Expr::cust_with_values`.
 #[must_use]
-pub fn build_like_condition(
-    key: &str,
-    trimmed_value: &str,
-    backend: DatabaseBackend,
-) -> SimpleExpr {
+pub fn build_like_condition(key: &str, trimmed_value: &str, backend: DatabaseBackend) -> Expr {
     let escaped_value = escape_like_wildcards(trimmed_value);
     let pattern = format!("%{}%", escaped_value.to_uppercase());
 
@@ -556,6 +542,39 @@ mod tests {
         );
     }
 
+    /// `build_fulltext_condition` dispatches per backend: `ILIKE` on Postgres,
+    /// `UPPER(...) LIKE` on `MySQL` and on the `SQLite`/fallback path.
+    #[test]
+    fn test_fulltext_dispatch_per_backend() {
+        use crate::filtering::test_support::FulltextResource;
+
+        let pg = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::Postgres)
+            .expect("fulltext columns declared");
+        assert!(format!("{pg:?}").contains("ILIKE"), "got {pg:?}");
+
+        let mysql = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::MySql)
+            .expect("fulltext columns declared");
+        assert!(format!("{mysql:?}").contains("UPPER"), "got {mysql:?}");
+
+        let sqlite = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::Sqlite)
+            .expect("fulltext columns declared");
+        assert!(format!("{sqlite:?}").contains("UPPER"), "got {sqlite:?}");
+    }
+
+    /// A resource without fulltext columns yields no condition for any backend.
+    #[test]
+    fn test_fulltext_no_columns_returns_none() {
+        use crate::filtering::test_support::EnumSearchResource;
+
+        for backend in [
+            DatabaseBackend::Postgres,
+            DatabaseBackend::MySql,
+            DatabaseBackend::Sqlite,
+        ] {
+            assert!(build_fulltext_condition::<EnumSearchResource>("abc", backend).is_none());
+        }
+    }
+
     /// MySQL single-column fulltext uses a bare `COALESCE(...)` (no `CONCAT`), unlike
     /// the multi-column path. Exercises the `coalesced.len() == 1` branch.
     #[test]
@@ -625,7 +644,7 @@ mod prop_tests {
             let t = truncate_to_char_boundary(&s, n);
             prop_assert!(t.len() <= n);
             prop_assert!(s.starts_with(t));
-            // The result is always valid UTF-8 (it is a &str slice) — the implicit
+            // The result is always valid UTF-8 (it is a &str slice), the implicit
             // guarantee that the raw `&s[..n]` slice would violate mid-codepoint.
         }
     }

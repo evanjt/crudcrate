@@ -73,7 +73,7 @@ impl Validatable for BcpItemCreate {
 /// `create::one::pre` hook bridging the `Validatable` impl into the create path.
 ///
 /// The partial batch create handler calls `CRUDResource::create` per item, which
-/// runs this hook before the insert — so a failure here fails just that one item.
+/// runs this hook before the insert, so a failure here fails just that one item.
 ///
 /// Must be `async` to match the hook signature the derive macro calls (`.await`).
 #[allow(clippy::unused_async)]
@@ -94,9 +94,9 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
     // drop first so every test starts from a clean schema and empty data. On
     // sqlite::memory: each connection is a fresh database, so the drop is a no-op.
-    db.execute(backend.build(&Table::drop().table(bcp_item::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(bcp_item::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(bcp_item::Entity)))
+    db.execute(&schema.create_table_from_entity(bcp_item::Entity))
         .await?;
     Ok(db)
 }

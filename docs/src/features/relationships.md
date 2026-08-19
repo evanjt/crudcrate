@@ -368,7 +368,25 @@ This reduces query count from **N+1 to 2** for depth=1 joins (1 for parents + 1 
 
 **`get_one()` behavior**: Single-item `get_one()` with `join(one)` uses per-item queries. This is acceptable since it's a single entity lookup.
 
-> **Note**: Batch loading currently requires UUID primary keys. This is consistent with the `CRUDResource` trait contract.
+Batch loading works with any primary key type supported by `CRUDResource` (UUID, integer, string).
+
+### Why not SeaORM 2.0's Entity Loader?
+
+SeaORM 2.0 ships an Entity Loader (`Entity::load().with(...)`) that batch-loads
+relations, including nested ones. CRUDCrate keeps its own join loading instead,
+for three reasons:
+
+1. The loader only exists for entities using the new dense format
+   (`#[sea_orm::model]`) or the transitional `#[sea_orm::compact_model]`;
+   CRUDCrate cannot require either of your entities.
+2. Its `with(...)` mechanism selects which relations to populate but has no hook
+   for per-child filter conditions, so scoped access (`exclude(scoped)` child
+   scopes) cannot be enforced inside the loader's queries.
+3. It returns SeaORM `ModelEx` values, not CRUDCrate API structs, so each child
+   would still need conversion and its own nested join handling.
+
+At depth 1 both approaches issue the same number of queries. This decision is
+revisited as the loader API evolves.
 
 ### Optimization Strategies
 

@@ -1,16 +1,16 @@
 //! Security profile: deployment-shape configuration for crudcrate-generated endpoints.
 //!
 //! A [`SecurityProfile`] bundles the security-sensitive defaults that vary between
-//! deployments — strict filter parsing, scope propagation, ID exposure in batch
+//! deployments: strict filter parsing, scope propagation, ID exposure in batch
 //! responses, and request body size limits. Pick a preset for the common cases:
 //!
-//! - [`SecurityProfile::secure`] — hardened defaults. Strict scope handling, no ID
+//! - [`SecurityProfile::secure`]: hardened defaults. Strict scope handling, no ID
 //!   enumeration via batch delete, rejects malformed filters. Recommended for any
 //!   new project.
-//! - [`SecurityProfile::react_admin`] — tolerates malformed filters from
+//! - [`SecurityProfile::react_admin`]: tolerates malformed filters from
 //!   react-admin's filter components and returns deleted-ID arrays so react-admin's
 //!   `useDeleteMany` can update its local cache.
-//! - [`SecurityProfile::legacy`] — matches pre-0.9.0 crudcrate behavior exactly.
+//! - [`SecurityProfile::legacy`]: matches pre-0.9.0 crudcrate behavior exactly.
 //!
 //! Override individual fields with Rust's struct-update syntax:
 //!
@@ -31,7 +31,7 @@
 //!
 //! `max_request_body_bytes` is enforced via a `DefaultBodyLimit` tower layer that
 //! is baked into the router at startup. Setting it through a request-time
-//! `Extension` cannot change the limit once the router is built — the other three
+//! `Extension` cannot change the limit once the router is built; the other three
 //! fields work fully at request time.
 //!
 //! [`CRUDResource`]: crate::CRUDResource

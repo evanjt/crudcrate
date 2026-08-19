@@ -51,9 +51,9 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
     // drop first so every test starts from a clean schema and empty data. On
     // sqlite::memory: each connection is a fresh database, so the drop is a no-op.
-    db.execute(backend.build(&Table::drop().table(spd_item::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(spd_item::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(spd_item::Entity)))
+    db.execute(&schema.create_table_from_entity(spd_item::Entity))
         .await?;
     Ok(db)
 }
@@ -137,7 +137,7 @@ async fn secure_partial_delete_redacts_succeeded_ids() {
     );
 
     // Under the secure profile the partial-delete response collapses failures to a
-    // `failed_count` scalar — it must NOT expose a `failed` array, and must NOT leak the
+    // `failed_count` scalar: it must NOT expose a `failed` array, and must NOT leak the
     // submitted non-existent UUID (which the per-item not-found message would otherwise echo,
     // re-creating the existence-enumeration oracle that expose_deleted_ids=false closes).
     assert!(

@@ -341,7 +341,7 @@ async fn joined_filter_respects_parent_scope_middleware() {
     let (alice_id, _, _) = seed_three_customers(&admin).await;
 
     // Mark Alice (BMW owner) as private via admin. Scoped caller should no
-    // longer see her even when filtering by vehicles.make=BMW — the parent
+    // longer see her even when filtering by vehicles.make=BMW. The parent
     // scope condition is ANDed with the joined-filter's IN clause.
     admin_update(
         &admin,

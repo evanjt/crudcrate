@@ -7,7 +7,7 @@ it on a unit struct, override only the methods you need, and wire it in with
 ## When to use operations vs per-attribute hooks
 
 Use **operations** when you want a single struct that owns all customization
-for a resource — validation, authorization, side effects. It reads like a
+for a resource: validation, authorization, side effects. It reads like a
 controller.
 
 Use **per-attribute hooks** (`#[crudcrate(create::one::pre = validate)]`)
@@ -38,7 +38,7 @@ impl CRUDOperations for AssetOps {
         db: &DatabaseConnection,
         data: &<Asset as crudcrate::traits::CRUDResource>::CreateModel,
     ) -> Result<(), ApiError> {
-        // Validate, authorize, log — whatever you need
+        // Validate, authorize, log: whatever you need
         Ok(())
     }
 
@@ -85,7 +85,7 @@ async fn after_get_one(&self, db: &DatabaseConnection, entity: &mut Self::Resour
 input data. They're for validation and authorization, not transformation.
 To transform input before insertion, override `perform_create` (level 2).
 
-`after_*` hooks take `&mut` references — use them for enrichment
+`after_*` hooks take `&mut` references; use them for enrichment
 (computed fields, view counts, etc.).
 
 ### Level 2: Core logic overrides
@@ -95,12 +95,12 @@ around it.
 
 ```rust
 async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError> {
-    // Custom query — eg. select specific columns, add joins
+    // Custom query, eg. select specific columns, add joins
     // ...
 }
 
 async fn perform_create(&self, db: &DatabaseConnection, data: CreateModel) -> Result<Self::Resource, ApiError> {
-    // Custom insertion logic — eg. transform data before insert
+    // Custom insertion logic, eg. transform data before insert
     // ...
 }
 ```
@@ -113,7 +113,7 @@ overriding here means you take full control.
 
 ```rust
 async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
-    // Completely custom — S3 cleanup, cascade, audit, everything
+    // Completely custom: S3 cleanup, cascade, audit, everything
     let asset = Asset::get_one(db, id).await?;
     delete_from_s3(&asset.s3_key).await?;
     Asset::delete(db, id).await
@@ -209,6 +209,6 @@ async fn before_delete(
 
 ## See also
 
-- [CRUDOperations API reference](../reference/crudoperations-api.md) — full trait definition and execution order
-- [Lifecycle Hooks](./lifecycle-hooks.md) — per-attribute hook alternative
-- [Security](./security.md) — SecurityProfile configuration
+- [CRUDOperations API reference](../reference/crudoperations-api.md): full trait definition and execution order
+- [Lifecycle Hooks](./lifecycle-hooks.md): per-attribute hook alternative
+- [Security](./security.md): SecurityProfile configuration

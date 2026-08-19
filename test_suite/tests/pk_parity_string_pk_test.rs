@@ -9,7 +9,7 @@
 //!
 //! Unlike auto-increment integer / UUID-on_create PKs, a `String` PK has no
 //! generator: the caller supplies it on create. The id is therefore part of the
-//! create model (no `exclude(create)`), but is still excluded from update — the
+//! create model (no `exclude(create)`), but is still excluded from update: the
 //! primary key is immutable, matching how every other PK model treats it.
 //!
 //! Each test notes which `integer_pk_test.rs` test it mirrors.
@@ -32,7 +32,7 @@ pub mod thing {
     #[crudcrate(generate_router, api_struct = "Thing", derive_partial_eq)]
     pub struct Model {
         // Caller supplies the slug on create; the DB does not generate it.
-        // No on_create, no exclude(create) — but exclude(update): a PK is immutable.
+        // No on_create, no exclude(create), but exclude(update): a PK is immutable.
         #[sea_orm(primary_key, auto_increment = false)]
         #[crudcrate(primary_key, exclude(update), filterable, sortable)]
         pub id: String,
@@ -59,9 +59,9 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op.
-    db.execute(backend.build(&Table::drop().table(thing::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(thing::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(thing::Entity)))
+    db.execute(&schema.create_table_from_entity(thing::Entity))
         .await?;
 
     Ok(db)
@@ -123,7 +123,7 @@ async fn test_string_pk_get_one_and_missing_404() {
 
     create_thing(&app, "rust-lang", "Rust", Some("#DEA584")).await;
 
-    // GET /things/{slug} — the slug round-trips through the Path<String> param.
+    // GET /things/{slug}: the slug round-trips through the Path<String> param.
     let req = Request::builder()
         .method("GET")
         .uri("/things/rust-lang")
@@ -134,7 +134,7 @@ async fn test_string_pk_get_one_and_missing_404() {
     assert_eq!(value["id"], "rust-lang");
     assert_eq!(value["name"], "Rust");
 
-    // A non-existent string id returns 404 (no parse error — any string is valid).
+    // A non-existent string id returns 404 (no parse error, any string is valid).
     let req = Request::builder()
         .method("GET")
         .uri("/things/does-not-exist")
@@ -224,7 +224,7 @@ async fn test_string_pk_delete() {
     let (status, _) = send(&app, req).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
-    // The row is gone — same 404 a UUID model would return after delete.
+    // The row is gone: same 404 a UUID model would return after delete.
     let req = Request::builder()
         .method("GET")
         .uri("/things/rust-lang")

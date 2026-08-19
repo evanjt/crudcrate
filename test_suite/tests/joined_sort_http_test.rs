@@ -113,12 +113,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
         Table::drop().table(player::Entity).if_exists().to_owned(),
         Table::drop().table(team::Entity).if_exists().to_owned(),
     ] {
-        db.execute(backend.build(&stmt)).await?;
+        db.execute(&stmt).await?;
     }
 
-    db.execute(backend.build(&schema.create_table_from_entity(team::Entity)))
+    db.execute(&schema.create_table_from_entity(team::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(player::Entity)))
+    db.execute(&schema.create_table_from_entity(player::Entity))
         .await?;
 
     Ok(db)
@@ -293,6 +293,63 @@ async fn disallowed_dot_path_does_not_500() {
     let (status, body) = get_json(&app, &sort_query(r#"["coaches.salary","DESC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.as_array().expect("list response").len(), 3);
+}
+
+fn team_ids(list: &Value) -> Vec<String> {
+    list.as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+/// Teams tied on the child sort column are ordered by their primary key, so the
+/// joined sort produces a total order.
+#[tokio::test]
+async fn joined_sort_ties_are_ordered_by_primary_key() {
+    let db = setup_test_db().await.expect("db setup");
+    for i in 0..6 {
+        seed_team(&db, &format!("team-{i}"), &[7]).await;
+    }
+
+    let app = app(&db);
+    let (status, body) = get_json(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let ids = team_ids(&body);
+    let mut expected = ids.clone();
+    expected.sort();
+    assert_eq!(
+        ids, expected,
+        "teams tied on MIN(score) must be ordered by id"
+    );
+}
+
+/// Paging a joined sort over teams that all tie on the child column must place
+/// every team on exactly one page.
+#[tokio::test]
+async fn joined_sort_pages_do_not_repeat_or_skip_rows() {
+    let db = setup_test_db().await.expect("db setup");
+    for i in 0..10 {
+        seed_team(&db, &format!("team-{i}"), &[7]).await;
+    }
+
+    let app = app(&db);
+    let sorted = sort_query(r#"["players.score","ASC"]"#);
+    let (status_one, page_one) = get_json(&app, &format!("{sorted}&page=1&per_page=5")).await;
+    let (status_two, page_two) = get_json(&app, &format!("{sorted}&page=2&per_page=5")).await;
+    assert_eq!(status_one, StatusCode::OK);
+    assert_eq!(status_two, StatusCode::OK);
+
+    let page_one = team_ids(&page_one);
+    let page_two = team_ids(&page_two);
+    assert_eq!(page_one.len(), 5);
+    assert_eq!(page_two.len(), 5);
+
+    let mut combined = [page_one, page_two].concat();
+    combined.sort();
+    combined.dedup();
+    assert_eq!(combined.len(), 10, "every team appears exactly once");
 }
 
 /// A team with no players sorts with a NULL aggregate. The request must not

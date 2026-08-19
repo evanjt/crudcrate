@@ -619,7 +619,7 @@ async fn test_batch_delete_returns_only_existing_ids() {
     let db = setup_test_db()
         .await
         .expect("Failed to setup test database");
-    // Opt into the legacy response shape (ID array) — this test asserts which
+    // Opt into the legacy response shape (ID array): this test asserts which
     // specific IDs were deleted, which is gated behind `expose_deleted_ids = true`.
     let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
 

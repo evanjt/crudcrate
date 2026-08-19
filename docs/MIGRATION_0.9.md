@@ -28,7 +28,7 @@ It now defaults to `SecurityProfile::secure()`. The full diff:
 | `expose_deleted_ids` | `true` | `false` |
 | `max_request_body_bytes` | `2 * 1024 * 1024` | `2 * 1024 * 1024` (unchanged) |
 
-Body limit is unconditional — `legacy()` shares the 2 MiB ceiling because the
+Body limit is unconditional: `legacy()` shares the 2 MiB ceiling because the
 underlying issue is pure DoS and there's no legacy use case that needs
 unbounded request bodies. The other three fields are the migration concern.
 
@@ -41,7 +41,7 @@ unfiltered list. The malformed JSON was silently dropped.
 
 **After (0.9.0):** the same request returns `400 Bad Request`.
 
-**Migrate by fixing the client** if it ever sends invalid JSON — that's a bug
+**Migrate by fixing the client** if it ever sends invalid JSON; that's a bug
 either way. **Or** keep the lenient behavior:
 
 ```rust
@@ -63,7 +63,7 @@ input (mid-typing, debounce races). `SecurityProfile::react_admin()` keeps
 **Before (0.8.x):** under an active `ScopeCondition`, a request like
 `?filter={"vehicles.color":"red"}` ran a sub-query on `vehicles` with no scope
 restriction even if `Customer` itself was scoped. Result cardinality leaked
-parent-existence — a public user could probe for the existence of private
+parent-existence: a public user could probe for the existence of private
 customers via their (un-private) child columns.
 
 **After (0.9.0):** the same request returns `400` when the join target child
@@ -71,7 +71,7 @@ entity has no `exclude(scoped)` scope-condition. The derive macro generates
 `joined_field_has_scope(field) -> bool` from each `Vec<Child>` join target,
 inspecting whether the child has `ScopeFilterable::scope_condition() -> Some`.
 
-**Migrate by scoping the child entity** — add a boolean field with
+**Migrate by scoping the child entity**: add a boolean field with
 `#[crudcrate(exclude(scoped))]`:
 
 ```rust
@@ -79,7 +79,7 @@ inspecting whether the child has `ScopeFilterable::scope_condition() -> Some`.
 pub is_private: bool,
 ```
 
-This is usually the right fix — if the parent is scoped, the joined child
+This is usually the right fix: if the parent is scoped, the joined child
 should be too. **Or** disable the strict check for this resource:
 
 ```rust
@@ -90,12 +90,12 @@ should be too. **Or** disable the strict check for this resource:
 
 **Before (0.8.x):** `DELETE /resource/batch` with body `[id1, id2, fake1]`
 returned `[id1, id2]` (only the IDs that actually existed). This leaks
-existence information — a caller with delete-permission for one record could
+existence information: a caller with delete-permission for one record could
 enumerate by submitting batches of guessed UUIDs.
 
 **After (0.9.0):** the response is `{"deleted": 2}`. Partial-mode
-(`?partial=true`) returns `{"succeeded_count": 2, "failed": [{"index": 2, "error": "..."}]}`
-— still useful for telling the client which input indices failed, but no IDs.
+(`?partial=true`) returns `{"succeeded_count": 2, "failed": [{"index": 2, "error": "..."}]}`,
+still useful for telling the client which input indices failed, but with no IDs.
 
 **Migrate by updating the client** to read the count, **or** if the frontend
 needs the ID array (react-admin's `useDeleteMany` uses returned IDs for cache
@@ -111,8 +111,8 @@ endpoints behind an authenticated/authorized middleware layer.
 
 ### `max_request_body_bytes: 2 * 1024 * 1024`
 
-This matches Axum's existing built-in default — no behavior change at the
-default. The new bit is that the limit is now explicit and per-resource
+This matches Axum's existing built-in default; there is no behavior change at
+the default. The new bit is that the limit is now explicit and per-resource
 configurable. To loosen or tighten per-resource:
 
 ```rust

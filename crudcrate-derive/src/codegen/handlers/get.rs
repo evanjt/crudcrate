@@ -52,7 +52,7 @@ fn generate_select_only_columns(
                 .column(<Self as crudcrate::traits::CRUDResource>::ColumnType::#col_ident)
             });
         } else {
-            // Excluded Option<T> column — replace with NULL to skip data transfer
+            // Excluded Option<T> column: replace with NULL to skip data transfer
             // Use column_as with IdenStatic::as_str() to get the correct DB column name
             selections.push(quote! {
                 .column_as(
@@ -158,12 +158,16 @@ pub fn generate_get_all_impl(
             body_code.clone()
         } else if let Some((pre_loop_code, in_loop_code)) = batch_loading {
             quote! {
-                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
+                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait, IdenStatic};
 
-                let models = Self::EntityType::find()
+                let mut __query = Self::EntityType::find()
                     #select_clause
                     .filter(condition.clone())
-                    .order_by(order_column, order_direction)
+                    .order_by(order_column, order_direction);
+                if order_column.as_str() != Self::ID_COLUMN.as_str() {
+                    __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                }
+                let models = __query
                     .offset(offset)
                     .limit(limit)
                     .all(db)
@@ -184,12 +188,16 @@ pub fn generate_get_all_impl(
         } else {
             // Standard get_all without joins
             quote! {
-                use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
+                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, IdenStatic};
 
-                let models = Self::EntityType::find()
+                let mut __query = Self::EntityType::find()
                     #select_clause
                     .filter(condition.clone())
-                    .order_by(order_column, order_direction)
+                    .order_by(order_column, order_direction);
+                if order_column.as_str() != Self::ID_COLUMN.as_str() {
+                    __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                }
+                let models = __query
                     .offset(offset)
                     .limit(limit)
                     .all(db)
@@ -311,7 +319,7 @@ pub fn generate_get_one_impl(
         quote! {
             use sea_orm::{EntityTrait, ModelTrait, Related};
 
-            // Load the main entity first — Box::pin to keep future off the stack.
+            // Load the main entity first; Box::pin to keep future off the stack.
             // Clone the id so it stays available for the not-found message below
             // (the PK value type is not required to be Copy).
             let main_model = Box::pin(
@@ -337,7 +345,7 @@ pub fn generate_get_one_impl(
         }
     };
 
-    // Generate get_one_scoped — scope-filtered query + scoped join loading.
+    // Generate get_one_scoped: scope-filtered query + scoped join loading.
     // Uses scope condition on the parent query AND child entity scope conditions on joins.
     let scoped_body = if has_joins {
         let join_loading_code = generate_get_one_scoped_join_loading(analysis, api_struct_name);

@@ -2,7 +2,7 @@ use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime};
 use rust_decimal::Decimal;
 use sea_orm::{
     Condition, DatabaseBackend,
-    sea_query::{Alias, ColumnType, Expr, ExprTrait, LikeExpr, SimpleExpr},
+    sea_query::{ColumnType, Expr, ExprTrait, LikeExpr},
 };
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -19,8 +19,8 @@ const MAX_OFFSET: u64 = 1_000_000;
 /// An array filter (`filter={"id":[...]}`) becomes one SQL `IN (...)` clause with
 /// one bind parameter per element. `MAX_FILTER_CLAUSES` caps the number of keys, not
 /// the length of any single array, so without this cap a single key could carry tens
-/// of thousands of elements and blow past the backend bind-parameter ceiling (SQLite
-/// 32766, Postgres/MySQL 65535). A 500 at the top, a query-planning DoS below it.
+/// of thousands of elements and blow past the backend bind-parameter ceiling (`SQLite`
+/// 32766, Postgres/MySQL 65535). A 500 at the top, a query-planning `DoS` below it.
 /// This bound is also reachable over GET, whose query string is not covered by the
 /// request body-size limit. Exceeding it produces `400 Bad Request`, matching the
 /// reject-don't-silently-drop policy of `MAX_FILTER_CLAUSES`.
@@ -33,7 +33,7 @@ const MAX_FILTER_ARRAY_LEN: usize = 1000;
 /// (remember comparison operators split one field into two clauses: `year_gte`
 /// and `year_lte`), so 100 gives generous headroom while still preventing abuse.
 ///
-/// Exceeding this limit produces a `400 Bad Request` response — crudcrate
+/// Exceeding this limit produces a `400 Bad Request` response; crudcrate
 /// deliberately does *not* silently drop filters, because a silently-unfiltered
 /// response is worse than a failed request.
 const MAX_FILTER_CLAUSES: usize = 100;
@@ -90,7 +90,7 @@ fn apply_typed_comparison<V: Into<sea_orm::Value>>(
     column: impl sea_orm::ColumnTrait + Copy,
     operator: &str,
     value: V,
-) -> SimpleExpr {
+) -> Expr {
     let column = Expr::col(column);
     match operator {
         ">=" => column.gte(value),
@@ -254,41 +254,21 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
         let mut or_conditions = Condition::any();
         for (col_name, col) in searchable_columns {
             if T::is_enum_field(col_name) {
-                // Cast enum fields to TEXT for LIKE operations
-                match backend {
-                    DatabaseBackend::Postgres => {
-                        or_conditions = or_conditions.add(
-                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                Expr::cast_as(Expr::col(*col), Alias::new("TEXT")),
-                            ))
-                            .like(
-                                LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
-                                    .escape('!'),
-                            ),
-                        );
-                    }
-                    _ => {
-                        // For SQLite/MySQL, treat enum as string
-                        or_conditions = or_conditions.add(
-                            SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
-                                *col,
-                            )))
-                            .like(
-                                LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
-                                    .escape('!'),
-                            ),
-                        );
-                    }
-                }
+                or_conditions = or_conditions.add(
+                    Expr::FunctionCall(sea_orm::sea_query::Func::upper(enum_text_expr(
+                        *col, backend,
+                    )))
+                    .like(LikeExpr::new(format!("%{}%", escaped_query.to_uppercase())).escape('!')),
+                );
             } else {
                 let cast_type = match backend {
                     DatabaseBackend::MySql => "CHAR",
                     _ => "TEXT",
                 };
                 or_conditions = or_conditions.add(
-                    SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
+                    Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
                         Expr::col(*col),
-                        Alias::new(cast_type),
+                        cast_type,
                     )))
                     .like(LikeExpr::new(format!("%{}%", escaped_query.to_uppercase())).escape('!')),
                 );
@@ -299,13 +279,24 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
     None
 }
 
+/// Column expression for comparing an enum column as text. `PostgreSQL` rejects
+/// string operations on native ENUM columns, so it needs an explicit
+/// `CAST(col AS TEXT)`; the other backends compare enum columns as strings
+/// directly.
+fn enum_text_expr(column: impl sea_orm::ColumnTrait + Copy, backend: DatabaseBackend) -> Expr {
+    match backend {
+        DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), "TEXT"),
+        _ => Expr::col(column),
+    }
+}
+
 /// Apply a string comparison using the given operator.
 fn apply_string_comparison(
     column: impl sea_orm::ColumnTrait + Copy,
     operator: &str,
     trimmed_value: &str,
-) -> SimpleExpr {
-    let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)));
+) -> Expr {
+    let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(column)));
     let val_upper = trimmed_value.to_uppercase();
     match operator {
         "!=" => col_upper.ne(val_upper),
@@ -323,7 +314,7 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     string_value: &str,
     column: impl sea_orm::ColumnTrait + Copy,
     backend: DatabaseBackend,
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if !validate_field_value(string_value) {
         return None;
     }
@@ -340,11 +331,9 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
 
     if T::is_enum_field(base_field) {
         // Handle enum fields with case-insensitive matching
-        let col_expr = match backend {
-            DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-            _ => Expr::col(column).into(),
-        };
-        let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+        let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(enum_text_expr(
+            column, backend,
+        )));
         let val_upper = trimmed_value.to_uppercase();
         return Some(match operator {
             "!=" => col_upper.ne(val_upper),
@@ -376,7 +365,7 @@ fn process_number_filter(
     number: &serde_json::Number,
     column: impl sea_orm::ColumnTrait + Copy,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if let Some((base_field, operator)) = parse_comparison_operator(key) {
         // Check if the base field exists in searchable columns
         if searchable_columns
@@ -409,14 +398,14 @@ fn process_number_filter(
 /// Build a type-matched `IN (...)` expression for a homogeneous JSON array so the
 /// bound values match the column type on strict backends. Postgres rejects
 /// `int_col IN ('1','3')` and `bool_col IN ('true')` (`operator does not exist:
-/// integer = text`); SQLite's loose typing silently accepted the stringified form.
+/// integer = text`); `SQLite`'s loose typing silently accepted the stringified form.
 /// Returns `None` unless every element is an integer, every element is a number,
-/// or every element is a boolean — callers fall back to a string IN list for
+/// or every element is a boolean; callers fall back to a string IN list for
 /// string/enum/mixed arrays.
 fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
     column: C,
     array_values: &[serde_json::Value],
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
         return None;
     }
@@ -451,7 +440,7 @@ fn process_array_filter(
     column: impl sea_orm::ColumnTrait + Copy,
     is_enum: bool,
     backend: DatabaseBackend,
-) -> Option<SimpleExpr> {
+) -> Option<Expr> {
     if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
         return None;
     }
@@ -475,7 +464,7 @@ fn process_array_filter(
     }
 
     // Type-matched IN list (integers/floats/bools) so the bound values match the
-    // column type on strict backends. Enum columns keep the string path below —
+    // column type on strict backends. Enum columns keep the string path below;
     // their casted/uppercased comparison needs text binds.
     if !is_enum && let Some(expr) = typed_array_in_list(column, array_values) {
         return Some(expr);
@@ -494,13 +483,10 @@ fn process_array_filter(
 
     if !in_values.is_empty() {
         if is_enum {
-            // For enum fields, cast column to TEXT and uppercase both sides
-            // so that native PostgreSQL ENUMs work with string bind parameters
-            let col_expr = match backend {
-                DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), Alias::new("TEXT")),
-                _ => Expr::col(column).into(),
-            };
-            let col_upper = SimpleExpr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+            // Uppercase both sides so string bind parameters match native enums
+            let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(enum_text_expr(
+                column, backend,
+            )));
             let upper_values: Vec<String> = in_values.iter().map(|v| v.to_uppercase()).collect();
             return Some(col_upper.is_in(upper_values));
         }
@@ -509,14 +495,40 @@ fn process_array_filter(
     None
 }
 
-/// Build a Sea-ORM `SimpleExpr` from a column, operator, and a JSON value.
+/// Comparison for value types where ordering operators apply; `Like`, `In` and
+/// `IsNull` return `None`.
+fn ordered_comparison<C, V>(
+    column: C,
+    operator: super::joined::FilterOperator,
+    value: V,
+) -> Option<Expr>
+where
+    C: sea_orm::ColumnTrait + Copy,
+    V: Into<sea_orm::sea_query::Value>,
+{
+    use super::joined::FilterOperator;
+
+    let col = Expr::col(column);
+    let value = value.into();
+    match operator {
+        FilterOperator::Eq => Some(col.eq(value)),
+        FilterOperator::Neq => Some(col.ne(value)),
+        FilterOperator::Gt => Some(col.gt(value)),
+        FilterOperator::Gte => Some(col.gte(value)),
+        FilterOperator::Lt => Some(col.lt(value)),
+        FilterOperator::Lte => Some(col.lte(value)),
+        FilterOperator::Like | FilterOperator::In | FilterOperator::IsNull => None,
+    }
+}
+
+/// Build a Sea-ORM `Expr` from a column, operator, and a JSON value.
 ///
 /// Used by the derive-macro-generated `resolve_joined_filters` to translate
 /// parsed [`crate::filtering::joined::JoinedFilter`] entries into concrete
 /// sub-query conditions on child tables.
 ///
 /// Unlike the main-entity filter path, this builder does not apply enum or
-/// fulltext normalization — joined filters target plain columns (strings,
+/// fulltext normalization; joined filters target plain columns (strings,
 /// numbers, UUIDs, bools). Attempts to use range operators (`_gt`, `_gte`,
 /// `_lt`, `_lte`) against unsupported value kinds return `None` so the caller
 /// can silently skip the filter, matching the existing "skip invalid filters"
@@ -532,7 +544,7 @@ pub fn build_comparison_expr<C>(
     column: C,
     operator: super::joined::FilterOperator,
     value: &serde_json::Value,
-) -> Option<SimpleExpr>
+) -> Option<Expr>
 where
     C: sea_orm::ColumnTrait + Copy,
 {
@@ -551,7 +563,7 @@ where
                 return None;
             }
 
-            // Try UUID first — ranges on UUIDs are meaningless, so only allow eq/neq
+            // Try UUID first: ranges on UUIDs are meaningless, so only allow eq/neq
             if let Ok(uuid_val) = Uuid::parse_str(trimmed) {
                 return match operator {
                     FilterOperator::Eq => Some(col().eq(uuid_val)),
@@ -576,41 +588,15 @@ where
         }
         Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                return match operator {
-                    FilterOperator::Eq => Some(col().eq(i)),
-                    FilterOperator::Neq => Some(col().ne(i)),
-                    FilterOperator::Gt => Some(col().gt(i)),
-                    FilterOperator::Gte => Some(col().gte(i)),
-                    FilterOperator::Lt => Some(col().lt(i)),
-                    FilterOperator::Lte => Some(col().lte(i)),
-                    _ => None,
-                };
+                return ordered_comparison(column, operator, i);
             }
             // Values above i64::MAX bind as u64 rather than falling through to a
             // lossy f64 (a BIGINT UNSIGNED column would otherwise mis-compare).
             if let Some(u) = n.as_u64() {
-                return match operator {
-                    FilterOperator::Eq => Some(col().eq(u)),
-                    FilterOperator::Neq => Some(col().ne(u)),
-                    FilterOperator::Gt => Some(col().gt(u)),
-                    FilterOperator::Gte => Some(col().gte(u)),
-                    FilterOperator::Lt => Some(col().lt(u)),
-                    FilterOperator::Lte => Some(col().lte(u)),
-                    _ => None,
-                };
+                return ordered_comparison(column, operator, u);
             }
-            if let Some(f) = n.as_f64() {
-                return match operator {
-                    FilterOperator::Eq => Some(col().eq(f)),
-                    FilterOperator::Neq => Some(col().ne(f)),
-                    FilterOperator::Gt => Some(col().gt(f)),
-                    FilterOperator::Gte => Some(col().gte(f)),
-                    FilterOperator::Lt => Some(col().lt(f)),
-                    FilterOperator::Lte => Some(col().lte(f)),
-                    _ => None,
-                };
-            }
-            None
+            n.as_f64()
+                .and_then(|f| ordered_comparison(column, operator, f))
         }
         Value::Bool(b) => match operator {
             FilterOperator::Eq => Some(col().eq(*b)),
@@ -649,11 +635,33 @@ where
     }
 }
 
+/// Build a table-qualified column reference (`"table"."column"`).
+///
+/// Used by the derive-macro-generated join code to name a child-table column
+/// inside a sub-query, and available to hand-written
+/// [`CRUDResource::resolve_joined_filters`](crate::traits::CRUDResource::resolve_joined_filters)
+/// implementations. Both arguments accept anything convertible to a Sea-Query
+/// identifier, including the `(table, column)` pair returned by
+/// [`sea_orm::ColumnTrait::as_column_ref`].
+#[must_use]
+pub fn table_column_ref<T, C>(table: T, column: C) -> sea_orm::sea_query::ColumnRef
+where
+    T: sea_orm::sea_query::IntoIden,
+    C: sea_orm::sea_query::IntoIden,
+{
+    use sea_orm::sea_query::{ColumnName, ColumnRef, TableName};
+
+    ColumnRef::Column(ColumnName(
+        Some(TableName(None, table.into_iden())),
+        column.into_iden(),
+    ))
+}
+
 /// Build a Sea-ORM `Condition` from a JSON filter string.
 ///
 /// # Errors
 /// Returns `ApiError::BadRequest` if the filter contains more than
-/// [`MAX_FILTER_CLAUSES`] keys.
+/// `MAX_FILTER_CLAUSES` (100) keys.
 pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -732,16 +740,20 @@ pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
 
 #[must_use]
 pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
+    // `std::cmp::min` is spelled out throughout: SeaQuery's blanket `ExprTrait` impl
+    // covers every type, so the `.min()` method call is ambiguous with `Ord::min`.
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
-        // Enforce maximum page size to prevent DoS
-        let safe_per_page = per_page.min(MAX_PAGE_SIZE);
+        // Clamp on both ends: the upper bound prevents DoS, the lower bound keeps a
+        // `per_page=0` from producing an empty page that never advances (and from
+        // reaching backends that reject a zero page size).
+        let safe_per_page = Ord::clamp(per_page, 1, MAX_PAGE_SIZE);
 
         // Use saturating_mul to prevent overflow panic
         let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
 
         // Enforce maximum offset to prevent excessive database queries
-        let safe_offset = offset.min(MAX_OFFSET);
+        let safe_offset = std::cmp::min(offset, MAX_OFFSET);
 
         (safe_offset, safe_per_page)
     } else if let Some(range) = &params.range {
@@ -749,11 +761,8 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
         let (start, end) = parse_range(Some(range.clone()));
         // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
         // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
-        let limit = end
-            .saturating_sub(start)
-            .saturating_add(1)
-            .min(MAX_PAGE_SIZE);
-        let safe_start = start.min(MAX_OFFSET);
+        let limit = std::cmp::min(end.saturating_sub(start).saturating_add(1), MAX_PAGE_SIZE);
+        let safe_start = std::cmp::min(start, MAX_OFFSET);
         (safe_start, limit)
     } else {
         // Default pagination
@@ -778,7 +787,7 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
 ///
 /// # Errors
 /// Returns `ApiError::BadRequest` if the filter contains more than
-/// [`MAX_FILTER_CLAUSES`] keys.
+/// `MAX_FILTER_CLAUSES` (100) keys.
 pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -1001,6 +1010,20 @@ mod tests {
         // After fix: This should succeed without panic
     }
 
+    /// A zero page size is clamped up to one row rather than yielding an empty page
+    #[test]
+    fn test_pagination_clamps_zero_page_size() {
+        let params = crate::models::FilterOptions {
+            page: Some(1),
+            per_page: Some(0),
+            ..Default::default()
+        };
+
+        let (offset, limit) = parse_pagination(&params);
+        assert_eq!(offset, 0);
+        assert_eq!(limit, 1);
+    }
+
     /// Test comparison operator parsing
     #[test]
     fn test_comparison_operator_parsing() {
@@ -1026,8 +1049,179 @@ mod tests {
         assert_eq!(escape_like_wildcards("100% complete"), "100!% complete");
     }
 
+    /// Enum columns compare as text: Postgres needs `CAST(col AS TEXT)`, the
+    /// other backends use the column directly.
+    #[test]
+    fn test_enum_text_expr_casts_only_on_postgres() {
+        use crate::filtering::test_support::entity;
+
+        let pg = format!(
+            "{:?}",
+            enum_text_expr(entity::Column::Status, DatabaseBackend::Postgres)
+        );
+        assert!(pg.contains("TEXT"), "expected a cast on Postgres: {pg}");
+
+        for backend in [DatabaseBackend::MySql, DatabaseBackend::Sqlite] {
+            let other = format!("{:?}", enum_text_expr(entity::Column::Status, backend));
+            assert!(!other.contains("TEXT"), "no cast expected: {other}");
+        }
+    }
+
+    /// The LIKE fallback for `q` searches over an enum column uppercases the
+    /// (cast) column so native Postgres enums match string bind parameters.
+    #[test]
+    fn test_fulltext_like_fallback_enum_column() {
+        use crate::filtering::test_support::{EnumSearchResource, entity};
+
+        let filters = HashMap::from([(
+            "q".to_string(),
+            serde_json::Value::String("act".to_string()),
+        )]);
+        let searchable = [("status", entity::Column::Status)];
+
+        let pg = handle_fulltext_search::<EnumSearchResource>(
+            &filters,
+            &searchable,
+            DatabaseBackend::Postgres,
+        )
+        .expect("q over a searchable column yields a condition");
+        let pg_sql = format!("{pg:?}");
+        assert!(
+            pg_sql.contains("TEXT") && pg_sql.contains("Upper"),
+            "expected upper-cased cast on Postgres: {pg_sql}"
+        );
+
+        let sqlite = handle_fulltext_search::<EnumSearchResource>(
+            &filters,
+            &searchable,
+            DatabaseBackend::Sqlite,
+        )
+        .expect("q over a searchable column yields a condition");
+        let sqlite_sql = format!("{sqlite:?}");
+        assert!(
+            !sqlite_sql.contains("TEXT") && sqlite_sql.contains("Upper"),
+            "expected plain upper-cased column on SQLite: {sqlite_sql}"
+        );
+    }
+
+    /// Enum array (`IN`) filters cast the column on Postgres and uppercase the
+    /// bound values on every backend.
+    #[test]
+    fn test_process_array_filter_enum_postgres_cast() {
+        use crate::filtering::test_support::entity;
+
+        let values = [serde_json::json!("active"), serde_json::json!("archived")];
+        let expr = process_array_filter(
+            &values,
+            entity::Column::Status,
+            true,
+            DatabaseBackend::Postgres,
+        )
+        .expect("enum IN list yields a condition");
+        let sql = format!("{expr:?}");
+        assert!(
+            sql.contains("TEXT") && sql.contains("ACTIVE"),
+            "expected cast column and upper-cased values: {sql}"
+        );
+    }
+
+    /// `apply_filters` combines the fulltext `q` term with per-field filters of
+    /// every JSON value kind; unknown fields and unsupported values are skipped.
+    #[test]
+    fn test_apply_filters_all_value_kinds() {
+        use crate::filtering::test_support::{EnumSearchResource, entity};
+
+        let searchable = [
+            ("name", entity::Column::Name),
+            ("status", entity::Column::Status),
+            ("id", entity::Column::Id),
+        ];
+        let filter = serde_json::json!({
+            "q": "act",
+            "name": "todo",
+            "status_neq": "archived",
+            "id": 3,
+            "name_like": null,
+            "status": ["active", "draft"],
+            "unknown_field": "ignored",
+            "name;drop": "ignored",
+            "id_gt": {"not": "supported"},
+        })
+        .to_string();
+
+        let cond =
+            apply_filters::<EnumSearchResource>(Some(filter), &searchable, DatabaseBackend::Sqlite)
+                .expect("valid filter JSON");
+        let sql = format!("{cond:?}");
+        assert!(sql.contains("Upper"), "q and string filters render: {sql}");
+        assert!(sql.contains("TODO"), "equality value uppercased: {sql}");
+
+        let null_checks = apply_filters::<EnumSearchResource>(
+            Some(serde_json::json!({"name": null, "status_neq": null}).to_string()),
+            &searchable,
+            DatabaseBackend::Sqlite,
+        )
+        .expect("valid filter JSON");
+        let sql = format!("{null_checks:?}");
+        assert!(
+            sql.contains("Is, Keyword(Null)") && sql.contains("IsNot, Keyword(Null)"),
+            "{sql}"
+        );
+
+        let bool_filter = apply_filters::<EnumSearchResource>(
+            Some(serde_json::json!({"id": true}).to_string()),
+            &searchable,
+            DatabaseBackend::Sqlite,
+        )
+        .expect("valid filter JSON");
+        assert!(format!("{bool_filter:?}").contains("Bool"));
+    }
+
+    /// String comparison operators map onto the expected SQL comparisons,
+    /// including the default equality arm.
+    #[test]
+    fn test_apply_string_comparison_operators() {
+        use crate::filtering::test_support::entity;
+
+        for (op, needle) in [
+            ("=", "Equal"),
+            ("!=", "NotEqual"),
+            (">=", "GreaterThanOrEqual"),
+            ("<=", "SmallerThanOrEqual"),
+            (">", "GreaterThan,"),
+            ("<", "SmallerThan,"),
+        ] {
+            let expr = apply_string_comparison(entity::Column::Name, op, "x");
+            let sql = format!("{expr:?}");
+            assert!(
+                sql.contains(needle),
+                "operator {op} renders {needle}: {sql}"
+            );
+        }
+    }
+
+    /// Enum equality filters route through the same Postgres cast.
+    #[test]
+    fn test_process_string_filter_enum_postgres_cast() {
+        use crate::filtering::test_support::{EnumSearchResource, entity};
+
+        let expr = process_string_filter::<EnumSearchResource>(
+            "status",
+            "=",
+            "active",
+            entity::Column::Status,
+            DatabaseBackend::Postgres,
+        )
+        .expect("enum equality yields a condition");
+        let sql = format!("{expr:?}");
+        assert!(
+            sql.contains("TEXT") && sql.contains("ACTIVE"),
+            "expected cast column and upper-cased value: {sql}"
+        );
+    }
+
     // ========================================================================
-    // build_comparison_expr — direct coverage of the public joined-filter
+    // build_comparison_expr: direct coverage of the public joined-filter
     // expression builder used by derive-generated resolve_joined_filters.
     // ========================================================================
 
@@ -1052,13 +1246,45 @@ mod tests {
 
     /// Render an expression to inlined SQLite SQL so the ESCAPE clause and the
     /// (escaped) bound pattern are both visible as text.
-    fn cmp_sql(expr: SimpleExpr) -> String {
+    fn cmp_sql(expr: Expr) -> String {
         use sea_orm::sea_query::{Query, SqliteQueryBuilder};
         Query::select()
             .column(cmp_entity::Column::Id)
             .from(cmp_entity::Entity)
             .and_where(expr)
             .to_string(SqliteQueryBuilder)
+    }
+
+    /// `table_column_ref` must render as a table-qualified column, matching what
+    /// the removed `ColumnRef::TableColumn` produced in Sea-Query 0.x.
+    #[test]
+    fn test_table_column_ref_renders_qualified() {
+        use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+        let sql = Query::select()
+            .column(table_column_ref("vehicles", "customer_id"))
+            .from(cmp_entity::Entity)
+            .to_string(SqliteQueryBuilder);
+        assert!(
+            sql.contains(r#""vehicles"."customer_id""#),
+            "expected table-qualified column: {sql}"
+        );
+    }
+
+    /// `table_column_ref` accepts the `(DynIden, DynIden)` pair returned by
+    /// `ColumnTrait::as_column_ref`, the form the generated join code uses.
+    #[test]
+    fn test_table_column_ref_accepts_as_column_ref_pair() {
+        use sea_orm::ColumnTrait;
+        use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+        let (table, column) = cmp_entity::Column::Name.as_column_ref();
+        let sql = Query::select()
+            .column(table_column_ref(table, column))
+            .from(cmp_entity::Entity)
+            .to_string(SqliteQueryBuilder);
+        assert!(
+            sql.contains(r#""cmp_things"."name""#),
+            "expected table-qualified column: {sql}"
+        );
     }
 
     /// A1 regression: the joined `_like` path must escape user wildcards with `!`
@@ -1351,7 +1577,7 @@ mod tests {
     /// operator falls back to equality.
     #[test]
     fn test_apply_typed_comparison_operators() {
-        // (input operator, symbol sea-query renders — inequality is `<>`, not `!=`)
+        // (input operator, symbol sea-query renders; inequality is `<>`, not `!=`)
         let cases = [
             (">=", ">="),
             ("<=", "<="),

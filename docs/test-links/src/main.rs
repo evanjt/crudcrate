@@ -1,10 +1,10 @@
 //! mdBook preprocessor that links documentation examples to their test coverage.
 //!
 //! Test files annotate their connection to docs using `@doc-link` comments:
-//!   // @doc-link-file filtering          — link key to entire file
-//!   // @doc-link filtering::null         — link key to the next test function
-//!   // @doc-link filtering::comparison {start}  — start of a range
-//!   // @doc-link filtering::comparison {end}    — end of a range
+//!   // @doc-link-file filtering          : link key to entire file
+//!   // @doc-link filtering::null         : link key to the next test function
+//!   // @doc-link filtering::comparison {start}  : start of a range
+//!   // @doc-link filtering::comparison {end}    : end of a range
 //!
 //! Usage in markdown:
 //!   {{#test_link filtering}}
@@ -110,7 +110,7 @@ impl TestRegistry {
                 let key = key.trim().to_string();
                 if self.tests.contains_key(&key) {
                     errors.push(format!(
-                        "Duplicate @doc-link-file '{}' in {} — already defined elsewhere",
+                        "Duplicate @doc-link-file '{}' in {}; already defined elsewhere",
                         key, file_path
                     ));
                 } else {
@@ -143,12 +143,12 @@ impl TestRegistry {
                     continue;
                 }
 
-                // Simple function annotation — find next test function
+                // Simple function annotation: find next test function
                 let key = rest.to_string();
                 if let Some((fn_start, fn_end)) = find_next_function(&lines, i + 1) {
                     if self.tests.contains_key(&key) {
                         errors.push(format!(
-                            "Duplicate @doc-link '{}' in {} at line {} — already defined elsewhere",
+                            "Duplicate @doc-link '{}' in {} at line {}; already defined elsewhere",
                             key, file_path, line_num
                         ));
                     } else {
@@ -178,7 +178,7 @@ impl TestRegistry {
                 (Some(s), Some(e)) => {
                     if self.tests.contains_key(&key) {
                         errors.push(format!(
-                            "Duplicate range annotation '{}' in {} — already defined elsewhere",
+                            "Duplicate range annotation '{}' in {}; already defined elsewhere",
                             key, file_path
                         ));
                     } else {
@@ -518,7 +518,7 @@ fn main() {
                 }
             }
             _ => {
-                // Unknown subcommand — fall through to preprocessor mode
+                // Unknown subcommand; fall through to preprocessor mode
             }
         }
     }

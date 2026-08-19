@@ -122,7 +122,7 @@ async fn soft_delete(
 }
 ```
 
-### `transform` — Modify Results
+### `transform`: Modify Results
 
 Transform hooks receive the operation result and return a modified version. Use for enrichment, decoration, or data transformation.
 

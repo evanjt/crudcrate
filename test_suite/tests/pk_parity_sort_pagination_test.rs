@@ -26,7 +26,7 @@ use tower::ServiceExt;
 pub mod thing {
     use super::*;
 
-    // Integer auto-increment PK (no on_create — the DB assigns it), excluded
+    // Integer auto-increment PK (no on_create, the DB assigns it), excluded
     // from create/update. `name` and `id` are both sortable. max_page_size is
     // set below the seeded row count so the cap is observable independently of
     // the data volume, exactly as the Uuid pagination coverage test does.
@@ -67,15 +67,15 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op.
-    db.execute(backend.build(&Table::drop().table(thing::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(thing::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(thing::Entity)))
+    db.execute(&schema.create_table_from_entity(thing::Entity))
         .await?;
     Ok(db)
 }
 
 /// Seed `SEED_COUNT` rows. Names are zero-padded so they sort identically
-/// whether compared lexically or numerically — the seeded order matches the
+/// whether compared lexically or numerically: the seeded order matches the
 /// auto-assigned id order so default/id-sort orderings are predictable.
 async fn seed(db: &DatabaseConnection) {
     let items: Vec<thing::ThingCreate> = (0..SEED_COUNT)
@@ -147,7 +147,7 @@ const SORT_ID_DESC: &str = "sort=%5B%22id%22%2C%22DESC%22%5D";
 
 // Without explicit pagination the handler applies a default page size of 10
 // (identical for a Uuid PK). Sort-ordering tests that need the full 25-row
-// ordering ask for a wide-enough range — capped at max_page_size (20) — so the
+// ordering ask for a wide-enough range, capped at max_page_size (20), so the
 // ordering is observable across the digit boundary (single vs double digit).
 const WIDE_RANGE: &str = "range=%5B0%2C19%5D";
 

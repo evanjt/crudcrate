@@ -58,6 +58,7 @@ CRUDCrate enforces limits to prevent abuse:
 
 | Limit | Value | Purpose |
 |-------|-------|---------|
+| Min page size | 1 | Keep a page from being empty by construction |
 | Max page size | 1,000 | Prevent memory exhaustion |
 | Max offset | 1,000,000 | Prevent excessive DB load |
 
@@ -68,6 +69,29 @@ GET /items?per_page=10000
 # Response: limited to 1000 items
 Content-Range: items 0-999/5000
 ```
+
+`per_page=0` is clamped up to 1, so a client loop that pages until it sees fewer
+rows than it asked for terminates instead of spinning on empty responses.
+
+## Stable Ordering
+
+Paging with `LIMIT`/`OFFSET` only returns each row once if the sort produces a
+total order. A sort column with duplicate values (a status, a category, a
+timestamp shared by several rows) leaves the tied rows in whatever order the
+engine picks, which can differ between the two queries that serve two pages, so a
+row can appear twice or not at all.
+
+CRUDCrate appends the primary key as a secondary sort key whenever the requested
+sort column is not the primary key:
+
+```sql
+-- GET /items?sort=["status","ASC"]&range=[0,9]
+ORDER BY status ASC, id ASC LIMIT 10 OFFSET 0
+```
+
+This applies to plain sorts, joined (dot-notation) sorts, and any resource using
+the default `get_all` / `fetch_all` implementations. A custom `get::all::body`
+override is your own query, so it needs its own tiebreaker.
 
 ## Examples
 
@@ -181,16 +205,16 @@ let pages = paginator.num_pages().await?;
 CRUDCrate uses offset pagination by default. For large datasets, consider cursor pagination:
 
 ### Offset Pagination (Default)
-- ✅ Simple to implement
-- ✅ Random page access
-- ❌ Inconsistent with concurrent writes
-- ❌ Slow for large offsets
+- Simple to implement
+- Random page access
+- Inconsistent with concurrent writes
+- Slow for large offsets
 
 ### Cursor Pagination (Custom Implementation)
-- ✅ Consistent with concurrent writes
-- ✅ Fast for any position
-- ❌ No random page access
-- ❌ Requires ordered, unique field
+- Consistent with concurrent writes
+- Fast for any position
+- No random page access
+- Requires ordered, unique field
 
 Example cursor pagination:
 

@@ -30,14 +30,14 @@ pub struct Model {
     #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
     pub id: Uuid,
 
-    // ✅ Show in list view (essential browsing info)
+    // Show in list view (essential browsing info)
     #[crudcrate(sortable, filterable, fulltext)]
     pub name: String,
 
     #[crudcrate(sortable, filterable)]
     pub price: f64,
 
-    // ❌ Hide from list view - only show in detail view
+    // Hide from list view - only show in detail view
     #[sea_orm(column_type = "Text")]
     #[crudcrate(filterable, fulltext, exclude(list))]
     pub description: Option<String>,
@@ -52,11 +52,11 @@ pub struct Model {
     #[crudcrate(sortable, filterable, exclude(list))]
     pub dimensions: Option<String>,
 
-    // ✅ Show timestamps in list (useful for sorting)
+    // Show timestamps in list (useful for sorting)
     #[crudcrate(exclude(create, update), on_create = Utc::now(), sortable)]
     pub created_at: DateTime<Utc>,
 
-    // ❌ Hide updated_at from list (detail-only)
+    // Hide updated_at from list (detail-only)
     #[crudcrate(
         exclude(create, update, list),
         on_create = Utc::now(),
@@ -83,10 +83,9 @@ async fn setup_products_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests; drop first so every
     // test starts from a clean schema. On sqlite::memory: each connection is a fresh
     // database, so the drops are no-ops.
-    db.execute(backend.build(&Table::drop().table(Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(Entity)))
-        .await?;
+    db.execute(&schema.create_table_from_entity(Entity)).await?;
 
     Ok(db)
 }
@@ -147,13 +146,13 @@ async fn test_list_model_excludes_expensive_fields() {
 
     let product_in_list = &items[0];
 
-    // ✅ List model SHOULD include: id, name, price, created_at
+    // List model SHOULD include: id, name, price, created_at
     assert!(product_in_list.get("id").is_some());
     assert_eq!(product_in_list["name"], "Premium Widget");
     assert_eq!(product_in_list["price"], 99.99);
     assert!(product_in_list.get("created_at").is_some());
 
-    // ❌ List model SHOULD NOT include: description, specifications, weight_kg, dimensions, updated_at
+    // List model SHOULD NOT include: description, specifications, weight_kg, dimensions, updated_at
     assert!(product_in_list.get("description").is_none());
     assert!(product_in_list.get("specifications").is_none());
     assert!(product_in_list.get("weight_kg").is_none());
@@ -209,7 +208,7 @@ async fn test_detail_view_includes_all_fields() {
     let detail: serde_json::Value =
         serde_json::from_slice(&body).expect("Failed to parse detail response");
 
-    // ✅ Detail view SHOULD include ALL fields
+    // Detail view SHOULD include ALL fields
     assert!(detail.get("id").is_some());
     assert_eq!(detail["name"], "Deluxe Gadget");
     assert_eq!(detail["price"], 199.99);

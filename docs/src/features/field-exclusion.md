@@ -29,9 +29,9 @@ pub id: Uuid,
 ```
 
 **Result:**
-- ✅ Appears in responses
-- ❌ Not in create request model
-- ❌ Not in update request model
+- Appears in responses
+- Not in create request model
+- Not in update request model
 
 ### Timestamps
 
@@ -57,9 +57,9 @@ pub api_secret: String,
 ```
 
 **Result:**
-- ❌ Not in any response
-- ✅ Can be set on create
-- ✅ Can be updated
+- Not in any response
+- Can be set on create
+- Can be updated
 
 ### Expensive Fields
 
@@ -74,9 +74,9 @@ pub statistics: Json,
 ```
 
 **Result:**
-- ✅ In single item response
-- ❌ Not in list response
-- ✅ Can be set/updated
+- In single item response
+- Not in list response
+- Can be set/updated
 
 ### Internal Fields
 
@@ -87,7 +87,7 @@ pub internal_score: f64,
 ```
 
 **Result:**
-- ❌ Not in any model
+- Not in any model
 - Field only used internally in database
 
 ### Read-Only Computed Fields
@@ -184,12 +184,12 @@ pub struct UserList {
 ```
 Field            │ Response │ Create │ Update │ List
 ─────────────────┼──────────┼────────┼────────┼──────
-id               │    ✅    │   ❌   │   ❌   │  ✅
-email            │    ✅    │   ✅   │   ✅   │  ✅
-password_hash    │    ❌    │   ✅   │   ✅   │  ❌
-display_name     │    ✅    │   ✅   │   ✅   │  ✅
-bio              │    ✅    │   ✅   │   ✅   │  ❌
-created_at       │    ✅    │   ❌   │   ❌   │  ✅
+id               │   Yes    │   No   │   No   │ Yes
+email            │   Yes    │  Yes   │  Yes   │ Yes
+password_hash    │   No     │  Yes   │  Yes   │ No
+display_name     │   Yes    │  Yes   │  Yes   │ Yes
+bio              │   Yes    │  Yes   │  Yes   │ No
+created_at       │   Yes    │   No   │   No   │ Yes
 ```
 
 ## Combining with Other Attributes

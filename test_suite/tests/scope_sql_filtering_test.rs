@@ -373,7 +373,7 @@ async fn scope_sql_filter_no_scoped_fields_on_child() {
     assert_eq!(
         parts.len(),
         3,
-        "All parts should be visible — vehicle_parts has no scope filtering. Got {}",
+        "All parts should be visible: vehicle_parts has no scope filtering. Got {}",
         parts.len()
     );
 }
@@ -461,7 +461,7 @@ async fn scope_sql_deep_joins_filter_at_each_level() {
 }
 
 // =============================================================================
-// 6. Unscoped (admin) returns all children — regression test
+// 6. Unscoped (admin) returns all children (regression test)
 // =============================================================================
 
 #[tokio::test]

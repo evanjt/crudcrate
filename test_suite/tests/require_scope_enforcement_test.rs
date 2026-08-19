@@ -3,7 +3,7 @@
 //!
 //! When a resource is declared with `#[crudcrate(require_scope)]`, the generated
 //! handlers must refuse to serve requests that arrive without a `ScopeCondition`
-//! extension (i.e. the scope middleware is missing or misconfigured). The branch
+//! extension (ie. the scope middleware is missing or misconfigured). The branch
 //! under test is `if REQUIRE_SCOPE && scope.is_none() { return Err(internal(..)) }`,
 //! which maps to HTTP 500.
 //!
@@ -41,7 +41,7 @@ pub mod rse_item {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-/// Control entity WITHOUT `require_scope` — must serve fine without any scope layer.
+/// Control entity WITHOUT `require_scope`: must serve fine without any scope layer.
 pub mod rse_other {
     use super::*;
 
@@ -80,12 +80,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
             .if_exists()
             .to_owned(),
     ] {
-        db.execute(backend.build(&stmt)).await?;
+        db.execute(&stmt).await?;
     }
 
-    db.execute(backend.build(&schema.create_table_from_entity(rse_item::Entity)))
+    db.execute(&schema.create_table_from_entity(rse_item::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(rse_other::Entity)))
+    db.execute(&schema.create_table_from_entity(rse_other::Entity))
         .await?;
 
     Ok(db)
@@ -268,7 +268,7 @@ async fn non_require_scope_get_all_without_scope_returns_200() {
 async fn non_require_scope_get_one_without_scope_returns_404_not_500() {
     let db = setup_test_db().await.unwrap();
 
-    // No row exists, so this is a 404 — crucially NOT a 500. This confirms the
+    // No row exists, so this is a 404, crucially NOT a 500. This confirms the
     // require_scope branch is not taken for the control entity.
     let some_uuid = Uuid::new_v4();
     let status = get(others_app(&db), &format!("/others/{some_uuid}")).await;

@@ -4,11 +4,11 @@ CRUDCrate works with PostgreSQL, MySQL, and SQLite, with database-specific optim
 
 ## Supported Databases
 
-| Database | Support Level | Fulltext Search | Best For |
+| Database | Support Level | Fulltext Search | Typical Use |
 |----------|--------------|-----------------|----------|
-| **PostgreSQL** | ✅ Full | GIN + tsvector | Complex queries, high concurrency |
-| **MySQL** | ✅ Full | FULLTEXT index | Traditional deployments |
-| **SQLite** | ✅ Full | LIKE fallback | Development, embedded apps |
+| **PostgreSQL** | Full | GIN + tsvector | Complex queries, high concurrency |
+| **MySQL** | Full | FULLTEXT index | Traditional deployments |
+| **SQLite** | Full | LIKE fallback | Development, embedded apps |
 
 ## Configuration
 
@@ -16,7 +16,7 @@ CRUDCrate works with PostgreSQL, MySQL, and SQLite, with database-specific optim
 
 ```toml
 [dependencies]
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 ```
 
 ```rust
@@ -32,7 +32,7 @@ let db = Database::connect("postgres://user:pass@localhost/mydb").await?;
 
 ```toml
 [dependencies]
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-mysql"] }
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-mysql"] }
 ```
 
 ```rust
@@ -48,7 +48,7 @@ let db = Database::connect("mysql://user:pass@localhost/mydb").await?;
 
 ```toml
 [dependencies]
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 ```
 
 ```rust
@@ -269,7 +269,7 @@ mod integration_tests {
 ### PostgreSQL Strengths
 
 - Excellent for complex queries
-- Best fulltext search
+- Native fulltext search (GIN + tsvector)
 - JSONB operations
 - Concurrent access
 - Advanced indexing (GIN, BRIN, partial)

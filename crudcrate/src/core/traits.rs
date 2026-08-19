@@ -16,8 +16,8 @@ pub struct UuidIdResult {
 
 /// The primary-key value type of a [`CRUDResource`]'s entity.
 ///
-/// Resolves to `<<<R::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType`
-/// — e.g. `uuid::Uuid`, `i32`, or `String` depending on the entity's `#[sea_orm(primary_key)]`
+/// Resolves to `<<<R::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType`,
+/// e.g. `uuid::Uuid`, `i32`, or `String` depending on the entity's `#[sea_orm(primary_key)]`
 /// column. Used throughout the CRUD stack so identifier-taking methods stay generic over the
 /// concrete PK type rather than hardcoding `Uuid`.
 pub type PrimaryKeyType<R> =
@@ -94,7 +94,7 @@ where
     /// `axum::Extension<SecurityProfile>`. See [`crate::SecurityProfile`] for the
     /// preset rationale and override syntax.
     ///
-    /// Default is [`SecurityProfile::secure`] as of 0.9.0. Consumers upgrading from
+    /// Default is [`SecurityProfile::secure`](crate::SecurityProfile::secure) as of 0.9.0. Consumers upgrading from
     /// 0.8.x can restore pre-0.9.0 behavior with
     /// `#[crudcrate(security_profile = "legacy")]` on each resource, or by applying
     /// `.layer(Extension(SecurityProfile::legacy()))` at the app level.
@@ -104,7 +104,7 @@ where
     }
 
     /// Returns whether the named joined field's child entity carries its own
-    /// `ScopeFilterable::scope_condition()` — i.e., whether a sub-query on that
+    /// `ScopeFilterable::scope_condition()`, ie. whether a sub-query on that
     /// child is automatically scope-restricted.
     ///
     /// Consulted only when `SecurityProfile::scope_propagation_strict` is `true`
@@ -112,7 +112,7 @@ where
     /// joined filters whose target field returns `false`, preventing parent-existence
     /// side-channels via unscoped child columns.
     ///
-    /// The default implementation returns `false` for every field — the safe choice
+    /// The default implementation returns `false` for every field, the safe choice
     /// when the child's scope status is unknown. The derive macro overrides this to
     /// return `true` for joined fields whose child type has `exclude(scoped)` fields.
     #[must_use]
@@ -120,6 +120,11 @@ where
         false
     }
 
+    /// List rows matching `condition`, ordered and paginated.
+    ///
+    /// The primary key is appended as a secondary sort key whenever the requested
+    /// sort column is not the primary key itself, so `OFFSET`/`LIMIT` paging over a
+    /// column with duplicate values cannot repeat or skip a row between pages.
     async fn get_all(
         db: &DatabaseConnection,
         condition: &Condition,
@@ -128,9 +133,13 @@ where
         offset: u64,
         limit: u64,
     ) -> Result<Vec<Self::ListModel>, ApiError> {
-        let models = Self::EntityType::find()
+        let mut query = Self::EntityType::find()
             .filter(condition.clone())
-            .order_by(order_column, order_direction)
+            .order_by(order_column, order_direction);
+        if order_column.as_str() != Self::ID_COLUMN.as_str() {
+            query = query.order_by(Self::ID_COLUMN, Order::Asc);
+        }
+        let models = query
             .offset(offset)
             .limit(limit)
             .all(db)
@@ -167,8 +176,8 @@ where
     /// sort, e.g. `sort=["vehicles.year","DESC"]`).
     ///
     /// The parent query is ordered by a correlated sub-query over the child
-    /// table — `(SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
-    /// parent.<pk>)` — so each parent keeps a single row (no JOIN, no
+    /// table: `(SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
+    /// parent.<pk>)`, so each parent keeps a single row (no JOIN, no
     /// `DISTINCT`) and to-many relations have a well-defined ordering key.
     /// `MIN` is used for both ASC and DESC: ascending lists parents by their
     /// smallest child value first, descending by their largest smallest-value
@@ -368,8 +377,8 @@ where
 
         // Return only IDs that actually existed, de-duplicated while preserving input
         // order. The DELETE itself is de-duplicated via `existing_set`, so echoing a
-        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted
-        // — both as the `{deleted: count}` integer and the returned array.
+        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted,
+        // both as the `{deleted: count}` integer and the returned array.
         let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()

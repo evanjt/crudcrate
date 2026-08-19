@@ -158,14 +158,14 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
         Table::drop().table(team::Entity).if_exists().to_owned(),
         Table::drop().table(org::Entity).if_exists().to_owned(),
     ] {
-        db.execute(backend.build(&stmt)).await?;
+        db.execute(&stmt).await?;
     }
 
-    db.execute(backend.build(&schema.create_table_from_entity(org::Entity)))
+    db.execute(&schema.create_table_from_entity(org::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(team::Entity)))
+    db.execute(&schema.create_table_from_entity(team::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(member::Entity)))
+    db.execute(&schema.create_table_from_entity(member::Entity))
         .await?;
 
     Ok(db)
@@ -300,7 +300,7 @@ async fn get_one_org_populates_teams_and_grandchild_members() {
 }
 
 /// `get_all` and `get_one` must agree on the nested member shape for the same
-/// data — the two loaders share no code, so this guards drift between them.
+/// data. The two loaders share no code, so this guards drift between them.
 #[tokio::test]
 async fn list_and_get_one_agree_on_nested_shape() {
     let db = setup_test_db().await.expect("db setup");

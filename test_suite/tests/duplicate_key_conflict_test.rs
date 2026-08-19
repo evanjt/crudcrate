@@ -57,9 +57,9 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op. Dropping the
     // table also removes its unique index, so the index recreate below is clean.
-    db.execute(backend.build(&Table::drop().table(dkc_user::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(dkc_user::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(dkc_user::Entity)))
+    db.execute(&schema.create_table_from_entity(dkc_user::Entity))
         .await?;
 
     // Belt-and-suspenders: ensure a unique index on `email` exists regardless of
@@ -119,7 +119,7 @@ async fn unique_constraint_is_enforced() {
     .await;
     assert!(
         second.is_err(),
-        "second insert with duplicate email must fail — unique index is missing if this succeeds"
+        "second insert with duplicate email must fail: unique index is missing if this succeeds"
     );
 }
 

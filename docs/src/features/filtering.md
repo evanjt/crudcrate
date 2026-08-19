@@ -274,7 +274,7 @@ Complex filters can impact performance. Consider:
 CRUDCrate supports filtering parents by columns on their related children
 using dot-notation syntax. The built-in handler resolves each joined filter
 into a sub-query on the child table and intersects matching parent IDs with
-the main query — no custom hook required.
+the main query; no custom hook required.
 
 ### Enabling Join Filtering
 
@@ -349,7 +349,7 @@ SELECT * FROM customers
 ```
 
 Two to three queries per request: one per joined-filter field plus the main
-list query plus the count query — both of which reuse the augmented
+list query plus the count query, both of which reuse the augmented
 condition. No row multiplication, no `DISTINCT`, no JOIN in the main query.
 
 ### Scope Safety
@@ -378,17 +378,17 @@ pub vehicles: Vec<Vehicle>,
 ```
 
 ```bash
-# ✅ Allowed — year is in filterable
+# Allowed: year is in filterable
 GET /customers?filter={"vehicles.year":2020}
 
-# ❌ Ignored — model is NOT in filterable
+# Ignored: model is NOT in filterable
 GET /customers?filter={"vehicles.model":"Civic"}
 
-# ❌ Ignored — unknown join field
+# Ignored: unknown join field
 GET /customers?filter={"fake.column":"value"}
 ```
 
-Silent drop (rather than 400) is deliberate — it prevents:
+Silent drop (rather than 400) is deliberate. It prevents:
 
 - SQL injection via crafted dot-notation
 - Schema discovery through filter probing

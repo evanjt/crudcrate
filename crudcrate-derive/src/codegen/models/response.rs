@@ -6,7 +6,7 @@
 
 use crate::attribute_parser::get_crudcrate_bool;
 use crate::codegen::joins::config::get_join_config;
-use crate::codegen::models::shared::resolve_dtwtz;
+use crate::codegen::models::shared::{resolve_dtwtz, wire_attrs};
 use quote::quote;
 
 /// Generate field assignment expressions for converting API struct to Response.
@@ -48,14 +48,7 @@ pub(crate) fn generate_response_struct_fields(
             let ident = &field.ident;
             let ty = &field.ty;
 
-            // Copy non-crudcrate attributes to the response field
-            let attrs: Vec<_> = field
-                .attrs
-                .iter()
-                .filter(|attr| {
-                    !attr.path().is_ident("crudcrate") && !attr.path().is_ident("sea_orm")
-                })
-                .collect();
+            let attrs = wire_attrs(field);
 
             // Check if this is a self-referencing or join field. Use an exact inner-type
             // match (after unwrapping Vec/Option), not a substring of the whole type string,

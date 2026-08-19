@@ -61,7 +61,7 @@ use quote::quote;
 /// runtime. Used by the `scope_propagation_strict` profile field to decide
 /// whether a joined filter is safe under an active `ScopeCondition`.
 ///
-/// Falls back to `false` for unknown field names — matching the default trait
+/// Falls back to `false` for unknown field names, matching the default trait
 /// impl's conservative posture.
 pub fn generate_joined_field_has_scope_impl(
     analysis: &EntityFieldAnalysis,
@@ -131,7 +131,7 @@ pub fn generate_joined_field_has_scope_impl(
 /// augmented condition.
 ///
 /// `Option<Child>` fields (`belongs_to`) and fields without declared filterable
-/// columns are silently skipped — the default trait impl's debug-log
+/// columns are silently skipped; the default trait impl's debug-log
 /// behavior handles the runtime case.
 ///
 /// Returns empty tokens if there are no filterable joined columns (letting
@@ -145,7 +145,7 @@ pub fn generate_resolve_joined_filters_impl(
         .join_on_all_fields
         .iter()
         .filter_map(|&field| {
-            // Only Vec<Child> — Option<Child> (belongs_to) has the FK on the
+            // Only Vec<Child>; Option<Child> (belongs_to) has the FK on the
             // parent, not the child, so the sub-query direction is reversed
             // and requires different codegen. Skip for now.
             if !is_vec_type(&field.ty) {
@@ -165,7 +165,7 @@ pub fn generate_resolve_joined_filters_impl(
         .collect();
 
     if candidates.is_empty() {
-        // No override needed — default trait impl returns the condition unchanged
+        // No override needed; default trait impl returns the condition unchanged
         return quote! {};
     }
 
@@ -231,36 +231,32 @@ pub fn generate_resolve_joined_filters_impl(
                     let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
                         &#column_path::#fk_column_pascal
                     );
-                    sea_orm::sea_query::ColumnRef::TableColumn(__t, __c)
+                    crudcrate::table_column_ref(__t, __c)
                 }
             }
         } else {
             quote! {
                 {
-                    use sea_orm::Iden;
                     let __rel_def = <#entity_path as sea_orm::Related<
                         <Self as crudcrate::traits::CRUDResource>::EntityType
                     >>::to();
-                    let mut __fk_col_name = String::new();
-                    __rel_def.from_col.unquoted(&mut __fk_col_name);
+                    let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                     let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
-                    sea_orm::sea_query::ColumnRef::TableColumn(
-                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__child_tbl)),
-                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__fk_col_name)),
-                    )
+                    crudcrate::table_column_ref(__child_tbl, __fk_col_name)
                 }
             }
         };
 
         quote! {
             #field_name => {
-                let __sub_expr: Option<sea_orm::sea_query::SimpleExpr> = match __jf.column.as_str() {
+                let __sub_expr: Option<sea_orm::sea_query::Expr> = match __jf.column.as_str() {
                     #( #column_arms )*
                     _ => None,
                 };
 
                 if let Some(__sub_expr) = __sub_expr {
-                    use sea_orm::sea_query::{Expr, Query};
+                    use sea_orm::ExprTrait;
+                    use sea_orm::sea_query::{Expr, Query, QueryStatementBuilder};
 
                     let __child_scope: Option<sea_orm::Condition> =
                         <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
@@ -282,7 +278,7 @@ pub fn generate_resolve_joined_filters_impl(
                         .to_owned();
 
                     let (__pt, __pc) = sea_orm::ColumnTrait::as_column_ref(&Self::ID_COLUMN);
-                    let __parent_ref = sea_orm::sea_query::ColumnRef::TableColumn(__pt, __pc);
+                    let __parent_ref = crudcrate::table_column_ref(__pt, __pc);
                     __augmented = __augmented.add(Expr::col(__parent_ref).in_subquery(__subquery));
                 }
             }
@@ -324,7 +320,7 @@ pub fn generate_resolve_joined_filters_impl(
 ///
 /// `Option<Child>` fields (`belongs_to`) and fields without declared sortable
 /// columns are skipped. Unknown `join_field`/`column` combinations fall back to
-/// ordering by the parent's default index column — matching the trait default's
+/// ordering by the parent's default index column, matching the trait default's
 /// no-op behavior so the request never mis-orders silently.
 ///
 /// Returns empty tokens if there are no sortable joined columns (letting the
@@ -358,7 +354,7 @@ pub fn generate_get_all_joined_sorted_impl(
         .collect();
 
     if candidates.is_empty() {
-        // No override needed — default trait impl falls back to default_index_column
+        // No override needed; default trait impl falls back to default_index_column
         return quote! {};
     }
 
@@ -402,23 +398,18 @@ pub fn generate_get_all_joined_sorted_impl(
                     let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
                         &#column_path::#fk_column_pascal
                     );
-                    sea_orm::sea_query::ColumnRef::TableColumn(__t, __c)
+                    crudcrate::table_column_ref(__t, __c)
                 }
             }
         } else {
             quote! {
                 {
-                    use sea_orm::Iden;
                     let __rel_def = <#entity_path as sea_orm::Related<
                         <Self as crudcrate::traits::CRUDResource>::EntityType
                     >>::to();
-                    let mut __fk_col_name = String::new();
-                    __rel_def.from_col.unquoted(&mut __fk_col_name);
+                    let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                     let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
-                    sea_orm::sea_query::ColumnRef::TableColumn(
-                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__child_tbl)),
-                        sea_orm::sea_query::SeaRc::new(sea_orm::sea_query::Alias::new(__fk_col_name)),
-                    )
+                    crudcrate::table_column_ref(__child_tbl, __fk_col_name)
                 }
             }
         };
@@ -431,7 +422,7 @@ pub fn generate_get_all_joined_sorted_impl(
                     let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
                         &#column_path::#col_pascal
                     );
-                    Some(sea_orm::sea_query::ColumnRef::TableColumn(__t, __c))
+                    Some(crudcrate::table_column_ref(__t, __c))
                 }
             }
         });
@@ -444,7 +435,8 @@ pub fn generate_get_all_joined_sorted_impl(
                 };
 
                 if let Some(__child_col_ref) = __child_col_ref {
-                    use sea_orm::sea_query::{Expr, Query};
+                    use sea_orm::ExprTrait;
+                    use sea_orm::sea_query::{Expr, Query, QueryStatementBuilder};
 
                     let __parent_pk_ref = <Self::ColumnType as sea_orm::ColumnTrait>::as_column_ref(
                         &Self::ID_COLUMN
@@ -457,7 +449,7 @@ pub fn generate_get_all_joined_sorted_impl(
                         .and_where(Expr::col(__fk_ref).equals(__parent_pk_ref))
                         .to_owned();
 
-                    let __order_expr = sea_orm::sea_query::SimpleExpr::SubQuery(
+                    let __order_expr = sea_orm::sea_query::Expr::SubQuery(
                         None,
                         Box::new(__subquery.into_sub_query_statement()),
                     );
@@ -465,6 +457,7 @@ pub fn generate_get_all_joined_sorted_impl(
                     let __models = Self::EntityType::find()
                         .filter(condition.clone())
                         .order_by(__order_expr, direction)
+                        .order_by(Self::ID_COLUMN, sea_orm::Order::Asc)
                         .offset(offset)
                         .limit(limit)
                         .all(db)
@@ -523,7 +516,7 @@ pub fn generate_get_one_join_loading(
     generate_get_one_join_loading_inner(analysis, api_struct_name, false)
 }
 
-/// Generate join loading code for `get_one_scoped()` — applies child entity
+/// Generate join loading code for `get_one_scoped()`: applies child entity
 /// scope conditions to Vec join queries at the SQL level.
 pub fn generate_get_one_scoped_join_loading(
     analysis: &EntityFieldAnalysis,
@@ -591,7 +584,7 @@ pub fn generate_get_all_batch_loading(
     generate_batch_loading_impl(&join_fields, api_struct_name, &pk_ident, false)
 }
 
-/// Generate batch loading code for `get_all_scoped()` — applies child entity
+/// Generate batch loading code for `get_all_scoped()`: applies child entity
 /// scope conditions to Vec child batch queries at the SQL level, and recurses
 /// via `get_one_scoped` for depth > 1 so grandchildren are also filtered.
 pub fn generate_get_all_scoped_batch_loading(
@@ -757,14 +750,13 @@ fn generate_batch_loading_impl(
                     // Runtime FK resolution from SeaORM RelationDef
                     batch_loading_statements.push(quote! {
                         let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
-                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden, ModelTrait};
+                            use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait, ModelTrait};
                             use std::str::FromStr;
 
                             let __rel_def = <#entity_path as sea_orm::Related<
                                 <Self as crudcrate::traits::CRUDResource>::EntityType
                             >>::to();
-                            let mut __fk_col_name = String::new();
-                            __rel_def.from_col.unquoted(&mut __fk_col_name);
+                            let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
 
                             let query = #entity_path::find()
                                 .filter(sea_orm::sea_query::Expr::col(
@@ -866,14 +858,13 @@ fn generate_batch_loading_impl(
                 if use_runtime {
                     batch_loading_statements.push(quote! {
                         let mut #map_var: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> = Box::pin(async {
-                            use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden, ModelTrait};
+                            use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait, ModelTrait};
                             use std::str::FromStr;
 
                             let __rel_def = <#entity_path as sea_orm::Related<
                                 <Self as crudcrate::traits::CRUDResource>::EntityType
                             >>::to();
-                            let mut __fk_col_name = String::new();
-                            __rel_def.from_col.unquoted(&mut __fk_col_name);
+                            let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
 
                             let query = #entity_path::find()
                                 .filter(sea_orm::sea_query::Expr::col(
@@ -1051,7 +1042,7 @@ fn generate_batch_loading_impl(
     let pre_loop_code = quote! {
         // Collect all parent IDs for batch loading. Clone each PK so the parent
         // models stay intact for later conversion (the PK value type is not
-        // required to be Copy — e.g. String primary keys).
+        // required to be Copy, e.g. String primary keys).
         let parent_ids: Vec<#parent_pk_ty> = models.iter().map(|m| m.#pk_ident.clone()).collect();
 
         #( #batch_loading_statements )*
@@ -1077,7 +1068,7 @@ fn to_snake_case(s: &str) -> String {
 
 /// Derive FK column identifiers for a join field.
 ///
-/// Returns `(pascal_ident, snake_ident)` — e.g., `(CustomerId, customer_id)`.
+/// Returns `(pascal_ident, snake_ident)`, e.g., `(CustomerId, customer_id)`.
 ///
 /// Resolution order:
 /// 1. Explicit `fk_column = "..."` from join config (highest priority)
@@ -1108,7 +1099,7 @@ fn derive_fk_idents(
         (
             quote::format_ident!("{}Id", api_struct_name),
             quote::format_ident!("{}_id", to_snake_case(&api_struct_name.to_string())),
-            true, // Use runtime resolution — convention may not match
+            true, // Use runtime resolution: convention may not match
         )
     }
 }
@@ -1238,8 +1229,7 @@ fn generate_join_loading_impl(
                         let __rel_def = <#entity_path as sea_orm::Related<
                             <Self as crudcrate::traits::CRUDResource>::EntityType
                         >>::to();
-                        let mut __fk_col_name = String::new();
-                        sea_orm::Iden::unquoted(&__rel_def.from_col, &mut __fk_col_name);
+                        let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                         let query = #entity_path::find()
                             .filter(sea_orm::sea_query::Expr::col(
                                 sea_orm::sea_query::Alias::new(&__fk_col_name)
@@ -1254,7 +1244,7 @@ fn generate_join_loading_impl(
 
                 loading_statements.push(quote! {
                     let #loaded_var: Vec<#api_struct_type> = {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden};
+                        use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait};
                         #filter_expr
                         #scope_filter
                         let related_models = Box::pin(query.all(db)).await?;
@@ -1308,8 +1298,7 @@ fn generate_join_loading_impl(
                         let __rel_def = <#entity_path as sea_orm::Related<
                             <Self as crudcrate::traits::CRUDResource>::EntityType
                         >>::to();
-                        let mut __fk_col_name = String::new();
-                        sea_orm::Iden::unquoted(&__rel_def.from_col, &mut __fk_col_name);
+                        let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                         let query = #entity_path::find()
                             .filter(sea_orm::sea_query::Expr::col(
                                 sea_orm::sea_query::Alias::new(&__fk_col_name)
@@ -1324,7 +1313,7 @@ fn generate_join_loading_impl(
 
                 loading_statements.push(quote! {
                     let #field_name: Vec<#api_struct_type> = {
-                        use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, Iden};
+                        use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait};
                         #filter_expr_deep
                         #scope_filter
                         let related_models = Box::pin(query.all(db)

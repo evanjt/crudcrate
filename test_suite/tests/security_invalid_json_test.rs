@@ -1,6 +1,6 @@
 //! Issue 3: invalid JSON in `?filter=` was silently ignored, returning an
 //! unfiltered result instead of a 400. The fix routes the behavior through
-//! `SecurityProfile::strict_filter_parsing` — `legacy()` preserves the historical
+//! `SecurityProfile::strict_filter_parsing`: `legacy()` preserves the historical
 //! lenient behavior (so existing consumers don't break on bump), `secure()`
 //! returns `400 Bad Request` so probing for unfiltered responses isn't free.
 
@@ -30,7 +30,7 @@ async fn get_with_raw_filter(app: axum::Router, filter: &str) -> StatusCode {
 #[tokio::test]
 async fn legacy_profile_silently_ignores_malformed_filter() {
     let db = setup_test_db().await.expect("setup");
-    // Explicit legacy() — 0.9.0 flipped the default to secure().
+    // Explicit legacy(): 0.9.0 flipped the default to secure().
     let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
     let status = get_with_raw_filter(app, "garbage").await;
     assert_eq!(status, StatusCode::OK);
@@ -57,7 +57,7 @@ async fn secure_profile_accepts_valid_filter() {
 async fn secure_profile_accepts_empty_filter_param() {
     let db = setup_test_db().await.expect("setup");
     let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::secure()));
-    // No filter param at all — not malformed, must be 200.
+    // No filter param at all: not malformed, must be 200.
     let response = app
         .oneshot(
             Request::builder()
@@ -75,7 +75,7 @@ async fn secure_profile_accepts_empty_filter_param() {
 async fn react_admin_profile_silently_ignores_malformed_filter() {
     let db = setup_test_db().await.expect("setup");
     let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::react_admin()));
-    // react-admin presets are deliberately lenient — its filter components emit
+    // react-admin presets are deliberately lenient: its filter components emit
     // partial JSON during user input and we don't want to 400 on every keystroke.
     let status = get_with_raw_filter(app, "garbage").await;
     assert_eq!(status, StatusCode::OK);

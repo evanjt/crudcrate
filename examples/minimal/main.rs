@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .split_for_parts();
     let app = router.merge(Scalar::with_url("/docs", apidocs));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!("🚀 API: http://0.0.0.0:3000/todo\n📖 Docs: http://0.0.0.0:3000/docs");
+    println!("API: http://0.0.0.0:3000/todo\nDocs: http://0.0.0.0:3000/docs");
     axum::serve(listener, app).await?;
     Ok(())
 }

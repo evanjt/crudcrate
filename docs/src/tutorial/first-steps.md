@@ -20,8 +20,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-crudcrate = "0.1"
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+crudcrate = "0.10"
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

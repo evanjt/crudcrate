@@ -65,12 +65,12 @@ async fn batch_delete(app: axum::Router, ids: &[Uuid]) -> (StatusCode, Value) {
 #[tokio::test]
 async fn legacy_profile_returns_deleted_id_array() {
     let db = setup_test_db().await.expect("setup");
-    // Explicit legacy() — 0.9.0 flipped the default to secure(), so consumers who
+    // Explicit legacy(): 0.9.0 flipped the default to secure(), so consumers who
     // want the historical ID-array response shape must opt in.
     let app = setup_test_app(&db).layer(axum::Extension(SecurityProfile::legacy()));
     let real_ids = seed_three_customers(&app).await;
 
-    // Mix two real IDs with two fake ones — explicit legacy() profile.
+    // Mix two real IDs with two fake ones (explicit legacy() profile).
     let mut ids = vec![real_ids[0], real_ids[1]];
     ids.push(Uuid::new_v4());
     ids.push(Uuid::new_v4());
@@ -95,7 +95,7 @@ async fn secure_profile_returns_only_deleted_count() {
 
     let (status, body) = batch_delete(app, &ids).await;
     assert_eq!(status, StatusCode::OK);
-    // Secure: `{"deleted": 2}` — no IDs, no existence side-channel.
+    // Secure: `{"deleted": 2}`, no IDs, no existence side-channel.
     assert_eq!(body, serde_json::json!({"deleted": 2}));
 }
 

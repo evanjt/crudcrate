@@ -11,7 +11,7 @@
 
 Every Sea-ORM entity needs the same handful of handler functions, request structs,
 response structs, filter parsing, and pagination logic. `crudcrate` derives all of
-it from your model definition — on [Axum](https://github.com/tokio-rs/axum).
+it from your model definition, on [Axum](https://github.com/tokio-rs/axum).
 
 ```rust
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
@@ -38,7 +38,7 @@ let app = Router::new().nest("/customers", Customer::router(&db));
 
 > **Security:** the generated router is unauthenticated **and has no default
 > request body size limit**. Before shipping, you MUST (1) add an Axum
-> authentication middleware and (2) set `DefaultBodyLimit` on the router —
+> authentication middleware and (2) set `DefaultBodyLimit` on the router;
 > without the body-size cap, a single `POST /batch` request can exhaust server
 > memory. See [`docs/src/advanced/security.md`](docs/src/advanced/security.md)
 > and the [`scoped_access`](examples/scoped_access/main.rs) example.
@@ -133,21 +133,25 @@ cargo add crudcrate
 By default this enables SQLite + derive macros. For PostgreSQL or MySQL:
 
 ```toml
-crudcrate = { version = "0.7", default-features = false, features = ["postgresql", "derive"] }
+crudcrate = { version = "0.10", default-features = false, features = ["postgresql", "derive"] }
 ```
+
+crudcrate 0.10 requires `sea-orm = "2.0"` (upgrade notes in
+[docs/MIGRATION_0.10.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.10.md)).
+For Sea-ORM 1.x, stay on crudcrate 0.9.
 
 ## Documentation
 
-**[crudcrate.evanjt.com](https://crudcrate.evanjt.com)** — Tutorials, walkthroughs, and reference.
+**[crudcrate.evanjt.com](https://crudcrate.evanjt.com)**: Tutorials, walkthroughs, and reference.
 
-**[docs.rs/crudcrate](https://docs.rs/crudcrate)** — API reference and attribute documentation.
+**[docs.rs/crudcrate](https://docs.rs/crudcrate)**: API reference and attribute documentation.
 
 The tutorials walk through everything from a minimal setup to hook-based
 customization, relationship loading, and production deployment.
 
 ## Highlights
 
-**Hooks** — Inject logic at any stage of any operation. Pre-validate, override
+**Hooks**: Inject logic at any stage of any operation. Pre-validate, override
 the body, transform results, or run side effects after completion.
 
 ```rust
@@ -159,7 +163,7 @@ the body, transform results, or run side effects after completion.
 )]
 ```
 
-**Relationships** — Load nested data automatically. Batch-loaded at depth 1
+**Relationships**: Load nested data automatically. Batch-loaded at depth 1
 (2 queries instead of N+1), recursive up to depth 5.
 
 ```rust
@@ -168,14 +172,14 @@ the body, transform results, or run side effects after completion.
 pub vehicles: Vec<Vehicle>,
 ```
 
-**Filtering & Search** — Rich query API generated from field attributes.
+**Filtering & Search**: Rich query API generated from field attributes.
 
 ```
 GET /customers?filter={"name_like":"John","email_neq":"spam@example.com"}
 GET /customers?q=urgent&sort=["name","ASC"]&range=[0,24]
 ```
 
-**Field control** — Decide exactly what appears in each generated model.
+**Field control**: Decide exactly what appears in each generated model.
 
 ```rust
 #[crudcrate(exclude(create, update), on_create = Utc::now())]  // auto-managed timestamp
@@ -192,7 +196,7 @@ cargo run --example recursive_join     # Multi-level relationship loading
 
 ## Security caveats
 
-The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`. That version is affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (the Marvin attack — a server-side timing side-channel against RSA decryption). There is no upstream fix yet.
+The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`. That version is affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (the Marvin attack, a server-side timing side-channel against RSA decryption). There is no upstream fix yet.
 
 The feature is opt-in. If you are not connecting to MySQL, leave it disabled. If you are, terminate the MySQL connection over a private network or unix socket rather than across a network-attacker-reachable path.
 

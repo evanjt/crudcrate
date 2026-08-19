@@ -99,7 +99,7 @@ pub struct FilterOptions {
 /// **not** the batch methods (`create_many`, `update_many`, `delete_many`). This means:
 /// - `create::many::*`, `update::many::*`, and `delete::many::*` hooks are **not called**
 /// - Single-item hooks (`create::one::*`, etc.) are called for each item
-/// - There is no shared transaction — each item commits independently
+/// - There is no shared transaction; each item commits independently
 ///
 /// ## Response Shape
 ///

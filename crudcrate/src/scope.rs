@@ -6,7 +6,7 @@
 /// - If scoped models exist (`exclude(scoped)` on fields), handlers return the scoped
 ///   model type which omits those fields from the response
 ///
-/// Auth-system-agnostic — write middleware that converts your auth state into this.
+/// Auth-system-agnostic: write middleware that converts your auth state into this.
 ///
 /// # Example
 ///

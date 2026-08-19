@@ -204,7 +204,11 @@ pub trait CRUDOperations: Send + Sync {
         Ok(())
     }
 
-    /// Core database fetch logic for multiple entities
+    /// Core database fetch logic for multiple entities.
+    ///
+    /// The primary key is appended as a secondary sort key when the requested sort
+    /// column is not the primary key, keeping `OFFSET`/`LIMIT` paging stable across
+    /// rows that tie on the sort column.
     async fn fetch_all(
         &self,
         db: &DatabaseConnection,
@@ -214,11 +218,16 @@ pub trait CRUDOperations: Send + Sync {
         offset: u64,
         limit: u64,
     ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
-        use sea_orm::{EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+        use sea_orm::{EntityTrait, IdenStatic, QueryFilter, QueryOrder, QuerySelect};
 
-        let models = <Self::Resource as CRUDResource>::EntityType::find()
+        let id_column = <Self::Resource as CRUDResource>::ID_COLUMN;
+        let mut query = <Self::Resource as CRUDResource>::EntityType::find()
             .filter(condition.clone())
-            .order_by(order_column, order_direction)
+            .order_by(order_column, order_direction);
+        if order_column.as_str() != id_column.as_str() {
+            query = query.order_by(id_column, Order::Asc);
+        }
+        let models = query
             .offset(offset)
             .limit(limit)
             .all(db)
@@ -462,7 +471,7 @@ pub trait CRUDOperations: Send + Sync {
         }
 
         // Return only IDs that actually existed, de-duplicated while preserving input
-        // order — duplicate input ids would otherwise over-report the rows deleted.
+        // order; duplicate input ids would otherwise over-report the rows deleted.
         let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()

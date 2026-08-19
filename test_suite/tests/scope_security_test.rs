@@ -7,7 +7,7 @@
 /// - Strips scoped columns from filterable/sortable lists
 /// - Returns correct Content-Range counts reflecting the scoped condition
 ///
-/// These tests use real SQLite-in-memory databases — no mocks.
+/// These tests use real SQLite-in-memory databases, no mocks.
 mod common;
 
 use axum::body::{Body, to_bytes};
@@ -269,7 +269,7 @@ async fn scope_nested_join_omits_is_private() {
     )
     .await;
 
-    // List customers — the joined vehicles array should also omit is_private
+    // List customers: the joined vehicles array should also omit is_private
     let (_, body, _) = get_json(&scoped, "/customers").await;
     let customers = body.as_array().unwrap();
     assert!(!customers.is_empty());
@@ -487,7 +487,7 @@ async fn scope_filter_on_excluded_column_ignored() {
     )
     .await;
 
-    // Attempt to filter is_private=true on the scoped endpoint — should be silently ignored
+    // Attempt to filter is_private=true on the scoped endpoint: should be silently ignored
     let filter = encode_filter(&json!({"is_private": true}));
     let (status, body, _) = get_json(&scoped, &format!("/customers?filter={filter}")).await;
     assert_eq!(status, StatusCode::OK);
@@ -593,7 +593,7 @@ async fn scope_content_range_reflects_scoped_count() {
 }
 
 // =============================================================================
-// 18. Mixed public/private children in joins — only public shown
+// 18. Mixed public/private children in joins: only public shown
 // =============================================================================
 
 #[tokio::test]
@@ -769,7 +769,7 @@ async fn scope_parent_list_excludes_private_join_children() {
     )
     .await;
 
-    // Scoped list — customer's vehicles join should only contain the public one
+    // Scoped list: customer's vehicles join should only contain the public one
     let (s, body, _) = get_json(&scoped, "/customers").await;
     assert_eq!(s, StatusCode::OK);
     let customers = body.as_array().unwrap();
@@ -808,7 +808,7 @@ async fn scope_sort_on_excluded_column_ignored() {
     )
     .await;
 
-    // Attempt to sort by is_private — should not error, returns 200 with data
+    // Attempt to sort by is_private: should not error, returns 200 with data
     let sort = percent_encoding::utf8_percent_encode(
         r#"["is_private","DESC"]"#,
         percent_encoding::NON_ALPHANUMERIC,
@@ -856,7 +856,7 @@ async fn scope_search_respects_scope_filter() {
     )
     .await;
 
-    // Search for "Alice" in scoped context — should only return the public Alice
+    // Search for "Alice" in scoped context: should only return the public Alice
     // Customer `name` is `like_filterable`, so `{"name": "Alice"}` does LIKE matching
     let filter = encode_filter(&json!({"name": "Alice"}));
     let (status, body, _) = get_json(&scoped, &format!("/customers?filter={filter}")).await;
@@ -910,7 +910,7 @@ async fn scope_get_one_atomic_single_query() {
     )
     .await;
 
-    // Scoped get_one must return 404 — the scope condition is part of the fetch,
+    // Scoped get_one must return 404: the scope condition is part of the fetch,
     // not a separate verification query (atomic single-query check).
     let (s, _, _) = get_json(&scoped, &format!("/customers/{id}")).await;
     assert_eq!(
@@ -1006,7 +1006,7 @@ async fn scope_get_one_scoped_404_does_not_leak_existence() {
     )
     .await;
 
-    // Scoped get_one must return 404 — NOT 200 with empty joins
+    // Scoped get_one must return 404, NOT 200 with empty joins
     let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "Private customer must return 404");
 

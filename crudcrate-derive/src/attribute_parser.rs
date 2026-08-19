@@ -142,6 +142,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             Some("no_partial_eq") => meta.derive_partial_eq = false,
                             Some("no_eq") => meta.derive_eq = false,
                             Some("require_scope") => meta.require_scope = true,
+                            Some("deny_unknown_fields") => meta.deny_unknown_fields = true,
                             _ => {}
                         }
                     }
@@ -419,7 +420,7 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                             {
                                 // Emit visible deprecation warning during compilation
                                 eprintln!(
-                                    "\n⚠️  DEPRECATION WARNING: {}\n",
+                                    "\nDEPRECATION WARNING: {}\n",
                                     create_deprecation_error(key, &nv.path)
                                 );
                             }
@@ -891,5 +892,59 @@ mod tests {
         assert!(parse_hook_path(&make_path(quote!(create::one::pre))).is_some());
         assert!(parse_hook_path(&make_path(quote!(create::one::body))).is_some());
         assert!(parse_hook_path(&make_path(quote!(create::one::post))).is_some());
+    }
+
+    // ============== get_crudcrate_bool tests ==============
+
+    /// Deprecated `key = false` model exclusion still parses (with a stderr
+    /// deprecation warning); the flag and explicit `= true` forms parse silently.
+    #[test]
+    fn test_get_crudcrate_bool_forms() {
+        let deprecated: syn::Field = syn::Field::parse_named
+            .parse2(quote! {
+                #[crudcrate(create_model = false)]
+                pub name: String
+            })
+            .expect("parse field");
+        assert_eq!(get_crudcrate_bool(&deprecated, "create_model"), Some(false));
+
+        let explicit: syn::Field = syn::Field::parse_named
+            .parse2(quote! {
+                #[crudcrate(sortable = true)]
+                pub name: String
+            })
+            .expect("parse field");
+        assert_eq!(get_crudcrate_bool(&explicit, "sortable"), Some(true));
+
+        let flag: syn::Field = syn::Field::parse_named
+            .parse2(quote! {
+                #[crudcrate(filterable)]
+                pub name: String
+            })
+            .expect("parse field");
+        assert_eq!(get_crudcrate_bool(&flag, "filterable"), Some(true));
+        assert_eq!(get_crudcrate_bool(&flag, "sortable"), None);
+    }
+
+    // ============== struct-level meta tests ==============
+
+    #[test]
+    fn test_parse_meta_deny_unknown_fields() {
+        let input: syn::DeriveInput = syn::parse2(quote! {
+            #[crudcrate(deny_unknown_fields)]
+            pub struct Model {
+                pub id: i32,
+            }
+        })
+        .expect("parse struct");
+        assert!(parse_crud_resource_meta(&input.attrs).deny_unknown_fields);
+
+        let default: syn::DeriveInput = syn::parse2(quote! {
+            pub struct Model {
+                pub id: i32,
+            }
+        })
+        .expect("parse struct");
+        assert!(!parse_crud_resource_meta(&default.attrs).deny_unknown_fields);
     }
 }

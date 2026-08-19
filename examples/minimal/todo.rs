@@ -33,7 +33,7 @@ pub async fn setup_todo_database(
 ) -> Result<DatabaseConnection, Box<dyn std::error::Error>> {
     let db = Database::connect(database_url).await?;
 
-    db.execute(sea_orm::Statement::from_string(
+    db.execute_raw(sea_orm::Statement::from_string(
         db.get_database_backend(),
         r"CREATE TABLE IF NOT EXISTS todos (
             id TEXT PRIMARY KEY NOT NULL,

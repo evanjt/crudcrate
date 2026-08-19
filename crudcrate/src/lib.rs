@@ -104,12 +104,12 @@
 //!
 //! # Modules
 //!
-//! - [`core`] — [`CRUDResource`] trait, default CRUD implementations
-//! - [`filtering`] — Query parameter parsing, filter conditions, pagination, sorting, fulltext search
-//! - [`operations`] — [`CRUDOperations`] trait for struct-based customization
-//! - [`errors`] — [`ApiError`] type with automatic HTTP status codes and internal logging
-//! - [`database`] — reserved for future database-specific features
-//! - [`validation`] — Input validation helpers
+//! - [`core`]: [`CRUDResource`] trait, default CRUD implementations
+//! - [`filtering`]: Query parameter parsing, filter conditions, pagination, sorting, fulltext search
+//! - [`operations`]: [`CRUDOperations`] trait for struct-based customization
+//! - [`errors`]: [`ApiError`] type with automatic HTTP status codes and internal logging
+//! - [`database`]: reserved for future database-specific features
+//! - [`validation`]: Input validation helpers
 //!
 //! # Feature flags
 //!
@@ -133,7 +133,7 @@ pub mod relationships;
 pub mod scope;
 pub mod validation;
 
-// Deprecated module aliases — use the canonical paths above instead.
+// Deprecated module aliases; use the canonical paths above instead.
 #[doc(hidden)]
 pub mod filter {
     pub use crate::filtering::conditions::*;
@@ -165,11 +165,16 @@ pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,
     SortConfig, apply_filters, apply_filters_with_joins, build_comparison_expr,
     calculate_content_range, parse_dot_notation, parse_pagination, parse_range, parse_sorting,
-    parse_sorting_with_joins,
+    parse_sorting_with_joins, table_column_ref,
 };
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
 pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
+
+/// Re-export of the `sea-orm` version crudcrate builds against, so applications
+/// can use `crudcrate::sea_orm::...` instead of pinning a matching version
+/// themselves.
+pub use sea_orm;
 
 pub use serde_with;
 

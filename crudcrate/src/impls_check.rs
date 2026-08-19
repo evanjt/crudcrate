@@ -1,4 +1,4 @@
-//! Compile-time trait-bound detection — minimal vendored replacement for
+//! Compile-time trait-bound detection: minimal vendored replacement for
 //! `impls::impls!`.
 //!
 //! `impls!($Type : $Trait)` evaluates to a `const bool` that is `true` if
@@ -6,7 +6,7 @@
 //! that `crudcrate-derive` generates (specifically the bidirectional-relation
 //! check in `relation_validator`); it isn't intended as a public utility.
 //!
-//! Mechanism: the standard autoref/sentinel-trait specialization trick — a
+//! Mechanism: the standard autoref/sentinel-trait specialization trick: a
 //! blanket fallback trait sets `IMPLS = false`, and a more specific concrete
 //! `Wrapper<T>` impl bound on `T: $Trait` overrides it with `IMPLS = true`.
 //! See <https://github.com/nvzqz/impls> for the original source.

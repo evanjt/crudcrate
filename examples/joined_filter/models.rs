@@ -104,7 +104,7 @@ pub async fn setup_database(
     use sea_orm::Database;
     let db = Database::connect(database_url).await?;
 
-    db.execute(sea_orm::Statement::from_string(
+    db.execute_raw(sea_orm::Statement::from_string(
         db.get_database_backend(),
         r"CREATE TABLE IF NOT EXISTS customers (
             id TEXT PRIMARY KEY NOT NULL,
@@ -115,7 +115,7 @@ pub async fn setup_database(
     ))
     .await?;
 
-    db.execute(sea_orm::Statement::from_string(
+    db.execute_raw(sea_orm::Statement::from_string(
         db.get_database_backend(),
         r"CREATE TABLE IF NOT EXISTS vehicles (
             id TEXT PRIMARY KEY NOT NULL,

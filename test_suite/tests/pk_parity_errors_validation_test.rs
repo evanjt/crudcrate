@@ -11,7 +11,7 @@
 //   - GET /things/not-an-int (malformed path) -> 400/404, never 500/panic
 //
 // The PK is `#[sea_orm(primary_key)] pub id: i32` (auto-increment). The id is
-// never given an on_create — the database assigns it — and is excluded from
+// never given an on_create (the database assigns it) and is excluded from
 // create/update. Unique prefix "ppe" keeps tables/structs from colliding with
 // other self-contained suites.
 //
@@ -59,7 +59,7 @@ pub mod ppe_thing {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-// name must be present and at least 3 characters — the same rule the UUID
+// name must be present and at least 3 characters, the same rule the UUID
 // `validatable_auto_test` exercises, so a failure must surface as 422 here too.
 fn name_is_valid(name: &str) -> Result<(), ValidationError> {
     if name.is_empty() {
@@ -90,15 +90,13 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op.
     db.execute(
-        backend.build(
-            &Table::drop()
-                .table(ppe_thing::Entity)
-                .if_exists()
-                .to_owned(),
-        ),
+        &Table::drop()
+            .table(ppe_thing::Entity)
+            .if_exists()
+            .to_owned(),
     )
     .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(ppe_thing::Entity)))
+    db.execute(&schema.create_table_from_entity(ppe_thing::Entity))
         .await?;
 
     // Belt-and-suspenders: ensure the unique index on `email` exists regardless
@@ -168,7 +166,7 @@ async fn unique_constraint_is_enforced() {
     .await;
     assert!(
         second.is_err(),
-        "second insert with duplicate email must fail — unique index is missing if this succeeds"
+        "second insert with duplicate email must fail: unique index is missing if this succeeds"
     );
 }
 
@@ -200,7 +198,7 @@ async fn http_duplicate_email_returns_409_conflict() {
     assert_eq!(
         conflict_status,
         StatusCode::CONFLICT,
-        "second POST with a duplicate email must be 409 CONFLICT, not 500 — same as the UUID model"
+        "second POST with a duplicate email must be 409 CONFLICT, not 500, same as the UUID model"
     );
 }
 
@@ -259,7 +257,7 @@ async fn post_invalid_name_is_rejected_with_422() {
     assert_eq!(
         empty_status,
         StatusCode::UNPROCESSABLE_ENTITY,
-        "empty name must fail validation with 422 — same as the UUID model"
+        "empty name must fail validation with 422, same as the UUID model"
     );
 
     // Too-short name fails the >=3-char rule -> 422.
@@ -333,7 +331,7 @@ async fn get_nonexistent_integer_id_returns_404_with_id_in_message() {
 
 // =============================================================================
 // Malformed path parity: a non-integer segment must be rejected cleanly. Axum's
-// Path<i32> extraction fails with a 4xx (400/404) — it must never 500 or panic.
+// Path<i32> extraction fails with a 4xx (400/404). It must never 500 or panic.
 // A UUID model behaves the same when handed a non-UUID segment.
 // =============================================================================
 

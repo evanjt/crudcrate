@@ -43,17 +43,17 @@ ALTER TABLE articles ADD FULLTEXT INDEX idx_articles_fulltext (title, content);
 ### Use Selective Filters
 
 ```bash
-# ❌ Full table scan
+# Full table scan
 GET /articles
 
-# ✅ Filtered query uses index
+# Filtered query uses index
 GET /articles?filter={"status":"published"}
 ```
 
 ### Limit Result Size
 
 ```bash
-# ✅ Always paginate
+# Always paginate
 GET /articles?range=[0,19]
 
 # Built-in limit: max 1000 items per request
@@ -62,11 +62,11 @@ GET /articles?range=[0,19]
 ### Avoid Deep Joins
 
 ```rust
-// ❌ Deep recursion
+// Deep recursion
 #[crudcrate(non_db_attr, join(one, all, depth = 10))]
 pub comments: Vec<Comment>,
 
-// ✅ Limited depth
+// Limited depth
 #[crudcrate(non_db_attr, join(one, depth = 2))]
 pub comments: Vec<Comment>,
 ```
@@ -274,13 +274,13 @@ async fn list_articles_optimized(
 ### Batch Database Operations
 
 ```rust
-// ❌ Sequential queries
+// Sequential queries
 for id in ids {
     let item = Entity::find_by_id(id).one(db).await?;
     results.push(item);
 }
 
-// ✅ Batch query
+// Batch query
 let items = Entity::find()
     .filter(Column::Id.is_in(ids))
     .all(db)

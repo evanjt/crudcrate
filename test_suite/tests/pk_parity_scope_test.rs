@@ -49,7 +49,7 @@ pub mod thing {
     #[sea_orm(table_name = "ppsc_things")]
     #[crudcrate(generate_router, api_struct = "Thing", derive_partial_eq)]
     pub struct Model {
-        // Integer PK assigned by the DB — NO on_create, excluded from create/update.
+        // Integer PK assigned by the DB: NO on_create, excluded from create/update.
         #[sea_orm(primary_key)]
         #[crudcrate(primary_key, exclude(create, update))]
         pub id: i32,
@@ -78,9 +78,9 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op.
-    db.execute(backend.build(&Table::drop().table(thing::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(thing::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(thing::Entity)))
+    db.execute(&schema.create_table_from_entity(thing::Entity))
         .await?;
     Ok(db)
 }
@@ -200,7 +200,7 @@ async fn scope_get_one_excluded_returns_404_for_integer_id() {
 
     let id = admin_create_private(&admin, "Secret").await;
 
-    // Same 404 a private UUID row would yield — driven by an integer path param,
+    // Same 404 a private UUID row would yield, driven by an integer path param,
     // and never a UUID parse error.
     let (status, _, _) = send(&scoped, "GET", &format!("/things/{id}"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -527,7 +527,7 @@ async fn scope_head_request_allowed() {
 }
 
 // =============================================================================
-// Mirrors scope_get_one_atomic_single_query: visible, flip private, then 404 —
+// Mirrors scope_get_one_atomic_single_query: visible, flip private, then 404:
 // the scope condition is part of the fetch, keyed by the integer id.
 // =============================================================================
 

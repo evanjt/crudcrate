@@ -1,6 +1,6 @@
 // Postgres Native ENUM Test
 // Tests that crudcrate works with REAL Postgres ENUM column types (not TEXT).
-// This test ONLY runs when DATABASE_URL points to Postgres — it's skipped on SQLite/MySQL.
+// This test ONLY runs when DATABASE_URL points to Postgres. It's skipped on SQLite/MySQL.
 //
 // This validates the full chain:
 // 1. CREATE TYPE ... AS ENUM in Postgres
@@ -11,7 +11,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::{Database, DatabaseBackend, DbErr, Set};
 use serde::{Deserialize, Serialize};
 
-/// A standalone enum using db_type = "Enum" — the native Postgres path
+/// A standalone enum using db_type = "Enum": the native Postgres path
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "color")]
 pub enum Color {
@@ -69,8 +69,8 @@ async fn setup_postgres_enum_table(db: &DatabaseConnection) -> Result<(), DbErr>
     Ok(())
 }
 
-/// Test that Sea-ORM 1.1.19 can INSERT into a native Postgres ENUM column
-/// when the Rust enum uses db_type = "Enum"
+/// INSERT into a native Postgres ENUM column works when the Rust enum uses
+/// db_type = "Enum"
 #[tokio::test]
 async fn test_native_postgres_enum_insert() {
     if !is_postgres() {
@@ -95,7 +95,7 @@ async fn test_native_postgres_enum_insert() {
     let result = widget::Entity::insert(widget).exec(&db).await;
     assert!(
         result.is_ok(),
-        "INSERT with native Postgres ENUM should work on Sea-ORM 1.1.19: {:?}",
+        "INSERT with native Postgres ENUM should work: {:?}",
         result.err()
     );
 }
@@ -130,7 +130,7 @@ async fn test_native_postgres_enum_query() {
     let widgets = widget::Entity::find().all(&db).await.expect("find all");
     assert_eq!(widgets.len(), 3);
 
-    // Query with filter — raw Sea-ORM ColumnTrait filter
+    // Query with filter: raw Sea-ORM ColumnTrait filter
     let reds = widget::Entity::find()
         .filter(widget::Column::Color.eq("Red"))
         .all(&db)
@@ -171,7 +171,7 @@ async fn test_native_postgres_enum_cast_filter() {
 
     // Test the exact SQL pattern crudcrate generates: UPPER(CAST(color AS TEXT))
     let result = db
-        .query_all(sea_orm::Statement::from_string(
+        .query_all_raw(sea_orm::Statement::from_string(
             DatabaseBackend::Postgres,
             "SELECT * FROM widgets WHERE UPPER(CAST(color AS TEXT)) = 'RED'".to_string(),
         ))
@@ -185,7 +185,7 @@ async fn test_native_postgres_enum_cast_filter() {
 
     // Test the array/IN pattern: UPPER(CAST(color AS TEXT)) IN (...)
     let result = db
-        .query_all(sea_orm::Statement::from_string(
+        .query_all_raw(sea_orm::Statement::from_string(
             DatabaseBackend::Postgres,
             "SELECT * FROM widgets WHERE UPPER(CAST(color AS TEXT)) IN ('RED', 'BLUE')".to_string(),
         ))

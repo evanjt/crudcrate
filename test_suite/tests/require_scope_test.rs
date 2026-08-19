@@ -121,7 +121,7 @@ async fn no_require_scope_allows_scoped_access() {
 //
 // This verifies that 500 is only for missing middleware, not missing records.
 // We use the scoped customer endpoint (which has scope middleware but NOT require_scope)
-// as a proxy test — the behavior should be identical for require_scope resources.
+// as a proxy test: the behavior should be identical for require_scope resources.
 
 #[tokio::test]
 async fn scoped_get_one_nonexistent_returns_404_not_500() {

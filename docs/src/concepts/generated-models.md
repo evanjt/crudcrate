@@ -146,6 +146,8 @@ pub struct UserList {
 - Often identical to Response model
 - Can exclude expensive fields (e.g., large text, relationships)
 - Optimized for list performance
+- Keeps each field's `serde`, `schema` and doc attributes, so a field renamed or
+  skipped when null serializes the same way it does in the Response model
 
 ## Field Exclusion Matrix
 

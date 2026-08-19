@@ -50,15 +50,13 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let schema = Schema::new(backend);
 
     db.execute(
-        backend.build(
-            &Table::drop()
-                .table(nullable_record::Entity)
-                .if_exists()
-                .to_owned(),
-        ),
+        &Table::drop()
+            .table(nullable_record::Entity)
+            .if_exists()
+            .to_owned(),
     )
     .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(nullable_record::Entity)))
+    db.execute(&schema.create_table_from_entity(nullable_record::Entity))
         .await?;
     Ok(db)
 }
@@ -149,7 +147,7 @@ async fn neq_null_filter_selects_rows_where_column_is_set() {
     let db = setup_test_db().await.unwrap();
     seed(&db).await;
 
-    // `_neq null` must mean IS NOT NULL — the inverse of `{"score":null}`.
+    // `_neq null` must mean IS NOT NULL, the inverse of `{"score":null}`.
     let (status, body) = get_filtered(&db, r#"{"score_neq":null}"#).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body), vec!["alpha".to_string(), "gamma".to_string()]);

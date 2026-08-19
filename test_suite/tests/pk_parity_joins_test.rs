@@ -17,7 +17,7 @@
 //!   Option<T> belongs_to (mirrors `option_belongs_to_join_all_test.rs`):
 //!     Membership (i32 PK, `reader_id` Option<i32> FK)
 //!       reader: Option<Reader>  belongs_to, join(one, all, depth = 1)
-//!     Reader (i32 PK) — does NOT join back, so there is no recursion cycle.
+//!     Reader (i32 PK) does NOT join back, so there is no recursion cycle.
 //!
 //! Every assertion here is the i32 analogue of one in those UUID files; the only
 //! difference is the PK/FK type and that the `Path<id>` parameter is an integer.
@@ -245,32 +245,30 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // create_table_from_entity emits FK constraints from belongs_to relations, so
     // drop children before parents (reverse of the create order below).
     db.execute(
-        backend.build(
-            &Table::drop()
-                .table(membership::Entity)
-                .if_exists()
-                .to_owned(),
-        ),
+        &Table::drop()
+            .table(membership::Entity)
+            .if_exists()
+            .to_owned(),
     )
     .await?;
-    db.execute(backend.build(&Table::drop().table(reader::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(reader::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&Table::drop().table(chapter::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(chapter::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&Table::drop().table(book::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(book::Entity).if_exists().to_owned())
         .await?;
-    db.execute(backend.build(&Table::drop().table(author::Entity).if_exists().to_owned()))
+    db.execute(&Table::drop().table(author::Entity).if_exists().to_owned())
         .await?;
 
-    db.execute(backend.build(&schema.create_table_from_entity(author::Entity)))
+    db.execute(&schema.create_table_from_entity(author::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(book::Entity)))
+    db.execute(&schema.create_table_from_entity(book::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(chapter::Entity)))
+    db.execute(&schema.create_table_from_entity(chapter::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(reader::Entity)))
+    db.execute(&schema.create_table_from_entity(reader::Entity))
         .await?;
-    db.execute(backend.build(&schema.create_table_from_entity(membership::Entity)))
+    db.execute(&schema.create_table_from_entity(membership::Entity))
         .await?;
 
     Ok(db)
@@ -409,7 +407,7 @@ async fn seed_memberships(db: &DatabaseConnection) -> SeededMemberships {
     }
 }
 
-/// The DB-assigned ids must be integers, not UUID strings — confirms the PK
+/// The DB-assigned ids must be integers, not UUID strings: confirms the PK
 /// round-trips as JSON numbers everywhere downstream.
 #[tokio::test]
 async fn seeded_ids_are_integers() {
@@ -428,7 +426,7 @@ async fn seeded_ids_are_integers() {
 }
 
 /// LIST exercises the batch `get_all` loader. Each author's `books` must be
-/// populated keyed by the integer `author_id` FK — the `HashMap<i32, _>` group
+/// populated keyed by the integer `author_id` FK, the `HashMap<i32, _>` group
 /// step in the batch loader. Mirrors
 /// `join_get_all_depth_coverage_test::list_orgs_populates_teams_and_grandchild_members`.
 #[tokio::test]
@@ -467,7 +465,7 @@ async fn list_authors_batch_loads_books_keyed_by_integer_fk() {
 }
 
 /// The childless author must come back with an EMPTY books array (not
-/// null/missing) — the batch loader still produces an entry for a parent id
+/// null/missing): the batch loader still produces an entry for a parent id
 /// that has no children. Mirrors
 /// `list_org_with_no_teams_yields_empty_teams_array`.
 #[tokio::test]

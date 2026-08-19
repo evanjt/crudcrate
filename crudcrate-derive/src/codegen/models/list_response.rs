@@ -4,6 +4,7 @@
 //! from entity definitions, using the dedicated list and response generators.
 
 use crate::codegen::joins::get_join_config;
+use crate::codegen::models::shared::wire_attrs;
 use crate::codegen::models::should_include_in_model;
 use crate::codegen::type_resolution::{
     inner_list_type_of_option, inner_list_type_of_vec, is_option_type, is_vec_type,
@@ -120,7 +121,7 @@ pub(crate) fn generate_list_and_response_models(
     let scoped_response_name = format_ident!("{}ScopedResponse", api_struct_name);
 
     let scoped_models = if has_scoped_exclusions {
-        // Entity has exclude(scoped) fields — generate distinct scoped structs
+        // Entity has exclude(scoped) fields: generate distinct scoped structs
 
         // ScopedList: fields included in list AND not exclude(scoped)
         // Join(all) fields use the *ScopedList* child type so that excluded
@@ -133,18 +134,19 @@ pub(crate) fn generate_list_and_response_models(
             })
             .map(|f| {
                 let ident = &f.ident;
+                let attrs = wire_attrs(f);
                 let is_join_all = get_join_config(f).is_some_and(|c| c.on_all);
                 if is_join_all {
                     let scoped_ty = transform_type_to_scoped_list_variant(&f.ty, api_struct_name);
-                    quote! { pub #ident: #scoped_ty }
+                    quote! { #(#attrs)* pub #ident: #scoped_ty }
                 } else {
                     let ty = &f.ty;
-                    quote! { pub #ident: #ty }
+                    quote! { #(#attrs)* pub #ident: #ty }
                 }
             })
             .collect();
 
-        // From<ListModel> for ScopedList — join Vec fields need per-element conversion
+        // From<ListModel> for ScopedList: join Vec fields need per-element conversion
         let scoped_list_from: Vec<_> = all_fields
             .iter()
             .filter(|f| should_include_in_model(f, "list_model") && should_include_in_model(f, "scoped_model"))
@@ -170,18 +172,19 @@ pub(crate) fn generate_list_and_response_models(
             })
             .map(|f| {
                 let ident = &f.ident;
+                let attrs = wire_attrs(f);
                 let is_join = get_join_config(f).is_some();
                 if is_join {
                     let scoped_ty = transform_type_to_scoped_list_variant(&f.ty, api_struct_name);
-                    quote! { pub #ident: #scoped_ty }
+                    quote! { #(#attrs)* pub #ident: #scoped_ty }
                 } else {
                     let ty = &f.ty;
-                    quote! { pub #ident: #ty }
+                    quote! { #(#attrs)* pub #ident: #ty }
                 }
             })
             .collect();
 
-        // From<ResponseModel> for ScopedResponse — join fields need chained conversion
+        // From<ResponseModel> for ScopedResponse: join fields need chained conversion
         // ResponseModel.field is Vec<Child> (raw type), need Vec<ChildScopedList>
         // Chain: Child → ChildList → ChildScopedList via two .into() calls
         let scoped_response_from: Vec<_> = all_fields
@@ -248,7 +251,7 @@ pub(crate) fn generate_list_and_response_models(
             }
         }
     } else {
-        // No exclude(scoped) fields — generate type aliases so parents can
+        // No exclude(scoped) fields: generate type aliases so parents can
         // always reference ChildScopedList/ChildScopedResponse in their joins
         quote! {
             pub type #scoped_list_name = #list_name;
@@ -258,7 +261,7 @@ pub(crate) fn generate_list_and_response_models(
 
     // Generate ScopeFilterable impls for ListModel and API struct.
     // If this entity has exclude(scoped) boolean fields, the impl returns false
-    // when those fields are true (i.e., the record is private).
+    // when those fields are true (ie. the record is private).
     // Parent entities use this trait to filter private children out of Vec joins
     // during scoped From conversions.
     let scope_filter_fields: Vec<_> = all_fields
@@ -273,7 +276,7 @@ pub(crate) fn generate_list_and_response_models(
         .collect();
 
     let scope_filterable_impls = if scope_filter_fields.is_empty() {
-        // No exclude(scoped) boolean fields — use default (always visible, no scope condition)
+        // No exclude(scoped) boolean fields: use default (always visible, no scope condition)
         quote! {
             impl crudcrate::ScopeFilterable for #list_name {}
             impl crudcrate::ScopeFilterable for #api_struct_name {}
