@@ -1,6 +1,6 @@
 # Fulltext Search
 
-CRUDCrate provides fulltext search across multiple fields with database-specific optimizations.
+CRUDCrate provides case-insensitive substring search across multiple fields.
 
 ## Enabling Fulltext Search
 
@@ -37,46 +37,35 @@ GET /items?q=async&filter={"status":"published"}&sort=["created_at","DESC"]
 
 ## How It Works
 
-### PostgreSQL (Trigram Similarity)
+The search term is matched as a substring of the concatenated searchable fields.
+There is no fuzzy or similarity matching: a typo ("progamming") does not match
+"programming". The term is bound as a query parameter, and LIKE wildcards in it
+(`%`, `_`) are escaped with `!` so they match literally.
 
-Uses `ILIKE` combined with `pg_trgm` similarity for fuzzy matching:
+### PostgreSQL
+
+Uses `ILIKE` for case-insensitive matching:
 
 ```sql
 -- Generated query (simplified)
 SELECT * FROM items
-WHERE (
-    UPPER(COALESCE(title::text, '') || ' ' || COALESCE(description::text, ''))
-    LIKE UPPER('%rust programming%') ESCAPE '\'
-    OR SIMILARITY(COALESCE(title::text, '') || ' ' || COALESCE(description::text, ''), 'rust programming') > 0.1
-)
+WHERE (COALESCE(title::text, '') || ' ' || COALESCE(description::text, ''))
+    ILIKE '%rust programming%' ESCAPE '!'
 ```
 
-This approach provides:
-- **Substring matching**: Finds "rust" inside "rusty" or "trusty"
-- **Fuzzy matching**: Handles typos via trigram similarity
-- **Case insensitivity**: Automatically case-insensitive
+### MySQL & SQLite
 
-**Setup for best performance:**
+Uses `UPPER(...) LIKE` with the pattern uppercased on the Rust side:
 
 ```sql
--- Enable pg_trgm extension (required)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- Create trigram index for faster similarity searches
-CREATE INDEX idx_items_title_trgm ON items USING gin (title gin_trgm_ops);
-CREATE INDEX idx_items_description_trgm ON items USING gin (description gin_trgm_ops);
-```
-
-### MySQL & SQLite (LIKE Fallback)
-
-Uses case-insensitive LIKE queries:
-
-```sql
--- Generated query
+-- Generated query (simplified)
 SELECT * FROM items
 WHERE UPPER(CAST(title AS TEXT) || ' ' || CAST(description AS TEXT))
-    LIKE UPPER('%rust programming%') ESCAPE '\'
+    LIKE '%RUST PROGRAMMING%' ESCAPE '!'
 ```
+
+The uppercasing of the search pattern is ASCII-reliable; non-ASCII case folding
+can differ between Rust and the database collation on these backends.
 
 The query is treated as a single phrase, matching records where the concatenated fields contain the search string.
 
@@ -115,10 +104,6 @@ GET /items?q=rust
 # Matches: "rust", "rusty", "trustworthy", "Rust Programming"
 ```
 
-PostgreSQL additionally uses trigram similarity for fuzzy matching, which helps with:
-- Typos (e.g., "progamming" may still find "programming")
-- Similar words
-
 ## Combining with Filters
 
 Search works with other query parameters:
@@ -137,7 +122,7 @@ GET /items?q=rust&sort=["created_at","DESC"]&range=[0,9]
 
 | Database | Recommended Index |
 |----------|-------------------|
-| PostgreSQL | GIN with pg_trgm (see setup above) |
+| PostgreSQL | Optional: a `pg_trgm` GIN index (`gin_trgm_ops`) accelerates `ILIKE '%term%'` scans |
 | MySQL | Standard B-tree on searched columns |
 | SQLite | Standard indexes on searched columns |
 
@@ -150,10 +135,10 @@ GET /items?q=rust&sort=["created_at","DESC"]&range=[0,9]
 ### Example: Optimized Search
 
 ```bash
-# ❌ Slow: fulltext search on all items
+# Slow: fulltext search on all items
 GET /items?q=rust
 
-# ✅ Fast: filter first, then search
+# Fast: filter first, then search
 GET /items?q=rust&filter={"category":"programming"}&range=[0,19]
 ```
 
