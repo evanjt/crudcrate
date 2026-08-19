@@ -1,3 +1,7 @@
+// Codegen functions are dominated by single quote! blocks that do not divide
+// into meaningful helpers.
+#![allow(clippy::too_many_lines)]
+
 //! Procedural macros for generating CRUD operations from Sea-ORM entities.
 //!
 //! **Main macro**: `#[derive(EntityToModels)]` - see [`entity_to_models`]

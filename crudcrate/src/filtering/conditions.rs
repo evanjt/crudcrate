@@ -19,8 +19,8 @@ const MAX_OFFSET: u64 = 1_000_000;
 /// An array filter (`filter={"id":[...]}`) becomes one SQL `IN (...)` clause with
 /// one bind parameter per element. `MAX_FILTER_CLAUSES` caps the number of keys, not
 /// the length of any single array, so without this cap a single key could carry tens
-/// of thousands of elements and blow past the backend bind-parameter ceiling (SQLite
-/// 32766, Postgres/MySQL 65535). A 500 at the top, a query-planning DoS below it.
+/// of thousands of elements and blow past the backend bind-parameter ceiling (`SQLite`
+/// 32766, Postgres/MySQL 65535). A 500 at the top, a query-planning `DoS` below it.
 /// This bound is also reachable over GET, whose query string is not covered by the
 /// request body-size limit. Exceeding it produces `400 Bad Request`, matching the
 /// reject-don't-silently-drop policy of `MAX_FILTER_CLAUSES`.
@@ -409,7 +409,7 @@ fn process_number_filter(
 /// Build a type-matched `IN (...)` expression for a homogeneous JSON array so the
 /// bound values match the column type on strict backends. Postgres rejects
 /// `int_col IN ('1','3')` and `bool_col IN ('true')` (`operator does not exist:
-/// integer = text`); SQLite's loose typing silently accepted the stringified form.
+/// integer = text`); `SQLite`'s loose typing silently accepted the stringified form.
 /// Returns `None` unless every element is an integer, every element is a number,
 /// or every element is a boolean — callers fall back to a string IN list for
 /// string/enum/mixed arrays.
@@ -509,6 +509,32 @@ fn process_array_filter(
     None
 }
 
+/// Comparison for value types where ordering operators apply; `Like`, `In` and
+/// `IsNull` return `None`.
+fn ordered_comparison<C, V>(
+    column: C,
+    operator: super::joined::FilterOperator,
+    value: V,
+) -> Option<Expr>
+where
+    C: sea_orm::ColumnTrait + Copy,
+    V: Into<sea_orm::sea_query::Value>,
+{
+    use super::joined::FilterOperator;
+
+    let col = Expr::col(column);
+    let value = value.into();
+    match operator {
+        FilterOperator::Eq => Some(col.eq(value)),
+        FilterOperator::Neq => Some(col.ne(value)),
+        FilterOperator::Gt => Some(col.gt(value)),
+        FilterOperator::Gte => Some(col.gte(value)),
+        FilterOperator::Lt => Some(col.lt(value)),
+        FilterOperator::Lte => Some(col.lte(value)),
+        FilterOperator::Like | FilterOperator::In | FilterOperator::IsNull => None,
+    }
+}
+
 /// Build a Sea-ORM `Expr` from a column, operator, and a JSON value.
 ///
 /// Used by the derive-macro-generated `resolve_joined_filters` to translate
@@ -576,41 +602,15 @@ where
         }
         Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                return match operator {
-                    FilterOperator::Eq => Some(col().eq(i)),
-                    FilterOperator::Neq => Some(col().ne(i)),
-                    FilterOperator::Gt => Some(col().gt(i)),
-                    FilterOperator::Gte => Some(col().gte(i)),
-                    FilterOperator::Lt => Some(col().lt(i)),
-                    FilterOperator::Lte => Some(col().lte(i)),
-                    _ => None,
-                };
+                return ordered_comparison(column, operator, i);
             }
             // Values above i64::MAX bind as u64 rather than falling through to a
             // lossy f64 (a BIGINT UNSIGNED column would otherwise mis-compare).
             if let Some(u) = n.as_u64() {
-                return match operator {
-                    FilterOperator::Eq => Some(col().eq(u)),
-                    FilterOperator::Neq => Some(col().ne(u)),
-                    FilterOperator::Gt => Some(col().gt(u)),
-                    FilterOperator::Gte => Some(col().gte(u)),
-                    FilterOperator::Lt => Some(col().lt(u)),
-                    FilterOperator::Lte => Some(col().lte(u)),
-                    _ => None,
-                };
+                return ordered_comparison(column, operator, u);
             }
-            if let Some(f) = n.as_f64() {
-                return match operator {
-                    FilterOperator::Eq => Some(col().eq(f)),
-                    FilterOperator::Neq => Some(col().ne(f)),
-                    FilterOperator::Gt => Some(col().gt(f)),
-                    FilterOperator::Gte => Some(col().gte(f)),
-                    FilterOperator::Lt => Some(col().lt(f)),
-                    FilterOperator::Lte => Some(col().lte(f)),
-                    _ => None,
-                };
-            }
-            None
+            n.as_f64()
+                .and_then(|f| ordered_comparison(column, operator, f))
         }
         Value::Bool(b) => match operator {
             FilterOperator::Eq => Some(col().eq(*b)),

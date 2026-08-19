@@ -23,7 +23,7 @@ pub(crate) fn escape_like_wildcards(input: &str) -> String {
 /// boundary so we never slice through a multi-byte codepoint.
 ///
 /// A raw `&s[..max_bytes]` panics when `max_bytes` lands inside a multi-byte
-/// character (e.g. an attacker-supplied query of 9_999 ASCII bytes followed by
+/// character (e.g. an attacker-supplied query of `9_999` ASCII bytes followed by
 /// `é`). `str::floor_char_boundary` would do this but is still unstable, so we
 /// walk back to a boundary manually.
 fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
