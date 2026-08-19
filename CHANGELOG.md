@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from create or update is silently dropped and the response reports the stored
   value rather than the submitted one. Off by default, since clients that
   round-trip a full record into an update legitimately send read-only fields.
+- **`crudcrate::sea_orm` re-export.** Applications can reference the SeaORM
+  version crudcrate builds against (ie. `use crudcrate::sea_orm;`) instead of
+  pinning a matching `sea-orm` dependency themselves.
 
 ### Fixed
 

@@ -171,6 +171,11 @@ pub use operations::{CRUDOperations, DefaultCRUDOperations};
 pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
 
+/// Re-export of the `sea-orm` version crudcrate builds against, so applications
+/// can use `crudcrate::sea_orm::...` instead of pinning a matching version
+/// themselves.
+pub use sea_orm;
+
 pub use serde_with;
 
 /// Re-exported so derive-generated join code can call `crudcrate::tracing::warn!`
