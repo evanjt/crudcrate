@@ -142,6 +142,7 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             Some("no_partial_eq") => meta.derive_partial_eq = false,
                             Some("no_eq") => meta.derive_eq = false,
                             Some("require_scope") => meta.require_scope = true,
+                            Some("deny_unknown_fields") => meta.deny_unknown_fields = true,
                             _ => {}
                         }
                     }

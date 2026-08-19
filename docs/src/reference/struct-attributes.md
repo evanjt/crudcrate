@@ -158,6 +158,36 @@ pub struct Model { }
 
 ---
 
+### `deny_unknown_fields`
+
+Reject a create or update payload that carries a key the input model does not
+accept, instead of ignoring it.
+
+```rust
+#[crudcrate(deny_unknown_fields)]
+pub struct Model {
+    #[crudcrate(exclude(create))]
+    pub is_public: Option<bool>,
+}
+
+// POST { "name": "x", "is_public": true } -> 422, is_public is not a create field
+```
+
+By default serde ignores keys with no matching field, so a value excluded from the
+Create or Update model is dropped and the caller gets a `201`/`200` reporting the
+stored value rather than the one it sent. The flag adds
+`#[serde(deny_unknown_fields)]` to the generated `<Name>Create` and `<Name>Update`
+structs, turning that silent drop into a rejection.
+
+Use it when clients should learn that a field is server-controlled. Leave it off
+when clients round-trip a whole record back into an update, since read-only fields
+like `created_at` would then be rejected too.
+
+**Type:** Flag (no value)
+**Default:** off (unknown keys ignored)
+
+---
+
 ## Lifecycle Hook Attributes
 
 ### `create::one::pre`

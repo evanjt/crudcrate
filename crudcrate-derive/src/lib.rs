@@ -151,6 +151,16 @@ fn screen_model_ex(input: &DeriveInput) -> ModelExScreen {
     ModelExScreen::Normal
 }
 
+/// `#[serde(deny_unknown_fields)]` for the generated input models when the struct
+/// opts in with `#[crudcrate(deny_unknown_fields)]`, otherwise nothing.
+fn strict_payload_attr(attrs: &[syn::Attribute]) -> proc_macro2::TokenStream {
+    if attribute_parser::parse_crud_resource_meta(attrs).deny_unknown_fields {
+        quote! { #[serde(deny_unknown_fields)] }
+    } else {
+        quote! {}
+    }
+}
+
 fn extract_active_model_type(
     input: &DeriveInput,
     name: &syn::Ident,
@@ -199,6 +209,7 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
     };
     let create_struct_fields = codegen::models::create::generate_create_struct_fields(&fields);
     let conv_lines = codegen::models::create::generate_create_conversion_lines(&fields);
+    let strict_payload = strict_payload_attr(&input.attrs);
 
     // Always include ToSchema for Create models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -207,6 +218,7 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #[derive(#create_derives)]
+        #strict_payload
         pub struct #create_name {
             #(#create_struct_fields),*
         }
@@ -252,6 +264,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         crate::codegen::models::update::generate_update_struct_fields(&included_fields);
     let included_merge = codegen::models::merge::generate_included_merge_code(&included_fields);
     let excluded_merge = codegen::models::merge::generate_excluded_merge_code(&fields);
+    let strict_payload = strict_payload_attr(&input.attrs);
 
     // Always include ToSchema for Update models
     // Circular dependencies are handled by schema(no_recursion) on join fields in the main model
@@ -260,6 +273,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #[derive(#update_derives)]
+        #strict_payload
         pub struct #update_name {
             #(#update_struct_fields),*
         }
