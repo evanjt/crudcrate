@@ -4,6 +4,21 @@ use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_expr};
 use crate::fields::{resolve_target_models, resolve_target_models_with_list};
 use quote::{ToTokens, quote};
 
+/// Field attributes carried from the source struct onto a generated serialization
+/// model (List, Response, and their scoped variants).
+///
+/// `serde`, `schema` and doc attributes define the wire shape, so a field renamed,
+/// skipped when null, or documented on the single-record response must behave the
+/// same way in the list response. `crudcrate` and `sea_orm` attributes are dropped:
+/// neither derive is applied to the generated models.
+pub(crate) fn wire_attrs(field: &syn::Field) -> Vec<&syn::Attribute> {
+    field
+        .attrs
+        .iter()
+        .filter(|attr| !attr.path().is_ident("crudcrate") && !attr.path().is_ident("sea_orm"))
+        .collect()
+}
+
 /// Resolves `DateTimeWithTimeZone` to `chrono::DateTime<chrono::FixedOffset>` in a type.
 ///
 /// `SeaORM`'s `DateTimeWithTimeZone` is a type alias for `chrono::DateTime<chrono::FixedOffset>`,

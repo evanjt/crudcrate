@@ -2,6 +2,7 @@ use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::joins::get_join_config;
 use crate::codegen::models::shared::{
     generate_target_model_conversion, resolve_dtwtz, resolve_field_type_with_target_models,
+    wire_attrs,
 };
 use crate::codegen::models::should_include_in_model;
 use crate::codegen::type_resolution::{
@@ -32,7 +33,11 @@ pub(crate) fn generate_list_struct_fields(
             };
 
             let resolved_ty = resolve_dtwtz(&final_ty);
-            quote! { pub #ident: #resolved_ty }
+            let attrs = wire_attrs(field);
+            quote! {
+                #(#attrs)*
+                pub #ident: #resolved_ty
+            }
         })
         .collect()
 }
