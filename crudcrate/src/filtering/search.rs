@@ -542,6 +542,39 @@ mod tests {
         );
     }
 
+    /// `build_fulltext_condition` dispatches per backend: `ILIKE` on Postgres,
+    /// `UPPER(...) LIKE` on `MySQL` and on the `SQLite`/fallback path.
+    #[test]
+    fn test_fulltext_dispatch_per_backend() {
+        use crate::filtering::test_support::FulltextResource;
+
+        let pg = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::Postgres)
+            .expect("fulltext columns declared");
+        assert!(format!("{pg:?}").contains("ILIKE"), "got {pg:?}");
+
+        let mysql = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::MySql)
+            .expect("fulltext columns declared");
+        assert!(format!("{mysql:?}").contains("UPPER"), "got {mysql:?}");
+
+        let sqlite = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::Sqlite)
+            .expect("fulltext columns declared");
+        assert!(format!("{sqlite:?}").contains("UPPER"), "got {sqlite:?}");
+    }
+
+    /// A resource without fulltext columns yields no condition for any backend.
+    #[test]
+    fn test_fulltext_no_columns_returns_none() {
+        use crate::filtering::test_support::EnumSearchResource;
+
+        for backend in [
+            DatabaseBackend::Postgres,
+            DatabaseBackend::MySql,
+            DatabaseBackend::Sqlite,
+        ] {
+            assert!(build_fulltext_condition::<EnumSearchResource>("abc", backend).is_none());
+        }
+    }
+
     /// MySQL single-column fulltext uses a bare `COALESCE(...)` (no `CONCAT`), unlike
     /// the multi-column path. Exercises the `coalesced.len() == 1` branch.
     #[test]

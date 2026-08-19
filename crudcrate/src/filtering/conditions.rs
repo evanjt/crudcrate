@@ -254,31 +254,12 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
         let mut or_conditions = Condition::any();
         for (col_name, col) in searchable_columns {
             if T::is_enum_field(col_name) {
-                // Cast enum fields to TEXT for LIKE operations
-                match backend {
-                    DatabaseBackend::Postgres => {
-                        or_conditions = or_conditions.add(
-                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
-                                Expr::col(*col),
-                                "TEXT",
-                            )))
-                            .like(
-                                LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
-                                    .escape('!'),
-                            ),
-                        );
-                    }
-                    _ => {
-                        // For SQLite/MySQL, treat enum as string
-                        or_conditions = or_conditions.add(
-                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
-                                .like(
-                                    LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
-                                        .escape('!'),
-                                ),
-                        );
-                    }
-                }
+                or_conditions = or_conditions.add(
+                    Expr::FunctionCall(sea_orm::sea_query::Func::upper(enum_text_expr(
+                        *col, backend,
+                    )))
+                    .like(LikeExpr::new(format!("%{}%", escaped_query.to_uppercase())).escape('!')),
+                );
             } else {
                 let cast_type = match backend {
                     DatabaseBackend::MySql => "CHAR",
@@ -296,6 +277,17 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
         return Some(or_conditions);
     }
     None
+}
+
+/// Column expression for comparing an enum column as text. `PostgreSQL` rejects
+/// string operations on native ENUM columns, so it needs an explicit
+/// `CAST(col AS TEXT)`; the other backends compare enum columns as strings
+/// directly.
+fn enum_text_expr(column: impl sea_orm::ColumnTrait + Copy, backend: DatabaseBackend) -> Expr {
+    match backend {
+        DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), "TEXT"),
+        _ => Expr::col(column),
+    }
 }
 
 /// Apply a string comparison using the given operator.
@@ -339,11 +331,9 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
 
     if T::is_enum_field(base_field) {
         // Handle enum fields with case-insensitive matching
-        let col_expr = match backend {
-            DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), "TEXT"),
-            _ => Expr::col(column),
-        };
-        let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+        let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(enum_text_expr(
+            column, backend,
+        )));
         let val_upper = trimmed_value.to_uppercase();
         return Some(match operator {
             "!=" => col_upper.ne(val_upper),
@@ -493,13 +483,10 @@ fn process_array_filter(
 
     if !in_values.is_empty() {
         if is_enum {
-            // For enum fields, cast column to TEXT and uppercase both sides
-            // so that native PostgreSQL ENUMs work with string bind parameters
-            let col_expr = match backend {
-                DatabaseBackend::Postgres => Expr::cast_as(Expr::col(column), "TEXT"),
-                _ => Expr::col(column),
-            };
-            let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(col_expr));
+            // Uppercase both sides so string bind parameters match native enums
+            let col_upper = Expr::FunctionCall(sea_orm::sea_query::Func::upper(enum_text_expr(
+                column, backend,
+            )));
             let upper_values: Vec<String> = in_values.iter().map(|v| v.to_uppercase()).collect();
             return Some(col_upper.is_in(upper_values));
         }
@@ -1060,6 +1047,177 @@ mod tests {
         assert_eq!(escape_like_wildcards("%_"), "!%!_");
         assert_eq!(escape_like_wildcards("!"), "!!");
         assert_eq!(escape_like_wildcards("100% complete"), "100!% complete");
+    }
+
+    /// Enum columns compare as text: Postgres needs `CAST(col AS TEXT)`, the
+    /// other backends use the column directly.
+    #[test]
+    fn test_enum_text_expr_casts_only_on_postgres() {
+        use crate::filtering::test_support::entity;
+
+        let pg = format!(
+            "{:?}",
+            enum_text_expr(entity::Column::Status, DatabaseBackend::Postgres)
+        );
+        assert!(pg.contains("TEXT"), "expected a cast on Postgres: {pg}");
+
+        for backend in [DatabaseBackend::MySql, DatabaseBackend::Sqlite] {
+            let other = format!("{:?}", enum_text_expr(entity::Column::Status, backend));
+            assert!(!other.contains("TEXT"), "no cast expected: {other}");
+        }
+    }
+
+    /// The LIKE fallback for `q` searches over an enum column uppercases the
+    /// (cast) column so native Postgres enums match string bind parameters.
+    #[test]
+    fn test_fulltext_like_fallback_enum_column() {
+        use crate::filtering::test_support::{EnumSearchResource, entity};
+
+        let filters = HashMap::from([(
+            "q".to_string(),
+            serde_json::Value::String("act".to_string()),
+        )]);
+        let searchable = [("status", entity::Column::Status)];
+
+        let pg = handle_fulltext_search::<EnumSearchResource>(
+            &filters,
+            &searchable,
+            DatabaseBackend::Postgres,
+        )
+        .expect("q over a searchable column yields a condition");
+        let pg_sql = format!("{pg:?}");
+        assert!(
+            pg_sql.contains("TEXT") && pg_sql.contains("Upper"),
+            "expected upper-cased cast on Postgres: {pg_sql}"
+        );
+
+        let sqlite = handle_fulltext_search::<EnumSearchResource>(
+            &filters,
+            &searchable,
+            DatabaseBackend::Sqlite,
+        )
+        .expect("q over a searchable column yields a condition");
+        let sqlite_sql = format!("{sqlite:?}");
+        assert!(
+            !sqlite_sql.contains("TEXT") && sqlite_sql.contains("Upper"),
+            "expected plain upper-cased column on SQLite: {sqlite_sql}"
+        );
+    }
+
+    /// Enum array (`IN`) filters cast the column on Postgres and uppercase the
+    /// bound values on every backend.
+    #[test]
+    fn test_process_array_filter_enum_postgres_cast() {
+        use crate::filtering::test_support::entity;
+
+        let values = [serde_json::json!("active"), serde_json::json!("archived")];
+        let expr = process_array_filter(
+            &values,
+            entity::Column::Status,
+            true,
+            DatabaseBackend::Postgres,
+        )
+        .expect("enum IN list yields a condition");
+        let sql = format!("{expr:?}");
+        assert!(
+            sql.contains("TEXT") && sql.contains("ACTIVE"),
+            "expected cast column and upper-cased values: {sql}"
+        );
+    }
+
+    /// `apply_filters` combines the fulltext `q` term with per-field filters of
+    /// every JSON value kind; unknown fields and unsupported values are skipped.
+    #[test]
+    fn test_apply_filters_all_value_kinds() {
+        use crate::filtering::test_support::{EnumSearchResource, entity};
+
+        let searchable = [
+            ("name", entity::Column::Name),
+            ("status", entity::Column::Status),
+            ("id", entity::Column::Id),
+        ];
+        let filter = serde_json::json!({
+            "q": "act",
+            "name": "todo",
+            "status_neq": "archived",
+            "id": 3,
+            "name_like": null,
+            "status": ["active", "draft"],
+            "unknown_field": "ignored",
+            "name;drop": "ignored",
+            "id_gt": {"not": "supported"},
+        })
+        .to_string();
+
+        let cond =
+            apply_filters::<EnumSearchResource>(Some(filter), &searchable, DatabaseBackend::Sqlite)
+                .expect("valid filter JSON");
+        let sql = format!("{cond:?}");
+        assert!(sql.contains("Upper"), "q and string filters render: {sql}");
+        assert!(sql.contains("TODO"), "equality value uppercased: {sql}");
+
+        let null_checks = apply_filters::<EnumSearchResource>(
+            Some(serde_json::json!({"name": null, "status_neq": null}).to_string()),
+            &searchable,
+            DatabaseBackend::Sqlite,
+        )
+        .expect("valid filter JSON");
+        let sql = format!("{null_checks:?}");
+        assert!(
+            sql.contains("Is, Keyword(Null)") && sql.contains("IsNot, Keyword(Null)"),
+            "{sql}"
+        );
+
+        let bool_filter = apply_filters::<EnumSearchResource>(
+            Some(serde_json::json!({"id": true}).to_string()),
+            &searchable,
+            DatabaseBackend::Sqlite,
+        )
+        .expect("valid filter JSON");
+        assert!(format!("{bool_filter:?}").contains("Bool"));
+    }
+
+    /// String comparison operators map onto the expected SQL comparisons,
+    /// including the default equality arm.
+    #[test]
+    fn test_apply_string_comparison_operators() {
+        use crate::filtering::test_support::entity;
+
+        for (op, needle) in [
+            ("=", "Equal"),
+            ("!=", "NotEqual"),
+            (">=", "GreaterThanOrEqual"),
+            ("<=", "SmallerThanOrEqual"),
+            (">", "GreaterThan,"),
+            ("<", "SmallerThan,"),
+        ] {
+            let expr = apply_string_comparison(entity::Column::Name, op, "x");
+            let sql = format!("{expr:?}");
+            assert!(
+                sql.contains(needle),
+                "operator {op} renders {needle}: {sql}"
+            );
+        }
+    }
+
+    /// Enum equality filters route through the same Postgres cast.
+    #[test]
+    fn test_process_string_filter_enum_postgres_cast() {
+        use crate::filtering::test_support::{EnumSearchResource, entity};
+
+        let expr = process_string_filter::<EnumSearchResource>(
+            "status",
+            "=",
+            "active",
+            entity::Column::Status,
+            DatabaseBackend::Postgres,
+        )
+        .expect("enum equality yields a condition");
+        let sql = format!("{expr:?}");
+        assert!(
+            sql.contains("TEXT") && sql.contains("ACTIVE"),
+            "expected cast column and upper-cased value: {sql}"
+        );
     }
 
     // ========================================================================

@@ -155,6 +155,17 @@ fn screen_model_ex(input: &DeriveInput) -> ModelExScreen {
     ModelExScreen::Normal
 }
 
+/// Replacement tokens when screening rejects the input: empty output for the
+/// `ModelEx` companion, a compile error for a misplaced relation wrapper,
+/// `None` for a normal struct.
+fn screen_tokens(input: &DeriveInput) -> Option<proc_macro2::TokenStream> {
+    match screen_model_ex(input) {
+        ModelExScreen::Companion => Some(proc_macro2::TokenStream::new()),
+        ModelExScreen::MisplacedRelationField(err) => Some(err.to_compile_error()),
+        ModelExScreen::Normal => None,
+    }
+}
+
 /// `#[serde(deny_unknown_fields)]` for the generated input models when the struct
 /// opts in with `#[crudcrate(deny_unknown_fields)]`, otherwise nothing.
 fn strict_payload_attr(attrs: &[syn::Attribute]) -> proc_macro2::TokenStream {
@@ -193,12 +204,8 @@ fn extract_active_model_type(
 #[proc_macro_derive(ToCreateModel, attributes(crudcrate, active_model))]
 pub fn to_create_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match screen_model_ex(&input) {
-        ModelExScreen::Companion => return TokenStream::new(),
-        ModelExScreen::MisplacedRelationField(err) => {
-            return err.to_compile_error().into();
-        }
-        ModelExScreen::Normal => {}
+    if let Some(tokens) = screen_tokens(&input) {
+        return tokens.into();
     }
     let name = &input.ident;
     let create_name = format_ident!("{}Create", name);
@@ -245,12 +252,8 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(ToUpdateModel, attributes(crudcrate, active_model))]
 pub fn to_update_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match screen_model_ex(&input) {
-        ModelExScreen::Companion => return TokenStream::new(),
-        ModelExScreen::MisplacedRelationField(err) => {
-            return err.to_compile_error().into();
-        }
-        ModelExScreen::Normal => {}
+    if let Some(tokens) = screen_tokens(&input) {
+        return tokens.into();
     }
     let name = &input.ident;
     let update_name = format_ident!("{}Update", name);
@@ -306,12 +309,8 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(ToListModel, attributes(crudcrate))]
 pub fn to_list_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match screen_model_ex(&input) {
-        ModelExScreen::Companion => return TokenStream::new(),
-        ModelExScreen::MisplacedRelationField(err) => {
-            return err.to_compile_error().into();
-        }
-        ModelExScreen::Normal => {}
+    if let Some(tokens) = screen_tokens(&input) {
+        return tokens.into();
     }
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
@@ -363,12 +362,8 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(EntityToModels, attributes(crudcrate))]
 pub fn entity_to_models(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match screen_model_ex(&input) {
-        ModelExScreen::Companion => return TokenStream::new(),
-        ModelExScreen::MisplacedRelationField(err) => {
-            return err.to_compile_error().into();
-        }
-        ModelExScreen::Normal => {}
+    if let Some(tokens) = screen_tokens(&input) {
+        return tokens.into();
     }
     let struct_name = &input.ident;
 
@@ -570,4 +565,88 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn test_screen_companion_returns_empty_tokens() {
+        let input: DeriveInput = parse_quote! {
+            pub struct ModelEx {
+                pub id: i32,
+            }
+        };
+        let tokens = screen_tokens(&input).expect("companion is screened out");
+        assert!(tokens.is_empty(), "companion must expand to nothing");
+    }
+
+    #[test]
+    fn test_screen_misplaced_wrapper_is_compile_error() {
+        for wrapper in ["HasMany", "HasOne", "BelongsTo"] {
+            let ty: syn::Type = syn::parse_str(&format!("{wrapper}<Other>")).unwrap();
+            let input: DeriveInput = parse_quote! {
+                pub struct Model {
+                    pub id: i32,
+                    pub related: #ty,
+                }
+            };
+            let tokens = screen_tokens(&input).expect("wrapper field is screened out");
+            let rendered = tokens.to_string();
+            assert!(
+                rendered.contains("compile_error"),
+                "{wrapper} must produce a compile error, got: {rendered}"
+            );
+            assert!(
+                rendered.contains("sea_orm :: model") || rendered.contains("dense entity"),
+                "error must name the fix, got: {rendered}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_screen_normal_struct_passes() {
+        let input: DeriveInput = parse_quote! {
+            pub struct Model {
+                pub id: i32,
+                pub name: String,
+                pub pair: (i32, i32),
+            }
+        };
+        assert!(screen_tokens(&input).is_none());
+    }
+
+    #[test]
+    fn test_screen_enum_passes() {
+        let input: DeriveInput = parse_quote! {
+            pub enum Status {
+                Active,
+            }
+        };
+        assert!(screen_tokens(&input).is_none());
+    }
+
+    #[test]
+    fn test_strict_payload_attr_follows_opt_in() {
+        let opted: DeriveInput = parse_quote! {
+            #[crudcrate(deny_unknown_fields)]
+            pub struct Model {
+                pub id: i32,
+            }
+        };
+        assert!(
+            strict_payload_attr(&opted.attrs)
+                .to_string()
+                .contains("deny_unknown_fields")
+        );
+
+        let default: DeriveInput = parse_quote! {
+            pub struct Model {
+                pub id: i32,
+            }
+        };
+        assert!(strict_payload_attr(&default.attrs).is_empty());
+    }
 }

@@ -31,8 +31,8 @@
 //! GET /todos?q=urgent review
 //! ```
 //!
-//! On `PostgreSQL` this uses `to_tsvector`/`to_tsquery` with GIN indexes.
-//! On `MySQL` it uses `MATCH ... AGAINST`. On `SQLite` it falls back to `LIKE`.
+//! The match is a case-insensitive substring comparison: `ILIKE` on
+//! `PostgreSQL`, `UPPER(...) LIKE` on `MySQL` and `SQLite`.
 //!
 //! ## Sorting
 //!
@@ -64,6 +64,8 @@ pub mod pagination;
 pub mod query_parser;
 pub mod search;
 pub mod sort;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 // Re-export commonly used items
 pub use conditions::{
