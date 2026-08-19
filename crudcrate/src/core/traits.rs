@@ -120,6 +120,11 @@ where
         false
     }
 
+    /// List rows matching `condition`, ordered and paginated.
+    ///
+    /// The primary key is appended as a secondary sort key whenever the requested
+    /// sort column is not the primary key itself, so `OFFSET`/`LIMIT` paging over a
+    /// column with duplicate values cannot repeat or skip a row between pages.
     async fn get_all(
         db: &DatabaseConnection,
         condition: &Condition,
@@ -128,9 +133,13 @@ where
         offset: u64,
         limit: u64,
     ) -> Result<Vec<Self::ListModel>, ApiError> {
-        let models = Self::EntityType::find()
+        let mut query = Self::EntityType::find()
             .filter(condition.clone())
-            .order_by(order_column, order_direction)
+            .order_by(order_column, order_direction);
+        if order_column.as_str() != Self::ID_COLUMN.as_str() {
+            query = query.order_by(Self::ID_COLUMN, Order::Asc);
+        }
+        let models = query
             .offset(offset)
             .limit(limit)
             .all(db)

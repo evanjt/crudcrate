@@ -457,6 +457,7 @@ pub fn generate_get_all_joined_sorted_impl(
                     let __models = Self::EntityType::find()
                         .filter(condition.clone())
                         .order_by(__order_expr, direction)
+                        .order_by(Self::ID_COLUMN, sea_orm::Order::Asc)
                         .offset(offset)
                         .limit(limit)
                         .all(db)

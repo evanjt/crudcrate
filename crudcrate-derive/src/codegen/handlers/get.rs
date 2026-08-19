@@ -158,12 +158,16 @@ pub fn generate_get_all_impl(
             body_code.clone()
         } else if let Some((pre_loop_code, in_loop_code)) = batch_loading {
             quote! {
-                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait};
+                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait, IdenStatic};
 
-                let models = Self::EntityType::find()
+                let mut __query = Self::EntityType::find()
                     #select_clause
                     .filter(condition.clone())
-                    .order_by(order_column, order_direction)
+                    .order_by(order_column, order_direction);
+                if order_column.as_str() != Self::ID_COLUMN.as_str() {
+                    __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                }
+                let models = __query
                     .offset(offset)
                     .limit(limit)
                     .all(db)
@@ -184,12 +188,16 @@ pub fn generate_get_all_impl(
         } else {
             // Standard get_all without joins
             quote! {
-                use sea_orm::{QueryOrder, QuerySelect, EntityTrait};
+                use sea_orm::{QueryOrder, QuerySelect, EntityTrait, IdenStatic};
 
-                let models = Self::EntityType::find()
+                let mut __query = Self::EntityType::find()
                     #select_clause
                     .filter(condition.clone())
-                    .order_by(order_column, order_direction)
+                    .order_by(order_column, order_direction);
+                if order_column.as_str() != Self::ID_COLUMN.as_str() {
+                    __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                }
+                let models = __query
                     .offset(offset)
                     .limit(limit)
                     .all(db)

@@ -758,8 +758,10 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
     // covers every type, so the `.min()` method call is ambiguous with `Ord::min`.
     if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
         // Standard REST pagination (1-based page numbers)
-        // Enforce maximum page size to prevent DoS
-        let safe_per_page = std::cmp::min(per_page, MAX_PAGE_SIZE);
+        // Clamp on both ends: the upper bound prevents DoS, the lower bound keeps a
+        // `per_page=0` from producing an empty page that never advances (and from
+        // reaching backends that reject a zero page size).
+        let safe_per_page = Ord::clamp(per_page, 1, MAX_PAGE_SIZE);
 
         // Use saturating_mul to prevent overflow panic
         let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
@@ -1023,6 +1025,20 @@ mod tests {
         // Should NOT panic - should use saturating arithmetic
         let (_offset, _limit) = parse_pagination(&params);
         // After fix: This should succeed without panic
+    }
+
+    /// A zero page size is clamped up to one row rather than yielding an empty page
+    #[test]
+    fn test_pagination_clamps_zero_page_size() {
+        let params = crate::models::FilterOptions {
+            page: Some(1),
+            per_page: Some(0),
+            ..Default::default()
+        };
+
+        let (offset, limit) = parse_pagination(&params);
+        assert_eq!(offset, 0);
+        assert_eq!(limit, 1);
     }
 
     /// Test comparison operator parsing
