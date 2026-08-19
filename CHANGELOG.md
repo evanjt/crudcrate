@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-08-04
+## [0.10.0] - 2026-08-19
 
 ### Changed
 
@@ -41,6 +41,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `#[sea_orm::model]` now produces a spanned error naming the fix instead of
   silently generating nothing. Both crates also declare `rust-version = "1.85"`
   so an old toolchain fails with a clear MSRV message.
+- **`#[crudcrate(deny_unknown_fields)]`.** Opt-in strict input models: the
+  generated `<Name>Create` and `<Name>Update` reject a payload key they do not
+  accept instead of ignoring it. Without it, a value sent for a field excluded
+  from create or update is silently dropped and the response reports the stored
+  value rather than the submitted one. Off by default, since clients that
+  round-trip a full record into an update legitimately send read-only fields.
+
+### Fixed
+
+- **List pagination could repeat or skip a row.** `get_all` ordered by the
+  requested sort column alone, so rows tied on that column had no defined order
+  and two `LIMIT`/`OFFSET` queries serving two pages could place a tied row in
+  both or neither. The primary key is now appended as a secondary sort key
+  whenever the sort column is not the primary key, in the trait default
+  `get_all`, the derive-generated `get_all`/`get_all_scoped`, the joined
+  (dot-notation) sort, and `CRUDOperations::fetch_all`. A custom
+  `get::all::body` override supplies its own ordering and is unaffected.
+- **List models dropped field attributes.** `<Name>List` was generated with the
+  field name and type only, so `#[serde(skip_serializing_if = ...)]`,
+  `#[serde(rename = ...)]`, `#[schema(...)]` and doc comments applied to the
+  single-record response but not to entries in the collection response, e.g. a
+  field skipped when `None` came back as an explicit `null` in a list. `serde`,
+  `schema` and doc attributes now carry over to `<Name>List`, `<Name>ScopedList`
+  and `<Name>ScopedResponse`, matching `<Name>Response`, which already did this.
+- **`per_page=0` produced an empty page.** `parse_pagination` clamped only the
+  upper bound, returning a limit of 0 that yields a page with no rows however
+  many rows match (and a zero page size that some paginators reject outright).
+  It now clamps to `1..=MAX_PAGE_SIZE`.
 
 ### Notes
 
