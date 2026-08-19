@@ -1,7 +1,4 @@
-use sea_orm::{
-    DatabaseBackend,
-    sea_query::Expr,
-};
+use sea_orm::{DatabaseBackend, sea_query::Expr};
 
 const MAX_SEARCH_QUERY_LENGTH: usize = 10_000;
 
@@ -63,10 +60,7 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
 /// Column names come from the macro-generated `fulltext_searchable_columns()`; they are
 /// compile-time-known `&'static str` Rust identifiers and never user input. The query
 /// value is routed through a bind parameter via `Expr::cust_with_values`.
-fn build_postgres_fulltext_condition(
-    query: &str,
-    column_names: &[&'static str],
-) -> Option<Expr> {
+fn build_postgres_fulltext_condition(query: &str, column_names: &[&'static str]) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -89,10 +83,7 @@ fn build_postgres_fulltext_condition(
 /// Build MySQL-specific fulltext search using CONCAT and LIKE.
 ///
 /// See [`build_postgres_fulltext_condition`] for the safety rationale.
-fn build_mysql_fulltext_condition(
-    query: &str,
-    column_names: &[&'static str],
-) -> Option<Expr> {
+fn build_mysql_fulltext_condition(query: &str, column_names: &[&'static str]) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -119,10 +110,7 @@ fn build_mysql_fulltext_condition(
 /// Build fallback fulltext search for `SQLite` and other standard SQL databases.
 ///
 /// See [`build_postgres_fulltext_condition`] for the safety rationale.
-fn build_fallback_fulltext_condition(
-    query: &str,
-    column_names: &[&'static str],
-) -> Option<Expr> {
+fn build_fallback_fulltext_condition(query: &str, column_names: &[&'static str]) -> Option<Expr> {
     if column_names.is_empty() || query.is_empty() {
         return None;
     }
@@ -147,11 +135,7 @@ fn build_fallback_fulltext_condition(
 /// Column names come from the derive macro (compile-time Rust identifiers), not user input.
 /// The search value is routed through a bind parameter via `Expr::cust_with_values`.
 #[must_use]
-pub fn build_like_condition(
-    key: &str,
-    trimmed_value: &str,
-    backend: DatabaseBackend,
-) -> Expr {
+pub fn build_like_condition(key: &str, trimmed_value: &str, backend: DatabaseBackend) -> Expr {
     let escaped_value = escape_like_wildcards(trimmed_value);
     let pattern = format!("%{}%", escaped_value.to_uppercase());
 

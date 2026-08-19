@@ -85,8 +85,7 @@ async fn setup_products_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
     // database, so the drops are no-ops.
     db.execute(&Table::drop().table(Entity).if_exists().to_owned())
         .await?;
-    db.execute(&schema.create_table_from_entity(Entity))
-        .await?;
+    db.execute(&schema.create_table_from_entity(Entity)).await?;
 
     Ok(db)
 }

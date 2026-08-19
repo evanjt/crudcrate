@@ -244,10 +244,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // connection is a fresh database, so the drops are harmless no-ops.
     // create_table_from_entity emits FK constraints from belongs_to relations, so
     // drop children before parents (reverse of the create order below).
-    db.execute(&Table::drop()
-                .table(membership::Entity)
-                .if_exists()
-                .to_owned())
+    db.execute(
+        &Table::drop()
+            .table(membership::Entity)
+            .if_exists()
+            .to_owned(),
+    )
     .await?;
     db.execute(&Table::drop().table(reader::Entity).if_exists().to_owned())
         .await?;

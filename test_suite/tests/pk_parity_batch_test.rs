@@ -60,10 +60,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
     // drop first so every test starts from a clean schema. On sqlite::memory: each
     // connection is a fresh database, so the drop is a harmless no-op.
-    db.execute(&Table::drop()
-                .table(ppb_thing::Entity)
-                .if_exists()
-                .to_owned())
+    db.execute(
+        &Table::drop()
+            .table(ppb_thing::Entity)
+            .if_exists()
+            .to_owned(),
+    )
     .await?;
     db.execute(&schema.create_table_from_entity(ppb_thing::Entity))
         .await?;

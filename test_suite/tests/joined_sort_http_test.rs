@@ -319,7 +319,10 @@ async fn joined_sort_ties_are_ordered_by_primary_key() {
     let ids = team_ids(&body);
     let mut expected = ids.clone();
     expected.sort();
-    assert_eq!(ids, expected, "teams tied on MIN(score) must be ordered by id");
+    assert_eq!(
+        ids, expected,
+        "teams tied on MIN(score) must be ordered by id"
+    );
 }
 
 /// Paging a joined sort over teams that all tie on the child column must place

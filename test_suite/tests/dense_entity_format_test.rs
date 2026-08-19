@@ -126,8 +126,13 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let backend = db.get_database_backend();
     let schema = Schema::new(backend);
 
-    db.execute(&Table::drop().table(dense_book::Entity).if_exists().to_owned())
-        .await?;
+    db.execute(
+        &Table::drop()
+            .table(dense_book::Entity)
+            .if_exists()
+            .to_owned(),
+    )
+    .await?;
     db.execute(
         &Table::drop()
             .table(dense_author::Entity)
@@ -185,7 +190,12 @@ async fn dense_entity_crud_roundtrip() {
     assert_eq!(get.status(), StatusCode::OK);
 
     let list = app(&db)
-        .oneshot(Request::builder().uri("/authors").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/authors")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(list.status(), StatusCode::OK);

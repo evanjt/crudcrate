@@ -258,9 +258,10 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                 match backend {
                     DatabaseBackend::Postgres => {
                         or_conditions = or_conditions.add(
-                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(
-                                Expr::cast_as(Expr::col(*col), "TEXT"),
-                            ))
+                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::cast_as(
+                                Expr::col(*col),
+                                "TEXT",
+                            )))
                             .like(
                                 LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
                                     .escape('!'),
@@ -270,13 +271,11 @@ fn handle_fulltext_search<T: crate::traits::CRUDResource>(
                     _ => {
                         // For SQLite/MySQL, treat enum as string
                         or_conditions = or_conditions.add(
-                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(
-                                *col,
-                            )))
-                            .like(
-                                LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
-                                    .escape('!'),
-                            ),
+                            Expr::FunctionCall(sea_orm::sea_query::Func::upper(Expr::col(*col)))
+                                .like(
+                                    LikeExpr::new(format!("%{}%", escaped_query.to_uppercase()))
+                                        .escape('!'),
+                                ),
                         );
                     }
                 }
@@ -775,10 +774,7 @@ pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
         let (start, end) = parse_range(Some(range.clone()));
         // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
         // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
-        let limit = std::cmp::min(
-            end.saturating_sub(start).saturating_add(1),
-            MAX_PAGE_SIZE,
-        );
+        let limit = std::cmp::min(end.saturating_sub(start).saturating_add(1), MAX_PAGE_SIZE);
         let safe_start = std::cmp::min(start, MAX_OFFSET);
         (safe_start, limit)
     } else {

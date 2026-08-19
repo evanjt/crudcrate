@@ -249,9 +249,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "   curl -s http://localhost:3000/products/00000000-0000-0000-0000-000000000000 | jq ."
     );
-    println!(
-        "   User sees: \"Product with ID '00000000-0000-0000-0000-000000000000' not found\""
-    );
+    println!("   User sees: \"Product with ID '00000000-0000-0000-0000-000000000000' not found\"");
     println!("   Console logs: Debug-level error\n");
 
     println!("3. Database Error (500 Internal Server Error)");

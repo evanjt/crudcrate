@@ -89,15 +89,19 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     let schema = Schema::new(backend);
 
     // Drop children before parents (the FK depends on the parent table).
-    db.execute(&Table::drop()
-                .table(fkv_child::Entity)
-                .if_exists()
-                .to_owned())
+    db.execute(
+        &Table::drop()
+            .table(fkv_child::Entity)
+            .if_exists()
+            .to_owned(),
+    )
     .await?;
-    db.execute(&Table::drop()
-                .table(fkv_parent::Entity)
-                .if_exists()
-                .to_owned())
+    db.execute(
+        &Table::drop()
+            .table(fkv_parent::Entity)
+            .if_exists()
+            .to_owned(),
+    )
     .await?;
     db.execute(&schema.create_table_from_entity(fkv_parent::Entity))
         .await?;
