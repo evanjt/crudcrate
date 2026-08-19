@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "../searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-70f89627.js"></script>
@@ -208,24 +208,24 @@ ALTER TABLE articles ADD FULLTEXT INDEX idx_articles_fulltext (title, content);
 </code></pre>
 <h2 id="query-optimization"><a class="header" href="#query-optimization">Query Optimization</a></h2>
 <h3 id="use-selective-filters"><a class="header" href="#use-selective-filters">Use Selective Filters</a></h3>
-<pre><code class="language-bash"># ❌ Full table scan
+<pre><code class="language-bash"># Full table scan
 GET /articles
 
-# ✅ Filtered query uses index
+# Filtered query uses index
 GET /articles?filter={"status":"published"}
 </code></pre>
 <h3 id="limit-result-size"><a class="header" href="#limit-result-size">Limit Result Size</a></h3>
-<pre><code class="language-bash"># ✅ Always paginate
+<pre><code class="language-bash"># Always paginate
 GET /articles?range=[0,19]
 
 # Built-in limit: max 1000 items per request
 </code></pre>
 <h3 id="avoid-deep-joins"><a class="header" href="#avoid-deep-joins">Avoid Deep Joins</a></h3>
-<pre><code class="language-rust">// ❌ Deep recursion
+<pre><code class="language-rust">// Deep recursion
 #[crudcrate(non_db_attr, join(one, all, depth = 10))]
 pub comments: Vec&lt;Comment&gt;,
 
-// ✅ Limited depth
+// Limited depth
 #[crudcrate(non_db_attr, join(one, depth = 2))]
 pub comments: Vec&lt;Comment&gt;,</code></pre>
 <h2 id="connection-pooling"><a class="header" href="#connection-pooling">Connection Pooling</a></h2>
@@ -390,13 +390,13 @@ async fn list_articles_optimized(
 }</code></pre>
 <h2 id="async-best-practices"><a class="header" href="#async-best-practices">Async Best Practices</a></h2>
 <h3 id="batch-database-operations"><a class="header" href="#batch-database-operations">Batch Database Operations</a></h3>
-<pre><code class="language-rust">// ❌ Sequential queries
+<pre><code class="language-rust">// Sequential queries
 for id in ids {
     let item = Entity::find_by_id(id).one(db).await?;
     results.push(item);
 }
 
-// ✅ Batch query
+// Batch query
 let items = Entity::find()
     .filter(Column::Id.is_in(ids))
     .all(db)

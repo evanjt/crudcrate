@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "../searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-70f89627.js"></script>
@@ -184,7 +184,7 @@ it on a unit struct, override only the methods you need, and wire it in with
 <code>#[crudcrate(operations = MyOps)]</code>.</p>
 <h2 id="when-to-use-operations-vs-per-attribute-hooks"><a class="header" href="#when-to-use-operations-vs-per-attribute-hooks">When to use operations vs per-attribute hooks</a></h2>
 <p>Use <strong>operations</strong> when you want a single struct that owns all customization
-for a resource — validation, authorization, side effects. It reads like a
+for a resource: validation, authorization, side effects. It reads like a
 controller.</p>
 <p>Use <strong>per-attribute hooks</strong> (<code>#[crudcrate(create::one::pre = validate)]</code>)
 when you only need one or two hooks and prefer keeping them close to the
@@ -209,7 +209,7 @@ impl CRUDOperations for AssetOps {
         db: &amp;DatabaseConnection,
         data: &amp;&lt;Asset as crudcrate::traits::CRUDResource&gt;::CreateModel,
     ) -&gt; Result&lt;(), ApiError&gt; {
-        // Validate, authorize, log — whatever you need
+        // Validate, authorize, log: whatever you need
         Ok(())
     }
 
@@ -243,18 +243,18 @@ async fn after_get_one(&amp;self, db: &amp;DatabaseConnection, entity: &amp;mut 
 <p><code>before_create</code> and <code>before_update</code> take <strong>immutable</strong> references to the
 input data. They’re for validation and authorization, not transformation.
 To transform input before insertion, override <code>perform_create</code> (level 2).</p>
-<p><code>after_*</code> hooks take <code>&amp;mut</code> references — use them for enrichment
+<p><code>after_*</code> hooks take <code>&amp;mut</code> references; use them for enrichment
 (computed fields, view counts, etc.).</p>
 <h3 id="level-2-core-logic-overrides"><a class="header" href="#level-2-core-logic-overrides">Level 2: Core logic overrides</a></h3>
 <p>Replace the default DB query or mutation while keeping lifecycle hooks
 around it.</p>
 <pre><code class="language-rust">async fn fetch_one(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Self::Resource, ApiError&gt; {
-    // Custom query — eg. select specific columns, add joins
+    // Custom query, eg. select specific columns, add joins
     // ...
 }
 
 async fn perform_create(&amp;self, db: &amp;DatabaseConnection, data: CreateModel) -&gt; Result&lt;Self::Resource, ApiError&gt; {
-    // Custom insertion logic — eg. transform data before insert
+    // Custom insertion logic, eg. transform data before insert
     // ...
 }</code></pre>
 <h3 id="level-3-full-operation-overrides"><a class="header" href="#level-3-full-operation-overrides">Level 3: Full operation overrides</a></h3>
@@ -262,7 +262,7 @@ async fn perform_create(&amp;self, db: &amp;DatabaseConnection, data: CreateMode
 implementations orchestrate <code>before_* → core_logic → after_*</code>, so
 overriding here means you take full control.</p>
 <pre><code class="language-rust">async fn delete(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Uuid, ApiError&gt; {
-    // Completely custom — S3 cleanup, cascade, audit, everything
+    // Completely custom: S3 cleanup, cascade, audit, everything
     let asset = Asset::get_one(db, id).await?;
     delete_from_s3(&amp;asset.s3_key).await?;
     Asset::delete(db, id).await
@@ -342,9 +342,9 @@ join loading, same as entities without operations.</p>
 }</code></pre>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li><a href="../reference/crudoperations-api.html">CRUDOperations API reference</a> — full trait definition and execution order</li>
-<li><a href="./lifecycle-hooks.html">Lifecycle Hooks</a> — per-attribute hook alternative</li>
-<li><a href="./security.html">Security</a> — SecurityProfile configuration</li>
+<li><a href="../reference/crudoperations-api.html">CRUDOperations API reference</a>: full trait definition and execution order</li>
+<li><a href="./lifecycle-hooks.html">Lifecycle Hooks</a>: per-attribute hook alternative</li>
+<li><a href="./security.html">Security</a>: SecurityProfile configuration</li>
 </ul>
 
                     </main>

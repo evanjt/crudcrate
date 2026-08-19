@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "../searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-70f89627.js"></script>
@@ -267,6 +267,27 @@ pub struct Model { }</code></pre>
 <p><strong>Type:</strong> Integer
 <strong>Default:</strong> <code>1000</code>
 <strong>Runtime override:</strong> Implement <code>fn max_page_size() -&gt; u64</code> on your <code>CRUDResource</code> impl for dynamic values.</p>
+<hr>
+<h3 id="deny_unknown_fields"><a class="header" href="#deny_unknown_fields"><code>deny_unknown_fields</code></a></h3>
+<p>Reject a create or update payload that carries a key the input model does not
+accept, instead of ignoring it.</p>
+<pre><code class="language-rust">#[crudcrate(deny_unknown_fields)]
+pub struct Model {
+    #[crudcrate(exclude(create))]
+    pub is_public: Option&lt;bool&gt;,
+}
+
+// POST { "name": "x", "is_public": true } -&gt; 422, is_public is not a create field</code></pre>
+<p>By default serde ignores keys with no matching field, so a value excluded from the
+Create or Update model is dropped and the caller gets a <code>201</code>/<code>200</code> reporting the
+stored value rather than the one it sent. The flag adds
+<code>#[serde(deny_unknown_fields)]</code> to the generated <code>&lt;Name&gt;Create</code> and <code>&lt;Name&gt;Update</code>
+structs, turning that silent drop into a rejection.</p>
+<p>Use it when clients should learn that a field is server-controlled. Leave it off
+when clients round-trip a whole record back into an update, since read-only fields
+like <code>created_at</code> would then be rejected too.</p>
+<p><strong>Type:</strong> Flag (no value)
+<strong>Default:</strong> off (unknown keys ignored)</p>
 <hr>
 <h2 id="lifecycle-hook-attributes"><a class="header" href="#lifecycle-hook-attributes">Lifecycle Hook Attributes</a></h2>
 <h3 id="createonepre"><a class="header" href="#createonepre"><code>create::one::pre</code></a></h3>

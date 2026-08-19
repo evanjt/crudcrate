@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "../searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-70f89627.js"></script>
@@ -301,6 +301,8 @@ pub struct UserList {
 <li>Often identical to Response model</li>
 <li>Can exclude expensive fields (e.g., large text, relationships)</li>
 <li>Optimized for list performance</li>
+<li>Keeps each field’s <code>serde</code>, <code>schema</code> and doc attributes, so a field renamed or
+skipped when null serializes the same way it does in the Response model</li>
 </ul>
 <h2 id="field-exclusion-matrix"><a class="header" href="#field-exclusion-matrix">Field Exclusion Matrix</a></h2>
 <p>Control which fields appear in which models:</p>

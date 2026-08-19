@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-70f89627.js"></script>
@@ -330,9 +330,9 @@ All attributes and options.
 <hr>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
-<li>Rust 1.70+</li>
-<li>Sea-ORM 1.0+</li>
-<li>Axum 0.7+</li>
+<li>Rust 1.85+</li>
+<li>Sea-ORM 2.0+</li>
+<li>Axum 0.8+</li>
 </ul>
 <p>CRUDCrate works with PostgreSQL, MySQL, and SQLite.</p>
 <hr>
@@ -340,7 +340,7 @@ All attributes and options.
 <p>MIT License - use it however you want.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="your-first-api"><a class="header" href="#your-first-api">Your First API</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/multi_database_test.rs#L14-L125" target="_blank" title="crud test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/multi_database_test.rs#L14-L125" target="_blank" title="crud test">📋 See test</a></span></p>
 <p>Let’s build a task manager. We’ll start simple and add features as we need them.</p>
 <h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
 <pre><code class="language-bash">cargo new taskmanager
@@ -353,8 +353,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-crudcrate = "0.1"
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+crudcrate = "0.10"
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -527,7 +527,7 @@ curl -X POST http://localhost:3000/tasks \
 </table>
 </div>
 <h2 id="what-on_create-does"><a class="header" href="#what-on_create-does">What <code>on_create</code> Does</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span></p>
 <p>The expression is evaluated when inserting a new record:</p>
 <pre><code class="language-rust">on_create = Uuid::new_v4()      // Generate UUID
 on_create = chrono::Utc::now()  // Current timestamp
@@ -578,7 +578,7 @@ pub struct Model {
 )
 </code></pre>
 <h2 id="whats-happening"><a class="header" href="#whats-happening">What’s Happening</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span> <span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/test_deep_recursion.rs#L470-L506" target="_blank" title="on_update test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L296-L331" target="_blank" title="on_create test">📋 See test</a></span> <span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L470-L506" target="_blank" title="on_update test">📋 See test</a></span></p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -636,7 +636,7 @@ curl -X PUT http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440000 \
 <p><strong>Next:</strong> <a href="#finding-tasks">Finding tasks</a> - filter by field values.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="finding-tasks"><a class="header" href="#finding-tasks">Finding Tasks</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/comprehensive_filtering_test.rs#L1" target="_blank" title="filtering tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_filtering_test.rs#L1" target="_blank" title="filtering tests">📋 See test</a></span></p>
 <p>We have lots of tasks now. Let’s add a way to filter them.</p>
 <h2 id="add-a-status-field"><a class="header" href="#add-a-status-field">Add a Status Field</a></h2>
 <p>First, let’s give tasks a <code>completed</code> status:</p>
@@ -712,7 +712,7 @@ curl 'http://localhost:3000/tasks?filter={"priority_lte":5}'
 curl 'http://localhost:3000/tasks?filter={"priority_gte":3,"priority_lte":7}'
 </code></pre>
 <h2 id="available-operators"><a class="header" href="#available-operators">Available Operators</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/comprehensive_filtering_test.rs#L16-L323" target="_blank" title="filtering comparison tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_filtering_test.rs#L16-L323" target="_blank" title="filtering comparison tests">📋 See test</a></span></p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -758,7 +758,7 @@ curl 'http://localhost:3000/tasks?filter={"created_at":"2024-01-01"}'
 <p><strong>Next:</strong> <a href="#sorting-results">Sorting results</a> - order tasks by any field.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sorting-results"><a class="header" href="#sorting-results">Sorting Results</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/comprehensive_sorting_test.rs#L1" target="_blank" title="sorting tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_sorting_test.rs#L1" target="_blank" title="sorting tests">📋 See test</a></span></p>
 <p>Tasks come back in database order. Let’s control the order.</p>
 <h2 id="enable-sorting"><a class="header" href="#enable-sorting">Enable Sorting</a></h2>
 <p>Add <code>sortable</code> to fields you want to sort by:</p>
@@ -801,10 +801,10 @@ curl 'http://localhost:3000/tasks?filter={"priority_gte":8}&amp;sort=["created_a
 </code></pre>
 <hr>
 <h1 id="pagination"><a class="header" href="#pagination">Pagination</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/comprehensive_pagination_test.rs#L1" target="_blank" title="pagination tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_pagination_test.rs#L1" target="_blank" title="pagination tests">📋 See test</a></span></p>
 <p>What if you have 10,000 tasks? You don’t want to load them all at once.</p>
 <h2 id="the-range-parameter"><a class="header" href="#the-range-parameter">The Range Parameter</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/comprehensive_pagination_test.rs#L15-L157" target="_blank" title="pagination range tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_pagination_test.rs#L15-L157" target="_blank" title="pagination range tests">📋 See test</a></span></p>
 <pre><code class="language-bash"># First 10 tasks (items 0-9)
 curl 'http://localhost:3000/tasks?range=[0,9]'
 
@@ -850,7 +850,7 @@ curl 'http://localhost:3000/tasks?filter={"completed":false}&amp;sort=["priority
 <p><strong>Next:</strong> <a href="#searching-text">Searching text</a> - find tasks by keywords.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="searching-text"><a class="header" href="#searching-text">Searching Text</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/comprehensive_fulltext_test.rs#L1" target="_blank" title="fulltext tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/comprehensive_fulltext_test.rs#L1" target="_blank" title="fulltext tests">📋 See test</a></span></p>
 <p>Filtering requires exact values. But what if you want to find tasks containing “meeting” anywhere in the title?</p>
 <h2 id="enable-fulltext-search"><a class="header" href="#enable-fulltext-search">Enable Fulltext Search</a></h2>
 <p>Add <code>fulltext</code> to searchable fields:</p>
@@ -944,7 +944,7 @@ curl 'http://localhost:3000/tasks?q=urgent&amp;range=[0,9]'
 <p><strong>Next:</strong> <a href="#hiding-sensitive-data">Hiding data</a> - keep sensitive fields out of responses.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hiding-sensitive-data"><a class="header" href="#hiding-sensitive-data">Hiding Sensitive Data</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L1" target="_blank" title="exclude tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L1" target="_blank" title="exclude tests">📋 See test</a></span></p>
 <p>Let’s add users to our task manager. Users have passwords, but we never want to expose password hashes.</p>
 <h2 id="a-user-entity"><a class="header" href="#a-user-entity">A User Entity</a></h2>
 <pre><code class="language-rust">#[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
@@ -1006,10 +1006,10 @@ curl http://localhost:3000/users/550e8400-e29b-41d4-a716-446655440000
 <tr><th>Attribute</th><th>Effect</th><th>Test</th></tr>
 </thead>
 <tbody>
-<tr><td><code>exclude(create)</code></td><td>Not in POST body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L75-L113" target="_blank" title="exclude create test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(update)</code></td><td>Not in PUT body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L117-L179" target="_blank" title="exclude update test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(one)</code></td><td>Not in GET /:id response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L17-L71" target="_blank" title="exclude one test">📋 See test</a></span></td></tr>
-<tr><td><code>exclude(list)</code></td><td>Not in GET / response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/exclude_functionality_test.rs#L183-L232" target="_blank" title="exclude list test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(create)</code></td><td>Not in POST body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L75-L113" target="_blank" title="exclude create test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(update)</code></td><td>Not in PUT body</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L117-L179" target="_blank" title="exclude update test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(one)</code></td><td>Not in GET /:id response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L17-L71" target="_blank" title="exclude one test">📋 See test</a></span></td></tr>
+<tr><td><code>exclude(list)</code></td><td>Not in GET / response</td><td><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/exclude_functionality_test.rs#L183-L232" target="_blank" title="exclude list test">📋 See test</a></span></td></tr>
 </tbody>
 </table>
 </div>
@@ -1035,17 +1035,17 @@ pub full_description: String,</code></pre>
 <p><strong>Next:</strong> <a href="#relationships">Relationships</a> - connect tasks to users.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="public--private-endpoints"><a class="header" href="#public--private-endpoints">Public &amp; Private Endpoints</a></h1>
-<p>Our task manager has users, tasks, and relationships. Now let’s add a public API that anyone can access without authentication — while keeping sensitive records hidden.</p>
+<p>Our task manager has users, tasks, and relationships. Now let’s add a public API that anyone can access without authentication, while keeping sensitive records hidden.</p>
 <h2 id="the-problem-1"><a class="header" href="#the-problem-1">The Problem</a></h2>
 <p>You want <strong>one set of routes</strong> that serves both:</p>
 <ul>
-<li><strong>Admins</strong> (authenticated) — see everything, full CRUD</li>
-<li><strong>Public</strong> (unauthenticated) — read-only, private records hidden</li>
+<li><strong>Admins</strong> (authenticated): see everything, full CRUD</li>
+<li><strong>Public</strong> (unauthenticated): read-only, private records hidden</li>
 </ul>
 <p>crudcrate’s <strong>scoping</strong> system handles this with two features:</p>
 <ol>
-<li><code>ScopeCondition</code> — a middleware-injected filter that restricts which rows are returned</li>
-<li><code>exclude(scoped)</code> — hides fields from the response when a scope is active</li>
+<li><code>ScopeCondition</code>: a middleware-injected filter that restricts which rows are returned</li>
+<li><code>exclude(scoped)</code>: hides fields from the response when a scope is active</li>
 </ol>
 <h2 id="adding-a-privacy-field"><a class="header" href="#adding-a-privacy-field">Adding a Privacy Field</a></h2>
 <p>Add an <code>is_private</code> field to your entity:</p>
@@ -1067,12 +1067,12 @@ pub struct Model {
 }</code></pre>
 <p><code>exclude(scoped)</code> does two things:</p>
 <ol>
-<li><strong>Hides the field</strong> from API responses when a scope is active — public users never see <code>is_private</code> in the JSON</li>
-<li><strong>Strips the field from filters/sorting</strong> — public users can’t probe it via <code>?filter={"is_private":true}</code></li>
+<li><strong>Hides the field</strong> from API responses when a scope is active: public users never see <code>is_private</code> in the JSON</li>
+<li><strong>Strips the field from filters/sorting</strong>: public users can’t probe it via <code>?filter={"is_private":true}</code></li>
 </ol>
 <h2 id="writing-scope-middleware"><a class="header" href="#writing-scope-middleware">Writing Scope Middleware</a></h2>
 <p>A scope is just Axum middleware that injects a <code>ScopeCondition</code> into the request.
-You decide <strong>when</strong> to inject it — typically when the user isn’t authenticated:</p>
+You decide <strong>when</strong> to inject it, typically when the user isn’t authenticated:</p>
 <pre><code class="language-rust">use axum::{extract::Request, middleware::Next, response::Response};
 use crudcrate::ScopeCondition;
 use sea_orm::{ColumnTrait, Condition};
@@ -1094,7 +1094,7 @@ async fn scope_tasks(mut req: Request, next: Next) -&gt; Response {
 <li>Uses the scoped response model (without <code>exclude(scoped)</code> fields)</li>
 <li>Returns correct pagination counts reflecting the filtered total</li>
 </ul>
-<p>When <code>ScopeCondition</code> is <strong>not</strong> present (admin requests), everything works normally — full CRUD, all fields visible.</p>
+<p>When <code>ScopeCondition</code> is <strong>not</strong> present (admin requests), everything works normally: full CRUD, all fields visible.</p>
 <h2 id="mounting-the-routes"><a class="header" href="#mounting-the-routes">Mounting the Routes</a></h2>
 <p>Apply the scope middleware to your router. Layer it <strong>after</strong> your auth middleware so the auth status is available:</p>
 <pre><code class="language-rust">use axum::{middleware::from_fn, Router};
@@ -1109,24 +1109,24 @@ let app = Router::new()
     );</code></pre>
 <h2 id="what-happens"><a class="header" href="#what-happens">What Happens</a></h2>
 <p><strong>Public user</strong> (no auth token):</p>
-<pre><code class="language-bash"># List — only public tasks, no is_private in response
+<pre><code class="language-bash"># List: only public tasks, no is_private in response
 curl http://localhost:3000/api/tasks
 # [{"id": "...", "title": "Public task", "description": "..."}]
 
-# Private task — 404
+# Private task: 404
 curl http://localhost:3000/api/tasks/private-uuid
 # {"error": "task not found"}
 
-# Write — blocked
+# Write: blocked
 curl -X POST http://localhost:3000/api/tasks -d '{"title": "hack"}'
 # 403 Forbidden
 
-# Filter on is_private — silently ignored
+# Filter on is_private: silently ignored
 curl 'http://localhost:3000/api/tasks?filter={"is_private":true}'
 # Returns same results as without filter
 </code></pre>
 <p><strong>Admin</strong> (valid auth token):</p>
-<pre><code class="language-bash"># List — all tasks, is_private visible
+<pre><code class="language-bash"># List: all tasks, is_private visible
 curl -H "Authorization: Bearer TOKEN" http://localhost:3000/api/tasks
 # [{"id": "...", "title": "Public task", "is_private": false},
 #  {"id": "...", "title": "Secret task", "is_private": true}]
@@ -1154,7 +1154,7 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
     next.run(req).await
 }</code></pre>
 <blockquote>
-<p><strong>Warning</strong>: <code>Expr::cust()</code> passes raw SQL directly to the database. Never interpolate user input into the string — this creates SQL injection vulnerabilities. Use only static strings or Sea-ORM’s typed column API for dynamic conditions.</p>
+<p><strong>Warning</strong>: <code>Expr::cust()</code> passes raw SQL directly to the database. Never interpolate user input into the string; this creates SQL injection vulnerabilities. Use only static strings or Sea-ORM’s typed column API for dynamic conditions.</p>
 </blockquote>
 <h2 id="scoping-with-joins"><a class="header" href="#scoping-with-joins">Scoping with Joins</a></h2>
 <p>If your entity has <code>join()</code> fields (nested children in the response), <code>exclude(scoped)</code> propagates automatically through joins.</p>
@@ -1177,15 +1177,15 @@ pub is_private: bool,</code></pre>
   ]
 }
 </code></pre>
-<p>No <code>is_private</code> on the customer <strong>or</strong> on any nested vehicle. crudcrate generates <code>CustomerScopedList</code> with <code>vehicles: Vec&lt;VehicleScopedList&gt;</code> — the scoped types cascade through every join level.</p>
+<p>No <code>is_private</code> on the customer <strong>or</strong> on any nested vehicle. crudcrate generates <code>CustomerScopedList</code> with <code>vehicles: Vec&lt;VehicleScopedList&gt;</code>; the scoped types cascade through every join level.</p>
 <h3 id="how-join-scoping-works"><a class="header" href="#how-join-scoping-works">How join scoping works</a></h3>
 <p>Two layers protect joined children on scoped requests:</p>
 <ol>
 <li><strong>Field stripping</strong>: The scoped types (<code>VehicleScopedList</code>) omit <code>exclude(scoped)</code> fields from the JSON.</li>
-<li><strong>SQL-level row filtering</strong>: Every child batch query includes the child’s <code>ScopeFilterable::scope_condition()</code> as an additional <code>WHERE</code> clause. This applies on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code> handlers, at every depth when <code>depth &gt; 1</code> — the scoped batch loader recurses via <code>get_one_scoped</code>, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.</li>
+<li><strong>SQL-level row filtering</strong>: Every child batch query includes the child’s <code>ScopeFilterable::scope_condition()</code> as an additional <code>WHERE</code> clause. This applies on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code> handlers, at every depth when <code>depth &gt; 1</code>: the scoped batch loader recurses via <code>get_one_scoped</code>, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.</li>
 <li><strong>In-memory defense in depth</strong>: <code>From&lt;ListModel&gt; for ScopedList</code> still runs <code>ScopeFilterable::is_scope_visible()</code> over each child as a belt-and-suspenders guard, so a custom <code>read::many::body</code> hook that bypasses the SQL filter still strips private rows before serialisation.</li>
 </ol>
-<p>For automatic filtering to work, the child entity <strong>must</strong> have at least one <code>exclude(scoped)</code> boolean field (the derive macro generates the required <code>ScopeFilterable::scope_condition()</code> from those fields). If it doesn’t, the child’s <code>scope_condition()</code> returns <code>None</code> and every child row is returned — identical to unscoped behaviour.</p>
+<p>For automatic filtering to work, the child entity <strong>must</strong> have at least one <code>exclude(scoped)</code> boolean field (the derive macro generates the required <code>ScopeFilterable::scope_condition()</code> from those fields). If it doesn’t, the child’s <code>scope_condition()</code> returns <code>None</code> and every child row is returned, identical to unscoped behaviour.</p>
 <h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
 <div class="table-wrapper">
 <table>
@@ -1202,12 +1202,12 @@ pub is_private: bool,</code></pre>
 </table>
 </div>
 <h2 id="entities-without-excludescoped"><a class="header" href="#entities-without-excludescoped">Entities Without <code>exclude(scoped)</code></a></h2>
-<p>If a child entity doesn’t use <code>exclude(scoped)</code>, crudcrate generates a type alias (<code>type ChildScopedList = ChildList</code>) so parent joins still compile. No action needed — it just works.</p>
+<p>If a child entity doesn’t use <code>exclude(scoped)</code>, crudcrate generates a type alias (<code>type ChildScopedList = ChildList</code>) so parent joins still compile. No action needed; it just works.</p>
 <hr>
 <p><strong>Next:</strong> <a href="#custom-logic-with-hooks">Custom Logic - Hooks</a> - add validation and side effects to your endpoints.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="relationships"><a class="header" href="#relationships">Relationships</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/join_functionality_test.rs#L1" target="_blank" title="relationships tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/join_functionality_test.rs#L1" target="_blank" title="relationships tests">📋 See test</a></span></p>
 <p>Tasks should belong to users. Let’s connect them.</p>
 <h2 id="add-user-id-to-tasks"><a class="header" href="#add-user-id-to-tasks">Add User ID to Tasks</a></h2>
 <pre><code class="language-rust">// task.rs
@@ -1348,12 +1348,12 @@ impl Related&lt;super::task::Entity&gt; for Entity {
 }
 </code></pre>
 <h2 id="depth-limit"><a class="header" href="#depth-limit">Depth Limit</a></h2>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/test_deep_recursion.rs#L184-L361" target="_blank" title="relationships depth tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L184-L361" target="_blank" title="relationships depth tests">📋 See test</a></span></p>
 <p>To prevent infinite recursion (user → tasks → user → tasks → …), use <code>depth</code>:</p>
 <pre><code class="language-rust">#[crudcrate(non_db_attr, join(one, depth = 1))]
 pub tasks: Vec&lt;Task&gt;,</code></pre>
 <p>Default max depth is 5. Self-referencing relations (like categories with subcategories) are automatically limited to depth 1.</p>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/test_deep_recursion.rs#L79-L182" target="_blank" title="relationships recursive tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/test_deep_recursion.rs#L79-L182" target="_blank" title="relationships recursive tests">📋 See test</a></span></p>
 <hr>
 <h2 id="try-the-recursive-join-example"><a class="header" href="#try-the-recursive-join-example">Try the Recursive Join Example</a></h2>
 <p>See relationships in action with a complete example:</p>
@@ -1380,7 +1380,7 @@ cargo run --example recursive_join
 <p><strong>Next:</strong> <a href="#custom-logic-with-hooks">Custom logic</a> - add validation and side effects.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="custom-logic-with-hooks"><a class="header" href="#custom-logic-with-hooks">Custom Logic with Hooks</a></h1>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/hook_system_test.rs#L1" target="_blank" title="hooks tests">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L1" target="_blank" title="hooks tests">📋 See test</a></span></p>
 <p>Sometimes you need custom logic: validate input, send notifications, or log events. Hooks let you run code before or after CRUD operations.</p>
 <h2 id="the-hook-system"><a class="header" href="#the-hook-system">The Hook System</a></h2>
 <p>Hooks use this syntax: <code>{operation}::{cardinality}::{phase}</code></p>
@@ -1480,7 +1480,7 @@ async fn soft_delete(
 
     Ok(())
 }</code></pre>
-<h3 id="transform--modify-results"><a class="header" href="#transform--modify-results"><code>transform</code> — Modify Results</a></h3>
+<h3 id="transform-modify-results"><a class="header" href="#transform-modify-results"><code>transform</code>: Modify Results</a></h3>
 <p>Transform hooks receive the operation result and return a modified version. Use for enrichment, decoration, or data transformation.</p>
 <pre><code class="language-rust">#[crudcrate(read::one::transform = enrich_with_metadata)]
 
@@ -1510,7 +1510,7 @@ pub struct Model {
 }</code></pre>
 <h2 id="hook-function-signatures"><a class="header" href="#hook-function-signatures">Hook Function Signatures</a></h2>
 <h3 id="create"><a class="header" href="#create">Create</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/hook_system_test.rs#L395-L419" target="_blank" title="hooks create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L394-L418" target="_blank" title="hooks create test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can modify input
 async fn create_pre(db: &amp;DatabaseConnection, data: &amp;mut TaskCreate) -&gt; Result&lt;(), ApiError&gt;;
 
@@ -1523,14 +1523,14 @@ async fn create_body(db: &amp;DatabaseConnection, data: TaskCreate) -&gt; Result
 // Transform: modify result before returning
 async fn create_transform(db: &amp;DatabaseConnection, task: Task) -&gt; Result&lt;Task, ApiError&gt;;</code></pre>
 <h3 id="update"><a class="header" href="#update">Update</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/hook_system_test.rs#L481-L512" target="_blank" title="hooks update test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L480-L511" target="_blank" title="hooks update test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: receives id and can modify input
 async fn update_pre(db: &amp;DatabaseConnection, id: Uuid, data: &amp;mut TaskUpdate) -&gt; Result&lt;(), ApiError&gt;;
 
 // Post: receives updated item
 async fn update_post(db: &amp;DatabaseConnection, task: &amp;Task) -&gt; Result&lt;(), ApiError&gt;;</code></pre>
 <h3 id="delete"><a class="header" href="#delete">Delete</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.9.3/test_suite/tests/hook_system_test.rs#L553-L581" target="_blank" title="hooks delete test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/main/test_suite/tests/hook_system_test.rs#L552-L580" target="_blank" title="hooks delete test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can prevent deletion
 async fn delete_pre(db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;(), ApiError&gt;;
 
@@ -2026,24 +2026,24 @@ ALTER TABLE articles ADD FULLTEXT INDEX idx_articles_fulltext (title, content);
 </code></pre>
 <h2 id="query-optimization"><a class="header" href="#query-optimization">Query Optimization</a></h2>
 <h3 id="use-selective-filters"><a class="header" href="#use-selective-filters">Use Selective Filters</a></h3>
-<pre><code class="language-bash"># ❌ Full table scan
+<pre><code class="language-bash"># Full table scan
 GET /articles
 
-# ✅ Filtered query uses index
+# Filtered query uses index
 GET /articles?filter={"status":"published"}
 </code></pre>
 <h3 id="limit-result-size"><a class="header" href="#limit-result-size">Limit Result Size</a></h3>
-<pre><code class="language-bash"># ✅ Always paginate
+<pre><code class="language-bash"># Always paginate
 GET /articles?range=[0,19]
 
 # Built-in limit: max 1000 items per request
 </code></pre>
 <h3 id="avoid-deep-joins"><a class="header" href="#avoid-deep-joins">Avoid Deep Joins</a></h3>
-<pre><code class="language-rust">// ❌ Deep recursion
+<pre><code class="language-rust">// Deep recursion
 #[crudcrate(non_db_attr, join(one, all, depth = 10))]
 pub comments: Vec&lt;Comment&gt;,
 
-// ✅ Limited depth
+// Limited depth
 #[crudcrate(non_db_attr, join(one, depth = 2))]
 pub comments: Vec&lt;Comment&gt;,</code></pre>
 <h2 id="connection-pooling"><a class="header" href="#connection-pooling">Connection Pooling</a></h2>
@@ -2208,13 +2208,13 @@ async fn list_articles_optimized(
 }</code></pre>
 <h2 id="async-best-practices"><a class="header" href="#async-best-practices">Async Best Practices</a></h2>
 <h3 id="batch-database-operations"><a class="header" href="#batch-database-operations">Batch Database Operations</a></h3>
-<pre><code class="language-rust">// ❌ Sequential queries
+<pre><code class="language-rust">// Sequential queries
 for id in ids {
     let item = Entity::find_by_id(id).one(db).await?;
     results.push(item);
 }
 
-// ✅ Batch query
+// Batch query
 let items = Entity::find()
     .filter(Column::Id.is_in(ids))
     .all(db)
@@ -2296,7 +2296,7 @@ it on a unit struct, override only the methods you need, and wire it in with
 <code>#[crudcrate(operations = MyOps)]</code>.</p>
 <h2 id="when-to-use-operations-vs-per-attribute-hooks"><a class="header" href="#when-to-use-operations-vs-per-attribute-hooks">When to use operations vs per-attribute hooks</a></h2>
 <p>Use <strong>operations</strong> when you want a single struct that owns all customization
-for a resource — validation, authorization, side effects. It reads like a
+for a resource: validation, authorization, side effects. It reads like a
 controller.</p>
 <p>Use <strong>per-attribute hooks</strong> (<code>#[crudcrate(create::one::pre = validate)]</code>)
 when you only need one or two hooks and prefer keeping them close to the
@@ -2321,7 +2321,7 @@ impl CRUDOperations for AssetOps {
         db: &amp;DatabaseConnection,
         data: &amp;&lt;Asset as crudcrate::traits::CRUDResource&gt;::CreateModel,
     ) -&gt; Result&lt;(), ApiError&gt; {
-        // Validate, authorize, log — whatever you need
+        // Validate, authorize, log: whatever you need
         Ok(())
     }
 
@@ -2355,18 +2355,18 @@ async fn after_get_one(&amp;self, db: &amp;DatabaseConnection, entity: &amp;mut 
 <p><code>before_create</code> and <code>before_update</code> take <strong>immutable</strong> references to the
 input data. They’re for validation and authorization, not transformation.
 To transform input before insertion, override <code>perform_create</code> (level 2).</p>
-<p><code>after_*</code> hooks take <code>&amp;mut</code> references — use them for enrichment
+<p><code>after_*</code> hooks take <code>&amp;mut</code> references; use them for enrichment
 (computed fields, view counts, etc.).</p>
 <h3 id="level-2-core-logic-overrides"><a class="header" href="#level-2-core-logic-overrides">Level 2: Core logic overrides</a></h3>
 <p>Replace the default DB query or mutation while keeping lifecycle hooks
 around it.</p>
 <pre><code class="language-rust">async fn fetch_one(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Self::Resource, ApiError&gt; {
-    // Custom query — eg. select specific columns, add joins
+    // Custom query, eg. select specific columns, add joins
     // ...
 }
 
 async fn perform_create(&amp;self, db: &amp;DatabaseConnection, data: CreateModel) -&gt; Result&lt;Self::Resource, ApiError&gt; {
-    // Custom insertion logic — eg. transform data before insert
+    // Custom insertion logic, eg. transform data before insert
     // ...
 }</code></pre>
 <h3 id="level-3-full-operation-overrides"><a class="header" href="#level-3-full-operation-overrides">Level 3: Full operation overrides</a></h3>
@@ -2374,7 +2374,7 @@ async fn perform_create(&amp;self, db: &amp;DatabaseConnection, data: CreateMode
 implementations orchestrate <code>before_* → core_logic → after_*</code>, so
 overriding here means you take full control.</p>
 <pre><code class="language-rust">async fn delete(&amp;self, db: &amp;DatabaseConnection, id: Uuid) -&gt; Result&lt;Uuid, ApiError&gt; {
-    // Completely custom — S3 cleanup, cascade, audit, everything
+    // Completely custom: S3 cleanup, cascade, audit, everything
     let asset = Asset::get_one(db, id).await?;
     delete_from_s3(&amp;asset.s3_key).await?;
     Asset::delete(db, id).await
@@ -2454,9 +2454,9 @@ join loading, same as entities without operations.</p>
 }</code></pre>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li><a href="reference/crudoperations-api.html">CRUDOperations API reference</a> — full trait definition and execution order</li>
-<li><a href="advanced/lifecycle-hooks.html">Lifecycle Hooks</a> — per-attribute hook alternative</li>
-<li><a href="#security-best-practices">Security</a> — SecurityProfile configuration</li>
+<li><a href="reference/crudoperations-api.html">CRUDOperations API reference</a>: full trait definition and execution order</li>
+<li><a href="advanced/lifecycle-hooks.html">Lifecycle Hooks</a>: per-attribute hook alternative</li>
+<li><a href="#security-best-practices">Security</a>: SecurityProfile configuration</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h1>
@@ -2845,6 +2845,8 @@ pub struct UserList {
 <li>Often identical to Response model</li>
 <li>Can exclude expensive fields (e.g., large text, relationships)</li>
 <li>Optimized for list performance</li>
+<li>Keeps each field’s <code>serde</code>, <code>schema</code> and doc attributes, so a field renamed or
+skipped when null serializes the same way it does in the Response model</li>
 </ul>
 <h2 id="field-exclusion-matrix"><a class="header" href="#field-exclusion-matrix">Field Exclusion Matrix</a></h2>
 <p>Control which fields appear in which models:</p>
@@ -3057,6 +3059,27 @@ pub struct Model { }</code></pre>
 <p><strong>Type:</strong> Integer
 <strong>Default:</strong> <code>1000</code>
 <strong>Runtime override:</strong> Implement <code>fn max_page_size() -&gt; u64</code> on your <code>CRUDResource</code> impl for dynamic values.</p>
+<hr>
+<h3 id="deny_unknown_fields"><a class="header" href="#deny_unknown_fields"><code>deny_unknown_fields</code></a></h3>
+<p>Reject a create or update payload that carries a key the input model does not
+accept, instead of ignoring it.</p>
+<pre><code class="language-rust">#[crudcrate(deny_unknown_fields)]
+pub struct Model {
+    #[crudcrate(exclude(create))]
+    pub is_public: Option&lt;bool&gt;,
+}
+
+// POST { "name": "x", "is_public": true } -&gt; 422, is_public is not a create field</code></pre>
+<p>By default serde ignores keys with no matching field, so a value excluded from the
+Create or Update model is dropped and the caller gets a <code>201</code>/<code>200</code> reporting the
+stored value rather than the one it sent. The flag adds
+<code>#[serde(deny_unknown_fields)]</code> to the generated <code>&lt;Name&gt;Create</code> and <code>&lt;Name&gt;Update</code>
+structs, turning that silent drop into a rejection.</p>
+<p>Use it when clients should learn that a field is server-controlled. Leave it off
+when clients round-trip a whole record back into an update, since read-only fields
+like <code>created_at</code> would then be rejected too.</p>
+<p><strong>Type:</strong> Flag (no value)
+<strong>Default:</strong> off (unknown keys ignored)</p>
 <hr>
 <h2 id="lifecycle-hook-attributes"><a class="header" href="#lifecycle-hook-attributes">Lifecycle Hook Attributes</a></h2>
 <h3 id="createonepre"><a class="header" href="#createonepre"><code>create::one::pre</code></a></h3>
@@ -3765,8 +3788,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-crudcrate = "0.1"
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+crudcrate = "0.10"
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -4511,11 +4534,11 @@ curl "http://localhost:3000/orders?filter={\"customer_id\":\"{id}\"}"
 <tr><th>Feature</th><th>CRUDCrate</th><th>Manual Axum</th><th>Diesel</th><th>Other ORMs</th></tr>
 </thead>
 <tbody>
-<tr><td>Code Generation</td><td>✅ Derive macro</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Filtering</td><td>✅ Built-in</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Pagination</td><td>✅ Built-in</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Relationships</td><td>✅ Automatic</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Type Safety</td><td>✅ Full</td><td>✅ Full</td><td>✅ Full</td><td>Varies</td></tr>
+<tr><td>Code Generation</td><td>Derive macro</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Filtering</td><td>Built-in</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Pagination</td><td>Built-in</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Relationships</td><td>Automatic</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Type Safety</td><td>Full</td><td>Full</td><td>Full</td><td>Varies</td></tr>
 </tbody>
 </table>
 </div>
@@ -4533,8 +4556,8 @@ curl "http://localhost:3000/orders?filter={\"customer_id\":\"{id}\"}"
 <h3 id="do-i-need-to-install-sea-orm-separately"><a class="header" href="#do-i-need-to-install-sea-orm-separately">Do I need to install Sea-ORM separately?</a></h3>
 <p>Yes. CRUDCrate works alongside Sea-ORM:</p>
 <pre><code class="language-toml">[dependencies]
-crudcrate = "0.1"
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
+crudcrate = "0.10"
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 </code></pre>
 <h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
 <h3 id="can-i-use-crudcrate-with-an-existing-sea-orm-project"><a class="header" href="#can-i-use-crudcrate-with-an-existing-sea-orm-project">Can I use CRUDCrate with an existing Sea-ORM project?</a></h3>
@@ -4615,7 +4638,7 @@ pub comments: Vec&lt;Comment&gt;,</code></pre>
 <li>Limit join depth</li>
 </ol>
 <h3 id="does-loading-relationships-cause-n1-queries"><a class="header" href="#does-loading-relationships-cause-n1-queries">Does loading relationships cause N+1 queries?</a></h3>
-<p>No — <code>get_all()</code> with <code>join(all)</code> uses <strong>batch loading</strong> that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using <code>WHERE parent_id IN (...)</code>. This applies to depth=1 joins; deeper joins (depth &gt; 1) may issue additional queries for nested relations. Single-item <code>get_one()</code> uses per-item queries, which is acceptable for individual lookups.</p>
+<p>No: <code>get_all()</code> with <code>join(all)</code> uses <strong>batch loading</strong> that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using <code>WHERE parent_id IN (...)</code>. This applies to depth=1 joins; deeper joins (depth &gt; 1) may issue additional queries for nested relations. Single-item <code>get_one()</code> uses per-item queries, which is acceptable for individual lookups.</p>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="compilation-error-cannot-find-derive-macro"><a class="header" href="#compilation-error-cannot-find-derive-macro">Compilation error: “cannot find derive macro”</a></h3>
 <p>Import it:</p>
@@ -4676,9 +4699,82 @@ pub updated_at: DateTimeUtc,</code></pre>
 <p>All notable changes to the crudcrate project will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2 id="unreleased"><a class="header" href="#unreleased"><a href="https://github.com/evanjt/crudcrate/compare/0.9.3...HEAD">Unreleased</a></a></h2>
-<h2 id="093---2026-07-15"><a class="header" href="#093---2026-07-15"><a href="https://github.com/evanjt/crudcrate/compare/0.9.2...0.9.3">0.9.3</a> - 2026-07-15</a></h2>
+<h2 id="unreleased"><a class="header" href="#unreleased"><a href="https://github.com/evanjt/crudcrate/compare/0.10.0...HEAD">Unreleased</a></a></h2>
+<h2 id="0100---2026-08-19"><a class="header" href="#0100---2026-08-19"><a href="https://github.com/evanjt/crudcrate/compare/0.9.3...0.10.0">0.10.0</a> - 2026-08-19</a></h2>
+<h3 id="changed"><a class="header" href="#changed">Changed</a></h3>
+<ul>
+<li><strong>SeaORM 2.0.</strong> The workspace now builds against <code>sea-orm = "2.0"</code>
+(SeaQuery 1.0, SQLx 0.9). Applications must upgrade their own <code>sea-orm</code>
+dependency in the same step; crudcrate 0.9.x remains available for
+SeaORM 1.x. See <code>docs/MIGRATION_0.10.md</code>.</li>
+<li><strong>Batch create uses a single multi-row <code>INSERT ... RETURNING</code></strong> on backends
+that support it (PostgreSQL, SQLite &gt;= 3.35); MySQL keeps the per-row insert
+loop inside the transaction. Response order, all-or-nothing semantics, 409
+duplicate-key mapping and <code>?partial=true</code> behaviour are unchanged. The
+<code>sqlite</code> feature now enables SeaORM’s <code>sqlite-use-returning-for-3_35</code>.
+Behaviour change: custom <code>ActiveModelBehavior::before_save</code>/<code>after_save</code>
+implementations are no longer invoked per row during batch create on the
+RETURNING backends (they still run on MySQL, and single create never invoked
+them). Response order relies on the engine emitting RETURNING rows in VALUES
+order, which PostgreSQL and SQLite implement but do not formally guarantee.</li>
+</ul>
+<h3 id="added"><a class="header" href="#added">Added</a></h3>
+<ul>
+<li><strong>Dense entity format support.</strong> Entities written with SeaORM 2.0’s
+<code>#[sea_orm::model]</code> (inline <code>HasMany</code>/<code>HasOne</code>/<code>BelongsTo</code> relation fields)
+can derive <code>EntityToModels</code> directly. The derive attaches to the scalar
+<code>Model</code> and ignores the generated <code>ModelEx</code> companion, so relation wrapper
+fields never leak into Create/Update/List models.</li>
+<li><strong><code>crudcrate::table_column_ref(table, column)</code></strong> builds a table-qualified
+<code>ColumnRef</code> for custom <code>resolve_joined_filters</code> implementations, replacing
+the <code>ColumnRef::TableColumn</code> variant removed in SeaQuery 1.0.</li>
+<li><strong>Guided compile errors for misplaced dense-format relations.</strong> A
+<code>HasMany</code>/<code>HasOne</code>/<code>BelongsTo</code> field on a struct not processed by
+<code>#[sea_orm::model]</code> now produces a spanned error naming the fix instead of
+silently generating nothing. Both crates also declare <code>rust-version = "1.85"</code>
+so an old toolchain fails with a clear MSRV message.</li>
+<li><strong><code>#[crudcrate(deny_unknown_fields)]</code>.</strong> Opt-in strict input models: the
+generated <code>&lt;Name&gt;Create</code> and <code>&lt;Name&gt;Update</code> reject a payload key they do not
+accept instead of ignoring it. Without it, a value sent for a field excluded
+from create or update is silently dropped and the response reports the stored
+value rather than the submitted one. Off by default, since clients that
+round-trip a full record into an update legitimately send read-only fields.</li>
+<li><strong><code>crudcrate::sea_orm</code> re-export.</strong> Applications can reference the SeaORM
+version crudcrate builds against (ie. <code>use crudcrate::sea_orm;</code>) instead of
+pinning a matching <code>sea-orm</code> dependency themselves.</li>
+</ul>
 <h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<ul>
+<li><strong>List pagination could repeat or skip a row.</strong> <code>get_all</code> ordered by the
+requested sort column alone, so rows tied on that column had no defined order
+and two <code>LIMIT</code>/<code>OFFSET</code> queries serving two pages could place a tied row in
+both or neither. The primary key is now appended as a secondary sort key
+whenever the sort column is not the primary key, in the trait default
+<code>get_all</code>, the derive-generated <code>get_all</code>/<code>get_all_scoped</code>, the joined
+(dot-notation) sort, and <code>CRUDOperations::fetch_all</code>. A custom
+<code>get::all::body</code> override supplies its own ordering and is unaffected.</li>
+<li><strong>List models dropped field attributes.</strong> <code>&lt;Name&gt;List</code> was generated with the
+field name and type only, so <code>#[serde(skip_serializing_if = ...)]</code>,
+<code>#[serde(rename = ...)]</code>, <code>#[schema(...)]</code> and doc comments applied to the
+single-record response but not to entries in the collection response, e.g. a
+field skipped when <code>None</code> came back as an explicit <code>null</code> in a list. <code>serde</code>,
+<code>schema</code> and doc attributes now carry over to <code>&lt;Name&gt;List</code>, <code>&lt;Name&gt;ScopedList</code>
+and <code>&lt;Name&gt;ScopedResponse</code>, matching <code>&lt;Name&gt;Response</code>, which already did this.</li>
+<li><strong><code>per_page=0</code> produced an empty page.</strong> <code>parse_pagination</code> clamped only the
+upper bound, returning a limit of 0 that yields a page with no rows however
+many rows match (and a zero page size that some paginators reject outright).
+It now clamps to <code>1..=MAX_PAGE_SIZE</code>.</li>
+</ul>
+<h3 id="notes"><a class="header" href="#notes">Notes</a></h3>
+<ul>
+<li>SeaORM 2.0’s Entity Loader was evaluated and not adopted for join loading:
+it requires the dense entity format on user entities and offers no hook for
+per-child scope conditions. Typed <code>COLUMN</code> constants were likewise evaluated
+and skipped; generated code keeps using the <code>Column</code> enum paths. Rationale
+in the relationships documentation.</li>
+</ul>
+<h2 id="093---2026-07-15"><a class="header" href="#093---2026-07-15"><a href="https://github.com/evanjt/crudcrate/compare/0.9.2...0.9.3">0.9.3</a> - 2026-07-15</a></h2>
+<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
 <ul>
 <li><strong>Comparison filters on non-text columns returned 500 on PostgreSQL.</strong> A
 <code>_gte</code>/<code>_lte</code>/<code>_gt</code>/<code>_lt</code>/<code>_neq</code> (or equality) filter whose value arrived as a
@@ -4692,7 +4788,7 @@ keep case-insensitive matching. Requires the <code>with-chrono</code> and
 <code>with-rust_decimal</code> Sea-ORM features (now enabled by default).</li>
 </ul>
 <h2 id="092---2026-06-10"><a class="header" href="#092---2026-06-10"><a href="https://github.com/evanjt/crudcrate/compare/0.9.1...0.9.2">0.9.2</a> - 2026-06-10</a></h2>
-<h3 id="added"><a class="header" href="#added">Added</a></h3>
+<h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
 <ul>
 <li><strong>Non-UUID primary keys.</strong> <code>CRUDResource</code> is now generic over the entity’s
 primary-key value type via <code>crudcrate::PrimaryKeyType&lt;Self&gt;</code>, so integer
@@ -4711,11 +4807,11 @@ that don’t implement it are unaffected (no-op).</li>
 <code>cargo llvm-cov</code> results to Codecov, so backend-specific code paths are
 measured (previously only the SQLite job reported coverage).</li>
 </ul>
-<h3 id="changed"><a class="header" href="#changed">Changed</a></h3>
+<h3 id="changed-1"><a class="header" href="#changed-1">Changed</a></h3>
 <ul>
 <li><strong>BREAKING (trait signatures).</strong> <code>CRUDResource</code> and <code>CRUDOperations</code> methods
 that took <code>id: uuid::Uuid</code> / <code>Vec&lt;uuid::Uuid&gt;</code> now take
-<code>crudcrate::PrimaryKeyType&lt;Self&gt;</code> / <code>Vec&lt;PrimaryKeyType&lt;Self&gt;&gt;</code> — including
+<code>crudcrate::PrimaryKeyType&lt;Self&gt;</code> / <code>Vec&lt;PrimaryKeyType&lt;Self&gt;&gt;</code>, including
 <code>get_one</code>, <code>get_one_scoped</code>, <code>update</code>, <code>delete</code>, <code>delete_many</code>, <code>update_many</code>
 and the <code>CRUDOperations</code> <code>before_*</code> / <code>after_*</code> / <code>perform_*</code> / <code>fetch_*</code>
 hooks. For UUID resources <code>PrimaryKeyType&lt;Self&gt;</code> resolves to <code>Uuid</code>, so runtime
@@ -4733,7 +4829,7 @@ rows actually deleted.</li>
 inner-type match (not a substring), and deriving <code>Eq</code> now also derives
 <code>PartialEq</code>.</li>
 </ul>
-<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
+<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
 <ul>
 <li><strong>LIKE wildcard escaping was a no-op on SQLite</strong> for the fulltext LIKE-fallback
 and joined <code>_like</code> paths: escaping used a backslash but emitted no <code>ESCAPE</code>
@@ -4778,7 +4874,7 @@ enumeration oracle that profile is meant to close. It now returns
 <h3 id="known-limitations"><a class="header" href="#known-limitations">Known limitations</a></h3>
 <ul>
 <li>Joined-filter sub-queries and <code>Vec&lt;Child&gt;</code> batch loading apply no per-relation
-row cap — they are bounded only by <code>MAX_FILTER_CLAUSES</code> (100) and the parent
+row cap; they are bounded only by <code>MAX_FILTER_CLAUSES</code> (100) and the parent
 page size. On very large child tables this is a query-amplification
 consideration for untrusted callers.</li>
 <li>Case-insensitive fulltext and <code>like_filterable</code> matching on MySQL/SQLite is
@@ -4789,14 +4885,14 @@ value <em>type</em> is generic, but a join target whose PK field has a different
 will not compile.</li>
 </ul>
 <h2 id="091---2026-06-01"><a class="header" href="#091---2026-06-01"><a href="https://github.com/evanjt/crudcrate/compare/0.9.0...0.9.1">0.9.1</a> - 2026-06-01</a></h2>
-<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
+<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
 <ul>
 <li>
 <p><strong>LIKE queries broken on Postgres</strong>. <code>build_like_condition</code> and the
 fulltext search functions used <code>?</code> as the bind placeholder in
 <code>Expr::cust_with_values</code> templates. Sea-query’s Postgres backend uses
 <code>$</code> as its placeholder character, so the <code>?</code> was passed through as a
-literal — Postgres then parsed <code>? ESCAPE '!'</code> as a JSONB operator
+literal, and Postgres then parsed <code>? ESCAPE '!'</code> as a JSONB operator
 followed by a type cast, producing <code>type "escape" does not exist</code>.
 Fixed by using <code>$1</code> for Postgres and <code>?</code> for MySQL/SQLite.</p>
 </li>
@@ -4820,7 +4916,7 @@ character. Backslash inside single-quoted SQL strings is ambiguous
 across backends (Postgres <code>standard_conforming_strings</code>).</p>
 </li>
 </ul>
-<h3 id="changed-1"><a class="header" href="#changed-1">Changed</a></h3>
+<h3 id="changed-2"><a class="header" href="#changed-2">Changed</a></h3>
 <ul>
 <li>
 <p>Removed dead codegen helpers (<code>runtime_fk_*</code> functions) from
@@ -4839,8 +4935,8 @@ duplicate match arms, missing error docs, <code>unwrap</code> after <code>is_som
 <ul>
 <li>
 <p><strong><code>SecurityProfile</code> config struct + presets</strong>. New <code>crudcrate::SecurityProfile</code>
-bundles the security-sensitive runtime defaults — strict filter parsing,
-scope propagation, deleted-ID exposure, and request body size — under one
+bundles the security-sensitive runtime defaults (strict filter parsing,
+scope propagation, deleted-ID exposure, and request body size) under one
 type with three presets: <code>SecurityProfile::secure()</code>, <code>react_admin()</code>, and
 <code>legacy()</code>. Override individual fields via Rust’s struct-update syntax:
 <code>SecurityProfile { expose_deleted_ids: true, ..SecurityProfile::secure() }</code>.</p>
@@ -4893,17 +4989,17 @@ the ID array for cache invalidation should pin
 <p><strong>Fulltext SQL bind parameterization</strong>. The Postgres / MySQL /
 SQLite fulltext condition builders now route the user query value through
 <code>Expr::cust_with_values</code> so the value is bound as a parameter rather than
-interpolated into the SQL string. Defense-in-depth — column names were
+interpolated into the SQL string. Defense-in-depth: column names were
 already compile-time-known, but raw <code>SimpleExpr::Custom(format!(...))</code> was
 removed everywhere user input could reach it.</p>
 </li>
 </ul>
-<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
+<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
 <ul>
 <li>
 <p><strong>Join loading with <code>operations</code> attribute</strong>. Entities using
 <code>#[crudcrate(operations = MyOps)]</code> for create/update/delete hooks had
-their join loading silently bypassed on <code>get_one</code> and <code>get_all</code> — the
+their join loading silently bypassed on <code>get_one</code> and <code>get_all</code>; the
 codegen delegated entirely to <code>CRUDOperations</code> which does plain queries
 with no relation loading. The operations path now falls through to the
 standard join-loading codegen when the entity has <code>join(...)</code> fields,
@@ -4919,7 +5015,7 @@ non-standard FK names (eg. <code>author_ref</code> instead of <code>author_id</c
 load correctly.</p>
 </li>
 </ul>
-<h3 id="changed-2"><a class="header" href="#changed-2">Changed</a></h3>
+<h3 id="changed-3"><a class="header" href="#changed-3">Changed</a></h3>
 <ul>
 <li>
 <p>Replaced unmaintained <code>impls = "1"</code> (no release since 2019) with an
@@ -4938,7 +5034,7 @@ proc-macro and <code>rust_decimal</code> patches.</p>
 <h3 id="documentation"><a class="header" href="#documentation">Documentation</a></h3>
 <ul>
 <li><code>README.md</code>: added security caveat for the <code>mysql</code> feature, which pulls in
-<code>rsa 0.9.10</code> (RUSTSEC-2023-0071, Marvin attack — no upstream fix).</li>
+<code>rsa 0.9.10</code> (RUSTSEC-2023-0071, Marvin attack, no upstream fix).</li>
 </ul>
 <h2 id="081---2026-05-19"><a class="header" href="#081---2026-05-19"><a href="https://github.com/evanjt/crudcrate/compare/0.8.0...0.8.1">0.8.1</a> - 2026-05-19</a></h2>
 <h3 id="security-2"><a class="header" href="#security-2">Security</a></h3>
@@ -4954,18 +5050,18 @@ from client-facing responses. Only a generic prefix is returned; the
 full error is logged via <code>tracing</code>.</p>
 </li>
 </ul>
-<h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
+<h3 id="added-2"><a class="header" href="#added-2">Added</a></h3>
 <ul>
 <li>
 <p><strong>Joined filters are now applied by the default handler</strong>. Requests like
 <code>GET /customers?filter={"vehicles.make":"BMW"}</code> previously parsed and
 whitelisted the filter but silently dropped it before hitting the
-database — users got unfiltered results. The default <code>get_all_handler</code>
+database; users got unfiltered results. The default <code>get_all_handler</code>
 now resolves each <code>JoinedFilter</code> into a sub-query on the child table
 (with the child’s <code>ScopeFilterable::scope_condition()</code> applied), collects
 matching parent-FK values, and adds <code>id IN (...)</code> to the main condition.
 Query shape: one extra <code>SELECT parent_fk FROM child WHERE ...</code> per
-joined-filter field plus the usual list + count queries — no JOIN, no
+joined-filter field plus the usual list + count queries: no JOIN, no
 <code>DISTINCT</code>. Backed by <code>test_suite/tests/joined_filter_http_test.rs</code> and
 a runnable <code>cargo run --example joined_filter</code>.</p>
 </li>
@@ -4984,12 +5080,12 @@ column + <code>FilterOperator</code> + <code>serde_json::Value</code> into an
 <code>Option&lt;SimpleExpr&gt;</code> for use in custom filter resolvers.</p>
 </li>
 </ul>
-<h3 id="changed-3"><a class="header" href="#changed-3">Changed</a></h3>
+<h3 id="changed-4"><a class="header" href="#changed-4">Changed</a></h3>
 <ul>
 <li>
 <p><code>crudcrate::filtering::ParsedFilters::joined_filters</code> is now consumed by
 the handler (previously only populated by the parser and read by tests).
-No API change — the field was already public.</p>
+No API change; the field was already public.</p>
 </li>
 <li>
 <p>Pruned unused dependencies from the workspace.</p>
@@ -5010,10 +5106,10 @@ custom <code>read::many::body</code> hook” note.</li>
 <ul>
 <li><strong>Atomic scope check in <code>get_one</code></strong>: Scoped <code>get_one</code> requests now verify the scope condition in a single query (ID + scope filter), eliminating a TOCTOU race where a separate <code>total_count()</code> verification could see stale data between the fetch and the check.</li>
 <li><strong>FK column runtime validation</strong>: The derive macro generates <code>#[cfg(test)]</code> functions that verify convention-derived FK column names match the actual <code>RelationDef</code> from SeaORM at test time. Catches silent data mismatches from FK naming convention violations before they reach production.</li>
-<li><strong>SQL-level scope filtering for joins (all endpoints, all depths)</strong>: Child entities with <code>exclude(scoped)</code> fields are now filtered at the SQL level (<code>WHERE is_private = false</code>) during join loading on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code>, and at <strong>every</strong> depth when <code>depth &gt; 1</code>. The scoped batch loader applies each child’s <code>ScopeFilterable::scope_condition()</code> to its <code>Entity::find().filter(FK in parent_ids)</code> query, and recurses via <code>get_one_scoped</code> (not <code>get_one</code>) for nested children. The in-memory <code>ScopeFilterable::is_scope_visible()</code> filter remains as defense-in-depth, but privacy is now enforced in the database, not just at serialisation time — private rows never leave Postgres on public endpoints.</li>
-<li><strong><code>require_scope</code> attribute</strong>: New <code>#[crudcrate(require_scope)]</code> struct-level attribute. When set, read handlers return HTTP 500 if no <code>ScopeCondition</code> middleware is present — catches misconfigured routes that should be scoped but aren’t.</li>
+<li><strong>SQL-level scope filtering for joins (all endpoints, all depths)</strong>: Child entities with <code>exclude(scoped)</code> fields are now filtered at the SQL level (<code>WHERE is_private = false</code>) during join loading on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code>, and at <strong>every</strong> depth when <code>depth &gt; 1</code>. The scoped batch loader applies each child’s <code>ScopeFilterable::scope_condition()</code> to its <code>Entity::find().filter(FK in parent_ids)</code> query, and recurses via <code>get_one_scoped</code> (not <code>get_one</code>) for nested children. The in-memory <code>ScopeFilterable::is_scope_visible()</code> filter remains as defense-in-depth, but privacy is now enforced in the database, not just at serialisation time: private rows never leave Postgres on public endpoints.</li>
+<li><strong><code>require_scope</code> attribute</strong>: New <code>#[crudcrate(require_scope)]</code> struct-level attribute. When set, read handlers return HTTP 500 if no <code>ScopeCondition</code> middleware is present; this catches misconfigured routes that should be scoped but aren’t.</li>
 </ul>
-<h3 id="added-2"><a class="header" href="#added-2">Added</a></h3>
+<h3 id="added-3"><a class="header" href="#added-3">Added</a></h3>
 <ul>
 <li>
 <p><strong>Struct-level join definitions</strong>: Join fields can now be defined at the struct level instead of on the SeaORM Model. This keeps the Model lightweight and avoids stack overflow when loading entities with heavy join types. The join field only exists on the generated API struct.</p>
@@ -5025,10 +5121,10 @@ pub struct Model { /* no replicates field here */ }</code></pre>
 <p>Field-level joins with <code>#[sea_orm(ignore)]</code> + <code>#[crudcrate(non_db_attr, join(...))]</code> still work for backward compatibility.</p>
 </li>
 <li>
-<p><strong>SQL-level column exclusion for <code>exclude(list)</code></strong>: Fields marked <code>#[crudcrate(exclude(list))]</code> with <code>Option&lt;T&gt;</code> types are now skipped at the SQL level in list queries — the database never transfers the data. Previously, <code>exclude(list)</code> only removed the field from the response struct while still fetching all columns. This dramatically improves performance for entities with large fields (photos, blobs, documents). Benchmarked at <strong>7x improvement</strong> (1,013 → 7,121 req/s) on an endpoint with base64 photo data.</p>
+<p><strong>SQL-level column exclusion for <code>exclude(list)</code></strong>: Fields marked <code>#[crudcrate(exclude(list))]</code> with <code>Option&lt;T&gt;</code> types are now skipped at the SQL level in list queries; the database never transfers the data. Previously, <code>exclude(list)</code> only removed the field from the response struct while still fetching all columns. This dramatically improves performance for entities with large fields (photos, blobs, documents). Benchmarked at <strong>7x improvement</strong> (1,013 → 7,121 req/s) on an endpoint with base64 photo data.</p>
 </li>
 <li>
-<p><strong><code>ScopeCondition</code> for auth-aware query filtering</strong>: New <code>ScopeCondition</code> type that can be injected via Axum <code>Extension</code> to add conditions to read queries. Auth-system-agnostic — users write middleware to convert their auth state into a <code>ScopeCondition</code>. When present, <code>get_all_handler</code> merges the condition into the query filter, and <code>get_one_handler</code> verifies the fetched record passes the condition. Write operations are unaffected.</p>
+<p><strong><code>ScopeCondition</code> for auth-aware query filtering</strong>: New <code>ScopeCondition</code> type that can be injected via Axum <code>Extension</code> to add conditions to read queries. Auth-system-agnostic: users write middleware to convert their auth state into a <code>ScopeCondition</code>. When present, <code>get_all_handler</code> merges the condition into the query filter, and <code>get_one_handler</code> verifies the fetched record passes the condition. Write operations are unaffected.</p>
 <pre><code class="language-rust">use crudcrate::ScopeCondition;
 let public = Article::read_only_router(&amp;db)
     .layer(Extension(ScopeCondition(
@@ -5050,33 +5146,33 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <p><strong><code>get_one_scoped</code> / <code>get_all_scoped</code></strong>: New <code>CRUDResource</code> trait methods with scope-aware query variants. Default implementations delegate to the non-scoped <code>get_one</code> / <code>get_all</code> (safe for resources without <code>join(all)</code> children). The derive macro overrides both with SQL-level child-scope propagation. <code>get_all_handler</code> dispatches to <code>get_all_scoped</code> whenever a <code>ScopeCondition</code> extension is present.</p>
 </li>
 </ul>
-<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
+<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
 <ul>
 <li><strong>Stack overflow with many joins</strong>: All join-loading futures are now <code>Box::pin</code>ned, moving large async state off the stack. Prevents stack overflow in debug builds with many join fields.</li>
 <li><strong>Async state machine bloat in debug builds</strong>: All join-loading futures are wrapped in <code>Box::pin</code>, preventing debug-build async state machine bloat from <code>Related&lt;E&gt;</code> monomorphization.</li>
 </ul>
-<h3 id="changed-4"><a class="header" href="#changed-4">Changed</a></h3>
+<h3 id="changed-5"><a class="header" href="#changed-5">Changed</a></h3>
 <ul>
 <li><strong><code>depth = 0</code> is now a compile error</strong>: Use <code>depth = 1</code> for shallow loading. Previously <code>depth = 0</code> could cause infinite recursion at runtime.</li>
 <li><strong>Compile-time bidirectional relation detection</strong>: Joins targeting an entity that has a <code>Related&lt;Self&gt;</code> impl (bidirectional/cyclic relationship) now produce a compile error unless an explicit <code>depth</code> is set. Previously, these silently caused infinite recursion at runtime via SeaORM’s <code>Relation::def()</code> chain. The error message explains the cycle and suggests the fix.</li>
 <li><strong>Compile-time warnings for risky join depths</strong>: Self-referencing joins without an explicit <code>depth</code> and joins with <code>depth &gt; 5</code> now emit <code>#[deprecated]</code> warnings at compile time, guiding users to set safe depth values.</li>
 </ul>
 <h2 id="072---2026-03-27"><a class="header" href="#072---2026-03-27"><a href="https://github.com/evanjt/crudcrate/compare/0.7.1...0.7.2">0.7.2</a> - 2026-03-27</a></h2>
-<h3 id="added-3"><a class="header" href="#added-3">Added</a></h3>
+<h3 id="added-4"><a class="header" href="#added-4">Added</a></h3>
 <ul>
-<li><strong>Automatic enum field detection</strong>: Fields with types implementing <code>sea_orm::ActiveEnum</code> are now detected at compile time — no <code>#[crudcrate(enum_field)]</code> annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field’s type.</li>
+<li><strong>Automatic enum field detection</strong>: Fields with types implementing <code>sea_orm::ActiveEnum</code> are now detected at compile time; no <code>#[crudcrate(enum_field)]</code> annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field’s type.</li>
 <li><strong>Case-insensitive enum array filtering</strong>: Array/IN filters on enum fields now apply <code>UPPER(CAST(col AS TEXT))</code> on Postgres, matching the case-insensitive behavior already used for single-value enum filters.</li>
 </ul>
 <h3 id="deprecated"><a class="header" href="#deprecated">Deprecated</a></h3>
 <ul>
 <li><strong><code>#[crudcrate(enum_field)]</code></strong>: No longer required. Enum fields are auto-detected from the <code>ActiveEnum</code> trait implementation. The attribute still works for backward compatibility but can be safely removed.</li>
 </ul>
-<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
+<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
 <ul>
 <li><strong>Array/IN filtering on enum fields</strong>: <code>process_array_filter()</code> now handles enum fields by casting to TEXT and uppercasing on Postgres. Previously, array filters on enum columns could fail on native Postgres ENUM types or produce case-sensitive results.</li>
 </ul>
 <h2 id="071---2026-03-09"><a class="header" href="#071---2026-03-09"><a href="https://github.com/evanjt/crudcrate/compare/0.7.0...0.7.1">0.7.1</a> - 2026-03-09</a></h2>
-<h3 id="added-4"><a class="header" href="#added-4">Added</a></h3>
+<h3 id="added-5"><a class="header" href="#added-5">Added</a></h3>
 <ul>
 <li><strong>Transform Hooks</strong>: New <code>transform</code> phase in hook system for result modification
 <ul>
@@ -5124,7 +5220,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><strong>Documentation Test Links</strong>: New mdbook preprocessor linking documentation examples to test files</li>
 <li><strong>IDE Documentation</strong>: Comprehensive attribute reference in crate-level documentation</li>
 </ul>
-<h3 id="changed-5"><a class="header" href="#changed-5">Changed</a></h3>
+<h3 id="changed-6"><a class="header" href="#changed-6">Changed</a></h3>
 <ul>
 <li><strong>Documentation Overhaul</strong>: Complete restructure of tutorial documentation
 <ul>
@@ -5139,9 +5235,9 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Bumped <code>sea-orm</code> from 1.1.17 to 1.1.19</li>
 <li>Batch operation limit checking now uses <code>Self::batch_limit()</code> method (configurable per-resource)</li>
 <li><code>BATCH_LIMIT</code> and <code>MAX_PAGE_SIZE</code> changed from associated constants to trait methods for runtime overridability</li>
-<li>Batch loading uses <code>.remove()</code> from HashMap instead of <code>.get().cloned()</code> — moves data instead of copying</li>
+<li>Batch loading uses <code>.remove()</code> from HashMap instead of <code>.get().cloned()</code>, moving data instead of copying</li>
 </ul>
-<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
+<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
 <ul>
 <li>UUID array filtering now passes native <code>Uuid</code> values to <code>is_in()</code> instead of stringified values, fixing incorrect query generation for UUID column arrays</li>
 <li><code>max_page_size()</code> trait method now enforced in HTTP pagination handler</li>
@@ -5169,7 +5265,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Improve input sanitization in filtering and pagination</li>
 <li>Add pagination limits to prevent excessive queries</li>
 </ul>
-<h3 id="added-5"><a class="header" href="#added-5">Added</a></h3>
+<h3 id="added-6"><a class="header" href="#added-6">Added</a></h3>
 <ul>
 <li><strong>Join Filtering</strong>: Filter by related entity columns using dot-notation syntax
 <ul>
@@ -5197,7 +5293,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Batch operations: <code>create_many</code> and <code>update_many</code> with hook support</li>
 <li><strong><code>ApiError</code> error type</strong>: Consistent error handling with separate internal/client messages (fixes #3)
 <ul>
-<li><code>impl From&lt;DbErr&gt;</code> for seamless Sea-ORM integration with automatic internal logging</li>
+<li><code>impl From&lt;DbErr&gt;</code> for Sea-ORM error conversion with automatic internal logging</li>
 <li>Internal errors logged via <code>tracing</code>, generic message sent to client</li>
 <li>Custom errors: <code>ApiError::custom(StatusCode::IM_A_TEAPOT, "client msg", Some("internal log"))</code></li>
 <li>Variants: <code>NotFound</code>, <code>BadRequest</code>, <code>Unauthorized</code>, <code>Forbidden</code>, <code>Conflict</code>, <code>ValidationFailed</code>, <code>Database</code>, <code>Internal</code>, <code>Custom</code></li>
@@ -5206,7 +5302,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Lifecycle hooks in <code>CRUDOperations</code> trait</li>
 <li>Improved test coverage across modules</li>
 </ul>
-<h3 id="changed-6"><a class="header" href="#changed-6">Changed</a></h3>
+<h3 id="changed-7"><a class="header" href="#changed-7">Changed</a></h3>
 <ul>
 <li>Major codebase refactoring (38% size reduction)
 <ul>
@@ -5220,7 +5316,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Replace <code>eprintln!</code> with <code>tracing</code> for logging</li>
 <li>Legacy <code>fn_*</code> attributes auto-map to new hook syntax</li>
 </ul>
-<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
+<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
 <ul>
 <li>Improved error handling in join path parsing</li>
 <li>Fixed flaky tests with serial execution</li>
@@ -5242,13 +5338,13 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Added <code>tracing</code> for structured logging</li>
 </ul>
 <h2 id="061---2025-11-03"><a class="header" href="#061---2025-11-03"><a href="https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1">0.6.1</a> - 2025-11-03</a></h2>
-<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
+<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
 <ul>
 <li>Global path resolution of joined structs</li>
 <li>Restructuring of crudcrate-derive into smaller modules, bit by bit.</li>
 </ul>
 <h2 id="060---2025-10-31"><a class="header" href="#060---2025-10-31"><a href="https://github.com/evanjt/crudcrate/compare/0.5.0...0.6.0">0.6.0</a> - 2025-10-31</a></h2>
-<h3 id="added-6"><a class="header" href="#added-6">Added</a></h3>
+<h3 id="added-7"><a class="header" href="#added-7">Added</a></h3>
 <ul>
 <li><strong>Recursive Join Loading</strong>: Multi-level relationship loading with <code>#[crudcrate(join(one, all))]</code> attribute</li>
 <li>Cyclic dependency detection at compile-time with actionable error messages</li>
@@ -5258,12 +5354,12 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>New <code>recursive_join</code> example demonstrating nested relationship loading</li>
 <li>Debug output functionality for procedural macros with <code>debug_output</code> attribute</li>
 </ul>
-<h3 id="changed-7"><a class="header" href="#changed-7">Changed</a></h3>
+<h3 id="changed-8"><a class="header" href="#changed-8">Changed</a></h3>
 <ul>
 <li><strong>derive</strong>: Removed requirement for <code>Eq</code> and <code>PartialEq</code> derives on generated API structs</li>
 <li><strong>derive</strong>: Improved multi-pass code generation to handle cyclic dependencies</li>
 </ul>
-<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
+<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
 <ul>
 <li>Database test cleanup logic for PostgreSQL and MySQL backends</li>
 <li>Relationship loading in <code>get_one()</code> and <code>get_all()</code> endpoints</li>
@@ -5273,12 +5369,12 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><strong>derive</strong>: Updated with recursive join support, cyclic dependency detection, and enhanced attribute parsing</li>
 </ul>
 <h2 id="050---2025-08-28"><a class="header" href="#050---2025-08-28"><a href="https://github.com/evanjt/crudcrate/compare/0.4.5...0.5.0">0.5.0</a> - 2025-08-28</a></h2>
-<h3 id="added-7"><a class="header" href="#added-7">Added</a></h3>
+<h3 id="added-8"><a class="header" href="#added-8">Added</a></h3>
 <ul>
 <li>Spring-RS framework support with minimal example in <code>/examples</code></li>
 <li>Restored CRUD benchmarks from 0.4.5</li>
 </ul>
-<h3 id="changed-8"><a class="header" href="#changed-8">Changed</a></h3>
+<h3 id="changed-9"><a class="header" href="#changed-9">Changed</a></h3>
 <ul>
 <li>Moved <code>crudcrate-derive</code> and examples into repository</li>
 <li>Simplified framework architecture - removed redundant code generation paths</li>
@@ -5289,37 +5385,37 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>BREAKING: Case-sensitive enum filtering functionality</li>
 </ul>
 <h2 id="045---2025-08-25"><a class="header" href="#045---2025-08-25"><a href="https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5">0.4.5</a> - 2025-08-25</a></h2>
-<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
+<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
 <ul>
 <li>Batch delete endpoints now returns the array of successfully deleted resource UUIDs, suitable for a react-admin batch delete response.</li>
 </ul>
 <h2 id="044---2025-08-20"><a class="header" href="#044---2025-08-20"><a href="https://github.com/evanjt/crudcrate/compare/0.4.3...0.4.4">0.4.4</a> - 2025-08-20</a></h2>
-<h3 id="added-8"><a class="header" href="#added-8">Added</a></h3>
+<h3 id="added-9"><a class="header" href="#added-9">Added</a></h3>
 <ul>
 <li>Index analysis system for database optimization recommendations</li>
 <li><code>analyse_indexes_for_resource</code> and <code>analyse_all_registered_models</code> functions</li>
 <li>Database-specific index recommendations with priority-based output</li>
 </ul>
-<h3 id="changed-9"><a class="header" href="#changed-9">Changed</a></h3>
+<h3 id="changed-10"><a class="header" href="#changed-10">Changed</a></h3>
 <ul>
 <li><strong>BREAKING</strong> (if still using CRUDResource manually): Added required <code>TABLE_NAME</code>
 constant to <code>CRUDResource</code> trait. This does not affect <code>EntityToModel</code> functionality.</li>
 <li>Made <code>validate_field_value</code> function const</li>
 <li>Improved code organization with extracted helper functions</li>
 </ul>
-<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
+<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
 <ul>
 <li>All clippy warnings (pessimistic and pedantic)</li>
 <li>Test compilation errors and naming inconsistencies</li>
 <li>Documentation examples and missing trait implementations</li>
 </ul>
 <h2 id="043---2025-08-19"><a class="header" href="#043---2025-08-19"><a href="https://github.com/evanjt/crudcrate/compare/0.4.2...0.4.3">0.4.3</a> - 2025-08-19</a></h2>
-<h3 id="added-9"><a class="header" href="#added-9">Added</a></h3>
+<h3 id="added-10"><a class="header" href="#added-10">Added</a></h3>
 <ul>
 <li><strong>Testing</strong>: Integration tests for <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
 <li><strong>Testing</strong>: Comprehensive test suite for <code>use_target_models</code> functionality with cross-model referencing</li>
 </ul>
-<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
+<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Resolved lingering compilation errors from List model update</li>
 <li><strong>derive</strong>: Fixed test compatibility issues following List model integration</li>
@@ -5330,7 +5426,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to latest version with enhanced List model support and improved compatibility</li>
 </ul>
 <h2 id="042---2025-08-18"><a class="header" href="#042---2025-08-18"><a href="https://github.com/evanjt/crudcrate/compare/0.4.1...0.4.2">0.4.2</a> - 2025-08-18</a></h2>
-<h3 id="added-10"><a class="header" href="#added-10">Added</a></h3>
+<h3 id="added-11"><a class="header" href="#added-11">Added</a></h3>
 <ul>
 <li><strong>List Model Support</strong>: New <code>List</code> model generation capability for customizing fields returned in list/getAll endpoints, similar to Create and Update models</li>
 <li>Generated List model behavior with field deselection support</li>
@@ -5339,13 +5435,13 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced target model usage with CRUDResource structs for cross-model referencing</li>
 <li><strong>derive</strong>: Automatic <code>From&lt;&gt;</code> trait generation for List structs from Sea-ORM DB models</li>
 </ul>
-<h3 id="changed-10"><a class="header" href="#changed-10">Changed</a></h3>
+<h3 id="changed-11"><a class="header" href="#changed-11">Changed</a></h3>
 <ul>
 <li><strong>derive</strong>: Improved trait compatibility by re-adding <code>PartialEq</code>, <code>Eq</code>, <code>Debug</code>, and <code>Clone</code> derives to models for Sea-ORM compatibility</li>
 <li><strong>derive</strong>: Route generation now uses root-level paths instead of prefixed routes for better user control</li>
 <li><strong>derive</strong>: Enhanced <code>use_target_models</code> functionality for better cross-model integration</li>
 </ul>
-<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
+<h3 id="fixed-14"><a class="header" href="#fixed-14">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Fixed ActiveModel generation when create model excludes keys</li>
 <li><strong>derive</strong>: Fixed <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
@@ -5358,7 +5454,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.2.6 with List model support, reserved field handling, and enhanced model generation capabilities</li>
 </ul>
 <h2 id="041---2025-08-05"><a class="header" href="#041---2025-08-05"><a href="https://github.com/evanjt/crudcrate/compare/0.4.0...0.4.1">0.4.1</a> - 2025-08-05</a></h2>
-<h3 id="added-11"><a class="header" href="#added-11">Added</a></h3>
+<h3 id="added-12"><a class="header" href="#added-12">Added</a></h3>
 <ul>
 <li>Index analysis functionality with <code>analyze_indexes_for_resource()</code> and <code>analyze_and_display_indexes()</code> methods</li>
 <li>Full-text search support in filtering system with <code>fulltext_searchable_columns()</code> method</li>
@@ -5370,7 +5466,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Database feature flags for selective driver compilation (<code>mysql</code>, <code>postgresql</code>, <code>sqlite</code>)</li>
 <li>Binary size optimization through conditional database driver inclusion</li>
 </ul>
-<h3 id="changed-11"><a class="header" href="#changed-11">Changed</a></h3>
+<h3 id="changed-12"><a class="header" href="#changed-12">Changed</a></h3>
 <ul>
 <li>Enhanced filtering system with enum case insensitivity and improved edge case handling</li>
 <li>Updated README with minimal examples and comprehensive testing documentation</li>
@@ -5381,7 +5477,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Sea-ORM dependency now uses <code>default-features = false</code> with selective feature enabling</li>
 <li>Enhanced README with database feature selection examples</li>
 </ul>
-<h3 id="fixed-14"><a class="header" href="#fixed-14">Fixed</a></h3>
+<h3 id="fixed-15"><a class="header" href="#fixed-15">Fixed</a></h3>
 <ul>
 <li>Enum filtering now supports case-insensitive matching</li>
 <li>Filter edge cases handle malformed JSON gracefully</li>
@@ -5395,7 +5491,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Removed Clone derives from generated structs to reduce memory overhead</li>
 </ul>
 <h2 id="040---2025-07-17"><a class="header" href="#040---2025-07-17"><a href="https://github.com/evanjt/crudcrate/compare/0.3.3...0.4.0">0.4.0</a> - 2025-07-17</a></h2>
-<h3 id="added-12"><a class="header" href="#added-12">Added</a></h3>
+<h3 id="added-13"><a class="header" href="#added-13">Added</a></h3>
 <ul>
 <li><strong>Enhanced Router Generation</strong>: Automatic router generation via <code>generate_router</code> attribute in <code>EntityToModels</code> macro</li>
 <li><strong>Non-Database Field Support</strong>: Complete support for non-DB fields using <code>#[sea_orm(ignore)]</code> + <code>#[crudcrate(non_db_attr = true)]</code> pattern</li>
@@ -5406,7 +5502,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced support for non-database fields with proper Sea-ORM integration</li>
 <li><strong>derive</strong>: Comprehensive integration tests and restructured codebase</li>
 </ul>
-<h3 id="changed-12"><a class="header" href="#changed-12">Changed</a></h3>
+<h3 id="changed-13"><a class="header" href="#changed-13">Changed</a></h3>
 <ul>
 <li>Enhanced <code>EntityToModels</code> macro to automatically generate router functions</li>
 <li>Improved documentation with comprehensive non-DB field examples</li>
@@ -5414,23 +5510,23 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced <code>ToCreateModel</code> and <code>ToUpdateModel</code> with new trait system</li>
 <li><strong>derive</strong>: Added <code>MergeIntoActiveModel</code> trait implementation</li>
 </ul>
-<h3 id="fixed-15"><a class="header" href="#fixed-15">Fixed</a></h3>
+<h3 id="fixed-16"><a class="header" href="#fixed-16">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Test infrastructure improvements and better error handling in macro generation</li>
 </ul>
 <h2 id="033---2025-06-23"><a class="header" href="#033---2025-06-23"><a href="https://github.com/evanjt/crudcrate/compare/0.3.2...0.3.3">0.3.3</a> - 2025-06-23</a></h2>
-<h3 id="fixed-16"><a class="header" href="#fixed-16">Fixed</a></h3>
+<h3 id="fixed-17"><a class="header" href="#fixed-17">Fixed</a></h3>
 <ul>
 <li>Fix newline formatting in auto-generated OpenAPI documentation</li>
 <li>Remove debug messages from production builds</li>
 </ul>
-<h3 id="changed-13"><a class="header" href="#changed-13">Changed</a></h3>
+<h3 id="changed-14"><a class="header" href="#changed-14">Changed</a></h3>
 <ul>
 <li>Accept enum exact comparison in filter queries</li>
 <li>Filter on integer columns support</li>
 </ul>
 <h2 id="032---2025-06-06"><a class="header" href="#032---2025-06-06"><a href="https://github.com/evanjt/crudcrate/compare/0.3.1...0.3.2">0.3.2</a> - 2025-06-06</a></h2>
-<h3 id="changed-14"><a class="header" href="#changed-14">Changed</a></h3>
+<h3 id="changed-15"><a class="header" href="#changed-15">Changed</a></h3>
 <ul>
 <li>Bump dependencies including crudcrate-derive for improved <code>into()</code> casting support</li>
 </ul>
@@ -5439,18 +5535,18 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.6 with improved <code>.into()</code> casting support and enhanced field attribute handling</li>
 </ul>
 <h2 id="031---2025-05-12"><a class="header" href="#031---2025-05-12"><a href="https://github.com/evanjt/crudcrate/compare/0.3.0...0.3.1">0.3.1</a> - 2025-05-12</a></h2>
-<h3 id="changed-15"><a class="header" href="#changed-15">Changed</a></h3>
+<h3 id="changed-16"><a class="header" href="#changed-16">Changed</a></h3>
 <ul>
 <li>Update lockfile and enhance filtering capabilities for enum and integer columns</li>
 </ul>
 <h2 id="030---2025-04-05"><a class="header" href="#030---2025-04-05"><a href="https://github.com/evanjt/crudcrate/compare/0.2.5...0.3.0">0.3.0</a> - 2025-04-05</a></h2>
-<h3 id="added-13"><a class="header" href="#added-13">Added</a></h3>
+<h3 id="added-14"><a class="header" href="#added-14">Added</a></h3>
 <ul>
 <li><strong>Major</strong>: Default implementations for <code>get_one</code>, <code>get_all</code>, and <code>update_one</code> in <code>CRUDResource</code> trait</li>
 <li>New <code>MergeIntoActiveModel</code> trait for improved update model handling</li>
 <li>Enhanced derive macro integration with new trait system</li>
 </ul>
-<h3 id="changed-16"><a class="header" href="#changed-16">Changed</a></h3>
+<h3 id="changed-17"><a class="header" href="#changed-17">Changed</a></h3>
 <ul>
 <li>Restructured core trait system for better usability</li>
 <li>Updated derive macro to reference new <code>MergeIntoActiveModel</code> trait</li>
@@ -5460,19 +5556,19 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.5 with <code>IntoActiveModel</code> trait for <code>UpdateModel</code> and improved trait derivations</li>
 </ul>
 <h2 id="025---2025-04-04"><a class="header" href="#025---2025-04-04"><a href="https://github.com/evanjt/crudcrate/compare/0.2.4...0.2.5">0.2.5</a> - 2025-04-04</a></h2>
-<h3 id="added-14"><a class="header" href="#added-14">Added</a></h3>
+<h3 id="added-15"><a class="header" href="#added-15">Added</a></h3>
 <ul>
 <li>Export <code>serde_with</code> for better serialization support</li>
 <li>Enhanced error responses in API endpoints</li>
 <li>Documentation for query parameters</li>
 </ul>
-<h3 id="changed-17"><a class="header" href="#changed-17">Changed</a></h3>
+<h3 id="changed-18"><a class="header" href="#changed-18">Changed</a></h3>
 <ul>
 <li>Renamed <code>openapi.rs</code> to <code>routes.rs</code> for better organization</li>
 <li>Updated dependencies</li>
 </ul>
 <h2 id="024---2025-03-11"><a class="header" href="#024---2025-03-11"><a href="https://github.com/evanjt/crudcrate/compare/0.2.3...0.2.4">0.2.4</a> - 2025-03-11</a></h2>
-<h3 id="added-15"><a class="header" href="#added-15">Added</a></h3>
+<h3 id="added-16"><a class="header" href="#added-16">Added</a></h3>
 <ul>
 <li>Description string support in CRUDResource</li>
 <li>Auto-populated summary and description for macro-generated endpoints</li>
@@ -5483,28 +5579,28 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.4 with improved serialization support using exported <code>serde_with</code></li>
 </ul>
 <h2 id="023---2025-03-07"><a class="header" href="#023---2025-03-07"><a href="https://github.com/evanjt/crudcrate/compare/0.2.2...0.2.3">0.2.3</a> - 2025-03-07</a></h2>
-<h3 id="added-16"><a class="header" href="#added-16">Added</a></h3>
+<h3 id="added-17"><a class="header" href="#added-17">Added</a></h3>
 <ul>
 <li>Comprehensive OpenAPI macro support</li>
 <li>Better API documentation generation</li>
 </ul>
-<h3 id="fixed-17"><a class="header" href="#fixed-17">Fixed</a></h3>
+<h3 id="fixed-18"><a class="header" href="#fixed-18">Fixed</a></h3>
 <ul>
 <li>Improved error responses in endpoints</li>
 </ul>
 <h2 id="022---2025-03-06"><a class="header" href="#022---2025-03-06"><a href="https://github.com/evanjt/crudcrate/compare/0.2.1...0.2.2">0.2.2</a> - 2025-03-06</a></h2>
-<h3 id="added-17"><a class="header" href="#added-17">Added</a></h3>
+<h3 id="added-18"><a class="header" href="#added-18">Added</a></h3>
 <ul>
 <li>Documentation for query parameters</li>
 </ul>
 <h2 id="021---2025-03-05"><a class="header" href="#021---2025-03-05"><a href="https://github.com/evanjt/crudcrate/compare/0.2.0...0.2.1">0.2.1</a> - 2025-03-05</a></h2>
-<h3 id="added-18"><a class="header" href="#added-18">Added</a></h3>
+<h3 id="added-19"><a class="header" href="#added-19">Added</a></h3>
 <ul>
 <li>Description string support in CRUDResource</li>
 <li>Auto-populated summary and description for macro-generated endpoints</li>
 </ul>
 <h2 id="020---2025-03-05"><a class="header" href="#020---2025-03-05"><a href="https://github.com/evanjt/crudcrate/compare/0.1.4...0.2.0">0.2.0</a> - 2025-03-05</a></h2>
-<h3 id="changed-18"><a class="header" href="#changed-18">Changed</a></h3>
+<h3 id="changed-19"><a class="header" href="#changed-19">Changed</a></h3>
 <ul>
 <li><strong>Breaking</strong>: Major refactor from route-based to macro-based approach</li>
 <li>Introduced <code>crud_handlers!</code> macro for generating CRUD endpoints</li>
@@ -5515,13 +5611,13 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Legacy route-based implementation</li>
 </ul>
 <h2 id="014---2025-03-03"><a class="header" href="#014---2025-03-03"><a href="https://github.com/evanjt/crudcrate/compare/0.1.3...0.1.4">0.1.4</a> - 2025-03-03</a></h2>
-<h3 id="fixed-18"><a class="header" href="#fixed-18">Fixed</a></h3>
+<h3 id="fixed-19"><a class="header" href="#fixed-19">Fixed</a></h3>
 <ul>
 <li>Fixed return type of <code>delete_one</code> handler</li>
 <li>Applied clippy suggestions for performance improvements</li>
 </ul>
 <h2 id="013---2025-02-19"><a class="header" href="#013---2025-02-19"><a href="https://github.com/evanjt/crudcrate/compare/0.1.2...0.1.3">0.1.3</a> - 2025-02-19</a></h2>
-<h3 id="changed-19"><a class="header" href="#changed-19">Changed</a></h3>
+<h3 id="changed-20"><a class="header" href="#changed-20">Changed</a></h3>
 <ul>
 <li>Update crudcrate-derive to allow non-db parameters in update/create models</li>
 </ul>
@@ -5530,7 +5626,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.3 with support for auxiliary attributes in structs that don’t relate to DB model</li>
 </ul>
 <h2 id="012---2025-02-18"><a class="header" href="#012---2025-02-18"><a href="https://github.com/evanjt/crudcrate/compare/0.1.0...0.1.2">0.1.2</a> - 2025-02-18</a></h2>
-<h3 id="changed-20"><a class="header" href="#changed-20">Changed</a></h3>
+<h3 id="changed-21"><a class="header" href="#changed-21">Changed</a></h3>
 <ul>
 <li>Update proc macro to 0.1.2</li>
 </ul>
@@ -5539,7 +5635,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Updated to 0.1.2 with improved trait derivations (Clone instead of Copy where appropriate)</li>
 </ul>
 <h2 id="010---2025-02-18"><a class="header" href="#010---2025-02-18"><a href="https://github.com/evanjt/crudcrate/releases/tag/0.1.0">0.1.0</a> - 2025-02-18</a></h2>
-<h3 id="added-19"><a class="header" href="#added-19">Added</a></h3>
+<h3 id="added-20"><a class="header" href="#added-20">Added</a></h3>
 <ul>
 <li>Initial release of crudcrate</li>
 <li>Basic CRUD operation framework</li>

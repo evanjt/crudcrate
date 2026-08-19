@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-70f89627.js"></script>
@@ -189,11 +189,11 @@
 <tr><th>Feature</th><th>CRUDCrate</th><th>Manual Axum</th><th>Diesel</th><th>Other ORMs</th></tr>
 </thead>
 <tbody>
-<tr><td>Code Generation</td><td>✅ Derive macro</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Filtering</td><td>✅ Built-in</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Pagination</td><td>✅ Built-in</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Relationships</td><td>✅ Automatic</td><td>❌ Manual</td><td>❌ Manual</td><td>Varies</td></tr>
-<tr><td>Type Safety</td><td>✅ Full</td><td>✅ Full</td><td>✅ Full</td><td>Varies</td></tr>
+<tr><td>Code Generation</td><td>Derive macro</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Filtering</td><td>Built-in</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Pagination</td><td>Built-in</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Relationships</td><td>Automatic</td><td>Manual</td><td>Manual</td><td>Varies</td></tr>
+<tr><td>Type Safety</td><td>Full</td><td>Full</td><td>Full</td><td>Varies</td></tr>
 </tbody>
 </table>
 </div>
@@ -211,8 +211,8 @@
 <h3 id="do-i-need-to-install-sea-orm-separately"><a class="header" href="#do-i-need-to-install-sea-orm-separately">Do I need to install Sea-ORM separately?</a></h3>
 <p>Yes. CRUDCrate works alongside Sea-ORM:</p>
 <pre><code class="language-toml">[dependencies]
-crudcrate = "0.1"
-sea-orm = { version = "1.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
+crudcrate = "0.10"
+sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 </code></pre>
 <h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
 <h3 id="can-i-use-crudcrate-with-an-existing-sea-orm-project"><a class="header" href="#can-i-use-crudcrate-with-an-existing-sea-orm-project">Can I use CRUDCrate with an existing Sea-ORM project?</a></h3>
@@ -293,7 +293,7 @@ pub comments: Vec&lt;Comment&gt;,</code></pre>
 <li>Limit join depth</li>
 </ol>
 <h3 id="does-loading-relationships-cause-n1-queries"><a class="header" href="#does-loading-relationships-cause-n1-queries">Does loading relationships cause N+1 queries?</a></h3>
-<p>No — <code>get_all()</code> with <code>join(all)</code> uses <strong>batch loading</strong> that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using <code>WHERE parent_id IN (...)</code>. This applies to depth=1 joins; deeper joins (depth &gt; 1) may issue additional queries for nested relations. Single-item <code>get_one()</code> uses per-item queries, which is acceptable for individual lookups.</p>
+<p>No: <code>get_all()</code> with <code>join(all)</code> uses <strong>batch loading</strong> that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using <code>WHERE parent_id IN (...)</code>. This applies to depth=1 joins; deeper joins (depth &gt; 1) may issue additional queries for nested relations. Single-item <code>get_one()</code> uses per-item queries, which is acceptable for individual lookups.</p>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <h3 id="compilation-error-cannot-find-derive-macro"><a class="header" href="#compilation-error-cannot-find-derive-macro">Compilation error: “cannot find derive macro”</a></h3>
 <p>Import it:</p>

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-23cf2381.js";
+            window.path_to_searchindex_js = "../searchindex-21b3a324.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-70f89627.js"></script>
@@ -179,17 +179,17 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="public--private-endpoints"><a class="header" href="#public--private-endpoints">Public &amp; Private Endpoints</a></h1>
-<p>Our task manager has users, tasks, and relationships. Now let’s add a public API that anyone can access without authentication — while keeping sensitive records hidden.</p>
+<p>Our task manager has users, tasks, and relationships. Now let’s add a public API that anyone can access without authentication, while keeping sensitive records hidden.</p>
 <h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
 <p>You want <strong>one set of routes</strong> that serves both:</p>
 <ul>
-<li><strong>Admins</strong> (authenticated) — see everything, full CRUD</li>
-<li><strong>Public</strong> (unauthenticated) — read-only, private records hidden</li>
+<li><strong>Admins</strong> (authenticated): see everything, full CRUD</li>
+<li><strong>Public</strong> (unauthenticated): read-only, private records hidden</li>
 </ul>
 <p>crudcrate’s <strong>scoping</strong> system handles this with two features:</p>
 <ol>
-<li><code>ScopeCondition</code> — a middleware-injected filter that restricts which rows are returned</li>
-<li><code>exclude(scoped)</code> — hides fields from the response when a scope is active</li>
+<li><code>ScopeCondition</code>: a middleware-injected filter that restricts which rows are returned</li>
+<li><code>exclude(scoped)</code>: hides fields from the response when a scope is active</li>
 </ol>
 <h2 id="adding-a-privacy-field"><a class="header" href="#adding-a-privacy-field">Adding a Privacy Field</a></h2>
 <p>Add an <code>is_private</code> field to your entity:</p>
@@ -211,12 +211,12 @@ pub struct Model {
 }</code></pre>
 <p><code>exclude(scoped)</code> does two things:</p>
 <ol>
-<li><strong>Hides the field</strong> from API responses when a scope is active — public users never see <code>is_private</code> in the JSON</li>
-<li><strong>Strips the field from filters/sorting</strong> — public users can’t probe it via <code>?filter={"is_private":true}</code></li>
+<li><strong>Hides the field</strong> from API responses when a scope is active: public users never see <code>is_private</code> in the JSON</li>
+<li><strong>Strips the field from filters/sorting</strong>: public users can’t probe it via <code>?filter={"is_private":true}</code></li>
 </ol>
 <h2 id="writing-scope-middleware"><a class="header" href="#writing-scope-middleware">Writing Scope Middleware</a></h2>
 <p>A scope is just Axum middleware that injects a <code>ScopeCondition</code> into the request.
-You decide <strong>when</strong> to inject it — typically when the user isn’t authenticated:</p>
+You decide <strong>when</strong> to inject it, typically when the user isn’t authenticated:</p>
 <pre><code class="language-rust">use axum::{extract::Request, middleware::Next, response::Response};
 use crudcrate::ScopeCondition;
 use sea_orm::{ColumnTrait, Condition};
@@ -238,7 +238,7 @@ async fn scope_tasks(mut req: Request, next: Next) -&gt; Response {
 <li>Uses the scoped response model (without <code>exclude(scoped)</code> fields)</li>
 <li>Returns correct pagination counts reflecting the filtered total</li>
 </ul>
-<p>When <code>ScopeCondition</code> is <strong>not</strong> present (admin requests), everything works normally — full CRUD, all fields visible.</p>
+<p>When <code>ScopeCondition</code> is <strong>not</strong> present (admin requests), everything works normally: full CRUD, all fields visible.</p>
 <h2 id="mounting-the-routes"><a class="header" href="#mounting-the-routes">Mounting the Routes</a></h2>
 <p>Apply the scope middleware to your router. Layer it <strong>after</strong> your auth middleware so the auth status is available:</p>
 <pre><code class="language-rust">use axum::{middleware::from_fn, Router};
@@ -253,24 +253,24 @@ let app = Router::new()
     );</code></pre>
 <h2 id="what-happens"><a class="header" href="#what-happens">What Happens</a></h2>
 <p><strong>Public user</strong> (no auth token):</p>
-<pre><code class="language-bash"># List — only public tasks, no is_private in response
+<pre><code class="language-bash"># List: only public tasks, no is_private in response
 curl http://localhost:3000/api/tasks
 # [{"id": "...", "title": "Public task", "description": "..."}]
 
-# Private task — 404
+# Private task: 404
 curl http://localhost:3000/api/tasks/private-uuid
 # {"error": "task not found"}
 
-# Write — blocked
+# Write: blocked
 curl -X POST http://localhost:3000/api/tasks -d '{"title": "hack"}'
 # 403 Forbidden
 
-# Filter on is_private — silently ignored
+# Filter on is_private: silently ignored
 curl 'http://localhost:3000/api/tasks?filter={"is_private":true}'
 # Returns same results as without filter
 </code></pre>
 <p><strong>Admin</strong> (valid auth token):</p>
-<pre><code class="language-bash"># List — all tasks, is_private visible
+<pre><code class="language-bash"># List: all tasks, is_private visible
 curl -H "Authorization: Bearer TOKEN" http://localhost:3000/api/tasks
 # [{"id": "...", "title": "Public task", "is_private": false},
 #  {"id": "...", "title": "Secret task", "is_private": true}]
@@ -298,7 +298,7 @@ curl -X POST -H "Authorization: Bearer TOKEN" \
     next.run(req).await
 }</code></pre>
 <blockquote>
-<p><strong>Warning</strong>: <code>Expr::cust()</code> passes raw SQL directly to the database. Never interpolate user input into the string — this creates SQL injection vulnerabilities. Use only static strings or Sea-ORM’s typed column API for dynamic conditions.</p>
+<p><strong>Warning</strong>: <code>Expr::cust()</code> passes raw SQL directly to the database. Never interpolate user input into the string; this creates SQL injection vulnerabilities. Use only static strings or Sea-ORM’s typed column API for dynamic conditions.</p>
 </blockquote>
 <h2 id="scoping-with-joins"><a class="header" href="#scoping-with-joins">Scoping with Joins</a></h2>
 <p>If your entity has <code>join()</code> fields (nested children in the response), <code>exclude(scoped)</code> propagates automatically through joins.</p>
@@ -321,15 +321,15 @@ pub is_private: bool,</code></pre>
   ]
 }
 </code></pre>
-<p>No <code>is_private</code> on the customer <strong>or</strong> on any nested vehicle. crudcrate generates <code>CustomerScopedList</code> with <code>vehicles: Vec&lt;VehicleScopedList&gt;</code> — the scoped types cascade through every join level.</p>
+<p>No <code>is_private</code> on the customer <strong>or</strong> on any nested vehicle. crudcrate generates <code>CustomerScopedList</code> with <code>vehicles: Vec&lt;VehicleScopedList&gt;</code>; the scoped types cascade through every join level.</p>
 <h3 id="how-join-scoping-works"><a class="header" href="#how-join-scoping-works">How join scoping works</a></h3>
 <p>Two layers protect joined children on scoped requests:</p>
 <ol>
 <li><strong>Field stripping</strong>: The scoped types (<code>VehicleScopedList</code>) omit <code>exclude(scoped)</code> fields from the JSON.</li>
-<li><strong>SQL-level row filtering</strong>: Every child batch query includes the child’s <code>ScopeFilterable::scope_condition()</code> as an additional <code>WHERE</code> clause. This applies on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code> handlers, at every depth when <code>depth &gt; 1</code> — the scoped batch loader recurses via <code>get_one_scoped</code>, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.</li>
+<li><strong>SQL-level row filtering</strong>: Every child batch query includes the child’s <code>ScopeFilterable::scope_condition()</code> as an additional <code>WHERE</code> clause. This applies on <strong>both</strong> <code>get_one_scoped</code> and <code>get_all_scoped</code> handlers, at every depth when <code>depth &gt; 1</code>: the scoped batch loader recurses via <code>get_one_scoped</code>, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.</li>
 <li><strong>In-memory defense in depth</strong>: <code>From&lt;ListModel&gt; for ScopedList</code> still runs <code>ScopeFilterable::is_scope_visible()</code> over each child as a belt-and-suspenders guard, so a custom <code>read::many::body</code> hook that bypasses the SQL filter still strips private rows before serialisation.</li>
 </ol>
-<p>For automatic filtering to work, the child entity <strong>must</strong> have at least one <code>exclude(scoped)</code> boolean field (the derive macro generates the required <code>ScopeFilterable::scope_condition()</code> from those fields). If it doesn’t, the child’s <code>scope_condition()</code> returns <code>None</code> and every child row is returned — identical to unscoped behaviour.</p>
+<p>For automatic filtering to work, the child entity <strong>must</strong> have at least one <code>exclude(scoped)</code> boolean field (the derive macro generates the required <code>ScopeFilterable::scope_condition()</code> from those fields). If it doesn’t, the child’s <code>scope_condition()</code> returns <code>None</code> and every child row is returned, identical to unscoped behaviour.</p>
 <h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
 <div class="table-wrapper">
 <table>
@@ -346,7 +346,7 @@ pub is_private: bool,</code></pre>
 </table>
 </div>
 <h2 id="entities-without-excludescoped"><a class="header" href="#entities-without-excludescoped">Entities Without <code>exclude(scoped)</code></a></h2>
-<p>If a child entity doesn’t use <code>exclude(scoped)</code>, crudcrate generates a type alias (<code>type ChildScopedList = ChildList</code>) so parent joins still compile. No action needed — it just works.</p>
+<p>If a child entity doesn’t use <code>exclude(scoped)</code>, crudcrate generates a type alias (<code>type ChildScopedList = ChildList</code>) so parent joins still compile. No action needed; it just works.</p>
 <hr>
 <p><strong>Next:</strong> <a href="./hooks.html">Custom Logic - Hooks</a> - add validation and side effects to your endpoints.</p>
 
