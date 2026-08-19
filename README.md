@@ -137,7 +137,8 @@ crudcrate = { version = "0.10", default-features = false, features = ["postgresq
 ```
 
 crudcrate 0.10 requires `sea-orm = "2.0"` (upgrade notes in
-`docs/MIGRATION_0.10.md`). For Sea-ORM 1.x, stay on crudcrate 0.9.
+[docs/MIGRATION_0.10.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.10.md)).
+For Sea-ORM 1.x, stay on crudcrate 0.9.
 
 ## Documentation
 

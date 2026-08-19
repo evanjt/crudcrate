@@ -196,9 +196,9 @@ All attributes and options.
 
 ## Requirements
 
-- Rust 1.70+
-- Sea-ORM 1.0+
-- Axum 0.7+
+- Rust 1.85+
+- Sea-ORM 2.0+
+- Axum 0.8+
 
 CRUDCrate works with PostgreSQL, MySQL, and SQLite.
 

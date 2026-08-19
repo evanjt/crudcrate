@@ -69,8 +69,8 @@ async fn setup_postgres_enum_table(db: &DatabaseConnection) -> Result<(), DbErr>
     Ok(())
 }
 
-/// Test that Sea-ORM 1.1.19 can INSERT into a native Postgres ENUM column
-/// when the Rust enum uses db_type = "Enum"
+/// INSERT into a native Postgres ENUM column works when the Rust enum uses
+/// db_type = "Enum"
 #[tokio::test]
 async fn test_native_postgres_enum_insert() {
     if !is_postgres() {
@@ -95,7 +95,7 @@ async fn test_native_postgres_enum_insert() {
     let result = widget::Entity::insert(widget).exec(&db).await;
     assert!(
         result.is_ok(),
-        "INSERT with native Postgres ENUM should work on Sea-ORM 1.1.19: {:?}",
+        "INSERT with native Postgres ENUM should work: {:?}",
         result.err()
     );
 }
