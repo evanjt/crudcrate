@@ -4,11 +4,11 @@ CRUDCrate works with PostgreSQL, MySQL, and SQLite, with database-specific optim
 
 ## Supported Databases
 
-| Database | Support Level | Fulltext Search | Best For |
+| Database | Support Level | Fulltext Search | Typical Use |
 |----------|--------------|-----------------|----------|
-| **PostgreSQL** | ✅ Full | GIN + tsvector | Complex queries, high concurrency |
-| **MySQL** | ✅ Full | FULLTEXT index | Traditional deployments |
-| **SQLite** | ✅ Full | LIKE fallback | Development, embedded apps |
+| **PostgreSQL** | Full | GIN + tsvector | Complex queries, high concurrency |
+| **MySQL** | Full | FULLTEXT index | Traditional deployments |
+| **SQLite** | Full | LIKE fallback | Development, embedded apps |
 
 ## Configuration
 
@@ -269,7 +269,7 @@ mod integration_tests {
 ### PostgreSQL Strengths
 
 - Excellent for complex queries
-- Best fulltext search
+- Native fulltext search (GIN + tsvector)
 - JSONB operations
 - Concurrent access
 - Advanced indexing (GIN, BRIN, partial)

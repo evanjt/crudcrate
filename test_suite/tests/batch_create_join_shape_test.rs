@@ -10,7 +10,7 @@
 //! transform-less entity and so could not observe that divergence.
 //!
 //! This test pins the agreed-upon contract: in BOTH modes each created item is
-//! the flat `create_many` shape — the join field is empty/default and the
+//! the flat `create_many` shape: the join field is empty/default and the
 //! `read::one::transform` hook is NOT applied (the marker stays at its raw,
 //! posted value). If the partial path regressed to per-item `create`, the two
 //! shapes would differ (transformed name and/or populated join field), failing

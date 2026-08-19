@@ -256,7 +256,7 @@ fn generate_fk_validation_tests(
         .collect();
 
     for field in &all_join_fields {
-        // Only generate for Vec<T> fields (has_many) — these use convention-derived FK columns.
+        // Only generate for Vec<T> fields (has_many); these use convention-derived FK columns.
         // Option<T> fields use find_related() which handles FK resolution internally.
         if !is_vec_type(&field.ty) {
             continue;
@@ -268,14 +268,14 @@ fn generate_fk_validation_tests(
 
         let join_config = get_join_config(field).unwrap_or_default();
 
-        // Skip self-referencing joins — they use ParentId which is a crudcrate convention,
+        // Skip self-referencing joins; they use ParentId which is a crudcrate convention,
         // not derived from SeaORM relations
         let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
         if inner_type.to_string().trim() == api_struct_name.to_string().trim() {
             continue;
         }
 
-        // If fk_column is explicitly set, the user owns the mapping — skip validation
+        // If fk_column is explicitly set, the user owns the mapping; skip validation
         if join_config.fk_column.is_some() {
             continue;
         }
@@ -298,7 +298,7 @@ fn generate_fk_validation_tests(
         // Adjust entity paths for the test module. From inside the nested test
         // submodule, `super::` reaches the parent db module. Absolute paths
         // (`crate::...`) resolve the same from any position in the crate, so
-        // don't prepend `super::` to them — that would produce an invalid
+        // don't prepend `super::` to them; that would produce an invalid
         // `super::crate::...` path. Relative paths from `get_path_from_field_type`
         // (e.g., `super::module::Entity`) do need the extra hop.
         let parent_entity = quote! { super::Entity };
@@ -313,7 +313,7 @@ fn generate_fk_validation_tests(
         };
 
         let info_msg = format!(
-            "crudcrate: FK for '{api_struct_name}.{field_name}' — convention='{fk_snake}', \
+            "crudcrate: FK for '{api_struct_name}.{field_name}': convention='{fk_snake}', \
              actual='{{}}' (resolved from SeaORM RelationDef at runtime)"
         );
 
@@ -338,7 +338,7 @@ fn generate_fk_validation_tests(
         api_struct_name.to_string().to_lowercase()
     );
 
-    // Place tests in a submodule with `use super::*;` — the child entity paths
+    // Place tests in a submodule with `use super::*;`; the child entity paths
     // reference `super::child_module::Entity` which resolves from the test module
     // as `super::super::child_module::Entity`. To fix this, we also `use super::*`
     // and reference the Entity types through the re-exports in the parent module.

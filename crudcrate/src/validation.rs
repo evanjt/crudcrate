@@ -131,7 +131,7 @@ impl std::error::Error for ValidationErrors {}
 /// generated `create`/`create_many`/`update`/`update_many` implementations call
 /// `validate()` automatically before any database write, returning HTTP 422 on
 /// failure. Models that do not implement `Validatable` are unaffected (the
-/// generated check is a no-op for them — see [`__auto`]).
+/// generated check is a no-op for them; see [`__auto`]).
 pub trait Validatable {
     /// Validate the instance.
     ///
@@ -142,7 +142,7 @@ pub trait Validatable {
 
 /// Autoref-specialization machinery used by the derive-generated CRUD handlers to
 /// invoke [`Validatable::validate`] only for models that implement it, with a no-op
-/// fallback otherwise — without requiring nightly `specialization`.
+/// fallback otherwise, without requiring nightly `specialization`.
 ///
 /// The generated code calls `Probe(&model).crudcrate_auto_validate()`. When the
 /// model implements [`Validatable`], the inherent method on `Probe` wins method
@@ -329,7 +329,7 @@ mod tests {
     }
 
     /// A7 regression: limits are in characters, not UTF-8 bytes. "José" is 4 chars
-    /// but 5 bytes, and "日本語" is 3 chars but 9 bytes — both must pass a max of 4/3.
+    /// but 5 bytes, and "日本語" is 3 chars but 9 bytes; both must pass a max of 4/3.
     #[test]
     fn test_validate_length_counts_characters_not_bytes() {
         use validators::validate_length;

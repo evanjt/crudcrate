@@ -58,7 +58,7 @@ async fn test_nonstandard_fk_get_one_includes_books() {
         );
     }
 
-    // GET the author — books should be populated via join(one)
+    // GET the author: books should be populated via join(one)
     let request = Request::builder()
         .method("GET")
         .uri(format!("/authors/{author_id}"))
@@ -118,7 +118,7 @@ async fn test_nonstandard_fk_get_all_includes_books() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    // GET all authors — books should be populated via join(all) batch loading
+    // GET all authors: books should be populated via join(all) batch loading
     let request = Request::builder()
         .method("GET")
         .uri("/authors")

@@ -471,7 +471,7 @@ pub trait CRUDOperations: Send + Sync {
         }
 
         // Return only IDs that actually existed, de-duplicated while preserving input
-        // order — duplicate input ids would otherwise over-report the rows deleted.
+        // order; duplicate input ids would otherwise over-report the rows deleted.
         let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()

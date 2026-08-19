@@ -1,18 +1,18 @@
 # Public & Private Endpoints
 
-Our task manager has users, tasks, and relationships. Now let's add a public API that anyone can access without authentication — while keeping sensitive records hidden.
+Our task manager has users, tasks, and relationships. Now let's add a public API that anyone can access without authentication, while keeping sensitive records hidden.
 
 ## The Problem
 
 You want **one set of routes** that serves both:
 
-- **Admins** (authenticated) — see everything, full CRUD
-- **Public** (unauthenticated) — read-only, private records hidden
+- **Admins** (authenticated): see everything, full CRUD
+- **Public** (unauthenticated): read-only, private records hidden
 
 crudcrate's **scoping** system handles this with two features:
 
-1. `ScopeCondition` — a middleware-injected filter that restricts which rows are returned
-2. `exclude(scoped)` — hides fields from the response when a scope is active
+1. `ScopeCondition`: a middleware-injected filter that restricts which rows are returned
+2. `exclude(scoped)`: hides fields from the response when a scope is active
 
 ## Adding a Privacy Field
 
@@ -39,13 +39,13 @@ pub struct Model {
 
 `exclude(scoped)` does two things:
 
-1. **Hides the field** from API responses when a scope is active — public users never see `is_private` in the JSON
-2. **Strips the field from filters/sorting** — public users can't probe it via `?filter={"is_private":true}`
+1. **Hides the field** from API responses when a scope is active: public users never see `is_private` in the JSON
+2. **Strips the field from filters/sorting**: public users can't probe it via `?filter={"is_private":true}`
 
 ## Writing Scope Middleware
 
 A scope is just Axum middleware that injects a `ScopeCondition` into the request.
-You decide **when** to inject it — typically when the user isn't authenticated:
+You decide **when** to inject it, typically when the user isn't authenticated:
 
 ```rust
 use axum::{extract::Request, middleware::Next, response::Response};
@@ -71,7 +71,7 @@ When `ScopeCondition` is present, crudcrate automatically:
 - Uses the scoped response model (without `exclude(scoped)` fields)
 - Returns correct pagination counts reflecting the filtered total
 
-When `ScopeCondition` is **not** present (admin requests), everything works normally — full CRUD, all fields visible.
+When `ScopeCondition` is **not** present (admin requests), everything works normally: full CRUD, all fields visible.
 
 ## Mounting the Routes
 
@@ -95,19 +95,19 @@ let app = Router::new()
 **Public user** (no auth token):
 
 ```bash
-# List — only public tasks, no is_private in response
+# List: only public tasks, no is_private in response
 curl http://localhost:3000/api/tasks
 # [{"id": "...", "title": "Public task", "description": "..."}]
 
-# Private task — 404
+# Private task: 404
 curl http://localhost:3000/api/tasks/private-uuid
 # {"error": "task not found"}
 
-# Write — blocked
+# Write: blocked
 curl -X POST http://localhost:3000/api/tasks -d '{"title": "hack"}'
 # 403 Forbidden
 
-# Filter on is_private — silently ignored
+# Filter on is_private: silently ignored
 curl 'http://localhost:3000/api/tasks?filter={"is_private":true}'
 # Returns same results as without filter
 ```
@@ -115,7 +115,7 @@ curl 'http://localhost:3000/api/tasks?filter={"is_private":true}'
 **Admin** (valid auth token):
 
 ```bash
-# List — all tasks, is_private visible
+# List: all tasks, is_private visible
 curl -H "Authorization: Bearer TOKEN" http://localhost:3000/api/tasks
 # [{"id": "...", "title": "Public task", "is_private": false},
 #  {"id": "...", "title": "Secret task", "is_private": true}]
@@ -149,7 +149,7 @@ async fn scope_sites(mut req: Request, next: Next) -> Response {
 }
 ```
 
-> **Warning**: `Expr::cust()` passes raw SQL directly to the database. Never interpolate user input into the string — this creates SQL injection vulnerabilities. Use only static strings or Sea-ORM's typed column API for dynamic conditions.
+> **Warning**: `Expr::cust()` passes raw SQL directly to the database. Never interpolate user input into the string; this creates SQL injection vulnerabilities. Use only static strings or Sea-ORM's typed column API for dynamic conditions.
 
 ## Scoping with Joins
 
@@ -180,17 +180,17 @@ When a scoped request fetches a customer, the response looks like:
 }
 ```
 
-No `is_private` on the customer **or** on any nested vehicle. crudcrate generates `CustomerScopedList` with `vehicles: Vec<VehicleScopedList>` — the scoped types cascade through every join level.
+No `is_private` on the customer **or** on any nested vehicle. crudcrate generates `CustomerScopedList` with `vehicles: Vec<VehicleScopedList>`; the scoped types cascade through every join level.
 
 ### How join scoping works
 
 Two layers protect joined children on scoped requests:
 
 1. **Field stripping**: The scoped types (`VehicleScopedList`) omit `exclude(scoped)` fields from the JSON.
-2. **SQL-level row filtering**: Every child batch query includes the child's `ScopeFilterable::scope_condition()` as an additional `WHERE` clause. This applies on **both** `get_one_scoped` and `get_all_scoped` handlers, at every depth when `depth > 1` — the scoped batch loader recurses via `get_one_scoped`, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.
+2. **SQL-level row filtering**: Every child batch query includes the child's `ScopeFilterable::scope_condition()` as an additional `WHERE` clause. This applies on **both** `get_one_scoped` and `get_all_scoped` handlers, at every depth when `depth > 1`: the scoped batch loader recurses via `get_one_scoped`, propagating the scope through grandchildren and beyond. Private rows never leave Postgres.
 3. **In-memory defense in depth**: `From<ListModel> for ScopedList` still runs `ScopeFilterable::is_scope_visible()` over each child as a belt-and-suspenders guard, so a custom `read::many::body` hook that bypasses the SQL filter still strips private rows before serialisation.
 
-For automatic filtering to work, the child entity **must** have at least one `exclude(scoped)` boolean field (the derive macro generates the required `ScopeFilterable::scope_condition()` from those fields). If it doesn't, the child's `scope_condition()` returns `None` and every child row is returned — identical to unscoped behaviour.
+For automatic filtering to work, the child entity **must** have at least one `exclude(scoped)` boolean field (the derive macro generates the required `ScopeFilterable::scope_condition()` from those fields). If it doesn't, the child's `scope_condition()` returns `None` and every child row is returned, identical to unscoped behaviour.
 
 ## Quick Reference
 
@@ -204,7 +204,7 @@ For automatic filtering to work, the child entity **must** have at least one `ex
 
 ## Entities Without `exclude(scoped)`
 
-If a child entity doesn't use `exclude(scoped)`, crudcrate generates a type alias (`type ChildScopedList = ChildList`) so parent joins still compile. No action needed — it just works.
+If a child entity doesn't use `exclude(scoped)`, crudcrate generates a type alias (`type ChildScopedList = ChildList`) so parent joins still compile. No action needed; it just works.
 
 ---
 

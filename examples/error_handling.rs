@@ -169,7 +169,7 @@ impl CRUDOperations for ProductOperations {
         // `.one(db)` returns Result<Option<Model>, DbErr>. The `?` converts any real
         // DbErr into an ApiError (e.g. a connection failure → ApiError::Database, 500,
         // sanitized). A missing row is `Ok(None)`, not an error, so the 404 below is
-        // produced by `.ok_or_else(...)` — not by the `?`.
+        // produced by `.ok_or_else(...)`, not by the `?`.
         let model = <Product as CRUDResource>::EntityType::find_by_id(id)
             .one(db)
             .await?
@@ -216,7 +216,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compact()
         .init();
 
-    tracing::info!("🚀 Error Handling Example - Starting server...");
+    tracing::info!("Error Handling Example - Starting server...");
 
     // Setup database
     let db = Database::connect("sqlite::memory:").await?;
@@ -231,35 +231,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("🌐 Server running on http://localhost:3000");
+    println!("Server running on http://localhost:3000");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-    println!("📚 Error Handling Demonstrations:\n");
+    println!("Error Handling Demonstrations:\n");
 
-    println!("🔴 1. Validation Error (400 Bad Request)");
+    println!("1. Validation Error (400 Bad Request)");
     println!("   Try creating a product with invalid price:");
     println!("   curl -X POST http://localhost:3000/products \\");
     println!("     -H 'Content-Type: application/json' \\");
     println!("     -d '{{\"name\": \"Test\", \"price\": -10}}' | jq .");
-    println!("   ❌ User sees: \"Price must be greater than 0\"");
-    println!("   📋 Console logs: [TRACE] level details\n");
+    println!("   User sees: \"Price must be greater than 0\"");
+    println!("   Console logs: [TRACE] level details\n");
 
-    println!("🔴 2. Not Found Error (404)");
+    println!("2. Not Found Error (404)");
     println!("   Try getting a non-existent product:");
     println!(
         "   curl -s http://localhost:3000/products/00000000-0000-0000-0000-000000000000 | jq ."
     );
     println!(
-        "   ❌ User sees: \"Product with ID '00000000-0000-0000-0000-000000000000' not found\""
+        "   User sees: \"Product with ID '00000000-0000-0000-0000-000000000000' not found\""
     );
-    println!("   📋 Console logs: Debug-level error\n");
+    println!("   Console logs: Debug-level error\n");
 
-    println!("🔴 3. Database Error (500 Internal Server Error)");
+    println!("3. Database Error (500 Internal Server Error)");
     println!("   Database errors are NEVER exposed to users!");
-    println!("   ❌ User sees: \"A database error occurred\"");
-    println!("   📋 Console logs: Full DbErr details (ONLY visible server-side)\n");
+    println!("   User sees: \"A database error occurred\"");
+    println!("   Console logs: Full DbErr details (ONLY visible server-side)\n");
 
-    println!("🔴 4. Permission Error (403 Forbidden)");
+    println!("4. Permission Error (403 Forbidden)");
     println!("   Try deleting a product starting with 'a':");
     println!("   First create one:");
     println!("   ID=$(curl -s -X POST http://localhost:3000/products \\");
@@ -268,16 +268,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   curl -X DELETE http://localhost:3000/products/$ID");
     println!("   Note: IDs starting with 'a' are blocked for demo\n");
 
-    println!("✅ 5. Successful Operations");
+    println!("5. Successful Operations");
     println!("   Create a valid product:");
     println!("   curl -X POST http://localhost:3000/products \\");
     println!("     -H 'Content-Type: application/json' \\");
     println!("     -d '{{\"name\": \"Laptop\", \"price\": 1000}}' | jq .");
-    println!("   ✅ Returns: Product with ID\n");
+    println!("   Returns: Product with ID\n");
 
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-    println!("💡 Key Points:\n");
+    println!("Key Points:\n");
     println!("  • User-facing errors are clean and sanitized");
     println!("  • HTTP status codes are appropriate (400, 403, 404, 500)");
     println!("  • Database errors NEVER leak to users");

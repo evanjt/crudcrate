@@ -119,7 +119,7 @@ async fn unique_constraint_is_enforced() {
     .await;
     assert!(
         second.is_err(),
-        "second insert with duplicate email must fail — unique index is missing if this succeeds"
+        "second insert with duplicate email must fail: unique index is missing if this succeeds"
     );
 }
 

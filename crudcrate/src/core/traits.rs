@@ -16,8 +16,8 @@ pub struct UuidIdResult {
 
 /// The primary-key value type of a [`CRUDResource`]'s entity.
 ///
-/// Resolves to `<<<R::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType`
-/// — e.g. `uuid::Uuid`, `i32`, or `String` depending on the entity's `#[sea_orm(primary_key)]`
+/// Resolves to `<<<R::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType`,
+/// e.g. `uuid::Uuid`, `i32`, or `String` depending on the entity's `#[sea_orm(primary_key)]`
 /// column. Used throughout the CRUD stack so identifier-taking methods stay generic over the
 /// concrete PK type rather than hardcoding `Uuid`.
 pub type PrimaryKeyType<R> =
@@ -104,7 +104,7 @@ where
     }
 
     /// Returns whether the named joined field's child entity carries its own
-    /// `ScopeFilterable::scope_condition()` — i.e., whether a sub-query on that
+    /// `ScopeFilterable::scope_condition()`, ie. whether a sub-query on that
     /// child is automatically scope-restricted.
     ///
     /// Consulted only when `SecurityProfile::scope_propagation_strict` is `true`
@@ -112,7 +112,7 @@ where
     /// joined filters whose target field returns `false`, preventing parent-existence
     /// side-channels via unscoped child columns.
     ///
-    /// The default implementation returns `false` for every field — the safe choice
+    /// The default implementation returns `false` for every field, the safe choice
     /// when the child's scope status is unknown. The derive macro overrides this to
     /// return `true` for joined fields whose child type has `exclude(scoped)` fields.
     #[must_use]
@@ -176,8 +176,8 @@ where
     /// sort, e.g. `sort=["vehicles.year","DESC"]`).
     ///
     /// The parent query is ordered by a correlated sub-query over the child
-    /// table — `(SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
-    /// parent.<pk>)` — so each parent keeps a single row (no JOIN, no
+    /// table: `(SELECT MIN(child.<column>) FROM child WHERE child.<fk> =
+    /// parent.<pk>)`, so each parent keeps a single row (no JOIN, no
     /// `DISTINCT`) and to-many relations have a well-defined ordering key.
     /// `MIN` is used for both ASC and DESC: ascending lists parents by their
     /// smallest child value first, descending by their largest smallest-value
@@ -377,8 +377,8 @@ where
 
         // Return only IDs that actually existed, de-duplicated while preserving input
         // order. The DELETE itself is de-duplicated via `existing_set`, so echoing a
-        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted
-        // — both as the `{deleted: count}` integer and the returned array.
+        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted,
+        // both as the `{deleted: count}` integer and the returned array.
         let mut seen = std::collections::HashSet::new();
         Ok(ids
             .into_iter()

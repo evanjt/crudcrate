@@ -205,16 +205,16 @@ let pages = paginator.num_pages().await?;
 CRUDCrate uses offset pagination by default. For large datasets, consider cursor pagination:
 
 ### Offset Pagination (Default)
-- ✅ Simple to implement
-- ✅ Random page access
-- ❌ Inconsistent with concurrent writes
-- ❌ Slow for large offsets
+- Simple to implement
+- Random page access
+- Inconsistent with concurrent writes
+- Slow for large offsets
 
 ### Cursor Pagination (Custom Implementation)
-- ✅ Consistent with concurrent writes
-- ✅ Fast for any position
-- ❌ No random page access
-- ❌ Requires ordered, unique field
+- Consistent with concurrent writes
+- Fast for any position
+- No random page access
+- Requires ordered, unique field
 
 Example cursor pagination:
 

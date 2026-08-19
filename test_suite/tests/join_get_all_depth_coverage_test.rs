@@ -300,7 +300,7 @@ async fn get_one_org_populates_teams_and_grandchild_members() {
 }
 
 /// `get_all` and `get_one` must agree on the nested member shape for the same
-/// data — the two loaders share no code, so this guards drift between them.
+/// data. The two loaders share no code, so this guards drift between them.
 #[tokio::test]
 async fn list_and_get_one_agree_on_nested_shape() {
     let db = setup_test_db().await.expect("db setup");

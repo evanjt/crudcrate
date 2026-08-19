@@ -1,6 +1,6 @@
 // Postgres Native ENUM Test
 // Tests that crudcrate works with REAL Postgres ENUM column types (not TEXT).
-// This test ONLY runs when DATABASE_URL points to Postgres — it's skipped on SQLite/MySQL.
+// This test ONLY runs when DATABASE_URL points to Postgres. It's skipped on SQLite/MySQL.
 //
 // This validates the full chain:
 // 1. CREATE TYPE ... AS ENUM in Postgres
@@ -11,7 +11,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::{Database, DatabaseBackend, DbErr, Set};
 use serde::{Deserialize, Serialize};
 
-/// A standalone enum using db_type = "Enum" — the native Postgres path
+/// A standalone enum using db_type = "Enum": the native Postgres path
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "color")]
 pub enum Color {
@@ -130,7 +130,7 @@ async fn test_native_postgres_enum_query() {
     let widgets = widget::Entity::find().all(&db).await.expect("find all");
     assert_eq!(widgets.len(), 3);
 
-    // Query with filter — raw Sea-ORM ColumnTrait filter
+    // Query with filter: raw Sea-ORM ColumnTrait filter
     let reds = widget::Entity::find()
         .filter(widget::Column::Color.eq("Red"))
         .all(&db)

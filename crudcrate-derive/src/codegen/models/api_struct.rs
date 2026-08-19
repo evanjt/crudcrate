@@ -65,7 +65,7 @@ pub(crate) fn generate_api_struct_content(
         // Add schema(no_recursion) for join and self-referencing fields to prevent
         // infinite recursion in OpenAPI schema generation
         // Exact inner-type match (after unwrapping Vec/Option), not a substring of the
-        // whole type string — otherwise a field typed e.g. `VehiclePart` on a `Vehicle`
+        // whole type string; otherwise a field typed e.g. `VehiclePart` on a `Vehicle`
         // struct would be misdetected as self-referencing. Matches the convention used by
         // the join-loading codegen.
         let is_self_referencing =

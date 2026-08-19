@@ -7,14 +7,14 @@
 //! (`fetch_one`, `fetch_all`, `perform_create`, `perform_update`,
 //! `perform_delete`, `perform_delete_many`).
 //!
-//! ACTUAL-BEHAVIOUR NOTE — `create_many` / `update_many` infinite recursion:
+//! ACTUAL-BEHAVIOUR NOTE: `create_many` / `update_many` infinite recursion.
 //! When `operations = X` is configured, the derive macro generates
 //! `Resource::create_many` / `Resource::update_many` so they delegate to
 //! `CRUDOperations::create_many` / `update_many` on the ops struct. But the
 //! *default* bodies of those two trait methods delegate straight back to
 //! `Self::Resource::create_many` / `update_many` (see crudcrate/src/operations.rs
 //! ~line 623 and 644). With no override that is unconditional mutual recursion
-//! and any call — POST /batch, PATCH /batch, even an empty batch — aborts the
+//! and any call (POST /batch, PATCH /batch, even an empty batch) aborts the
 //! whole process with a stack overflow. (`create`/`update`/`delete`/
 //! `get_one`/`get_all`/`delete_many` do not have this problem: their default
 //! bodies delegate to `perform_*` / `fetch_*`, which hit the database directly.)
@@ -369,7 +369,7 @@ async fn delete_missing_returns_404_from_perform_delete() {
 //
 // These cannot be driven at runtime: with `operations = CodOps` and no override,
 // the default `CRUDOperations::create_many` / `update_many` recurse infinitely
-// (see the module doc-comment). Calling either — including an empty batch —
+// (see the module doc-comment). Calling either (including an empty batch)
 // stack-overflows and aborts the whole test process. We therefore only bind the
 // generated function pointers, which keeps the code type-checked and documents
 // the defect without aborting the binary.

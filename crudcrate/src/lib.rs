@@ -104,12 +104,12 @@
 //!
 //! # Modules
 //!
-//! - [`core`] — [`CRUDResource`] trait, default CRUD implementations
-//! - [`filtering`] — Query parameter parsing, filter conditions, pagination, sorting, fulltext search
-//! - [`operations`] — [`CRUDOperations`] trait for struct-based customization
-//! - [`errors`] — [`ApiError`] type with automatic HTTP status codes and internal logging
-//! - [`database`] — reserved for future database-specific features
-//! - [`validation`] — Input validation helpers
+//! - [`core`]: [`CRUDResource`] trait, default CRUD implementations
+//! - [`filtering`]: Query parameter parsing, filter conditions, pagination, sorting, fulltext search
+//! - [`operations`]: [`CRUDOperations`] trait for struct-based customization
+//! - [`errors`]: [`ApiError`] type with automatic HTTP status codes and internal logging
+//! - [`database`]: reserved for future database-specific features
+//! - [`validation`]: Input validation helpers
 //!
 //! # Feature flags
 //!
@@ -133,7 +133,7 @@ pub mod relationships;
 pub mod scope;
 pub mod validation;
 
-// Deprecated module aliases — use the canonical paths above instead.
+// Deprecated module aliases; use the canonical paths above instead.
 #[doc(hidden)]
 pub mod filter {
     pub use crate::filtering::conditions::*;

@@ -267,7 +267,7 @@ impl ApiError {
         // A unique-constraint violation is a client error (409), not an opaque 500.
         // The generated create/update handlers wrap insert/update errors via this
         // function (`.map_err(ApiError::database)`) and return `Result<_, ApiError>`,
-        // so the `From<DbErr>` impl is bypassed on those paths — the mapping must live
+        // so the `From<DbErr>` impl is bypassed on those paths; the mapping must live
         // here too for the documented 409 "Duplicate record" response to be reachable.
         if let Some(sea_orm::SqlErr::UniqueConstraintViolation(_)) = err.sql_err() {
             return Self::Conflict {

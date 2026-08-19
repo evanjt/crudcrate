@@ -33,7 +33,7 @@ const MAX_FILTER_ARRAY_LEN: usize = 1000;
 /// (remember comparison operators split one field into two clauses: `year_gte`
 /// and `year_lte`), so 100 gives generous headroom while still preventing abuse.
 ///
-/// Exceeding this limit produces a `400 Bad Request` response — crudcrate
+/// Exceeding this limit produces a `400 Bad Request` response; crudcrate
 /// deliberately does *not* silently drop filters, because a silently-unfiltered
 /// response is worse than a failed request.
 const MAX_FILTER_CLAUSES: usize = 100;
@@ -411,7 +411,7 @@ fn process_number_filter(
 /// `int_col IN ('1','3')` and `bool_col IN ('true')` (`operator does not exist:
 /// integer = text`); `SQLite`'s loose typing silently accepted the stringified form.
 /// Returns `None` unless every element is an integer, every element is a number,
-/// or every element is a boolean — callers fall back to a string IN list for
+/// or every element is a boolean; callers fall back to a string IN list for
 /// string/enum/mixed arrays.
 fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
     column: C,
@@ -475,7 +475,7 @@ fn process_array_filter(
     }
 
     // Type-matched IN list (integers/floats/bools) so the bound values match the
-    // column type on strict backends. Enum columns keep the string path below —
+    // column type on strict backends. Enum columns keep the string path below;
     // their casted/uppercased comparison needs text binds.
     if !is_enum && let Some(expr) = typed_array_in_list(column, array_values) {
         return Some(expr);
@@ -542,7 +542,7 @@ where
 /// sub-query conditions on child tables.
 ///
 /// Unlike the main-entity filter path, this builder does not apply enum or
-/// fulltext normalization — joined filters target plain columns (strings,
+/// fulltext normalization; joined filters target plain columns (strings,
 /// numbers, UUIDs, bools). Attempts to use range operators (`_gt`, `_gte`,
 /// `_lt`, `_lte`) against unsupported value kinds return `None` so the caller
 /// can silently skip the filter, matching the existing "skip invalid filters"
@@ -577,7 +577,7 @@ where
                 return None;
             }
 
-            // Try UUID first — ranges on UUIDs are meaningless, so only allow eq/neq
+            // Try UUID first: ranges on UUIDs are meaningless, so only allow eq/neq
             if let Ok(uuid_val) = Uuid::parse_str(trimmed) {
                 return match operator {
                     FilterOperator::Eq => Some(col().eq(uuid_val)),
@@ -1067,7 +1067,7 @@ mod tests {
     }
 
     // ========================================================================
-    // build_comparison_expr — direct coverage of the public joined-filter
+    // build_comparison_expr: direct coverage of the public joined-filter
     // expression builder used by derive-generated resolve_joined_filters.
     // ========================================================================
 
@@ -1423,7 +1423,7 @@ mod tests {
     /// operator falls back to equality.
     #[test]
     fn test_apply_typed_comparison_operators() {
-        // (input operator, symbol sea-query renders — inequality is `<>`, not `!=`)
+        // (input operator, symbol sea-query renders; inequality is `<>`, not `!=`)
         let cases = [
             (">=", ">="),
             ("<=", "<="),

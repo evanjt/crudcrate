@@ -10,11 +10,11 @@ CRUDCrate is a Rust library that generates complete REST APIs from Sea-ORM entit
 
 | Feature | CRUDCrate | Manual Axum | Diesel | Other ORMs |
 |---------|-----------|-------------|--------|------------|
-| Code Generation | ✅ Derive macro | ❌ Manual | ❌ Manual | Varies |
-| Filtering | ✅ Built-in | ❌ Manual | ❌ Manual | Varies |
-| Pagination | ✅ Built-in | ❌ Manual | ❌ Manual | Varies |
-| Relationships | ✅ Automatic | ❌ Manual | ❌ Manual | Varies |
-| Type Safety | ✅ Full | ✅ Full | ✅ Full | Varies |
+| Code Generation | Derive macro | Manual | Manual | Varies |
+| Filtering | Built-in | Manual | Manual | Varies |
+| Pagination | Built-in | Manual | Manual | Varies |
+| Relationships | Automatic | Manual | Manual | Varies |
+| Type Safety | Full | Full | Full | Varies |
 
 ### What security features are included?
 
@@ -167,7 +167,7 @@ No. Generated code has zero runtime overhead. All generation happens at compile 
 
 ### Does loading relationships cause N+1 queries?
 
-No — `get_all()` with `join(all)` uses **batch loading** that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using `WHERE parent_id IN (...)`. This applies to depth=1 joins; deeper joins (depth > 1) may issue additional queries for nested relations. Single-item `get_one()` uses per-item queries, which is acceptable for individual lookups.
+No: `get_all()` with `join(all)` uses **batch loading** that reduces N+1 queries to just 2 queries (1 for parents + 1 per join field) using `WHERE parent_id IN (...)`. This applies to depth=1 joins; deeper joins (depth > 1) may issue additional queries for nested relations. Single-item `get_one()` uses per-item queries, which is acceptable for individual lookups.
 
 ## Troubleshooting
 

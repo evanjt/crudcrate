@@ -63,7 +63,7 @@ cargo run --example joined_filter
 
 ### Scoped Access (`scoped_access/`)
 
-`ScopeCondition` + `read_only_router` for public/filtered API endpoints — rows are restricted at
+`ScopeCondition` + `read_only_router` for public/filtered API endpoints; rows are restricted at
 the SQL level and write verbs are rejected in a scoped context.
 
 ```bash

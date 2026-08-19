@@ -60,7 +60,7 @@ pub fn build_fulltext_condition<T: crate::traits::CRUDResource>(
 
 /// Build PostgreSQL-specific fulltext search using ILIKE for case-insensitive matching.
 ///
-/// Column names come from the macro-generated `fulltext_searchable_columns()` — they are
+/// Column names come from the macro-generated `fulltext_searchable_columns()`; they are
 /// compile-time-known `&'static str` Rust identifiers and never user input. The query
 /// value is routed through a bind parameter via `Expr::cust_with_values`.
 fn build_postgres_fulltext_condition(
@@ -627,7 +627,7 @@ mod prop_tests {
             let t = truncate_to_char_boundary(&s, n);
             prop_assert!(t.len() <= n);
             prop_assert!(s.starts_with(t));
-            // The result is always valid UTF-8 (it is a &str slice) — the implicit
+            // The result is always valid UTF-8 (it is a &str slice), the implicit
             // guarantee that the raw `&s[..n]` slice would violate mid-codepoint.
         }
     }

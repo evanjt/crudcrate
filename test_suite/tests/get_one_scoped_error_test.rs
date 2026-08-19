@@ -3,8 +3,8 @@
 //! The scoped get_one handler runs the resource's read hooks inside
 //! `get_one_scoped`, then propagates the result with `?`. The handler used to
 //! wrap that call in `.map_err(|_| ApiError::not_found(..))`, which collapsed
-//! EVERY error from the scoped fetch — including genuine 500-class faults raised
-//! by a `read::one::transform` / `read::one::post` hook — down to a 404. That hid
+//! EVERY error from the scoped fetch (including genuine 500-class faults raised
+//! by a `read::one::transform` / `read::one::post` hook) down to a 404. That hid
 //! real failures behind a "missing row" response.
 //!
 //! These tests pin both halves of the contract for a Uuid-PK scoped resource:
@@ -34,7 +34,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 /// read::one::transform hook that always fails. Reached only when the scoped
-/// fetch returns a row — i.e. when the scope condition INCLUDES it. Returning a
+/// fetch returns a row, ie. when the scope condition INCLUDES it. Returning a
 /// 500-class error here is the exact fault the handler must no longer mask.
 async fn boom_on_read(
     _db: &DatabaseConnection,
@@ -134,7 +134,7 @@ async fn get(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
 
 /// Seed a row by inserting its ActiveModel directly, bypassing the CRUDResource
 /// `create` path. That path re-fetches via `get_one`, which would run the failing
-/// `read::one::transform` hook during setup — so seeding through it is impossible.
+/// `read::one::transform` hook during setup, so seeding through it is impossible.
 /// Inserting straight into the table isolates the test to the get_one_scoped path.
 async fn seed(db: &DatabaseConnection, name: &str, is_private: bool) -> Uuid {
     let id = Uuid::new_v4();
@@ -152,7 +152,7 @@ async fn seed(db: &DatabaseConnection, name: &str, is_private: bool) -> Uuid {
 // =============================================================================
 // Scope HIT + failing read hook: the row matches the scope, so get_one_scoped
 // fetches it and runs read::one::transform, which fails. The handler must
-// propagate that as 500 — NOT mask it as 404.
+// propagate that as 500, NOT mask it as 404.
 // =============================================================================
 
 #[tokio::test]
@@ -178,7 +178,7 @@ async fn scoped_get_one_surfaces_hook_error_as_500_for_in_scope_row() {
 
 // =============================================================================
 // Scope MISS: the row is excluded by the scope condition, so get_one_scoped
-// returns NotFound before the hook runs — still a clean 404, no leak.
+// returns NotFound before the hook runs: still a clean 404, no leak.
 // =============================================================================
 
 #[tokio::test]

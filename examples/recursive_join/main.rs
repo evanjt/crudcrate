@@ -22,7 +22,7 @@ use models::{customer, maintenance_record, vehicle, vehicle_part};
 #[openapi(
     info(
         title = "CrudCrate Recursive Join API",
-        description = "Demonstrates automatic relationship loading: Customer → Vehicle → Parts/MaintenanceRecord are populated in API responses via join(...). A join recurses into the child's own joins when depth > 1, and loads that level flat at depth = 1 — so the customer→vehicles join uses depth = 2 and the leaf vehicle→parts/maintenance joins use depth = 1.",
+        description = "Demonstrates automatic relationship loading: Customer → Vehicle → Parts/MaintenanceRecord are populated in API responses via join(...). A join recurses into the child's own joins when depth > 1, and loads that level flat at depth = 1, so the customer→vehicles join uses depth = 2 and the leaf vehicle→parts/maintenance joins use depth = 1.",
         version = "1.0.0",
         contact(
             name = "CrudCrate Documentation",
@@ -73,35 +73,35 @@ async fn create_tables(db: &DatabaseConnection) {
     println!("Creating customers table...");
     let stmt = schema.create_table_from_entity(customer::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ customers table created"),
-        Err(e) => println!("❌ Failed to create customers table: {e:?}"),
+        Ok(_) => println!("customers table created"),
+        Err(e) => println!("Failed to create customers table: {e:?}"),
     }
 
     println!("Creating vehicles table...");
     let stmt = schema.create_table_from_entity(vehicle::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ vehicles table created"),
-        Err(e) => println!("❌ Failed to create vehicles table: {e:?}"),
+        Ok(_) => println!("vehicles table created"),
+        Err(e) => println!("Failed to create vehicles table: {e:?}"),
     }
 
     println!("Creating vehicle_parts table...");
     let stmt = schema.create_table_from_entity(vehicle_part::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ vehicle_parts table created"),
-        Err(e) => println!("❌ Failed to create vehicle_parts table: {e:?}"),
+        Ok(_) => println!("vehicle_parts table created"),
+        Err(e) => println!("Failed to create vehicle_parts table: {e:?}"),
     }
 
     println!("Creating maintenance_records table...");
     let stmt = schema.create_table_from_entity(maintenance_record::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ maintenance_records table created"),
-        Err(e) => println!("❌ Failed to create maintenance_records table: {e:?}"),
+        Ok(_) => println!("maintenance_records table created"),
+        Err(e) => println!("Failed to create maintenance_records table: {e:?}"),
     }
 }
 
 #[allow(clippy::too_many_lines)]
 async fn seed_data(db: &DatabaseConnection) {
-    println!("🌱 Seeding comprehensive test data...");
+    println!("Seeding comprehensive test data...");
 
     // Customer data
     let customers = [
@@ -249,7 +249,7 @@ async fn seed_data(db: &DatabaseConnection) {
     }
 
     println!(
-        "✅ Seeded {} customers with vehicles, parts, and maintenance records",
+        "Seeded {} customers with vehicles, parts, and maintenance records",
         customers.len()
     );
 }
@@ -271,17 +271,17 @@ async fn main() {
             .unwrap();
 
     if let Some(customer) = customers.first() {
-        println!("🚀 Server running on http://localhost:3000");
-        println!("📚 OpenAPI Documentation: http://localhost:3000/docs");
+        println!("Server running on http://localhost:3000");
+        println!("OpenAPI Documentation: http://localhost:3000/docs");
         println!();
-        println!("📊 Dataset Overview:");
+        println!("Dataset Overview:");
         println!("  • {} customers", customers.len());
         println!("  • Alice: 3 vehicles (Toyota Camry, Honda Civic, Ford F-150)");
         println!("  • Bob: 2 vehicles (BMW X5, Tesla Model 3)");
         println!("  • Each vehicle: 2-4 parts + 2-3 maintenance records");
         println!("  • Total: 5 vehicles, ~15 parts, ~12 maintenance records");
         println!();
-        println!("🧪 Test multi-level recursive joins:");
+        println!("Test multi-level recursive joins:");
         println!(
             "  curl -s http://localhost:3000/customers | jq .    # All customers → vehicles → parts/maintenance"
         );
@@ -294,7 +294,7 @@ async fn main() {
         );
         println!();
     } else {
-        println!("⚠️ No customers found in database");
+        println!("No customers found in database");
     }
 
     // Build the router with OpenAPI documentation using automatic endpoint discovery

@@ -39,7 +39,7 @@ fn check_join_depth(
         .as_ref()
         .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
-    // These are advisory warnings, not hard errors — the runtime handles both cases safely.
+    // These are advisory warnings, not hard errors; the runtime handles both cases safely.
     // Hard errors are reserved for bidirectional relations (check_bidirectional_relation)
     // which cause runtime stack overflow.
     //
@@ -152,7 +152,7 @@ fn check_bidirectional_relation(
         .map_or_else(|| "unknown".to_string(), std::string::ToString::to_string);
 
     if depth.is_some() {
-        // Explicit depth is safe — Vec joins use filter(), not find_related().
+        // Explicit depth is safe: Vec joins use filter(), not find_related().
         let const_name = quote::format_ident!(
             "_BIDIRECTIONAL_RELATION_{}_{}",
             entity_name.to_uppercase(),

@@ -65,48 +65,48 @@ async fn create_tables(db: &DatabaseConnection) {
     println!("Creating companies table...");
     let stmt = schema.create_table_from_entity(company::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ companies table created"),
-        Err(e) => println!("❌ Failed: {e:?}"),
+        Ok(_) => println!("companies table created"),
+        Err(e) => println!("Failed: {e:?}"),
     }
 
     println!("Creating branches table...");
     let stmt = schema.create_table_from_entity(branch::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ branches table created"),
-        Err(e) => println!("❌ Failed: {e:?}"),
+        Ok(_) => println!("branches table created"),
+        Err(e) => println!("Failed: {e:?}"),
     }
 
     println!("Creating departments table...");
     let stmt = schema.create_table_from_entity(department::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ departments table created"),
-        Err(e) => println!("❌ Failed: {e:?}"),
+        Ok(_) => println!("departments table created"),
+        Err(e) => println!("Failed: {e:?}"),
     }
 
     println!("Creating employees table...");
     let stmt = schema.create_table_from_entity(employee::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ employees table created"),
-        Err(e) => println!("❌ Failed: {e:?}"),
+        Ok(_) => println!("employees table created"),
+        Err(e) => println!("Failed: {e:?}"),
     }
 
     println!("Creating projects table...");
     let stmt = schema.create_table_from_entity(project::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ projects table created"),
-        Err(e) => println!("❌ Failed: {e:?}"),
+        Ok(_) => println!("projects table created"),
+        Err(e) => println!("Failed: {e:?}"),
     }
 
     println!("Creating tasks table...");
     let stmt = schema.create_table_from_entity(task::Entity);
     match db.execute(&stmt).await {
-        Ok(_) => println!("✅ tasks table created"),
-        Err(e) => println!("❌ Failed: {e:?}"),
+        Ok(_) => println!("tasks table created"),
+        Err(e) => println!("Failed: {e:?}"),
     }
 }
 
 async fn seed_data(db: &DatabaseConnection) {
-    println!("\n🌱 Seeding 5-level deep organizational data...");
+    println!("\nSeeding 5-level deep organizational data...");
 
     // Level 1: Company
     let company_id = Uuid::new_v4();
@@ -343,7 +343,7 @@ async fn seed_data(db: &DatabaseConnection) {
     .await
     .unwrap();
 
-    println!("✅ Seeded complete organizational hierarchy!");
+    println!("Seeded complete organizational hierarchy!");
     println!("   1 Company → 2 Branches → 2 Departments → 3 Employees → 4 Projects → 5 Tasks");
     println!("   (6 levels total = 5 JOIN operations)");
 }
@@ -367,26 +367,26 @@ async fn main() {
         .merge(Scalar::with_url("/scalar", api))
         .layer(CorsLayer::permissive());
 
-    println!("\n🚀 Server running on http://localhost:3000");
-    println!("📚 OpenAPI Documentation: http://localhost:3000/scalar\n");
+    println!("\nServer running on http://localhost:3000");
+    println!("OpenAPI Documentation: http://localhost:3000/scalar\n");
 
-    println!("📊 6-level hierarchy: Company → Branch → Department → Employee → Project → Task");
+    println!("6-level hierarchy: Company → Branch → Department → Employee → Project → Task");
     println!("   Company    → branches    (depth=2: recurse into branch's joins)");
     println!("   Branch     → departments (depth=2: recurse into department's joins)");
     println!("   Department → employees   (depth=2: recurse into employee's joins)");
     println!("   Employee   → projects    (depth=2: recurse into project's joins)");
     println!("   Project    → tasks       (depth=1: Task has no joins, loaded flat)\n");
 
-    println!("ℹ️  Depth rule: a join recurses into the child's own joins when depth > 1,");
+    println!("Depth rule: a join recurses into the child's own joins when depth > 1,");
     println!("   and loads that level flat when depth = 1. The magnitude beyond 1 has no");
     println!("   extra effect; depth = 1 is the only special value (it stops recursion).\n");
 
-    println!("🧪 Load the full hierarchy from the top:");
+    println!("Load the full hierarchy from the top:");
     println!("   curl -s http://localhost:3000/companies | jq .");
     println!("   # A single company request loads branches, departments, employees,");
     println!("   # projects, and tasks.\n");
 
-    println!("🔍 Explore individual entry points:");
+    println!("Explore individual entry points:");
     println!("   curl -s http://localhost:3000/branches | jq .      # loads down to tasks");
     println!("   curl -s http://localhost:3000/departments | jq .   # loads down to tasks");
     println!("   curl -s http://localhost:3000/employees | jq .     # loads projects and tasks");

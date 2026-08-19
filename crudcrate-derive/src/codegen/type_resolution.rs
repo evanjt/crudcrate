@@ -359,7 +359,7 @@ pub fn generate_like_filterable_entries(fields: &[&syn::Field]) -> Vec<proc_macr
 
 /// Generate string entries for columns excluded from scoped (public) requests.
 ///
-/// Collects field names that have `exclude(scoped)` — these are stripped from
+/// Collects field names that have `exclude(scoped)`; these are stripped from
 /// filterable/sortable lists when a `ScopeCondition` is active, preventing
 /// schema probing by unauthenticated users.
 pub fn generate_scoped_excluded_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
@@ -376,7 +376,7 @@ pub fn generate_scoped_excluded_entries(fields: &[&syn::Field]) -> Vec<proc_macr
 
 /// Generate enum field checker using compile-time trait detection.
 /// Automatically detects fields whose type implements `sea_orm::ActiveEnum`
-/// using the inherent impl trick — no explicit annotation needed.
+/// using the inherent impl trick; no explicit annotation needed.
 /// The `#[crudcrate(enum_field)]` attribute is still supported as an explicit override.
 pub fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::TokenStream {
     let field_checks: Vec<proc_macro2::TokenStream> = all_fields
@@ -386,7 +386,7 @@ pub fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::T
                 let field_name_str = ident_to_string(field_name);
 
                 // Backward compat: explicit enum_field still works but is no longer required.
-                // Deprecated in 0.7.2 — enum fields are now auto-detected.
+                // Deprecated in 0.7.2: enum fields are now auto-detected.
                 let explicit = get_crudcrate_bool(field, "enum_field").unwrap_or(false);
                 if explicit {
                     return Some(quote! { #field_name_str => true, });

@@ -250,7 +250,7 @@ async fn test_invalid_sort_field_uses_default() {
 
 /// Defence against DoS via filter-clause flooding.
 /// A request whose filter JSON has more than the built-in limit (100 keys)
-/// must be rejected with 400 Bad Request — NOT silently dropped into an
+/// must be rejected with 400 Bad Request, NOT silently dropped into an
 /// unfiltered response.
 #[tokio::test]
 async fn test_filter_with_too_many_clauses_returns_400() {
@@ -259,7 +259,7 @@ async fn test_filter_with_too_many_clauses_returns_400() {
         .expect("Failed to setup test database");
     let app = setup_test_app(&db);
 
-    // Build a filter object with 101 unique keys — one over the limit.
+    // Build a filter object with 101 unique keys, one over the limit.
     let mut obj = serde_json::Map::with_capacity(101);
     for i in 0..=100 {
         obj.insert(format!("key{i}"), json!(i));
@@ -294,7 +294,7 @@ async fn test_filter_at_clause_limit_succeeds() {
     let app = setup_test_app(&db);
 
     // Build a filter object with exactly 100 keys. Most will not match any
-    // real column, but the framework silently ignores unknown columns — the
+    // real column, but the framework silently ignores unknown columns. The
     // important check is that the request is accepted (no 400).
     let mut obj = serde_json::Map::with_capacity(100);
     for i in 0..100 {

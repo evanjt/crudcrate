@@ -1,4 +1,4 @@
-//! Scoped Access Example — Public vs Admin endpoints
+//! Scoped Access Example: Public vs Admin endpoints
 //!
 //! Demonstrates using `ScopeCondition` and `read_only_router()` to serve
 //! different data based on authentication context.

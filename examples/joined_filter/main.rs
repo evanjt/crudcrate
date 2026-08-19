@@ -1,4 +1,4 @@
-//! Joined Filter Example — filter parents by child-entity columns
+//! Joined Filter Example: filter parents by child-entity columns
 //!
 //! Demonstrates dot-notation joined filters: `?filter={"vehicles.make":"BMW"}`
 //! on a `Customer` endpoint returns only customers who own a BMW. The

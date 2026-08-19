@@ -148,7 +148,7 @@ async fn test_fulltext_search_with_paginate_as_documented() {
 // The fulltext path is case-insensitive *substring* matching on all three:
 // Postgres uses `ILIKE` (search.rs build_postgres_fulltext_condition), MySQL and
 // SQLite use `UPPER(col) LIKE UPPER(?)`. There is no `pg_trgm`/trigram similarity
-// and no fuzzy/typo tolerance anywhere — these tests pin that actual behaviour.
+// and no fuzzy/typo tolerance anywhere. These tests pin that actual behaviour.
 // Data is ASCII so case-folding is symmetric on all backends (non-ASCII folding
 // is ASCII-only on MySQL/SQLite, a documented limitation, and is not exercised
 // here on purpose).
@@ -210,7 +210,7 @@ async fn search_customers(app: &axum::Router, q: &str) -> Vec<CustomerList> {
 }
 
 /// `q` search matches case-insensitively, in both directions (query case and
-/// stored case are independent), as a substring — on every backend. This is the
+/// stored case are independent), as a substring, on every backend. This is the
 /// assertion the previously-empty database-specific tests never made.
 #[tokio::test]
 async fn test_fulltext_case_insensitive_substring_match() {
@@ -252,7 +252,7 @@ async fn test_fulltext_case_insensitive_substring_match() {
 }
 
 /// The fulltext path is exact substring matching, NOT fuzzy/trigram. A typo does
-/// not match — pinning the real behaviour against the (incorrect) docs that once
+/// not match, pinning the real behaviour against the (incorrect) docs that once
 /// claimed Postgres `pg_trgm` typo tolerance. Holds on every backend.
 #[tokio::test]
 async fn test_fulltext_is_substring_not_fuzzy() {
@@ -480,10 +480,10 @@ async fn test_fulltext_optimized_search_pattern_as_documented() {
     }
 
     // Test: Optimized search (docs example from lines 150-158)
-    // ❌ Slow: fulltext search on all items
+    // Slow: fulltext search on all items
     // GET /items?q=rust
     //
-    // ✅ Fast: filter first, then search
+    // Fast: filter first, then search
     // GET /items?q=rust&filter={"category":"programming"}&range=[0,19]
 
     // Simulate the "fast" optimized pattern

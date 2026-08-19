@@ -83,7 +83,7 @@ impl CRUDOperations for ProductOperations {
         entity: &mut Product,
     ) -> Result<(), ApiError> {
         // Send notification, trigger webhook, log event, etc.
-        println!("✓ Created product: {}", entity.name);
+        println!("Created product: {}", entity.name);
         Ok(())
     }
 
@@ -181,8 +181,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Demo the hooks
     demo(&db).await?;
 
-    println!("\n✅ All operations complete!");
-    println!("\n📚 What you can customize:");
+    println!("\nAll operations complete!");
+    println!("\nWhat you can customize:");
     println!("  • Hooks: before_create, after_create, before_delete, after_get_one, etc.");
     println!("  • Methods: fetch_all, fetch_one (custom queries)");
     println!("  • Full ops: create, update, delete (multi-step operations)");

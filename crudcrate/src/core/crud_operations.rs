@@ -86,7 +86,7 @@ macro_rules! crud_handlers_impl {
             get,
             path = "/{id}",
             // Declared explicitly (String) so utoipa's `axum_extras` does not infer the
-            // param schema from `Path<CrudPrimaryKey>` — which would require the primary-key
+            // param schema from `Path<CrudPrimaryKey>`, which would require the primary-key
             // type to implement `ToSchema`/`PartialSchema`. Mirrors `BatchUpdateRequest`'s
             // `#[schema(value_type = String)]`. The path value is always a stringified id.
             params(("id" = String, Path, description = "Resource identifier")),
@@ -121,7 +121,7 @@ macro_rules! crud_handlers_impl {
                 // between a fetch and a separate verification query.
                 // get_one_scoped already returns NotFound (404) when the scope condition
                 // excludes the row, so existence stays masked. Propagate the real error
-                // instead of rewriting everything to 404 — genuine DB/internal faults
+                // instead of rewriting everything to 404; genuine DB/internal faults
                 // must surface as 500 (and be logged), not masquerade as a missing row.
                 let result = <$resource as crudcrate::traits::CRUDResource>::get_one_scoped(&db, id, &extra)
                     .await?;
@@ -330,7 +330,7 @@ macro_rules! crud_handlers_impl {
             delete,
             path = "/{id}",
             // Declared explicitly (String) so utoipa's `axum_extras` does not infer the
-            // param schema from `Path<CrudPrimaryKey>` — which would require the primary-key
+            // param schema from `Path<CrudPrimaryKey>`, which would require the primary-key
             // type to implement `ToSchema`/`PartialSchema`. Mirrors `BatchUpdateRequest`'s
             // `#[schema(value_type = String)]`. The path value is always a stringified id.
             params(("id" = String, Path, description = "Resource identifier")),
@@ -444,7 +444,7 @@ macro_rules! crud_handlers_impl {
                 for (index, id) in ids.into_iter().enumerate() {
                     match <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, id).await {
                         // Use the deleted id returned by `delete` rather than the moved
-                        // `id` — the PK value type may be non-`Copy` (e.g. a `String` PK).
+                        // `id`; the PK value type may be non-`Copy` (e.g. a `String` PK).
                         Ok(deleted) => result.add_success(deleted),
                         Err(e) => result.add_failure(index, e.to_string()),
                     }
@@ -463,7 +463,7 @@ macro_rules! crud_handlers_impl {
                 } else {
                     // expose_deleted_ids=false must also hide WHICH ids failed: each
                     // per-item not-found error embeds the (missing) UUID, so serializing
-                    // `failed` verbatim would be an existence-enumeration oracle — the very
+                    // `failed` verbatim would be an existence-enumeration oracle, the very
                     // side-channel the non-partial path collapses to `{deleted: count}`.
                     let secure = serde_json::json!({
                         "succeeded_count": result.succeeded.len(),
@@ -491,7 +491,7 @@ macro_rules! crud_handlers_impl {
             put,
             path = "/{id}",
             // Declared explicitly (String) so utoipa's `axum_extras` does not infer the
-            // param schema from `Path<CrudPrimaryKey>` — which would require the primary-key
+            // param schema from `Path<CrudPrimaryKey>`, which would require the primary-key
             // type to implement `ToSchema`/`PartialSchema`. Mirrors `BatchUpdateRequest`'s
             // `#[schema(value_type = String)]`. The path value is always a stringified id.
             params(("id" = String, Path, description = "Resource identifier")),

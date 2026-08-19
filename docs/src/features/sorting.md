@@ -300,10 +300,10 @@ pub vehicles: Vec<Vehicle>,
 ```
 
 ```bash
-# ✅ Allowed - year is in sortable
+# Allowed - year is in sortable
 GET /customers?sort=["vehicles.year","DESC"]
 
-# ❌ Falls back to default - make is NOT in sortable
+# Falls back to default - make is NOT in sortable
 GET /customers?sort=["vehicles.make","ASC"]
 ```
 
@@ -324,13 +324,13 @@ pub vehicles: Vec<Vehicle>,
 
 ### Limitations
 
-**Single-level joins only**: Join sorting supports direct relationships only. Nested paths like `vehicles.parts.price` are not supported—only single-level paths like `vehicles.year`.
+**Single-level joins only**: Join sorting supports direct relationships only. Nested paths like `vehicles.parts.price` are not supported; only single-level paths like `vehicles.year`.
 
 ```bash
-# ✅ Supported - single level
+# Supported - single level
 GET /customers?sort=["vehicles.year","DESC"]
 
-# ❌ Not supported - nested path
+# Not supported - nested path
 GET /customers?sort=["vehicles.parts.price","ASC"]
 ```
 

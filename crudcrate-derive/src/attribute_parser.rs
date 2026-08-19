@@ -420,7 +420,7 @@ pub(crate) fn get_crudcrate_bool(field: &syn::Field, key: &str) -> Option<bool> 
                             {
                                 // Emit visible deprecation warning during compilation
                                 eprintln!(
-                                    "\n⚠️  DEPRECATION WARNING: {}\n",
+                                    "\nDEPRECATION WARNING: {}\n",
                                     create_deprecation_error(key, &nv.path)
                                 );
                             }

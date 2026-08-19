@@ -61,7 +61,7 @@ use quote::quote;
 /// runtime. Used by the `scope_propagation_strict` profile field to decide
 /// whether a joined filter is safe under an active `ScopeCondition`.
 ///
-/// Falls back to `false` for unknown field names — matching the default trait
+/// Falls back to `false` for unknown field names, matching the default trait
 /// impl's conservative posture.
 pub fn generate_joined_field_has_scope_impl(
     analysis: &EntityFieldAnalysis,
@@ -131,7 +131,7 @@ pub fn generate_joined_field_has_scope_impl(
 /// augmented condition.
 ///
 /// `Option<Child>` fields (`belongs_to`) and fields without declared filterable
-/// columns are silently skipped — the default trait impl's debug-log
+/// columns are silently skipped; the default trait impl's debug-log
 /// behavior handles the runtime case.
 ///
 /// Returns empty tokens if there are no filterable joined columns (letting
@@ -145,7 +145,7 @@ pub fn generate_resolve_joined_filters_impl(
         .join_on_all_fields
         .iter()
         .filter_map(|&field| {
-            // Only Vec<Child> — Option<Child> (belongs_to) has the FK on the
+            // Only Vec<Child>; Option<Child> (belongs_to) has the FK on the
             // parent, not the child, so the sub-query direction is reversed
             // and requires different codegen. Skip for now.
             if !is_vec_type(&field.ty) {
@@ -165,7 +165,7 @@ pub fn generate_resolve_joined_filters_impl(
         .collect();
 
     if candidates.is_empty() {
-        // No override needed — default trait impl returns the condition unchanged
+        // No override needed; default trait impl returns the condition unchanged
         return quote! {};
     }
 
@@ -320,7 +320,7 @@ pub fn generate_resolve_joined_filters_impl(
 ///
 /// `Option<Child>` fields (`belongs_to`) and fields without declared sortable
 /// columns are skipped. Unknown `join_field`/`column` combinations fall back to
-/// ordering by the parent's default index column — matching the trait default's
+/// ordering by the parent's default index column, matching the trait default's
 /// no-op behavior so the request never mis-orders silently.
 ///
 /// Returns empty tokens if there are no sortable joined columns (letting the
@@ -354,7 +354,7 @@ pub fn generate_get_all_joined_sorted_impl(
         .collect();
 
     if candidates.is_empty() {
-        // No override needed — default trait impl falls back to default_index_column
+        // No override needed; default trait impl falls back to default_index_column
         return quote! {};
     }
 
@@ -516,7 +516,7 @@ pub fn generate_get_one_join_loading(
     generate_get_one_join_loading_inner(analysis, api_struct_name, false)
 }
 
-/// Generate join loading code for `get_one_scoped()` — applies child entity
+/// Generate join loading code for `get_one_scoped()`: applies child entity
 /// scope conditions to Vec join queries at the SQL level.
 pub fn generate_get_one_scoped_join_loading(
     analysis: &EntityFieldAnalysis,
@@ -584,7 +584,7 @@ pub fn generate_get_all_batch_loading(
     generate_batch_loading_impl(&join_fields, api_struct_name, &pk_ident, false)
 }
 
-/// Generate batch loading code for `get_all_scoped()` — applies child entity
+/// Generate batch loading code for `get_all_scoped()`: applies child entity
 /// scope conditions to Vec child batch queries at the SQL level, and recurses
 /// via `get_one_scoped` for depth > 1 so grandchildren are also filtered.
 pub fn generate_get_all_scoped_batch_loading(
@@ -1042,7 +1042,7 @@ fn generate_batch_loading_impl(
     let pre_loop_code = quote! {
         // Collect all parent IDs for batch loading. Clone each PK so the parent
         // models stay intact for later conversion (the PK value type is not
-        // required to be Copy — e.g. String primary keys).
+        // required to be Copy, e.g. String primary keys).
         let parent_ids: Vec<#parent_pk_ty> = models.iter().map(|m| m.#pk_ident.clone()).collect();
 
         #( #batch_loading_statements )*
@@ -1068,7 +1068,7 @@ fn to_snake_case(s: &str) -> String {
 
 /// Derive FK column identifiers for a join field.
 ///
-/// Returns `(pascal_ident, snake_ident)` — e.g., `(CustomerId, customer_id)`.
+/// Returns `(pascal_ident, snake_ident)`, e.g., `(CustomerId, customer_id)`.
 ///
 /// Resolution order:
 /// 1. Explicit `fk_column = "..."` from join config (highest priority)
@@ -1099,7 +1099,7 @@ fn derive_fk_idents(
         (
             quote::format_ident!("{}Id", api_struct_name),
             quote::format_ident!("{}_id", to_snake_case(&api_struct_name.to_string())),
-            true, // Use runtime resolution — convention may not match
+            true, // Use runtime resolution: convention may not match
         )
     }
 }

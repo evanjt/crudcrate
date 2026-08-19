@@ -52,11 +52,11 @@
 //!
 //! # Key types
 //!
-//! - [`FilterOptions`] — parsed query parameters for a list request
-//! - [`BatchOptions`] — options for batch endpoints (e.g. `?partial=true`)
-//! - [`apply_filters`] — builds a Sea-ORM `Condition` from filter params
-//! - [`parse_sorting`] — resolves sort parameters to column + direction
-//! - [`parse_pagination`] — extracts offset/limit from query params
+//! - [`FilterOptions`]: parsed query parameters for a list request
+//! - [`BatchOptions`]: options for batch endpoints (e.g. `?partial=true`)
+//! - [`apply_filters`]: builds a Sea-ORM `Condition` from filter params
+//! - [`parse_sorting`]: resolves sort parameters to column + direction
+//! - [`parse_pagination`]: extracts offset/limit from query params
 
 pub mod conditions;
 pub mod joined;

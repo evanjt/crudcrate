@@ -15,7 +15,7 @@ use tower::ServiceExt;
 mod common;
 use common::{setup_test_app, setup_test_db};
 
-/// Build a JSON array body of roughly `size` bytes — one customer with a long name.
+/// Build a JSON array body of roughly `size` bytes: one customer with a long name.
 fn oversized_customer_batch_body(size: usize) -> String {
     let padding = "x".repeat(size);
     format!(r#"[{{"name":"{padding}","email":"a@b.c","is_private":false}}]"#)
@@ -56,7 +56,7 @@ async fn batch_create_accepts_payload_under_profile_limit() {
     let db = setup_test_db().await.expect("setup");
     let app = setup_test_app(&db);
 
-    // 100 KiB body is well under the 2 MiB default — must not be rejected for size.
+    // 100 KiB body is well under the 2 MiB default, so it must not be rejected for size.
     let body = oversized_customer_batch_body(100 * 1024);
 
     let response = app

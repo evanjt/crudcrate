@@ -146,7 +146,7 @@ async fn patch_update(
 }
 
 // ============================================================================
-// Test 1 — nullable column: absent on create serialises as null; present is stored.
+// Test 1: nullable column. Absent on create serialises as null; present is stored.
 // ============================================================================
 
 #[tokio::test]
@@ -205,7 +205,7 @@ async fn create_with_explicit_null_nickname_is_null() {
 }
 
 // ============================================================================
-// Test 2 — three-way Option semantics in the Update model.
+// Test 2: three-way Option semantics in the Update model.
 // ============================================================================
 
 #[tokio::test]
@@ -247,7 +247,7 @@ async fn update_omitting_nullable_leaves_it_unchanged() {
 #[tokio::test]
 async fn update_setting_nullable_to_json_null_clears_it() {
     // Actual behaviour: for an Option<T> column, JSON null deserialises (via double_option)
-    // to Some(None), which merge.rs maps to ActiveValue::Set(None) — i.e. the value is CLEARED,
+    // to Some(None), which merge.rs maps to ActiveValue::Set(None), ie. the value is CLEARED,
     // not rejected. This documents the actual three-way semantics for nullable columns.
     let db = setup_test_db().await.unwrap();
     let (_, created) = post_create(
@@ -340,7 +340,7 @@ async fn update_model_field_shapes_are_double_option_and_required_inner() {
 }
 
 // ============================================================================
-// Test 3 — timestamp on_create / on_update behaviour.
+// Test 3: timestamp on_create / on_update behaviour.
 // ============================================================================
 
 #[tokio::test]
@@ -409,7 +409,7 @@ async fn timestamps_present_in_both_list_and_detail() {
 }
 
 // ============================================================================
-// Test 4 — integer and bool round-trip through create / get / update.
+// Test 4: integer and bool round-trip through create / get / update.
 // ============================================================================
 
 #[tokio::test]

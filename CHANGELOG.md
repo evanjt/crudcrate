@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING (trait signatures).** `CRUDResource` and `CRUDOperations` methods
   that took `id: uuid::Uuid` / `Vec<uuid::Uuid>` now take
-  `crudcrate::PrimaryKeyType<Self>` / `Vec<PrimaryKeyType<Self>>` — including
+  `crudcrate::PrimaryKeyType<Self>` / `Vec<PrimaryKeyType<Self>>`, including
   `get_one`, `get_one_scoped`, `update`, `delete`, `delete_many`, `update_many`
   and the `CRUDOperations` `before_*` / `after_*` / `perform_*` / `fetch_*`
   hooks. For UUID resources `PrimaryKeyType<Self>` resolves to `Uuid`, so runtime
@@ -181,7 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Known limitations
 
 - Joined-filter sub-queries and `Vec<Child>` batch loading apply no per-relation
-  row cap — they are bounded only by `MAX_FILTER_CLAUSES` (100) and the parent
+  row cap; they are bounded only by `MAX_FILTER_CLAUSES` (100) and the parent
   page size. On very large child tables this is a query-amplification
   consideration for untrusted callers.
 - Case-insensitive fulltext and `like_filterable` matching on MySQL/SQLite is
@@ -199,7 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fulltext search functions used `?` as the bind placeholder in
   `Expr::cust_with_values` templates. Sea-query's Postgres backend uses
   `$` as its placeholder character, so the `?` was passed through as a
-  literal — Postgres then parsed `? ESCAPE '!'` as a JSONB operator
+  literal, and Postgres then parsed `? ESCAPE '!'` as a JSONB operator
   followed by a type cast, producing `type "escape" does not exist`.
   Fixed by using `$1` for Postgres and `?` for MySQL/SQLite.
 
@@ -234,8 +234,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **`SecurityProfile` config struct + presets**. New `crudcrate::SecurityProfile`
-  bundles the security-sensitive runtime defaults — strict filter parsing,
-  scope propagation, deleted-ID exposure, and request body size — under one
+  bundles the security-sensitive runtime defaults (strict filter parsing,
+  scope propagation, deleted-ID exposure, and request body size) under one
   type with three presets: `SecurityProfile::secure()`, `react_admin()`, and
   `legacy()`. Override individual fields via Rust's struct-update syntax:
   `SecurityProfile { expose_deleted_ids: true, ..SecurityProfile::secure() }`.
@@ -280,7 +280,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fulltext SQL bind parameterization**. The Postgres / MySQL /
   SQLite fulltext condition builders now route the user query value through
   `Expr::cust_with_values` so the value is bound as a parameter rather than
-  interpolated into the SQL string. Defense-in-depth — column names were
+  interpolated into the SQL string. Defense-in-depth: column names were
   already compile-time-known, but raw `SimpleExpr::Custom(format!(...))` was
   removed everywhere user input could reach it.
 
@@ -288,7 +288,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Join loading with `operations` attribute**. Entities using
   `#[crudcrate(operations = MyOps)]` for create/update/delete hooks had
-  their join loading silently bypassed on `get_one` and `get_all` — the
+  their join loading silently bypassed on `get_one` and `get_all`; the
   codegen delegated entirely to `CRUDOperations` which does plain queries
   with no relation loading. The operations path now falls through to the
   standard join-loading codegen when the entity has `join(...)` fields,
@@ -318,7 +318,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - `README.md`: added security caveat for the `mysql` feature, which pulls in
-  `rsa 0.9.10` (RUSTSEC-2023-0071, Marvin attack — no upstream fix).
+  `rsa 0.9.10` (RUSTSEC-2023-0071, Marvin attack, no upstream fix).
 
 ## [0.8.1] - 2026-05-19
 
@@ -337,12 +337,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Joined filters are now applied by the default handler**. Requests like
   `GET /customers?filter={"vehicles.make":"BMW"}` previously parsed and
   whitelisted the filter but silently dropped it before hitting the
-  database — users got unfiltered results. The default `get_all_handler`
+  database; users got unfiltered results. The default `get_all_handler`
   now resolves each `JoinedFilter` into a sub-query on the child table
   (with the child's `ScopeFilterable::scope_condition()` applied), collects
   matching parent-FK values, and adds `id IN (...)` to the main condition.
   Query shape: one extra `SELECT parent_fk FROM child WHERE ...` per
-  joined-filter field plus the usual list + count queries — no JOIN, no
+  joined-filter field plus the usual list + count queries: no JOIN, no
   `DISTINCT`. Backed by `test_suite/tests/joined_filter_http_test.rs` and
   a runnable `cargo run --example joined_filter`.
 
@@ -362,7 +362,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `crudcrate::filtering::ParsedFilters::joined_filters` is now consumed by
   the handler (previously only populated by the parser and read by tests).
-  No API change — the field was already public.
+  No API change; the field was already public.
 
 - Pruned unused dependencies from the workspace.
 
@@ -382,8 +382,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Atomic scope check in `get_one`**: Scoped `get_one` requests now verify the scope condition in a single query (ID + scope filter), eliminating a TOCTOU race where a separate `total_count()` verification could see stale data between the fetch and the check.
 - **FK column runtime validation**: The derive macro generates `#[cfg(test)]` functions that verify convention-derived FK column names match the actual `RelationDef` from SeaORM at test time. Catches silent data mismatches from FK naming convention violations before they reach production.
-- **SQL-level scope filtering for joins (all endpoints, all depths)**: Child entities with `exclude(scoped)` fields are now filtered at the SQL level (`WHERE is_private = false`) during join loading on **both** `get_one_scoped` and `get_all_scoped`, and at **every** depth when `depth > 1`. The scoped batch loader applies each child's `ScopeFilterable::scope_condition()` to its `Entity::find().filter(FK in parent_ids)` query, and recurses via `get_one_scoped` (not `get_one`) for nested children. The in-memory `ScopeFilterable::is_scope_visible()` filter remains as defense-in-depth, but privacy is now enforced in the database, not just at serialisation time — private rows never leave Postgres on public endpoints.
-- **`require_scope` attribute**: New `#[crudcrate(require_scope)]` struct-level attribute. When set, read handlers return HTTP 500 if no `ScopeCondition` middleware is present — catches misconfigured routes that should be scoped but aren't.
+- **SQL-level scope filtering for joins (all endpoints, all depths)**: Child entities with `exclude(scoped)` fields are now filtered at the SQL level (`WHERE is_private = false`) during join loading on **both** `get_one_scoped` and `get_all_scoped`, and at **every** depth when `depth > 1`. The scoped batch loader applies each child's `ScopeFilterable::scope_condition()` to its `Entity::find().filter(FK in parent_ids)` query, and recurses via `get_one_scoped` (not `get_one`) for nested children. The in-memory `ScopeFilterable::is_scope_visible()` filter remains as defense-in-depth, but privacy is now enforced in the database, not just at serialisation time: private rows never leave Postgres on public endpoints.
+- **`require_scope` attribute**: New `#[crudcrate(require_scope)]` struct-level attribute. When set, read handlers return HTTP 500 if no `ScopeCondition` middleware is present; this catches misconfigured routes that should be scoped but aren't.
 
 ### Added
 
@@ -397,9 +397,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
   Field-level joins with `#[sea_orm(ignore)]` + `#[crudcrate(non_db_attr, join(...))]` still work for backward compatibility.
 
-- **SQL-level column exclusion for `exclude(list)`**: Fields marked `#[crudcrate(exclude(list))]` with `Option<T>` types are now skipped at the SQL level in list queries — the database never transfers the data. Previously, `exclude(list)` only removed the field from the response struct while still fetching all columns. This dramatically improves performance for entities with large fields (photos, blobs, documents). Benchmarked at **7x improvement** (1,013 → 7,121 req/s) on an endpoint with base64 photo data.
+- **SQL-level column exclusion for `exclude(list)`**: Fields marked `#[crudcrate(exclude(list))]` with `Option<T>` types are now skipped at the SQL level in list queries; the database never transfers the data. Previously, `exclude(list)` only removed the field from the response struct while still fetching all columns. This dramatically improves performance for entities with large fields (photos, blobs, documents). Benchmarked at **7x improvement** (1,013 → 7,121 req/s) on an endpoint with base64 photo data.
 
-- **`ScopeCondition` for auth-aware query filtering**: New `ScopeCondition` type that can be injected via Axum `Extension` to add conditions to read queries. Auth-system-agnostic — users write middleware to convert their auth state into a `ScopeCondition`. When present, `get_all_handler` merges the condition into the query filter, and `get_one_handler` verifies the fetched record passes the condition. Write operations are unaffected.
+- **`ScopeCondition` for auth-aware query filtering**: New `ScopeCondition` type that can be injected via Axum `Extension` to add conditions to read queries. Auth-system-agnostic: users write middleware to convert their auth state into a `ScopeCondition`. When present, `get_all_handler` merges the condition into the query filter, and `get_one_handler` verifies the fetched record passes the condition. Write operations are unaffected.
   ```rust
   use crudcrate::ScopeCondition;
   let public = Article::read_only_router(&db)
@@ -435,7 +435,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Automatic enum field detection**: Fields with types implementing `sea_orm::ActiveEnum` are now detected at compile time — no `#[crudcrate(enum_field)]` annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field's type.
+- **Automatic enum field detection**: Fields with types implementing `sea_orm::ActiveEnum` are now detected at compile time; no `#[crudcrate(enum_field)]` annotation needed. Uses zero-cost compile-time trait detection (inherent impl trick) to check each field's type.
 - **Case-insensitive enum array filtering**: Array/IN filters on enum fields now apply `UPPER(CAST(col AS TEXT))` on Postgres, matching the case-insensitive behavior already used for single-value enum filters.
 
 ### Deprecated
@@ -490,7 +490,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped `sea-orm` from 1.1.17 to 1.1.19
 - Batch operation limit checking now uses `Self::batch_limit()` method (configurable per-resource)
 - `BATCH_LIMIT` and `MAX_PAGE_SIZE` changed from associated constants to trait methods for runtime overridability
-- Batch loading uses `.remove()` from HashMap instead of `.get().cloned()` — moves data instead of copying
+- Batch loading uses `.remove()` from HashMap instead of `.get().cloned()`, moving data instead of copying
 
 ### Fixed
 
@@ -539,7 +539,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example: `#[crudcrate(create::one::pre = validate_fn)]`
 - Batch operations: `create_many` and `update_many` with hook support
 - **`ApiError` error type**: Consistent error handling with separate internal/client messages (fixes #3)
-  - `impl From<DbErr>` for seamless Sea-ORM integration with automatic internal logging
+  - `impl From<DbErr>` for Sea-ORM error conversion with automatic internal logging
   - Internal errors logged via `tracing`, generic message sent to client
   - Custom errors: `ApiError::custom(StatusCode::IM_A_TEAPOT, "client msg", Some("internal log"))`
   - Variants: `NotFound`, `BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `ValidationFailed`, `Database`, `Internal`, `Custom`

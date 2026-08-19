@@ -49,7 +49,7 @@ pub mod thing {
     #[sea_orm(table_name = "ppsc_things")]
     #[crudcrate(generate_router, api_struct = "Thing", derive_partial_eq)]
     pub struct Model {
-        // Integer PK assigned by the DB — NO on_create, excluded from create/update.
+        // Integer PK assigned by the DB: NO on_create, excluded from create/update.
         #[sea_orm(primary_key)]
         #[crudcrate(primary_key, exclude(create, update))]
         pub id: i32,
@@ -200,7 +200,7 @@ async fn scope_get_one_excluded_returns_404_for_integer_id() {
 
     let id = admin_create_private(&admin, "Secret").await;
 
-    // Same 404 a private UUID row would yield — driven by an integer path param,
+    // Same 404 a private UUID row would yield, driven by an integer path param,
     // and never a UUID parse error.
     let (status, _, _) = send(&scoped, "GET", &format!("/things/{id}"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -527,7 +527,7 @@ async fn scope_head_request_allowed() {
 }
 
 // =============================================================================
-// Mirrors scope_get_one_atomic_single_query: visible, flip private, then 404 —
+// Mirrors scope_get_one_atomic_single_query: visible, flip private, then 404:
 // the scope condition is part of the fetch, keyed by the integer id.
 // =============================================================================
 

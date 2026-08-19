@@ -199,10 +199,10 @@ async fn create_item(data: ItemCreate, db: &DatabaseConnection) -> Result<Item, 
 ### Never Expose Internal Details
 
 ```rust
-// ❌ Bad: exposes internal error
+// Bad: exposes internal error
 Err(ApiError::Database(format!("SQL error: {}", e)))
 
-// ✅ Good: log internally, sanitize response
+// Good: log internally, sanitize response
 eprintln!("Database error: {}", e);
 Err(ApiError::Database("Database error".into()))
 ```

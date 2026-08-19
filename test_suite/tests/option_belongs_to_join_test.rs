@@ -68,7 +68,7 @@ async fn test_belongs_to_option_join_loads_customer() {
         serde_json::from_slice(&body).expect("Failed to parse created vehicle");
     let vehicle_id = created_vehicle.id;
 
-    // GET the vehicle — the Option<Customer> join should load the parent customer
+    // GET the vehicle: the Option<Customer> join should load the parent customer
     let request = Request::builder()
         .method("GET")
         .uri(format!("/vehicles/{vehicle_id}"))
@@ -87,7 +87,7 @@ async fn test_belongs_to_option_join_loads_customer() {
     // The critical assertion: belongs_to Option<Customer> should be populated
     assert!(
         vehicle.customer.is_some(),
-        "Vehicle.customer should be Some(...) — the belongs_to join should load the parent Customer"
+        "Vehicle.customer should be Some(...): the belongs_to join should load the parent Customer"
     );
 
     let loaded_customer = vehicle.customer.unwrap();
@@ -151,7 +151,7 @@ async fn test_belongs_to_option_join_none_when_orphan() {
     let vehicle: Vehicle = serde_json::from_slice(&body).expect("Failed to parse created vehicle");
 
     // Vehicle should have been created successfully with a valid customer
-    // Just verify the basic flow works — the main assertion is in the first test
+    // Just verify the basic flow works. The main assertion is in the first test
     assert_eq!(vehicle.make, "Ford");
     assert_eq!(vehicle.customer_id.to_string(), customer_id);
 }

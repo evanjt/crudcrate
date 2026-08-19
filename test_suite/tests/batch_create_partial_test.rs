@@ -73,7 +73,7 @@ impl Validatable for BcpItemCreate {
 /// `create::one::pre` hook bridging the `Validatable` impl into the create path.
 ///
 /// The partial batch create handler calls `CRUDResource::create` per item, which
-/// runs this hook before the insert — so a failure here fails just that one item.
+/// runs this hook before the insert, so a failure here fails just that one item.
 ///
 /// Must be `async` to match the hook signature the derive macro calls (`.await`).
 #[allow(clippy::unused_async)]

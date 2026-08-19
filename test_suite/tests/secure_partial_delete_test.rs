@@ -137,7 +137,7 @@ async fn secure_partial_delete_redacts_succeeded_ids() {
     );
 
     // Under the secure profile the partial-delete response collapses failures to a
-    // `failed_count` scalar — it must NOT expose a `failed` array, and must NOT leak the
+    // `failed_count` scalar: it must NOT expose a `failed` array, and must NOT leak the
     // submitted non-existent UUID (which the per-item not-found message would otherwise echo,
     // re-creating the existence-enumeration oracle that expose_deleted_ids=false closes).
     assert!(

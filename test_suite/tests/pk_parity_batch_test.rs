@@ -2,7 +2,7 @@
 //!
 //! These tests prove that POST/PATCH/DELETE `/batch`, their `?partial=true`
 //! variants, and `delete_many` de-duplication all behave identically to a
-//! `Uuid`-keyed model — except that ids are JSON integers in request bodies,
+//! `Uuid`-keyed model, except that ids are JSON integers in request bodies,
 //! response bodies, and the `succeeded`/`failed` arrays.
 //!
 //! UUID counterparts mirrored here all live in
@@ -162,7 +162,7 @@ async fn seed(app: &axum::Router, n: usize) -> Vec<i64> {
 }
 
 // ============================================================================
-// POST /things/batch — create_many
+// POST /things/batch: create_many
 // ============================================================================
 
 /// 201 + N rows, each with an integer id assigned by the DB.
@@ -257,7 +257,7 @@ async fn test_ppb_batch_create_partial_success() {
 }
 
 // ============================================================================
-// PATCH /things/batch — update_many
+// PATCH /things/batch: update_many
 // ============================================================================
 
 /// 200 + all rows updated; ids in the request body and response are integers.
@@ -358,7 +358,7 @@ async fn test_ppb_batch_update_partial_all_succeed() {
 }
 
 // ============================================================================
-// DELETE /things/batch — delete_many
+// DELETE /things/batch: delete_many
 // ============================================================================
 
 /// DELETE with a JSON array of INTEGERS `[1,2,3]` removes those rows.
@@ -404,7 +404,7 @@ async fn test_ppb_batch_delete_returns_integer_ids() {
 }
 
 /// `delete_many` de-duplicates a repeated integer id: `[1,1,2]` deletes two
-/// distinct rows and reports them once each — never over-counting.
+/// distinct rows and reports them once each, never over-counting.
 /// Mirrors the phantom-id de-dup guarantee in
 /// `test_batch_delete_returns_only_existing_ids` (UUID).
 #[tokio::test]
@@ -415,7 +415,7 @@ async fn test_ppb_batch_delete_dedups_input() {
     let ids = seed(&app, 2).await;
     assert_eq!(ids, vec![1, 2]);
 
-    // [1, 1, 2] — id 1 repeated. Plus a nonexistent id to prove phantom drop.
+    // [1, 1, 2]: id 1 repeated. Plus a nonexistent id to prove phantom drop.
     let (status, value) = send(&app, delete("/things/batch", &json!([1, 1, 2, 999]))).await;
     assert_eq!(status, StatusCode::OK, "dedup delete: {value:?}");
 
