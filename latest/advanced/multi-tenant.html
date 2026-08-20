@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-21b3a324.js";
+            window.path_to_searchindex_js = "../searchindex-8b23b3bc.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-70f89627.js"></script>
@@ -275,6 +275,9 @@ no <code>ScopeCondition</code> is present, instead of silently returning everyth
 pub struct Widget { /* ... */ }</code></pre>
 <p>Leave it <strong>off</strong> for entities that have a legitimate unscoped (admin) caller; there, the absence
 of the extension is the intended “see everything” path.</p>
+<p><code>REQUIRE_SCOPE</code> governs <strong>reads only</strong>. Write handlers ignore it: they are 403 whenever a
+<code>ScopeCondition</code> is present and allowed when it is absent, so the safe-methods-only mounting
+above keeps working. Confining writes to a tenant is the write guard’s job, not this flag’s.</p>
 <h2 id="quick-reference"><a class="header" href="#quick-reference">Quick reference</a></h2>
 <div class="table-wrapper">
 <table>

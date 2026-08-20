@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-21b3a324.js";
+            window.path_to_searchindex_js = "searchindex-8b23b3bc.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-70f89627.js"></script>
@@ -182,7 +182,38 @@
 <p>All notable changes to the crudcrate project will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2 id="unreleased"><a class="header" href="#unreleased"><a href="https://github.com/evanjt/crudcrate/compare/0.10.0...HEAD">Unreleased</a></a></h2>
+<h2 id="0101---2026-08-20"><a class="header" href="#0101---2026-08-20"><a href="https://github.com/evanjt/crudcrate/compare/0.10.0...0.10.1">0.10.1</a> - 2026-08-20</a></h2>
+<h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<ul>
+<li><strong><code>get_one_scoped</code> ignored <code>read::one::body</code>.</strong> The scoped get-one handler
+had no custom-body branch, so a resource combining a <code>ScopeCondition</code> with a
+custom get-one body silently ran the default query instead. Whatever the
+body existed to do, extra filtering, joins, shaping, never happened on
+scoped requests, and rows the body would have refused were served. The
+handler now checks scope eligibility in SQL first, answers 404 when the
+scope excludes the row, then delegates to the custom body with the same
+pre/transform/post hooks as the unscoped path.</li>
+<li><strong>Scoped models were generated but never mounted for non-db exclusions.</strong>
+Model generation and router wiring used different definitions of “has
+scoped fields”: the models counted <code>exclude(scoped)</code> on join and
+<code>non_db_attr</code> fields, the router did not. When such a field was the only
+exclusion, the <code>ScopedList</code>/<code>ScopedOne</code> structs existed but the router
+served the plain models, so the supposedly excluded field still reached
+scoped callers. Both sites now share one predicate.</li>
+<li><strong><code>require_scope</code> write semantics documented and pinned.</strong> The flag governs
+reads only: an unscoped read fails with 500, while writes are governed
+solely by scope presence (403 when a <code>ScopeCondition</code> is present, allowed
+when absent). That split is what lets an application mount its scope on
+safe methods only, so writes arrive unscoped deliberately. The trait doc,
+the multi-tenant guide and new enforcement tests now state the contract
+explicitly. No behaviour change.</li>
+<li><strong>Validation docs described an API that does not exist.</strong>
+<code>docs/src/advanced/validation.md</code> showed a
+<code>ValidationFailed(Vec&lt;ValidationError&gt;)</code> tuple variant and never mentioned
+the <code>Validatable</code> trait, the mechanism the handlers actually invoke. The
+page now documents <code>Validatable</code> and the real
+<code>ApiError::validation_failed(Vec&lt;String&gt;)</code> constructor.</li>
+</ul>
 <h2 id="0100---2026-08-19"><a class="header" href="#0100---2026-08-19"><a href="https://github.com/evanjt/crudcrate/compare/0.9.3...0.10.0">0.10.0</a> - 2026-08-19</a></h2>
 <h3 id="changed"><a class="header" href="#changed">Changed</a></h3>
 <ul>
@@ -226,7 +257,7 @@ round-trip a full record into an update legitimately send read-only fields.</li>
 version crudcrate builds against (ie. <code>use crudcrate::sea_orm;</code>) instead of
 pinning a matching <code>sea-orm</code> dependency themselves.</li>
 </ul>
-<h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
+<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
 <ul>
 <li><strong>List pagination could repeat or skip a row.</strong> <code>get_all</code> ordered by the
 requested sort column alone, so rows tied on that column had no defined order
@@ -257,7 +288,7 @@ and skipped; generated code keeps using the <code>Column</code> enum paths. Rati
 in the relationships documentation.</li>
 </ul>
 <h2 id="093---2026-07-15"><a class="header" href="#093---2026-07-15"><a href="https://github.com/evanjt/crudcrate/compare/0.9.2...0.9.3">0.9.3</a> - 2026-07-15</a></h2>
-<h3 id="fixed-1"><a class="header" href="#fixed-1">Fixed</a></h3>
+<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
 <ul>
 <li><strong>Comparison filters on non-text columns returned 500 on PostgreSQL.</strong> A
 <code>_gte</code>/<code>_lte</code>/<code>_gt</code>/<code>_lt</code>/<code>_neq</code> (or equality) filter whose value arrived as a
@@ -312,7 +343,7 @@ rows actually deleted.</li>
 inner-type match (not a substring), and deriving <code>Eq</code> now also derives
 <code>PartialEq</code>.</li>
 </ul>
-<h3 id="fixed-2"><a class="header" href="#fixed-2">Fixed</a></h3>
+<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
 <ul>
 <li><strong>LIKE wildcard escaping was a no-op on SQLite</strong> for the fulltext LIKE-fallback
 and joined <code>_like</code> paths: escaping used a backslash but emitted no <code>ESCAPE</code>
@@ -368,7 +399,7 @@ value <em>type</em> is generic, but a join target whose PK field has a different
 will not compile.</li>
 </ul>
 <h2 id="091---2026-06-01"><a class="header" href="#091---2026-06-01"><a href="https://github.com/evanjt/crudcrate/compare/0.9.0...0.9.1">0.9.1</a> - 2026-06-01</a></h2>
-<h3 id="fixed-3"><a class="header" href="#fixed-3">Fixed</a></h3>
+<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
 <ul>
 <li>
 <p><strong>LIKE queries broken on Postgres</strong>. <code>build_like_condition</code> and the
@@ -477,7 +508,7 @@ already compile-time-known, but raw <code>SimpleExpr::Custom(format!(...))</code
 removed everywhere user input could reach it.</p>
 </li>
 </ul>
-<h3 id="fixed-4"><a class="header" href="#fixed-4">Fixed</a></h3>
+<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
 <ul>
 <li>
 <p><strong>Join loading with <code>operations</code> attribute</strong>. Entities using
@@ -629,7 +660,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <p><strong><code>get_one_scoped</code> / <code>get_all_scoped</code></strong>: New <code>CRUDResource</code> trait methods with scope-aware query variants. Default implementations delegate to the non-scoped <code>get_one</code> / <code>get_all</code> (safe for resources without <code>join(all)</code> children). The derive macro overrides both with SQL-level child-scope propagation. <code>get_all_handler</code> dispatches to <code>get_all_scoped</code> whenever a <code>ScopeCondition</code> extension is present.</p>
 </li>
 </ul>
-<h3 id="fixed-5"><a class="header" href="#fixed-5">Fixed</a></h3>
+<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
 <ul>
 <li><strong>Stack overflow with many joins</strong>: All join-loading futures are now <code>Box::pin</code>ned, moving large async state off the stack. Prevents stack overflow in debug builds with many join fields.</li>
 <li><strong>Async state machine bloat in debug builds</strong>: All join-loading futures are wrapped in <code>Box::pin</code>, preventing debug-build async state machine bloat from <code>Related&lt;E&gt;</code> monomorphization.</li>
@@ -650,7 +681,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <ul>
 <li><strong><code>#[crudcrate(enum_field)]</code></strong>: No longer required. Enum fields are auto-detected from the <code>ActiveEnum</code> trait implementation. The attribute still works for backward compatibility but can be safely removed.</li>
 </ul>
-<h3 id="fixed-6"><a class="header" href="#fixed-6">Fixed</a></h3>
+<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
 <ul>
 <li><strong>Array/IN filtering on enum fields</strong>: <code>process_array_filter()</code> now handles enum fields by casting to TEXT and uppercasing on Postgres. Previously, array filters on enum columns could fail on native Postgres ENUM types or produce case-sensitive results.</li>
 </ul>
@@ -720,7 +751,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><code>BATCH_LIMIT</code> and <code>MAX_PAGE_SIZE</code> changed from associated constants to trait methods for runtime overridability</li>
 <li>Batch loading uses <code>.remove()</code> from HashMap instead of <code>.get().cloned()</code>, moving data instead of copying</li>
 </ul>
-<h3 id="fixed-7"><a class="header" href="#fixed-7">Fixed</a></h3>
+<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
 <ul>
 <li>UUID array filtering now passes native <code>Uuid</code> values to <code>is_in()</code> instead of stringified values, fixing incorrect query generation for UUID column arrays</li>
 <li><code>max_page_size()</code> trait method now enforced in HTTP pagination handler</li>
@@ -799,7 +830,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Replace <code>eprintln!</code> with <code>tracing</code> for logging</li>
 <li>Legacy <code>fn_*</code> attributes auto-map to new hook syntax</li>
 </ul>
-<h3 id="fixed-8"><a class="header" href="#fixed-8">Fixed</a></h3>
+<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
 <ul>
 <li>Improved error handling in join path parsing</li>
 <li>Fixed flaky tests with serial execution</li>
@@ -821,7 +852,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>Added <code>tracing</code> for structured logging</li>
 </ul>
 <h2 id="061---2025-11-03"><a class="header" href="#061---2025-11-03"><a href="https://github.com/evanjt/crudcrate/compare/0.6.0...0.6.1">0.6.1</a> - 2025-11-03</a></h2>
-<h3 id="fixed-9"><a class="header" href="#fixed-9">Fixed</a></h3>
+<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
 <ul>
 <li>Global path resolution of joined structs</li>
 <li>Restructuring of crudcrate-derive into smaller modules, bit by bit.</li>
@@ -842,7 +873,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li><strong>derive</strong>: Removed requirement for <code>Eq</code> and <code>PartialEq</code> derives on generated API structs</li>
 <li><strong>derive</strong>: Improved multi-pass code generation to handle cyclic dependencies</li>
 </ul>
-<h3 id="fixed-10"><a class="header" href="#fixed-10">Fixed</a></h3>
+<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
 <ul>
 <li>Database test cleanup logic for PostgreSQL and MySQL backends</li>
 <li>Relationship loading in <code>get_one()</code> and <code>get_all()</code> endpoints</li>
@@ -868,7 +899,7 @@ pub items: Vec&lt;Item&gt;,</code></pre>
 <li>BREAKING: Case-sensitive enum filtering functionality</li>
 </ul>
 <h2 id="045---2025-08-25"><a class="header" href="#045---2025-08-25"><a href="https://github.com/evanjt/crudcrate/compare/0.4.4...0.4.5">0.4.5</a> - 2025-08-25</a></h2>
-<h3 id="fixed-11"><a class="header" href="#fixed-11">Fixed</a></h3>
+<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
 <ul>
 <li>Batch delete endpoints now returns the array of successfully deleted resource UUIDs, suitable for a react-admin batch delete response.</li>
 </ul>
@@ -886,7 +917,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Made <code>validate_field_value</code> function const</li>
 <li>Improved code organization with extracted helper functions</li>
 </ul>
-<h3 id="fixed-12"><a class="header" href="#fixed-12">Fixed</a></h3>
+<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
 <ul>
 <li>All clippy warnings (pessimistic and pedantic)</li>
 <li>Test compilation errors and naming inconsistencies</li>
@@ -898,7 +929,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>Testing</strong>: Integration tests for <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
 <li><strong>Testing</strong>: Comprehensive test suite for <code>use_target_models</code> functionality with cross-model referencing</li>
 </ul>
-<h3 id="fixed-13"><a class="header" href="#fixed-13">Fixed</a></h3>
+<h3 id="fixed-14"><a class="header" href="#fixed-14">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Resolved lingering compilation errors from List model update</li>
 <li><strong>derive</strong>: Fixed test compatibility issues following List model integration</li>
@@ -924,7 +955,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Route generation now uses root-level paths instead of prefixed routes for better user control</li>
 <li><strong>derive</strong>: Enhanced <code>use_target_models</code> functionality for better cross-model integration</li>
 </ul>
-<h3 id="fixed-14"><a class="header" href="#fixed-14">Fixed</a></h3>
+<h3 id="fixed-15"><a class="header" href="#fixed-15">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Fixed ActiveModel generation when create model excludes keys</li>
 <li><strong>derive</strong>: Fixed <code>create_model=false</code> compatibility with <code>non_db_attr</code></li>
@@ -960,7 +991,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Sea-ORM dependency now uses <code>default-features = false</code> with selective feature enabling</li>
 <li>Enhanced README with database feature selection examples</li>
 </ul>
-<h3 id="fixed-15"><a class="header" href="#fixed-15">Fixed</a></h3>
+<h3 id="fixed-16"><a class="header" href="#fixed-16">Fixed</a></h3>
 <ul>
 <li>Enum filtering now supports case-insensitive matching</li>
 <li>Filter edge cases handle malformed JSON gracefully</li>
@@ -993,12 +1024,12 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li><strong>derive</strong>: Enhanced <code>ToCreateModel</code> and <code>ToUpdateModel</code> with new trait system</li>
 <li><strong>derive</strong>: Added <code>MergeIntoActiveModel</code> trait implementation</li>
 </ul>
-<h3 id="fixed-16"><a class="header" href="#fixed-16">Fixed</a></h3>
+<h3 id="fixed-17"><a class="header" href="#fixed-17">Fixed</a></h3>
 <ul>
 <li><strong>derive</strong>: Test infrastructure improvements and better error handling in macro generation</li>
 </ul>
 <h2 id="033---2025-06-23"><a class="header" href="#033---2025-06-23"><a href="https://github.com/evanjt/crudcrate/compare/0.3.2...0.3.3">0.3.3</a> - 2025-06-23</a></h2>
-<h3 id="fixed-17"><a class="header" href="#fixed-17">Fixed</a></h3>
+<h3 id="fixed-18"><a class="header" href="#fixed-18">Fixed</a></h3>
 <ul>
 <li>Fix newline formatting in auto-generated OpenAPI documentation</li>
 <li>Remove debug messages from production builds</li>
@@ -1067,7 +1098,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Comprehensive OpenAPI macro support</li>
 <li>Better API documentation generation</li>
 </ul>
-<h3 id="fixed-18"><a class="header" href="#fixed-18">Fixed</a></h3>
+<h3 id="fixed-19"><a class="header" href="#fixed-19">Fixed</a></h3>
 <ul>
 <li>Improved error responses in endpoints</li>
 </ul>
@@ -1094,7 +1125,7 @@ constant to <code>CRUDResource</code> trait. This does not affect <code>EntityTo
 <li>Legacy route-based implementation</li>
 </ul>
 <h2 id="014---2025-03-03"><a class="header" href="#014---2025-03-03"><a href="https://github.com/evanjt/crudcrate/compare/0.1.3...0.1.4">0.1.4</a> - 2025-03-03</a></h2>
-<h3 id="fixed-19"><a class="header" href="#fixed-19">Fixed</a></h3>
+<h3 id="fixed-20"><a class="header" href="#fixed-20">Fixed</a></h3>
 <ul>
 <li>Fixed return type of <code>delete_one</code> handler</li>
 <li>Applied clippy suggestions for performance improvements</li>
