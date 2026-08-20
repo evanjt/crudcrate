@@ -123,6 +123,10 @@ pub struct Widget { /* ... */ }
 Leave it **off** for entities that have a legitimate unscoped (admin) caller; there, the absence
 of the extension is the intended "see everything" path.
 
+`REQUIRE_SCOPE` governs **reads only**. Write handlers ignore it: they are 403 whenever a
+`ScopeCondition` is present and allowed when it is absent, so the safe-methods-only mounting
+above keeps working. Confining writes to a tenant is the write guard's job, not this flag's.
+
 ## Quick reference
 
 | Concern | Where it lives |

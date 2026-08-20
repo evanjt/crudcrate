@@ -7,6 +7,10 @@
 //! under test is `if REQUIRE_SCOPE && scope.is_none() { return Err(internal(..)) }`,
 //! which maps to HTTP 500.
 //!
+//! Writes are deliberately outside that branch: they are governed by scope presence
+//! alone (403 when a `ScopeCondition` is present, allowed when absent), so the scope
+//! can be mounted on safe methods only. Section 1b pins that contract.
+//!
 //! Self-contained: defines its own entities, its own `setup_test_db`, and uses no
 //! shared `mod common`.
 
@@ -149,6 +153,172 @@ async fn require_scope_get_one_without_scope_returns_500() {
         StatusCode::INTERNAL_SERVER_ERROR,
         "GET /items/{{id}} on a require_scope resource without a ScopeCondition must return 500"
     );
+}
+
+// =============================================================================
+// 1b. Writes are governed by scope presence alone: `require_scope` gates reads.
+//     Without the extension a write proceeds; with it, every write is 403.
+// =============================================================================
+
+async fn send(app: axum::Router, method: &str, uri: &str, body: &str) -> StatusCode {
+    app.oneshot(
+        Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+    )
+    .await
+    .unwrap()
+    .status()
+}
+
+async fn seed_item(db: &DatabaseConnection, name: &str) -> Uuid {
+    rse_item::RseItem::create(
+        db,
+        rse_item::RseItemCreate {
+            name: name.to_string(),
+        },
+    )
+    .await
+    .expect("direct trait create succeeds")
+    .id
+}
+
+#[tokio::test]
+async fn require_scope_create_one_without_scope_is_allowed() {
+    let db = setup_test_db().await.unwrap();
+
+    let status = send(items_app_unscoped(&db), "POST", "/items", r#"{"name":"x"}"#).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let count = rse_item::Entity::find().all(&db).await.unwrap().len();
+    assert_eq!(count, 1, "the accepted create must have written the row");
+}
+
+#[tokio::test]
+async fn require_scope_create_many_without_scope_is_allowed() {
+    let db = setup_test_db().await.unwrap();
+
+    let status = send(
+        items_app_unscoped(&db),
+        "POST",
+        "/items/batch",
+        r#"[{"name":"x"},{"name":"y"}]"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn require_scope_update_one_without_scope_is_allowed() {
+    let db = setup_test_db().await.unwrap();
+    let id = seed_item(&db, "before").await;
+
+    let status = send(
+        items_app_unscoped(&db),
+        "PUT",
+        &format!("/items/{id}"),
+        r#"{"name":"after"}"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let row = rse_item::Entity::find_by_id(id).one(&db).await.unwrap();
+    assert_eq!(row.unwrap().name, "after");
+}
+
+#[tokio::test]
+async fn require_scope_update_many_without_scope_is_allowed() {
+    let db = setup_test_db().await.unwrap();
+    let id = seed_item(&db, "before").await;
+
+    let status = send(
+        items_app_unscoped(&db),
+        "PATCH",
+        "/items/batch",
+        &format!(r#"[{{"id":"{id}","name":"after"}}]"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn require_scope_delete_one_without_scope_is_allowed() {
+    let db = setup_test_db().await.unwrap();
+    let id = seed_item(&db, "doomed").await;
+
+    let status = send(
+        items_app_unscoped(&db),
+        "DELETE",
+        &format!("/items/{id}"),
+        "",
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let count = rse_item::Entity::find().all(&db).await.unwrap().len();
+    assert_eq!(count, 0, "the delete must have removed the row");
+}
+
+#[tokio::test]
+async fn require_scope_delete_many_without_scope_is_allowed() {
+    let db = setup_test_db().await.unwrap();
+    let id = seed_item(&db, "doomed").await;
+
+    let status = send(
+        items_app_unscoped(&db),
+        "DELETE",
+        "/items/batch",
+        &format!(r#"["{id}"]"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn scoped_create_one_returns_403_and_writes_no_row() {
+    let db = setup_test_db().await.unwrap();
+
+    let status = send(items_app_scoped(&db), "POST", "/items", r#"{"name":"x"}"#).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let count = rse_item::Entity::find().all(&db).await.unwrap().len();
+    assert_eq!(count, 0, "the refused create must not have written a row");
+}
+
+#[tokio::test]
+async fn scoped_writes_return_403_on_every_verb() {
+    let db = setup_test_db().await.unwrap();
+    let id = seed_item(&db, "kept").await;
+
+    for (method, uri, body) in [
+        ("POST", "/items".to_string(), r#"{"name":"x"}"#.to_string()),
+        (
+            "POST",
+            "/items/batch".to_string(),
+            r#"[{"name":"x"}]"#.to_string(),
+        ),
+        ("PUT", format!("/items/{id}"), r#"{"name":"x"}"#.to_string()),
+        (
+            "PATCH",
+            "/items/batch".to_string(),
+            format!(r#"[{{"id":"{id}","name":"x"}}]"#),
+        ),
+        ("DELETE", format!("/items/{id}"), String::new()),
+        ("DELETE", "/items/batch".to_string(), format!(r#"["{id}"]"#)),
+    ] {
+        let status = send(items_app_scoped(&db), method, &uri, &body).await;
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "{method} {uri} was not refused"
+        );
+    }
+
+    let row = rse_item::Entity::find_by_id(id).one(&db).await.unwrap();
+    assert_eq!(row.unwrap().name, "kept", "a scoped write reached the row");
 }
 
 // =============================================================================

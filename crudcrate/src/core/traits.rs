@@ -70,8 +70,14 @@ where
     const RESOURCE_DESCRIPTION: &'static str = "";
     const FULLTEXT_LANGUAGE: &'static str = "english";
 
-    /// When true, read handlers return HTTP 500 if no `ScopeCondition` middleware is present.
-    /// Set via `#[crudcrate(require_scope)]` on the struct.
+    /// When true, the generated read handlers (`get_one`, `get_all`) return HTTP 500
+    /// if no `ScopeCondition` middleware is present, so a misrouted mount fails closed
+    /// instead of leaking every row. Set via `#[crudcrate(require_scope)]` on the struct.
+    ///
+    /// Reads only. Write handlers are governed solely by scope presence: 403 when a
+    /// `ScopeCondition` is present, allowed when absent. This supports mounting the
+    /// scope on safe methods only so writes arrive unscoped deliberately. Confining
+    /// writes to a tenant needs hooks or auth middleware, not this flag.
     const REQUIRE_SCOPE: bool = false;
 
     /// Maximum number of items allowed in batch create/update/delete operations.

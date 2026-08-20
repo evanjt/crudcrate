@@ -347,7 +347,24 @@ pub fn generate_get_one_impl(
 
     // Generate get_one_scoped: scope-filtered query + scoped join loading.
     // Uses scope condition on the parent query AND child entity scope conditions on joins.
-    let scoped_body = if has_joins {
+    // A custom body cannot express the scope filter itself, so eligibility is
+    // verified in SQL first and the custom body then shapes the result.
+    let scoped_body = if let Some(ref body_code) = custom_body {
+        quote! {
+            use sea_orm::QueryFilter;
+            let scoped_condition = sea_orm::Condition::all()
+                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(scope.clone());
+            let eligible = Self::EntityType::find()
+                .filter(scoped_condition)
+                .one(db)
+                .await?;
+            if eligible.is_none() {
+                return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string())));
+            }
+            #body_code
+        }
+    } else if has_joins {
         let join_loading_code = generate_get_one_scoped_join_loading(analysis, api_struct_name);
         quote! {
             use sea_orm::{EntityTrait, ModelTrait, Related, QueryFilter};

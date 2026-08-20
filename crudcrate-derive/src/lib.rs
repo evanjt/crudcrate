@@ -521,11 +521,13 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         quote! {}
     };
 
-    // Detect if any fields have exclude(scoped) for scoped model generation
-    let has_scoped_fields = field_analysis.db_fields.iter().any(|f| {
-        use crate::codegen::models::should_include_in_model;
-        !should_include_in_model(f, "scoped_model")
-    });
+    // Detect exclude(scoped) fields with the same predicate model generation
+    // uses, so the router only wires scoped structs that actually exist.
+    let has_scoped_fields = field_analysis
+        .db_fields
+        .iter()
+        .chain(field_analysis.non_db_fields.iter())
+        .any(|f| crate::codegen::models::is_scoped_exclusion(f));
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
         crate::codegen::router::axum::generate_router_impl(&api_struct_name, has_scoped_fields)

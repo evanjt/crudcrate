@@ -113,9 +113,9 @@ pub(crate) fn generate_list_and_response_models(
 
     // Always generate ScopedList/ScopedResponse so parent entities can reference
     // child scoped types in their own scoped models (join fields).
-    let has_scoped_exclusions = all_fields.iter().any(|f| {
-        !should_include_in_model(f, "scoped_model") && should_include_in_model(f, "list_model")
-    });
+    let has_scoped_exclusions = all_fields
+        .iter()
+        .any(crate::codegen::models::is_scoped_exclusion);
 
     let scoped_list_name = format_ident!("{}ScopedList", api_struct_name);
     let scoped_response_name = format_ident!("{}ScopedResponse", api_struct_name);
