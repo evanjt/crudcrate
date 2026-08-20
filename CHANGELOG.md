@@ -5,7 +5,38 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.1] - 2026-08-20
+
+### Fixed
+
+- **`get_one_scoped` ignored `read::one::body`.** The scoped get-one handler
+  had no custom-body branch, so a resource combining a `ScopeCondition` with a
+  custom get-one body silently ran the default query instead. Whatever the
+  body existed to do, extra filtering, joins, shaping, never happened on
+  scoped requests, and rows the body would have refused were served. The
+  handler now checks scope eligibility in SQL first, answers 404 when the
+  scope excludes the row, then delegates to the custom body with the same
+  pre/transform/post hooks as the unscoped path.
+- **Scoped models were generated but never mounted for non-db exclusions.**
+  Model generation and router wiring used different definitions of "has
+  scoped fields": the models counted `exclude(scoped)` on join and
+  `non_db_attr` fields, the router did not. When such a field was the only
+  exclusion, the `ScopedList`/`ScopedOne` structs existed but the router
+  served the plain models, so the supposedly excluded field still reached
+  scoped callers. Both sites now share one predicate.
+- **`require_scope` write semantics documented and pinned.** The flag governs
+  reads only: an unscoped read fails with 500, while writes are governed
+  solely by scope presence (403 when a `ScopeCondition` is present, allowed
+  when absent). That split is what lets an application mount its scope on
+  safe methods only, so writes arrive unscoped deliberately. The trait doc,
+  the multi-tenant guide and new enforcement tests now state the contract
+  explicitly. No behaviour change.
+- **Validation docs described an API that does not exist.**
+  `docs/src/advanced/validation.md` showed a
+  `ValidationFailed(Vec<ValidationError>)` tuple variant and never mentioned
+  the `Validatable` trait, the mechanism the handlers actually invoke. The
+  page now documents `Validatable` and the real
+  `ApiError::validation_failed(Vec<String>)` constructor.
 
 ## [0.10.0] - 2026-08-19
 
@@ -915,7 +946,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
-[Unreleased]: https://github.com/evanjt/crudcrate/compare/0.10.0...HEAD
+[0.10.1]: https://github.com/evanjt/crudcrate/compare/0.10.0...0.10.1
 [0.10.0]: https://github.com/evanjt/crudcrate/compare/0.9.3...0.10.0
 [0.9.3]: https://github.com/evanjt/crudcrate/compare/0.9.2...0.9.3
 [0.9.2]: https://github.com/evanjt/crudcrate/compare/0.9.1...0.9.2

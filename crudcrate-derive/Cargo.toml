@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate-derive"
-version = "0.10.0"
+version = "0.10.1"
 edition = "2024"
 rust-version = "1.85"
 description = "Derive macros for crudcrate: generate CRUD endpoints from Sea-ORM entities"
