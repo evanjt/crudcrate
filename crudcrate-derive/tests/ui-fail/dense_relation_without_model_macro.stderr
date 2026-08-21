@@ -5,11 +5,11 @@ error: relation wrapper fields (HasMany/HasOne/BelongsTo) require the Sea-ORM 2.
 46 | |         pub books: HasMany<super::book::Entity>,
    | |_______________________________________________^
 
-error[E0277]: the trait bound `sea_orm::prelude::HasMany<book::Entity>: ValueType` is not satisfied
+error[E0277]: the trait bound `sea_orm::compound::HasMany<book::Entity>: ValueType` is not satisfied
   --> tests/ui-fail/dense_relation_without_model_macro.rs:45:9
    |
 45 |         #[sea_orm(has_many)]
-   |         ^ the trait `ValueType` is not implemented for `sea_orm::prelude::HasMany<book::Entity>`
+   |         ^ the trait `ValueType` is not implemented for `sea_orm::compound::HasMany<book::Entity>`
    |
    = help: the following other types implement trait `ValueType`:
              Braced
