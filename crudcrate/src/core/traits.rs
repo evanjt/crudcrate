@@ -274,6 +274,22 @@ where
         Ok(condition)
     }
 
+    /// The primary key value of an entity model.
+    ///
+    /// The derive macro overrides this with a direct field read. The default
+    /// reads the first primary key column through `ModelTrait::get`.
+    fn pk_value(model: &<Self::EntityType as EntityTrait>::Model) -> PrimaryKeyType<Self> {
+        use sea_orm::sea_query::FromValueTuple;
+        use sea_orm::{Iterable, ModelTrait, PrimaryKeyToColumn};
+        let column = <Self::EntityType as EntityTrait>::PrimaryKey::iter()
+            .next()
+            .map(PrimaryKeyToColumn::into_column);
+        match column {
+            Some(column) => FromValueTuple::from_value_tuple(model.get(column)),
+            None => unreachable!("entity without a primary key column"),
+        }
+    }
+
     async fn get_one(db: &DatabaseConnection, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
         crate::core::defaults::get_one::<Self>(db, id).await
     }

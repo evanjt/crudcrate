@@ -36,6 +36,13 @@ pub(crate) fn generate_crud_resource_impl(
     ) = generate_crud_type_aliases(api_struct_name, crud_meta, active_model_path);
 
     let id_column = generate_id_column(analysis.primary_key_field);
+    let pk_value_impl = analysis.primary_key_field.and_then(|f| f.ident.as_ref()).map(|pk| {
+        quote! {
+            fn pk_value(model: &<Self::EntityType as sea_orm::EntityTrait>::Model) -> crudcrate::PrimaryKeyType<Self> {
+                model.#pk.clone()
+            }
+        }
+    });
     let sortable_entries = generate_field_entries(&analysis.sortable_fields);
     let filterable_entries = generate_field_entries(&analysis.filterable_fields);
     let like_filterable_entries = generate_like_filterable_entries(&analysis.filterable_fields);
@@ -126,6 +133,7 @@ pub(crate) fn generate_crud_resource_impl(
             type ListModel = #list_model_name;
 
             const ID_COLUMN: Self::ColumnType = #id_column;
+            #pk_value_impl
             const RESOURCE_NAME_SINGULAR: &'static str = #name_singular;
             #resource_name_plural_impl
             const TABLE_NAME: &'static str = #table_name;

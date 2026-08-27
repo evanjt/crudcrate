@@ -14,6 +14,8 @@ mod join_filter_sort_test;
 mod join_functionality_test;
 #[path = "it/join_get_all_depth_coverage_test.rs"]
 mod join_get_all_depth_coverage_test;
+#[path = "it/join_pk_field_name_test.rs"]
+mod join_pk_field_name_test;
 #[path = "it/joined_filter_http_test.rs"]
 mod joined_filter_http_test;
 #[path = "it/joined_sort_http_test.rs"]

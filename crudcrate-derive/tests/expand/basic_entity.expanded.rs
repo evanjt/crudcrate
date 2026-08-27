@@ -36,6 +36,11 @@ mod Model {
         type UpdateModel = TodoUpdate;
         type ListModel = TodoList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "todos";
         const RESOURCE_NAME_PLURAL: &'static str = "todos";
         const TABLE_NAME: &'static str = "todos";

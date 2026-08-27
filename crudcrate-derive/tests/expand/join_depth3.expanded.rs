@@ -35,6 +35,11 @@ mod part__Model {
         type UpdateModel = PartUpdate;
         type ListModel = PartList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "parts";
         const RESOURCE_NAME_PLURAL: &'static str = "parts";
         const TABLE_NAME: &'static str = "parts";
@@ -487,6 +492,11 @@ mod vehicle__Model {
         type UpdateModel = VehicleUpdate;
         type ListModel = VehicleList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "vehicles";
         const RESOURCE_NAME_PLURAL: &'static str = "vehicles";
         const TABLE_NAME: &'static str = "vehicles";
@@ -576,12 +586,20 @@ mod vehicle__Model {
                                 sea_orm::sea_query::Expr::col(
                                         sea_orm::sea_query::Alias::new(&__fk_col_name),
                                     )
-                                    .eq(model.id),
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
                             );
                         let related_models = Box::pin(query.all(db)).await?;
                         let mut result = Vec::new();
                         for related_model in related_models {
-                            match super::part::Part::get_one(db, related_model.id).await
+                            match super::part::Part::get_one(
+                                    db,
+                                    <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
+                                        &related_model,
+                                    ),
+                                )
+                                .await
                             {
                                 Ok(entity) => result.push(entity),
                                 Err(e) => {
@@ -638,7 +656,9 @@ mod vehicle__Model {
                                 sea_orm::sea_query::Expr::col(
                                         sea_orm::sea_query::Alias::new(&__fk_col_name),
                                     )
-                                    .eq(model.id),
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
                             );
                         let query = if let Some(child_scope) = <super::part::PartList as crudcrate::ScopeFilterable>::scope_condition() {
                             query.filter(child_scope)
@@ -653,7 +673,9 @@ mod vehicle__Model {
                                 Some(cs) => {
                                     match super::part::Part::get_one_scoped(
                                             db,
-                                            related_model.id,
+                                            <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
+                                                &related_model,
+                                            ),
                                             &cs,
                                         )
                                         .await
@@ -669,7 +691,13 @@ mod vehicle__Model {
                                     }
                                 }
                                 None => {
-                                    match super::part::Part::get_one(db, related_model.id).await
+                                    match super::part::Part::get_one(
+                                            db,
+                                            <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
+                                                &related_model,
+                                            ),
+                                        )
+                                        .await
                                     {
                                         Ok(entity) => result.push(entity),
                                         Err(e) => {
@@ -770,7 +798,9 @@ mod vehicle__Model {
                         };
                         let entity = match super::part::Part::get_one(
                                 db,
-                                related_model.id,
+                                <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
+                                    &related_model,
+                                ),
                             )
                             .await
                         {
@@ -878,7 +908,9 @@ mod vehicle__Model {
                             Some(cs) => {
                                 match super::part::Part::get_one_scoped(
                                         db,
-                                        related_model.id,
+                                        <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
+                                            &related_model,
+                                        ),
                                         cs,
                                     )
                                     .await
@@ -894,7 +926,13 @@ mod vehicle__Model {
                                 }
                             }
                             None => {
-                                match super::part::Part::get_one(db, related_model.id).await
+                                match super::part::Part::get_one(
+                                        db,
+                                        <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
+                                            &related_model,
+                                        ),
+                                    )
+                                    .await
                                 {
                                     Ok(e) => e,
                                     Err(e) => {
@@ -1250,6 +1288,11 @@ mod customer__Model {
         type UpdateModel = CustomerUpdate;
         type ListModel = CustomerList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "customers";
         const RESOURCE_NAME_PLURAL: &'static str = "customers";
         const TABLE_NAME: &'static str = "customers";
@@ -1327,12 +1370,19 @@ mod customer__Model {
                                 sea_orm::sea_query::Expr::col(
                                         sea_orm::sea_query::Alias::new(&__fk_col_name),
                                     )
-                                    .eq(model.id),
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
                             );
                         let related_models = Box::pin(query.all(db)).await?;
                         let mut result = Vec::new();
                         for related_model in related_models {
-                            match super::vehicle::Vehicle::get_one(db, related_model.id)
+                            match super::vehicle::Vehicle::get_one(
+                                    db,
+                                    <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
+                                        &related_model,
+                                    ),
+                                )
                                 .await
                             {
                                 Ok(entity) => result.push(entity),
@@ -1390,7 +1440,9 @@ mod customer__Model {
                                 sea_orm::sea_query::Expr::col(
                                         sea_orm::sea_query::Alias::new(&__fk_col_name),
                                     )
-                                    .eq(model.id),
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
                             );
                         let query = if let Some(child_scope) = <super::vehicle::VehicleList as crudcrate::ScopeFilterable>::scope_condition() {
                             query.filter(child_scope)
@@ -1405,7 +1457,9 @@ mod customer__Model {
                                 Some(cs) => {
                                     match super::vehicle::Vehicle::get_one_scoped(
                                             db,
-                                            related_model.id,
+                                            <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
+                                                &related_model,
+                                            ),
                                             &cs,
                                         )
                                         .await
@@ -1421,7 +1475,12 @@ mod customer__Model {
                                     }
                                 }
                                 None => {
-                                    match super::vehicle::Vehicle::get_one(db, related_model.id)
+                                    match super::vehicle::Vehicle::get_one(
+                                            db,
+                                            <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
+                                                &related_model,
+                                            ),
+                                        )
                                         .await
                                     {
                                         Ok(entity) => result.push(entity),
@@ -1523,7 +1582,9 @@ mod customer__Model {
                         };
                         let entity = match super::vehicle::Vehicle::get_one(
                                 db,
-                                related_model.id,
+                                <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
+                                    &related_model,
+                                ),
                             )
                             .await
                         {
@@ -1633,7 +1694,9 @@ mod customer__Model {
                             Some(cs) => {
                                 match super::vehicle::Vehicle::get_one_scoped(
                                         db,
-                                        related_model.id,
+                                        <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
+                                            &related_model,
+                                        ),
                                         cs,
                                     )
                                     .await
@@ -1649,7 +1712,12 @@ mod customer__Model {
                                 }
                             }
                             None => {
-                                match super::vehicle::Vehicle::get_one(db, related_model.id)
+                                match super::vehicle::Vehicle::get_one(
+                                        db,
+                                        <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
+                                            &related_model,
+                                        ),
+                                    )
                                     .await
                                 {
                                     Ok(e) => e,

@@ -36,6 +36,11 @@ mod Model {
         type UpdateModel = ProductUpdate;
         type ListModel = ProductList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "products";
         const RESOURCE_NAME_PLURAL: &'static str = "products";
         const TABLE_NAME: &'static str = "products";

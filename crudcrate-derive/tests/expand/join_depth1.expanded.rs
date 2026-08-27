@@ -37,6 +37,11 @@ mod vehicle_part__Model {
         type UpdateModel = VehiclePartUpdate;
         type ListModel = VehiclePartList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "vehicle_parts";
         const RESOURCE_NAME_PLURAL: &'static str = "vehicle_parts";
         const TABLE_NAME: &'static str = "vehicle_parts";
@@ -487,6 +492,11 @@ mod vehicle__Model {
         type UpdateModel = VehicleUpdate;
         type ListModel = VehicleList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "vehicles";
         const RESOURCE_NAME_PLURAL: &'static str = "vehicles";
         const TABLE_NAME: &'static str = "vehicles";
@@ -564,7 +574,9 @@ mod vehicle__Model {
                                 sea_orm::sea_query::Expr::col(
                                         sea_orm::sea_query::Alias::new(&__fk_col_name),
                                     )
-                                    .eq(model.id),
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
                             );
                         let related_models = Box::pin(query.all(db)).await?;
                         related_models
@@ -617,7 +629,9 @@ mod vehicle__Model {
                                 sea_orm::sea_query::Expr::col(
                                         sea_orm::sea_query::Alias::new(&__fk_col_name),
                                     )
-                                    .eq(model.id),
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
                             );
                         let query = if let Some(child_scope) = <super::vehicle_part::VehiclePartList as crudcrate::ScopeFilterable>::scope_condition() {
                             query.filter(child_scope)

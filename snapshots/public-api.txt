@@ -67,13 +67,13 @@ pub fn crudcrate::batch::BatchResult<T>::name() -> alloc::borrow::Cow<'static, s
 pub fn crudcrate::batch::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
 impl<T> utoipa::__dev::ComposeSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
 pub fn crudcrate::batch::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T>
-impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where T: core::marker::Send
-impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where T: core::marker::Sync
-impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Freeze
+impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::UnsafeUnpin
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::panic::unwind_safe::UnwindSafe
 pub mod crudcrate::core
 pub mod crudcrate::core::handler_macros
 pub mod crudcrate::core::traits
@@ -125,6 +125,7 @@ pub fn crudcrate::core::traits::CRUDResource::joined_sortable_columns() -> alloc
 pub fn crudcrate::core::traits::CRUDResource::like_filterable_columns() -> alloc::vec::Vec<&'static str>
 pub fn crudcrate::core::traits::CRUDResource::max_page_size() -> u64
 pub fn crudcrate::core::traits::CRUDResource::normalize_enum_value(&str, &str) -> core::option::Option<alloc::string::String>
+pub fn crudcrate::core::traits::CRUDResource::pk_value(&<Self::EntityType as sea_orm::entity::base_entity::EntityTrait>::Model) -> crudcrate::core::traits::PrimaryKeyType<Self>
 pub fn crudcrate::core::traits::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crate::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::core::traits::CRUDResource::scoped_excluded_columns() -> &'static [&'static str]
 pub fn crudcrate::core::traits::CRUDResource::security_profile() -> crudcrate::profile::SecurityProfile
@@ -183,6 +184,7 @@ pub fn crudcrate::core::CRUDResource::joined_sortable_columns() -> alloc::vec::V
 pub fn crudcrate::core::CRUDResource::like_filterable_columns() -> alloc::vec::Vec<&'static str>
 pub fn crudcrate::core::CRUDResource::max_page_size() -> u64
 pub fn crudcrate::core::CRUDResource::normalize_enum_value(&str, &str) -> core::option::Option<alloc::string::String>
+pub fn crudcrate::core::CRUDResource::pk_value(&<Self::EntityType as sea_orm::entity::base_entity::EntityTrait>::Model) -> crudcrate::core::traits::PrimaryKeyType<Self>
 pub fn crudcrate::core::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crate::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::core::CRUDResource::scoped_excluded_columns() -> &'static [&'static str]
 pub fn crudcrate::core::CRUDResource::security_profile() -> crudcrate::profile::SecurityProfile
@@ -294,13 +296,13 @@ pub fn crudcrate::batch::BatchResult<T>::name() -> alloc::borrow::Cow<'static, s
 pub fn crudcrate::batch::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
 impl<T> utoipa::__dev::ComposeSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
 pub fn crudcrate::batch::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T>
-impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where T: core::marker::Send
-impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where T: core::marker::Sync
-impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Freeze
+impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::UnsafeUnpin
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::panic::unwind_safe::UnwindSafe
 pub mod crudcrate::filtering
 pub use crudcrate::filtering::BatchOptions
 pub use crudcrate::filtering::FilterOperator
@@ -354,13 +356,13 @@ pub fn crudcrate::operations::DefaultCRUDOperations<T>::perform_delete_many<'lif
 pub fn crudcrate::operations::DefaultCRUDOperations<T>::perform_update<'life0, 'life1, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<<Self as crudcrate::operations::CRUDOperations>::Resource>, <Self::Resource as crudcrate::core::traits::CRUDResource>::UpdateModel) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self::Resource, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::operations::DefaultCRUDOperations<T>::update<'life0, 'life1, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<<Self as crudcrate::operations::CRUDOperations>::Resource>, <Self::Resource as crudcrate::core::traits::CRUDResource>::UpdateModel) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self::Resource, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::operations::DefaultCRUDOperations<T>::update_many<'life0, 'life1, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, alloc::vec::Vec<(crudcrate::core::traits::PrimaryKeyType<<Self as crudcrate::operations::CRUDOperations>::Resource>, <Self::Resource as crudcrate::core::traits::CRUDResource>::UpdateModel)>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<Self::Resource>, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
-impl<T> core::marker::Freeze for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::marker::Send for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::marker::Sync for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::marker::Unpin for crudcrate::operations::DefaultCRUDOperations<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> core::marker::Freeze for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Freeze
+impl<T> core::marker::Send for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::UnsafeUnpin
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::panic::unwind_safe::UnwindSafe
 pub trait crudcrate::operations::CRUDOperations: core::marker::Send + core::marker::Sync
 pub type crudcrate::operations::CRUDOperations::Resource: crudcrate::core::traits::CRUDResource
 pub fn crudcrate::operations::CRUDOperations::after_create<'life0, 'life1, 'life2, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, &'life2 mut Self::Resource) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<(), crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait, 'life2: 'async_trait
@@ -621,13 +623,13 @@ pub fn crudcrate::batch::BatchResult<T>::name() -> alloc::borrow::Cow<'static, s
 pub fn crudcrate::batch::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
 impl<T> utoipa::__dev::ComposeSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
 pub fn crudcrate::batch::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T>
-impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where T: core::marker::Send
-impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where T: core::marker::Sync
-impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Freeze
+impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::marker::UnsafeUnpin
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where alloc::vec::Vec<T>: core::panic::unwind_safe::UnwindSafe
 pub struct crudcrate::DefaultCRUDOperations<T: crudcrate::core::traits::CRUDResource>
 impl<T: crudcrate::core::traits::CRUDResource> crudcrate::operations::DefaultCRUDOperations<T>
 pub const fn crudcrate::operations::DefaultCRUDOperations<T>::new() -> Self
@@ -661,13 +663,13 @@ pub fn crudcrate::operations::DefaultCRUDOperations<T>::perform_delete_many<'lif
 pub fn crudcrate::operations::DefaultCRUDOperations<T>::perform_update<'life0, 'life1, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<<Self as crudcrate::operations::CRUDOperations>::Resource>, <Self::Resource as crudcrate::core::traits::CRUDResource>::UpdateModel) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self::Resource, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::operations::DefaultCRUDOperations<T>::update<'life0, 'life1, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<<Self as crudcrate::operations::CRUDOperations>::Resource>, <Self::Resource as crudcrate::core::traits::CRUDResource>::UpdateModel) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self::Resource, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::operations::DefaultCRUDOperations<T>::update_many<'life0, 'life1, 'async_trait>(&'life0 self, &'life1 sea_orm::database::db_connection::DatabaseConnection, alloc::vec::Vec<(crudcrate::core::traits::PrimaryKeyType<<Self as crudcrate::operations::CRUDOperations>::Resource>, <Self::Resource as crudcrate::core::traits::CRUDResource>::UpdateModel)>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<alloc::vec::Vec<Self::Resource>, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
-impl<T> core::marker::Freeze for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::marker::Send for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::marker::Sync for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::marker::Unpin for crudcrate::operations::DefaultCRUDOperations<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::operations::DefaultCRUDOperations<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> core::marker::Freeze for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Freeze
+impl<T> core::marker::Send for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::marker::UnsafeUnpin
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where core::marker::PhantomData<T>: core::panic::unwind_safe::UnwindSafe
 pub struct crudcrate::ScopeCondition
 pub crudcrate::ScopeCondition::condition: sea_query::query::condition::Condition
 impl crudcrate::scope::ScopeCondition
@@ -810,6 +812,7 @@ pub fn crudcrate::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<cra
 pub fn crudcrate::CRUDResource::like_filterable_columns() -> alloc::vec::Vec<&'static str>
 pub fn crudcrate::CRUDResource::max_page_size() -> u64
 pub fn crudcrate::CRUDResource::normalize_enum_value(&str, &str) -> core::option::Option<alloc::string::String>
+pub fn crudcrate::CRUDResource::pk_value(&<Self::EntityType as sea_orm::entity::base_entity::EntityTrait>::Model) -> crudcrate::core::traits::PrimaryKeyType<Self>
 pub fn crudcrate::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crate::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::CRUDResource::scoped_excluded_columns() -> &'static [&'static str]
 pub fn crudcrate::CRUDResource::security_profile() -> crudcrate::profile::SecurityProfile

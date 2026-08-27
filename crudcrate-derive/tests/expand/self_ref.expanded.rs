@@ -39,6 +39,11 @@ mod Model {
         type UpdateModel = CategoryUpdate;
         type ListModel = CategoryList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "categories";
         const RESOURCE_NAME_PLURAL: &'static str = "categories";
         const TABLE_NAME: &'static str = "categories";
@@ -118,7 +123,12 @@ mod Model {
                     let loaded_children: Vec<Category> = {
                         use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait};
                         let query = super::category::Entity::find()
-                            .filter(super::category::Column::ParentId.eq(model.id));
+                            .filter(
+                                super::category::Column::ParentId
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
+                            );
                         let related_models = Box::pin(query.all(db)).await?;
                         related_models
                             .into_iter()
@@ -158,7 +168,12 @@ mod Model {
                     let loaded_children: Vec<Category> = {
                         use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait};
                         let query = super::category::Entity::find()
-                            .filter(super::category::Column::ParentId.eq(model.id));
+                            .filter(
+                                super::category::Column::ParentId
+                                    .eq(
+                                        <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
+                                    ),
+                            );
                         let query = if let Some(child_scope) = <super::category::CategoryList as crudcrate::ScopeFilterable>::scope_condition() {
                             query.filter(child_scope)
                         } else {

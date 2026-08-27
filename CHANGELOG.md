@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Join loading at depth 2 or more read `related_model.id`, so a child entity
+  whose primary key field has another name failed to compile. Loaders now go
+  through the new provided `CRUDResource::pk_value(&model)`, which the derive
+  overrides with the actual field.
 - Generated routers named `tracing::info!` without qualification, so a crate
   without a direct `tracing` dependency failed to compile. Generated code now
   goes through `crudcrate::tracing`.

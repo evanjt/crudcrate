@@ -55,6 +55,11 @@ mod Model {
         type UpdateModel = CustomerUpdate;
         type ListModel = CustomerList;
         const ID_COLUMN: Self::ColumnType = Self::ColumnType::Id;
+        fn pk_value(
+            model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
+        ) -> crudcrate::PrimaryKeyType<Self> {
+            model.id.clone()
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "customers";
         const RESOURCE_NAME_PLURAL: &'static str = "customers";
         const TABLE_NAME: &'static str = "customers";
