@@ -62,6 +62,9 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                                         Some("batch_limit") => {
                                             meta.batch_limit = i.base10_parse().ok();
                                         }
+                                        Some("max_child_rows") => {
+                                            meta.max_child_rows = i.base10_parse().ok();
+                                        }
                                         Some("max_page_size") => {
                                             meta.max_page_size = i.base10_parse().ok();
                                         }

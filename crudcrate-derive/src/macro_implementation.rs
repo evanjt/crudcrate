@@ -98,17 +98,30 @@ pub(crate) fn generate_crud_resource_impl(
         }
     });
 
-    let security_profile_impl = crud_meta.security_profile.as_deref().and_then(|preset| {
-        let ctor = match preset {
-            "secure" => quote! { crudcrate::SecurityProfile::secure() },
-            "react_admin" => quote! { crudcrate::SecurityProfile::react_admin() },
-            "legacy" => quote! { crudcrate::SecurityProfile::legacy() },
-            _ => return None,
+    let security_profile_impl = {
+        let preset = match crud_meta.security_profile.as_deref() {
+            Some("secure") => Some(quote! { crudcrate::SecurityProfile::secure() }),
+            Some("react_admin") => Some(quote! { crudcrate::SecurityProfile::react_admin() }),
+            Some("legacy") => Some(quote! { crudcrate::SecurityProfile::legacy() }),
+            _ => None,
         };
-        Some(quote! {
-            fn security_profile() -> crudcrate::SecurityProfile { #ctor }
-        })
-    });
+        match (preset, crud_meta.max_child_rows) {
+            (None, None) => None,
+            (preset, cap) => {
+                let base =
+                    preset.unwrap_or_else(|| quote! { crudcrate::SecurityProfile::secure() });
+                let body = match cap {
+                    Some(cap) => quote! {
+                        crudcrate::SecurityProfile { max_child_rows_per_relation: Some(#cap), ..#base }
+                    },
+                    None => base,
+                };
+                Some(quote! {
+                    fn security_profile() -> crudcrate::SecurityProfile { #body }
+                })
+            }
+        }
+    };
 
     // Generate require_scope constant (only when attribute is set, otherwise use trait default)
     let require_scope_impl = if crud_meta.require_scope {

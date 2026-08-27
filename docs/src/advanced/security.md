@@ -76,6 +76,16 @@ pub struct Model { /* ... */ }
 Override at runtime by implementing `CRUDResource::batch_limit()` (for
 example, reading from an environment variable).
 
+### Child row cap
+
+`Vec<Child>` joins load every matching child row for the parents on the page. Cap that per join field and per request with `max_child_rows`; a request that would exceed it returns `413 Payload Too Large`. The cap is unlimited unless set.
+
+```rust
+#[crudcrate(generate_router, max_child_rows = 500)]
+```
+
+The same value is `max_child_rows_per_relation` on `SecurityProfile`. It is read from the resource's `security_profile()` during join loading, so a request-time `Extension` does not change it. Joined-filter sub-queries are not affected: the database evaluates them without returning child rows.
+
 ### Partial-success mode
 
 `POST /resource/batch?partial=true` (and the equivalents for `PATCH`

@@ -590,7 +590,18 @@ mod vehicle__Model {
                                         <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
                                     ),
                             );
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "parts",
+                            )?;
                         let mut result = Vec::new();
                         for related_model in related_models {
                             match <super::part::Part as crudcrate::traits::CRUDResource>::get_one(
@@ -665,7 +676,18 @@ mod vehicle__Model {
                         } else {
                             query
                         };
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "parts",
+                            )?;
                         let mut result = Vec::new();
                         for related_model in related_models {
                             let __child_scope = <super::part::PartList as crudcrate::ScopeFilterable>::scope_condition();
@@ -767,9 +789,20 @@ mod vehicle__Model {
                                 )
                                 .is_in(parent_ids.clone()),
                         );
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related_models: Vec<super::part::Model> = query
                         .all(db)
                         .await?;
+                    __profile
+                        .check_child_rows(
+                            all_related_models.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "parts",
+                        )?;
                     let __fk_col = match <<super::part::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {
@@ -875,9 +908,20 @@ mod vehicle__Model {
                     } else {
                         query
                     };
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related_models: Vec<super::part::Model> = query
                         .all(db)
                         .await?;
+                    __profile
+                        .check_child_rows(
+                            all_related_models.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "parts",
+                        )?;
                     let __fk_col = match <<super::part::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {
@@ -1374,7 +1418,18 @@ mod customer__Model {
                                         <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
                                     ),
                             );
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "vehicles",
+                            )?;
                         let mut result = Vec::new();
                         for related_model in related_models {
                             match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one(
@@ -1449,7 +1504,18 @@ mod customer__Model {
                         } else {
                             query
                         };
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "vehicles",
+                            )?;
                         let mut result = Vec::new();
                         for related_model in related_models {
                             let __child_scope = <super::vehicle::VehicleList as crudcrate::ScopeFilterable>::scope_condition();
@@ -1551,9 +1617,20 @@ mod customer__Model {
                                 )
                                 .is_in(parent_ids.clone()),
                         );
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related_models: Vec<super::vehicle::Model> = query
                         .all(db)
                         .await?;
+                    __profile
+                        .check_child_rows(
+                            all_related_models.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "vehicles",
+                        )?;
                     let __fk_col = match <<super::vehicle::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {
@@ -1661,9 +1738,20 @@ mod customer__Model {
                     } else {
                         query
                     };
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related_models: Vec<super::vehicle::Model> = query
                         .all(db)
                         .await?;
+                    __profile
+                        .check_child_rows(
+                            all_related_models.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "vehicles",
+                        )?;
                     let __fk_col = match <<super::vehicle::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {

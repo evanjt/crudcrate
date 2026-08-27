@@ -578,7 +578,18 @@ mod vehicle__Model {
                                         <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
                                     ),
                             );
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "parts",
+                            )?;
                         related_models
                             .into_iter()
                             .map(|m: super::vehicle_part::Model| super::vehicle_part::VehiclePart::from(
@@ -638,7 +649,18 @@ mod vehicle__Model {
                         } else {
                             query
                         };
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "parts",
+                            )?;
                         related_models
                             .into_iter()
                             .map(|m: super::vehicle_part::Model| super::vehicle_part::VehiclePart::from(
@@ -700,7 +722,18 @@ mod vehicle__Model {
                                 )
                                 .is_in(parent_ids.clone()),
                         );
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related = query.all(db).await?;
+                    __profile
+                        .check_child_rows(
+                            all_related.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "parts",
+                        )?;
                     let __fk_col = match <<super::vehicle_part::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {
@@ -791,7 +824,18 @@ mod vehicle__Model {
                     } else {
                         query
                     };
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related = query.all(db).await?;
+                    __profile
+                        .check_child_rows(
+                            all_related.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "parts",
+                        )?;
                     let __fk_col = match <<super::vehicle_part::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {

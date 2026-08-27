@@ -1,5 +1,7 @@
 //! Security tests, one module per file under `tests/it/`.
 
+#[path = "it/child_row_cap_test.rs"]
+mod child_row_cap_test;
 #[path = "it/secure_partial_delete_test.rs"]
 mod secure_partial_delete_test;
 #[path = "it/security_array_filter_cap_test.rs"]

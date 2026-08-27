@@ -88,6 +88,7 @@ fn generate_batch_loading_impl(
         let Some(field_name) = &field.ident else {
             continue;
         };
+        let field_name_str = field_name.to_string();
 
         let join_config = get_join_config(field).unwrap_or_default();
         let is_vec_field = is_vec_type(&field.ty);
@@ -180,7 +181,17 @@ fn generate_batch_loading_impl(
                             let query = #entity_path::find()
                                 .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()));
                             #scope_filter_for_vec
+                            let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                            let query = match __profile.child_row_limit() {
+                                Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                                None => query,
+                            };
                             let all_related = query.all(db).await?;
+                            __profile.check_child_rows(
+                                all_related.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                #field_name_str,
+                            )?;
 
                             let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
@@ -209,7 +220,17 @@ fn generate_batch_loading_impl(
                                     sea_orm::sea_query::Alias::new(&__fk_col_name)
                                 ).is_in(parent_ids.clone()));
                             #scope_filter_for_vec
+                            let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                            let query = match __profile.child_row_limit() {
+                                Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                                None => query,
+                            };
                             let all_related = query.all(db).await?;
+                            __profile.check_child_rows(
+                                all_related.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                #field_name_str,
+                            )?;
 
                             let __fk_col = match <<#entity_path as sea_orm::EntityTrait>::Column
                                 as FromStr>::from_str(&__fk_col_name)
@@ -246,7 +267,17 @@ fn generate_batch_loading_impl(
                             let query = #entity_path::find()
                                 .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()));
                             #scope_filter_for_vec
+                            let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                            let query = match __profile.child_row_limit() {
+                                Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                                None => query,
+                            };
                             let all_related = query.all(db).await?;
+                            __profile.check_child_rows(
+                                all_related.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                #field_name_str,
+                            )?;
 
                             let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();
@@ -315,7 +346,17 @@ fn generate_batch_loading_impl(
                                     sea_orm::sea_query::Alias::new(&__fk_col_name)
                                 ).is_in(parent_ids.clone()));
                             #scope_filter_for_vec
+                            let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                            let query = match __profile.child_row_limit() {
+                                Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                                None => query,
+                            };
                             let all_related_models: Vec<#model_path> = query.all(db).await?;
+                            __profile.check_child_rows(
+                                all_related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                #field_name_str,
+                            )?;
 
                             let __fk_col = match <<#entity_path as sea_orm::EntityTrait>::Column
                                 as FromStr>::from_str(&__fk_col_name)
@@ -352,7 +393,17 @@ fn generate_batch_loading_impl(
                             let query = #entity_path::find()
                                 .filter(#column_path::#fk_column_pascal.is_in(parent_ids.clone()));
                             #scope_filter_for_vec
+                            let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                            let query = match __profile.child_row_limit() {
+                                Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                                None => query,
+                            };
                             let all_related_models: Vec<#model_path> = query.all(db).await?;
+                            __profile.check_child_rows(
+                                all_related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                #field_name_str,
+                            )?;
 
                             let mut map: std::collections::HashMap<#parent_pk_ty, Vec<#api_struct_type>> =
                                 std::collections::HashMap::new();

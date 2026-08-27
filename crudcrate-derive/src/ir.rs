@@ -60,6 +60,7 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) derive_eq: bool,
     // Configurable limits
     pub(crate) batch_limit: Option<usize>,
+    pub(crate) max_child_rows: Option<usize>,
     pub(crate) max_page_size: Option<u64>,
     // Per-resource security profile preset name: "secure", "react_admin", "legacy"
     pub(crate) security_profile: Option<String>,

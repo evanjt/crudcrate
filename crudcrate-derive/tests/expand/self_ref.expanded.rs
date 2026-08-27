@@ -129,7 +129,18 @@ mod Model {
                                         <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
                                     ),
                             );
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "children",
+                            )?;
                         related_models
                             .into_iter()
                             .map(|m: super::category::Model| Category::from(m))
@@ -179,7 +190,18 @@ mod Model {
                         } else {
                             query
                         };
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "children",
+                            )?;
                         related_models
                             .into_iter()
                             .map(|m: super::category::Model| Category::from(m))
@@ -229,7 +251,18 @@ mod Model {
                         .filter(
                             super::category::Column::ParentId.is_in(parent_ids.clone()),
                         );
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related = query.all(db).await?;
+                    __profile
+                        .check_child_rows(
+                            all_related.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "children",
+                        )?;
                     let mut map: std::collections::HashMap<
                         crudcrate::PrimaryKeyType<Self>,
                         Vec<Category>,
@@ -293,7 +326,18 @@ mod Model {
                     } else {
                         query
                     };
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related = query.all(db).await?;
+                    __profile
+                        .check_child_rows(
+                            all_related.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "children",
+                        )?;
                     let mut map: std::collections::HashMap<
                         crudcrate::PrimaryKeyType<Self>,
                         Vec<Category>,

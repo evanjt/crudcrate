@@ -73,6 +73,12 @@ pub enum ApiError {
         message: String,
     },
 
+    /// 413 Payload Too Large - A response would exceed a configured size cap
+    PayloadTooLarge {
+        /// User-facing error message
+        message: String,
+    },
+
     /// 422 Unprocessable Entity - Validation failed
     ValidationFailed {
         /// User-facing validation errors
@@ -172,6 +178,13 @@ impl ApiError {
         }
     }
 
+    /// Create a 413 Payload Too Large error
+    pub fn payload_too_large(message: impl Into<String>) -> Self {
+        Self::PayloadTooLarge {
+            message: message.into(),
+        }
+    }
+
     /// Create a 422 Validation Failed error
     ///
     /// # Example
@@ -267,6 +280,7 @@ impl ApiError {
             Self::Unauthorized { .. } => StatusCode::UNAUTHORIZED,
             Self::Forbidden { .. } => StatusCode::FORBIDDEN,
             Self::Conflict { .. } => StatusCode::CONFLICT,
+            Self::PayloadTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::ValidationFailed { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::Database { .. } | Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Custom { status, .. } => *status,
@@ -294,6 +308,7 @@ impl ApiError {
             | Self::Unauthorized { message }
             | Self::Forbidden { message }
             | Self::Conflict { message }
+            | Self::PayloadTooLarge { message }
             | Self::Database { message, .. }
             | Self::Internal { message, .. }
             | Self::Custom { message, .. } => message.clone(),

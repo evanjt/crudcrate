@@ -227,7 +227,7 @@ Commits are a single imperative line with no prefix and no body.
 - Self-referencing joins are capped at depth 1. Foreign keys are derived from the target type name; the `relation` and `path` join options are parsed but not used for that derivation. Join recursion deeper than one level assumes the primary key field is named `id`.
 - Attribute hooks and `CRUDOperations` are separate systems. When an entity has joins, the generated `get_one` bypasses `CRUDOperations`.
 - Fulltext search is substring matching (`ILIKE '%term%'`), not trigram similarity.
-- Joined child rows are unbounded: no per-relation cap applies to `Vec<Child>` loading or joined-filter sub-queries.
+- Joined child rows are unbounded unless `#[crudcrate(max_child_rows = N)]` is set; joined-filter sub-queries have no cap.
 - The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`, affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (a server-side timing side-channel against RSA decryption) with no upstream fix yet. If you use it, terminate the MySQL connection over a private network or unix socket.
 
 ## License

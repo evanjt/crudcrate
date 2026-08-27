@@ -747,7 +747,18 @@ mod customer__Model {
                                         <Self as crudcrate::traits::CRUDResource>::pk_value(&model),
                                     ),
                             );
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "vehicles",
+                            )?;
                         related_models
                             .into_iter()
                             .map(|m: super::vehicle::Model| super::vehicle::Vehicle::from(
@@ -807,7 +818,18 @@ mod customer__Model {
                         } else {
                             query
                         };
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile
+                            .check_child_rows(
+                                related_models.len(),
+                                <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                                "vehicles",
+                            )?;
                         related_models
                             .into_iter()
                             .map(|m: super::vehicle::Model| super::vehicle::Vehicle::from(
@@ -869,7 +891,18 @@ mod customer__Model {
                                 )
                                 .is_in(parent_ids.clone()),
                         );
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related = query.all(db).await?;
+                    __profile
+                        .check_child_rows(
+                            all_related.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "vehicles",
+                        )?;
                     let __fk_col = match <<super::vehicle::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {
@@ -962,7 +995,18 @@ mod customer__Model {
                     } else {
                         query
                     };
+                    let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                    let query = match __profile.child_row_limit() {
+                        Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                        None => query,
+                    };
                     let all_related = query.all(db).await?;
+                    __profile
+                        .check_child_rows(
+                            all_related.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            "vehicles",
+                        )?;
                     let __fk_col = match <<super::vehicle::Entity as sea_orm::EntityTrait>::Column as FromStr>::from_str(
                         &__fk_col_name,
                     ) {

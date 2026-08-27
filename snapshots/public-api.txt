@@ -217,6 +217,8 @@ pub crudcrate::errors::ApiError::Internal::message: alloc::string::String
 pub crudcrate::errors::ApiError::NotFound
 pub crudcrate::errors::ApiError::NotFound::id: core::option::Option<alloc::string::String>
 pub crudcrate::errors::ApiError::NotFound::resource: alloc::string::String
+pub crudcrate::errors::ApiError::PayloadTooLarge
+pub crudcrate::errors::ApiError::PayloadTooLarge::message: alloc::string::String
 pub crudcrate::errors::ApiError::Unauthorized
 pub crudcrate::errors::ApiError::Unauthorized::message: alloc::string::String
 pub crudcrate::errors::ApiError::ValidationFailed
@@ -229,6 +231,7 @@ pub fn crudcrate::errors::ApiError::database(sea_orm::error::DbErr) -> Self
 pub fn crudcrate::errors::ApiError::forbidden(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::internal(impl core::convert::Into<alloc::string::String>, core::option::Option<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::not_found(impl core::convert::Into<alloc::string::String>, core::option::Option<alloc::string::String>) -> Self
+pub fn crudcrate::errors::ApiError::payload_too_large(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::unauthorized(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::validation_failed(alloc::vec::Vec<alloc::string::String>) -> Self
 impl axum_core::response::into_response::IntoResponse for crudcrate::errors::ApiError
@@ -424,9 +427,11 @@ pub fn crudcrate::operations::DefaultCRUDOperations<T>::update_many<'life0, 'lif
 pub mod crudcrate::profile
 pub struct crudcrate::profile::SecurityProfile
 pub crudcrate::profile::SecurityProfile::expose_deleted_ids: bool
+pub crudcrate::profile::SecurityProfile::max_child_rows_per_relation: core::option::Option<usize>
 pub crudcrate::profile::SecurityProfile::max_request_body_bytes: usize
 pub crudcrate::profile::SecurityProfile::scope_propagation_strict: bool
 pub crudcrate::profile::SecurityProfile::strict_filter_parsing: bool
+impl crudcrate::profile::SecurityProfile
 impl crudcrate::profile::SecurityProfile
 pub const fn crudcrate::profile::SecurityProfile::legacy() -> Self
 pub const fn crudcrate::profile::SecurityProfile::react_admin() -> Self
@@ -545,6 +550,8 @@ pub crudcrate::ApiError::Internal::message: alloc::string::String
 pub crudcrate::ApiError::NotFound
 pub crudcrate::ApiError::NotFound::id: core::option::Option<alloc::string::String>
 pub crudcrate::ApiError::NotFound::resource: alloc::string::String
+pub crudcrate::ApiError::PayloadTooLarge
+pub crudcrate::ApiError::PayloadTooLarge::message: alloc::string::String
 pub crudcrate::ApiError::Unauthorized
 pub crudcrate::ApiError::Unauthorized::message: alloc::string::String
 pub crudcrate::ApiError::ValidationFailed
@@ -557,6 +564,7 @@ pub fn crudcrate::errors::ApiError::database(sea_orm::error::DbErr) -> Self
 pub fn crudcrate::errors::ApiError::forbidden(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::internal(impl core::convert::Into<alloc::string::String>, core::option::Option<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::not_found(impl core::convert::Into<alloc::string::String>, core::option::Option<alloc::string::String>) -> Self
+pub fn crudcrate::errors::ApiError::payload_too_large(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::unauthorized(impl core::convert::Into<alloc::string::String>) -> Self
 pub fn crudcrate::errors::ApiError::validation_failed(alloc::vec::Vec<alloc::string::String>) -> Self
 impl axum_core::response::into_response::IntoResponse for crudcrate::errors::ApiError
@@ -687,9 +695,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::scope::ScopeConditio
 impl core::panic::unwind_safe::UnwindSafe for crudcrate::scope::ScopeCondition
 pub struct crudcrate::SecurityProfile
 pub crudcrate::SecurityProfile::expose_deleted_ids: bool
+pub crudcrate::SecurityProfile::max_child_rows_per_relation: core::option::Option<usize>
 pub crudcrate::SecurityProfile::max_request_body_bytes: usize
 pub crudcrate::SecurityProfile::scope_propagation_strict: bool
 pub crudcrate::SecurityProfile::strict_filter_parsing: bool
+impl crudcrate::profile::SecurityProfile
 impl crudcrate::profile::SecurityProfile
 pub const fn crudcrate::profile::SecurityProfile::legacy() -> Self
 pub const fn crudcrate::profile::SecurityProfile::react_admin() -> Self

@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `#[crudcrate(max_child_rows = N)]` and `SecurityProfile::max_child_rows_per_relation`
+  cap the child rows one join field may load per request; exceeding the cap
+  returns `413 Payload Too Large` (new `ApiError::PayloadTooLarge`). Unlimited
+  unless set.
+- `join(relation = "Variant")` selects the child's `Relation` variant for
+  foreign key resolution.
+
 ### Fixed
 
-- `join(relation = "Variant")` was parsed and ignored. It now selects the
-  child's `Relation` variant for foreign key resolution, so a child with two
-  foreign keys to the same parent can be joined through each.
 - Join loading at depth 2 or more read `related_model.id`, so a child entity
   whose primary key field has another name failed to compile. Loaders now go
   through the new provided `CRUDResource::pk_value(&model)`, which the derive

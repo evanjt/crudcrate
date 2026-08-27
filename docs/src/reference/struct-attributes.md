@@ -158,6 +158,19 @@ pub struct Model { }
 
 ---
 
+### `max_child_rows`
+
+Caps the number of child rows one join field may load in a single request. Exceeding it returns `413 Payload Too Large` instead of an unbounded response.
+
+```rust
+#[crudcrate(max_child_rows = 500)]   // default unlimited
+```
+
+**Type:** Integer
+**Runtime override:** Set `max_child_rows_per_relation` on the `SecurityProfile` returned by `fn security_profile()` on your `CRUDResource` impl.
+
+---
+
 ### `deny_unknown_fields`
 
 Reject a create or update payload that carries a key the input model does not

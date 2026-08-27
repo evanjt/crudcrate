@@ -50,6 +50,7 @@ fn api_error_constructors() {
     let _ = ApiError::not_found("", None);
     let _ = ApiError::bad_request("");
     let _ = ApiError::forbidden("");
+    let _ = ApiError::payload_too_large("");
     let _ = ApiError::internal("", None);
     let _ = ApiError::database;
     let _: fn(sea_orm::DbErr) -> ApiError = ApiError::from;
@@ -59,6 +60,8 @@ fn security_profile_constructors() {
     let _ = SecurityProfile::secure;
     let _ = SecurityProfile::react_admin;
     let _ = SecurityProfile::legacy;
+    let _ = SecurityProfile::child_row_limit;
+    let _ = SecurityProfile::check_child_rows;
 }
 
 fn batch_result_new<T>() {

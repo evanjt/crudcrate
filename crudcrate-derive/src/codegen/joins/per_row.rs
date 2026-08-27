@@ -79,6 +79,7 @@ fn generate_join_loading_impl(
         let Some(field_name) = &field.ident else {
             continue;
         };
+        let field_name_str = field_name.to_string();
 
         let join_config = get_join_config(field).unwrap_or_default();
         let is_vec_field = is_vec_type(&field.ty);
@@ -195,7 +196,17 @@ fn generate_join_loading_impl(
                         use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait};
                         #filter_expr
                         #scope_filter
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
                         let related_models = Box::pin(query.all(db)).await?;
+                        __profile.check_child_rows(
+                            related_models.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            #field_name_str,
+                        )?;
                         related_models
                             .into_iter()
                             .map(|m: #model_path| #api_struct_type::from(m))
@@ -262,8 +273,17 @@ fn generate_join_loading_impl(
                         use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait};
                         #filter_expr_deep
                         #scope_filter
-                        let related_models = Box::pin(query.all(db)
-                        ).await?;
+                        let __profile = <Self as crudcrate::traits::CRUDResource>::security_profile();
+                        let query = match __profile.child_row_limit() {
+                            Some(__l) => sea_orm::QuerySelect::limit(query, __l),
+                            None => query,
+                        };
+                        let related_models = Box::pin(query.all(db)).await?;
+                        __profile.check_child_rows(
+                            related_models.len(),
+                            <Self as crudcrate::traits::CRUDResource>::RESOURCE_NAME_SINGULAR,
+                            #field_name_str,
+                        )?;
                         let mut result = Vec::new();
                         for related_model in related_models {
                             #recursive_fetch
