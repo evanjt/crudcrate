@@ -274,14 +274,14 @@ fn generate_batch_loading_impl(
                 let recursive_fetch = if scoped {
                     quote! {
                         let entity = match __child_scope.as_ref() {
-                            Some(cs) => match #api_struct_type::get_one_scoped(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), cs).await {
+                            Some(cs) => match <#api_struct_type as crudcrate::traits::CRUDResource>::get_one_scoped(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), cs).await {
                                 Ok(e) => e,
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
                                     #api_struct_type::from(related_model)
                                 }
                             },
-                            None => match #api_struct_type::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                            None => match <#api_struct_type as crudcrate::traits::CRUDResource>::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                                 Ok(e) => e,
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
@@ -292,7 +292,7 @@ fn generate_batch_loading_impl(
                     }
                 } else {
                     quote! {
-                        let entity = match #api_struct_type::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                        let entity = match <#api_struct_type as crudcrate::traits::CRUDResource>::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                             Ok(e) => e,
                             Err(e) => {
                                 crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
@@ -421,8 +421,8 @@ fn generate_batch_loading_impl(
                         Some(related_model) => {
                             let __child_scope = <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
                             let __loaded = match __child_scope {
-                                Some(cs) => #target_type::get_one_scoped(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), &cs).await,
-                                None => #target_type::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await,
+                                Some(cs) => <#target_type as crudcrate::traits::CRUDResource>::get_one_scoped(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), &cs).await,
+                                None => <#target_type as crudcrate::traits::CRUDResource>::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await,
                             };
                             match __loaded {
                                 Ok(e) => Some(e),
@@ -443,7 +443,7 @@ fn generate_batch_loading_impl(
                         parent_model.find_related(#entity_path).one(db)
                     ).await? {
                         Some(related_model) => {
-                            match #target_type::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                            match <#target_type as crudcrate::traits::CRUDResource>::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                                 Ok(e) => Some(e),
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");

@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
+- Relying on the `use` items that `crud_handlers!` leaks into the calling
+  module (`StatusCode`, `Json`, `Path`, ...). Import them directly; the leak
+  is removed in the next breaking release. The macro no longer needs
+  `CRUDResource` in scope at the call site.
 Scheduled for removal in the next breaking release:
 
 - `UuidIdResult`, unused since `delete_many` became generic over the primary key type.

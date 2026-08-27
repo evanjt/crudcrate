@@ -407,8 +407,11 @@ mod Model {
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
             crudcrate::tracing::info!(
-                resource = Self::RESOURCE_NAME_PLURAL, table = Self::TABLE_NAME,
-                batch_limit = Self::batch_limit(), max_page_size = Self::max_page_size(),
+                resource = < Self as crudcrate::traits::CRUDResource >
+                ::RESOURCE_NAME_PLURAL, table = < Self as crudcrate::traits::CRUDResource
+                > ::TABLE_NAME, batch_limit = < Self as crudcrate::traits::CRUDResource >
+                ::batch_limit(), max_page_size = < Self as
+                crudcrate::traits::CRUDResource > ::max_page_size(),
                 "Mounting CRUD routes with security defaults: input_sanitization=enabled, sql_parameterization=enabled. See https://crudcrate.evanjt.com/latest/advanced/security.html"
             );
             OpenApiRouter::new()
@@ -422,7 +425,8 @@ mod Model {
                 .routes(routes!(delete_many_handler))
                 .layer(
                     axum::extract::DefaultBodyLimit::max(
-                        Self::security_profile().max_request_body_bytes,
+                        <Self as crudcrate::traits::CRUDResource>::security_profile()
+                            .max_request_body_bytes,
                     ),
                 )
                 .with_state(db.clone())
@@ -448,15 +452,18 @@ mod Model {
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
             crudcrate::tracing::info!(
-                resource = Self::RESOURCE_NAME_PLURAL, table = Self::TABLE_NAME,
-                max_page_size = Self::max_page_size(), "Mounting read-only routes"
+                resource = < Self as crudcrate::traits::CRUDResource >
+                ::RESOURCE_NAME_PLURAL, table = < Self as crudcrate::traits::CRUDResource
+                > ::TABLE_NAME, max_page_size = < Self as crudcrate::traits::CRUDResource
+                > ::max_page_size(), "Mounting read-only routes"
             );
             OpenApiRouter::new()
                 .routes(routes!(get_one_handler))
                 .routes(routes!(get_all_handler))
                 .layer(
                     axum::extract::DefaultBodyLimit::max(
-                        Self::security_profile().max_request_body_bytes,
+                        <Self as crudcrate::traits::CRUDResource>::security_profile()
+                            .max_request_body_bytes,
                     ),
                 )
                 .with_state(db.clone())

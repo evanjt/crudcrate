@@ -34,7 +34,7 @@ use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
-use crudcrate::{CRUDResource, EntityToModels, ScopeCondition};
+use crudcrate::{EntityToModels, ScopeCondition};
 use sea_orm::entity::prelude::*;
 use sea_orm::{Condition, DatabaseConnection, DbErr};
 use serde_json::{Value, json};

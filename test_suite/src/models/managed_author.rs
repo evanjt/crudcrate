@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use crudcrate::{CRUDOperations, EntityToModels, traits::CRUDResource};
+use crudcrate::{CRUDOperations, EntityToModels};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 

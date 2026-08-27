@@ -6,7 +6,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use chrono::{DateTime, Utc};
-use crudcrate::{ApiError, CRUDResource, EntityToModels};
+use crudcrate::{ApiError, EntityToModels};
 use sea_orm::sea_query::Table;
 use sea_orm::{Database, DatabaseConnection, EntityTrait, Schema, entity::prelude::*};
 use serde_json::json;

@@ -593,7 +593,7 @@ mod vehicle__Model {
                         let related_models = Box::pin(query.all(db)).await?;
                         let mut result = Vec::new();
                         for related_model in related_models {
-                            match super::part::Part::get_one(
+                            match <super::part::Part as crudcrate::traits::CRUDResource>::get_one(
                                     db,
                                     <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
                                         &related_model,
@@ -671,7 +671,7 @@ mod vehicle__Model {
                             let __child_scope = <super::part::PartList as crudcrate::ScopeFilterable>::scope_condition();
                             match __child_scope {
                                 Some(cs) => {
-                                    match super::part::Part::get_one_scoped(
+                                    match <super::part::Part as crudcrate::traits::CRUDResource>::get_one_scoped(
                                             db,
                                             <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
                                                 &related_model,
@@ -691,7 +691,7 @@ mod vehicle__Model {
                                     }
                                 }
                                 None => {
-                                    match super::part::Part::get_one(
+                                    match <super::part::Part as crudcrate::traits::CRUDResource>::get_one(
                                             db,
                                             <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
                                                 &related_model,
@@ -796,7 +796,7 @@ mod vehicle__Model {
                             Ok(v) => v,
                             Err(_) => continue,
                         };
-                        let entity = match super::part::Part::get_one(
+                        let entity = match <super::part::Part as crudcrate::traits::CRUDResource>::get_one(
                                 db,
                                 <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
                                     &related_model,
@@ -906,7 +906,7 @@ mod vehicle__Model {
                         };
                         let entity = match __child_scope.as_ref() {
                             Some(cs) => {
-                                match super::part::Part::get_one_scoped(
+                                match <super::part::Part as crudcrate::traits::CRUDResource>::get_one_scoped(
                                         db,
                                         <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
                                             &related_model,
@@ -926,7 +926,7 @@ mod vehicle__Model {
                                 }
                             }
                             None => {
-                                match super::part::Part::get_one(
+                                match <super::part::Part as crudcrate::traits::CRUDResource>::get_one(
                                         db,
                                         <super::part::Part as crudcrate::traits::CRUDResource>::pk_value(
                                             &related_model,
@@ -1377,7 +1377,7 @@ mod customer__Model {
                         let related_models = Box::pin(query.all(db)).await?;
                         let mut result = Vec::new();
                         for related_model in related_models {
-                            match super::vehicle::Vehicle::get_one(
+                            match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one(
                                     db,
                                     <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
                                         &related_model,
@@ -1455,7 +1455,7 @@ mod customer__Model {
                             let __child_scope = <super::vehicle::VehicleList as crudcrate::ScopeFilterable>::scope_condition();
                             match __child_scope {
                                 Some(cs) => {
-                                    match super::vehicle::Vehicle::get_one_scoped(
+                                    match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one_scoped(
                                             db,
                                             <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
                                                 &related_model,
@@ -1475,7 +1475,7 @@ mod customer__Model {
                                     }
                                 }
                                 None => {
-                                    match super::vehicle::Vehicle::get_one(
+                                    match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one(
                                             db,
                                             <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
                                                 &related_model,
@@ -1580,7 +1580,7 @@ mod customer__Model {
                             Ok(v) => v,
                             Err(_) => continue,
                         };
-                        let entity = match super::vehicle::Vehicle::get_one(
+                        let entity = match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one(
                                 db,
                                 <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
                                     &related_model,
@@ -1692,7 +1692,7 @@ mod customer__Model {
                         };
                         let entity = match __child_scope.as_ref() {
                             Some(cs) => {
-                                match super::vehicle::Vehicle::get_one_scoped(
+                                match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one_scoped(
                                         db,
                                         <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
                                             &related_model,
@@ -1712,7 +1712,7 @@ mod customer__Model {
                                 }
                             }
                             None => {
-                                match super::vehicle::Vehicle::get_one(
+                                match <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::get_one(
                                         db,
                                         <super::vehicle::Vehicle as crudcrate::traits::CRUDResource>::pk_value(
                                             &related_model,
@@ -1983,8 +1983,11 @@ mod customer__Model {
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
             crudcrate::tracing::info!(
-                resource = Self::RESOURCE_NAME_PLURAL, table = Self::TABLE_NAME,
-                batch_limit = Self::batch_limit(), max_page_size = Self::max_page_size(),
+                resource = < Self as crudcrate::traits::CRUDResource >
+                ::RESOURCE_NAME_PLURAL, table = < Self as crudcrate::traits::CRUDResource
+                > ::TABLE_NAME, batch_limit = < Self as crudcrate::traits::CRUDResource >
+                ::batch_limit(), max_page_size = < Self as
+                crudcrate::traits::CRUDResource > ::max_page_size(),
                 "Mounting CRUD routes with security defaults: input_sanitization=enabled, sql_parameterization=enabled. See https://crudcrate.evanjt.com/latest/advanced/security.html"
             );
             OpenApiRouter::new()
@@ -1998,7 +2001,8 @@ mod customer__Model {
                 .routes(routes!(delete_many_handler))
                 .layer(
                     axum::extract::DefaultBodyLimit::max(
-                        Self::security_profile().max_request_body_bytes,
+                        <Self as crudcrate::traits::CRUDResource>::security_profile()
+                            .max_request_body_bytes,
                     ),
                 )
                 .with_state(db.clone())
@@ -2024,15 +2028,18 @@ mod customer__Model {
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
             crudcrate::tracing::info!(
-                resource = Self::RESOURCE_NAME_PLURAL, table = Self::TABLE_NAME,
-                max_page_size = Self::max_page_size(), "Mounting read-only routes"
+                resource = < Self as crudcrate::traits::CRUDResource >
+                ::RESOURCE_NAME_PLURAL, table = < Self as crudcrate::traits::CRUDResource
+                > ::TABLE_NAME, max_page_size = < Self as crudcrate::traits::CRUDResource
+                > ::max_page_size(), "Mounting read-only routes"
             );
             OpenApiRouter::new()
                 .routes(routes!(get_one_handler))
                 .routes(routes!(get_all_handler))
                 .layer(
                     axum::extract::DefaultBodyLimit::max(
-                        Self::security_profile().max_request_body_bytes,
+                        <Self as crudcrate::traits::CRUDResource>::security_profile()
+                            .max_request_body_bytes,
                     ),
                 )
                 .with_state(db.clone())

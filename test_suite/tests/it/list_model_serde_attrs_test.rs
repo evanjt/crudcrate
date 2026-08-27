@@ -7,7 +7,7 @@
 use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
-use crudcrate::{CRUDResource, EntityToModels};
+use crudcrate::EntityToModels;
 use sea_orm::{DatabaseConnection, entity::prelude::*};
 use serde_json::json;
 use tower::ServiceExt;

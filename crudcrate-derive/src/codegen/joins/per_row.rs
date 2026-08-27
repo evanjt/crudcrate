@@ -214,14 +214,14 @@ fn generate_join_loading_impl(
                     quote! {
                         let __child_scope = <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
                         match __child_scope {
-                            Some(cs) => match #api_struct_type::get_one_scoped(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), &cs).await {
+                            Some(cs) => match <#api_struct_type as crudcrate::traits::CRUDResource>::get_one_scoped(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), &cs).await {
                                 Ok(entity) => result.push(entity),
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
                                     result.push(related_model.into());
                                 }
                             },
-                            None => match #api_struct_type::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                            None => match <#api_struct_type as crudcrate::traits::CRUDResource>::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                                 Ok(entity) => result.push(entity),
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
@@ -232,7 +232,7 @@ fn generate_join_loading_impl(
                     }
                 } else {
                     quote! {
-                        match #api_struct_type::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                        match <#api_struct_type as crudcrate::traits::CRUDResource>::get_one(db, <#api_struct_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                             Ok(entity) => result.push(entity),
                             Err(e) => {
                                 crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
@@ -302,14 +302,14 @@ fn generate_join_loading_impl(
                     quote! {
                         let __child_scope = <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
                         match __child_scope {
-                            Some(cs) => match #target_type::get_one_scoped(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), &cs).await {
+                            Some(cs) => match <#target_type as crudcrate::traits::CRUDResource>::get_one_scoped(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model), &cs).await {
                                 Ok(entity) => Some(entity),
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested scoped relations, using flat model");
                                     Some(related_model.into())
                                 }
                             },
-                            None => match #target_type::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                            None => match <#target_type as crudcrate::traits::CRUDResource>::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                                 Ok(entity) => Some(entity),
                                 Err(e) => {
                                     crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");
@@ -320,7 +320,7 @@ fn generate_join_loading_impl(
                     }
                 } else {
                     quote! {
-                        match #target_type::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
+                        match <#target_type as crudcrate::traits::CRUDResource>::get_one(db, <#target_type as crudcrate::traits::CRUDResource>::pk_value(&related_model)).await {
                             Ok(entity) => Some(entity),
                             Err(e) => {
                                 crudcrate::tracing::warn!(error = %e, "Failed to load nested relations, using flat model");

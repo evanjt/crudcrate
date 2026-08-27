@@ -11,7 +11,7 @@
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use crudcrate::{CRUDResource, EntityToModels};
+use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr, PaginatorTrait};
 use serde_json::{Value, json};

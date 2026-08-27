@@ -9,7 +9,7 @@
 //! constraint-violation response), while a child with a valid parent returns 201.
 
 use axum::http::StatusCode;
-use crudcrate::{CRUDResource, EntityToModels};
+use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::json;

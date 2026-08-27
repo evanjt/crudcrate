@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 pub mod vehicle {
     use super::{DeriveEntityModel, EntityToModels, Uuid};
-    use crudcrate::CRUDResource;
     use sea_orm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, EntityToModels)]
@@ -51,7 +50,6 @@ pub mod vehicle {
 pub mod customer {
     use super::vehicle::Vehicle;
     use super::{DeriveEntityModel, EntityToModels, Uuid};
-    use crudcrate::CRUDResource;
     use sea_orm::entity::prelude::*;
 
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]

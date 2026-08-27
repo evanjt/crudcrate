@@ -2,6 +2,12 @@
 /// `#[crudcrate(generate_router)]` emits. The five- and three-argument forms
 /// collapse the scoped or list models onto the plain ones and are kept for
 /// compatibility until the next breaking release.
+///
+/// The expansion currently brings `Path`, `Query`, `State`, `Json`,
+/// `StatusCode`, `HeaderMap`, `DbErr`, `SqlErr`, `apply_filters`,
+/// `parse_pagination`, `parse_sorting`, `calculate_content_range` and
+/// `FilterOptions` into the calling module. Do not rely on this; import what
+/// you use. The leaked imports are removed in the next breaking release.
 #[macro_export]
 macro_rules! crud_handlers {
     // Version with scoped models for auth-aware field visibility
@@ -60,6 +66,9 @@ macro_rules! crud_handlers {
 #[macro_export]
 macro_rules! crud_handlers_impl {
     ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty, $scoped_list:ty, $scoped_response:ty) => {
+        // Nothing below references these imports; they stay only because
+        // `macro_rules!` items are unhygienic and callers written against
+        // earlier releases use the leaked names. Removed in the next major.
         use crudcrate::{apply_filters, parse_pagination};
         use crudcrate::FilterOptions;
         use crudcrate::calculate_content_range;
@@ -100,9 +109,9 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::BAD_REQUEST, description = "Bad request"),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
-            operation_id = format!("get_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            summary = format!("Get one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            description = format!("Retrieves one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("get_one_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Get one {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Retrieves one {} by its ID.\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn get_one_handler(
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
@@ -150,18 +159,18 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
             params(crudcrate::FilterOptions),
-            operation_id = format!("get_all_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            summary = format!("Get all {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
+            operation_id = format!("get_all_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            summary = format!("Get all {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
             description = format!(
                 "Retrieves all {}.\n\n{}\n\nAdditional sortable columns: {}.\n\nAdditional filterable columns: {}.",
-                <$resource as CRUDResource>::RESOURCE_NAME_PLURAL,
-                <$resource as CRUDResource>::RESOURCE_DESCRIPTION,
-                <$resource as CRUDResource>::sortable_columns()
+                <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL,
+                <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION,
+                <$resource as crudcrate::CRUDResource>::sortable_columns()
                     .iter()
                     .map(|(name, _)| format!("\n- {}", name))
                     .collect::<Vec<String>>()
                     .join(""),
-                <$resource as CRUDResource>::filterable_columns()
+                <$resource as crudcrate::CRUDResource>::filterable_columns()
                     .iter()
                     .map(|(name, _)| format!("\n- {}", name))
                     .collect::<Vec<String>>()
@@ -218,7 +227,7 @@ macro_rules! crud_handlers_impl {
             } else {
                 &[]
             };
-            let filterable_columns: Vec<_> = <$resource as CRUDResource>::filterable_columns()
+            let filterable_columns: Vec<_> = <$resource as crudcrate::CRUDResource>::filterable_columns()
                 .into_iter()
                 .filter(|(name, _)| !scoped_excluded.contains(name))
                 .collect();
@@ -343,9 +352,9 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
-            operation_id = format!("delete_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            summary = format!("Delete one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            description = format!("Deletes one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("delete_one_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Delete one {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Deletes one {} by its ID.\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn delete_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -377,9 +386,9 @@ macro_rules! crud_handlers_impl {
                     body = String
                 )
             ),
-            operation_id = format!("create_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            summary = format!("Create one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            description = format!("Creates a new {}.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("create_one_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Create one {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Creates a new {}.\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn create_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -409,9 +418,9 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::BAD_REQUEST, description = "Bad request - batch size exceeded", body = String),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
             ),
-            operation_id = format!("delete_many_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            summary = format!("Delete many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            description = format!("Deletes many {} by their IDs and returns array of deleted UUIDs.\n\nUse `?partial=true` for partial success mode (deletes valid items even if some fail).\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("delete_many_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            summary = format!("Delete many {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!("Deletes many {} by their IDs and returns array of deleted UUIDs.\n\nUse `?partial=true` for partial success mode (deletes valid items even if some fail).\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn delete_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -505,9 +514,9 @@ macro_rules! crud_handlers_impl {
             (status = axum::http::StatusCode::NOT_FOUND, description = "Resource not found"),
             (status =  axum::http::StatusCode::CONFLICT, description = "Duplicate record", body = String)
             ),
-            operation_id = format!("update_one_{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            summary = format!("Update one {}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR),
-            description = format!("Updates one {} by its ID.\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("update_one_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            summary = format!("Update one {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR),
+            description = format!("Updates one {} by its ID.\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_SINGULAR, <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn update_one_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -536,9 +545,9 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::CONFLICT, description = "Duplicate record", body = String),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
             ),
-            operation_id = format!("create_many_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            summary = format!("Create many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            description = format!("Creates multiple {} in a batch. Limited to {} items per request.\n\nUse `?partial=true` for partial success mode (commits successful items even if some fail).\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::batch_limit(), <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("create_many_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            summary = format!("Create many {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!("Creates multiple {} in a batch. Limited to {} items per request.\n\nUse `?partial=true` for partial success mode (commits successful items even if some fail).\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as crudcrate::CRUDResource>::batch_limit(), <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn create_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,
@@ -630,9 +639,9 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::CONFLICT, description = "Duplicate record", body = String),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error", body = String)
             ),
-            operation_id = format!("update_many_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            summary = format!("Update many {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
-            description = format!("Updates multiple {} in a batch. Limited to {} items per request.\n\nUse `?partial=true` for partial success mode (commits successful items even if some fail).\n\n{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as CRUDResource>::batch_limit(), <$resource as CRUDResource>::RESOURCE_DESCRIPTION)
+            operation_id = format!("update_many_{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            summary = format!("Update many {}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL),
+            description = format!("Updates multiple {} in a batch. Limited to {} items per request.\n\nUse `?partial=true` for partial success mode (commits successful items even if some fail).\n\n{}", <$resource as crudcrate::CRUDResource>::RESOURCE_NAME_PLURAL, <$resource as crudcrate::CRUDResource>::batch_limit(), <$resource as crudcrate::CRUDResource>::RESOURCE_DESCRIPTION)
         )]
         pub async fn update_many_handler(
             state: axum::extract::State<sea_orm::DatabaseConnection>,

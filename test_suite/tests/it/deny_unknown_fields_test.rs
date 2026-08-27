@@ -12,7 +12,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod strict {
-    use crudcrate::{CRUDResource, EntityToModels};
+    use crudcrate::EntityToModels;
     use sea_orm::entity::prelude::*;
     use uuid::Uuid;
 
@@ -43,7 +43,7 @@ mod strict {
 }
 
 mod lenient {
-    use crudcrate::{CRUDResource, EntityToModels};
+    use crudcrate::EntityToModels;
     use sea_orm::entity::prelude::*;
     use uuid::Uuid;
 

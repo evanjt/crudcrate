@@ -1,7 +1,7 @@
 //! Join loading at depth 2 when no entity names its primary key field `id`.
 
 use axum::http::StatusCode;
-use crudcrate::{CRUDResource, EntityToModels};
+use crudcrate::EntityToModels;
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::json;

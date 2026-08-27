@@ -17,7 +17,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 pub mod dense_author {
-    use crudcrate::{CRUDResource, EntityToModels};
+    use crudcrate::EntityToModels;
     use sea_orm::entity::prelude::*;
     use uuid::Uuid;
 
@@ -47,7 +47,7 @@ pub mod dense_author {
 }
 
 pub mod dense_book {
-    use crudcrate::{CRUDResource, EntityToModels};
+    use crudcrate::EntityToModels;
     use sea_orm::entity::prelude::*;
     use uuid::Uuid;
 
@@ -78,7 +78,7 @@ pub mod dense_book {
 // The sea-orm macro generates async trait methods that do not await.
 #[allow(clippy::unused_async_trait_impl)]
 pub mod dense_plain {
-    use crudcrate::{CRUDResource, EntityToModels};
+    use crudcrate::EntityToModels;
     use sea_orm::entity::prelude::*;
     use uuid::Uuid;
 
@@ -103,7 +103,7 @@ pub mod dense_plain {
 // The sea-orm macro generates async trait methods that do not await.
 #[allow(clippy::unused_async_trait_impl)]
 pub mod compact_item {
-    use crudcrate::{CRUDResource, EntityToModels};
+    use crudcrate::EntityToModels;
     use sea_orm::entity::prelude::*;
     use uuid::Uuid;
 

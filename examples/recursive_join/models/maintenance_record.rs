@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crudcrate::{EntityToModels, traits::CRUDResource};
+use crudcrate::EntityToModels;
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
