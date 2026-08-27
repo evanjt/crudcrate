@@ -26,8 +26,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -234,44 +233,14 @@ pub mod membership {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
-    // drop first so every test starts from a clean schema. On sqlite::memory: each
-    // connection is a fresh database, so the drops are harmless no-ops.
-    // create_table_from_entity emits FK constraints from belongs_to relations, so
-    // drop children before parents (reverse of the create order below).
-    db.execute(
-        &Table::drop()
-            .table(membership::Entity)
-            .if_exists()
-            .to_owned(),
+    test_suite::reset_db!(
+        author::Entity,
+        book::Entity,
+        chapter::Entity,
+        reader::Entity,
+        membership::Entity
     )
-    .await?;
-    db.execute(&Table::drop().table(reader::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&Table::drop().table(chapter::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&Table::drop().table(book::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&Table::drop().table(author::Entity).if_exists().to_owned())
-        .await?;
-
-    db.execute(&schema.create_table_from_entity(author::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(book::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(chapter::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(reader::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(membership::Entity))
-        .await?;
-
-    Ok(db)
+    .await
 }
 
 fn app(db: &DatabaseConnection) -> axum::Router {

@@ -6,7 +6,10 @@
 
 use axum::{Router, extract::Request, middleware::Next, response::Response};
 use crudcrate::ScopeCondition;
-use sea_orm::{ColumnTrait, Condition, Database, DatabaseConnection, DbErr};
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, Database, DatabaseConnection, DbErr, EntityTrait,
+    Schema,
+};
 use sea_orm_migration::prelude::*;
 
 // Import local test models
@@ -18,12 +21,53 @@ pub use self::models::{
 };
 
 // Helper function to get database URL from environment or default to SQLite
-fn get_test_database_url() -> String {
+pub fn database_url() -> String {
     std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string())
 }
 
+pub use ::sea_orm;
+
+/// Connects to `DATABASE_URL`, falling back to an in-memory SQLite database.
+pub async fn connect() -> Result<DatabaseConnection, DbErr> {
+    Database::connect(&database_url()).await
+}
+
+pub async fn drop_table<E: EntityTrait>(db: &DatabaseConnection, entity: E) -> Result<(), DbErr> {
+    db.execute(&Table::drop().table(entity).if_exists().to_owned())
+        .await?;
+    Ok(())
+}
+
+pub async fn create_table<E: EntityTrait>(db: &DatabaseConnection, entity: E) -> Result<(), DbErr> {
+    let schema = Schema::new(db.get_database_backend());
+    db.execute(&schema.create_table_from_entity(entity)).await?;
+    Ok(())
+}
+
+/// Connects, drops the listed tables in reverse order, then creates them in
+/// order. List parents before children so foreign keys resolve on Postgres
+/// and MySQL; on `sqlite::memory:` every connection is a fresh database and
+/// the drops are no-ops.
+#[macro_export]
+macro_rules! reset_db {
+    ($($entity:expr),+ $(,)?) => {
+        async {
+            let db = $crate::connect().await?;
+            $crate::reset_db!(@drop db, [] $($entity),+);
+            $( $crate::create_table(&db, $entity).await?; )+
+            Ok::<_, $crate::sea_orm::DbErr>(db)
+        }
+    };
+    (@drop $db:ident, [$($rev:expr),*] $first:expr $(, $rest:expr)*) => {
+        $crate::reset_db!(@drop $db, [$first $(, $rev)*] $($rest),*)
+    };
+    (@drop $db:ident, [$($rev:expr),*]) => {
+        $( $crate::drop_table(&$db, $rev).await?; )*
+    };
+}
+
 pub async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let database_url = get_test_database_url();
+    let database_url = database_url();
 
     // Connect and run migrations
     let db = Database::connect(&database_url).await?;

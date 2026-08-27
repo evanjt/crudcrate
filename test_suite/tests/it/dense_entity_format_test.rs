@@ -9,7 +9,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::CRUDResource;
 use sea_orm::sea_query::Table;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Schema};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -125,31 +125,7 @@ pub mod compact_item {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    db.execute(
-        &Table::drop()
-            .table(dense_book::Entity)
-            .if_exists()
-            .to_owned(),
-    )
-    .await?;
-    db.execute(
-        &Table::drop()
-            .table(dense_author::Entity)
-            .if_exists()
-            .to_owned(),
-    )
-    .await?;
-    db.execute(&schema.create_table_from_entity(dense_author::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(dense_book::Entity))
-        .await?;
-
-    Ok(db)
+    test_suite::reset_db!(dense_author::Entity, dense_book::Entity).await
 }
 
 fn app(db: &DatabaseConnection) -> axum::Router {

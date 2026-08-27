@@ -14,8 +14,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -99,29 +98,7 @@ pub mod team {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
-    // drop first so every test starts from a clean schema. On sqlite::memory: each
-    // connection is a fresh database, so the drops are harmless no-ops.
-    // Drop children before parents: create_table_from_entity emits FK constraints
-    // from belongs_to relations (player references team).
-    for stmt in [
-        Table::drop().table(player::Entity).if_exists().to_owned(),
-        Table::drop().table(team::Entity).if_exists().to_owned(),
-    ] {
-        db.execute(&stmt).await?;
-    }
-
-    db.execute(&schema.create_table_from_entity(team::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(player::Entity))
-        .await?;
-
-    Ok(db)
+    test_suite::reset_db!(team::Entity, player::Entity).await
 }
 
 fn app(db: &DatabaseConnection) -> axum::Router {

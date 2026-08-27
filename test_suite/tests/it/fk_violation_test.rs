@@ -12,8 +12,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -76,38 +75,10 @@ pub mod fkv_child {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-
-    // SQLite does not enforce foreign keys unless explicitly enabled; Postgres and
-    // MySQL enforce them natively. Enable it so all three reject a dangling FK.
-    if url.starts_with("sqlite") {
+    let db = test_suite::reset_db!(fkv_parent::Entity, fkv_child::Entity).await?;
+    if test_suite::database_url().starts_with("sqlite") {
         db.execute_unprepared("PRAGMA foreign_keys = ON").await?;
     }
-
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Drop children before parents (the FK depends on the parent table).
-    db.execute(
-        &Table::drop()
-            .table(fkv_child::Entity)
-            .if_exists()
-            .to_owned(),
-    )
-    .await?;
-    db.execute(
-        &Table::drop()
-            .table(fkv_parent::Entity)
-            .if_exists()
-            .to_owned(),
-    )
-    .await?;
-    db.execute(&schema.create_table_from_entity(fkv_parent::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(fkv_child::Entity))
-        .await?;
-
     Ok(db)
 }
 

@@ -8,8 +8,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Condition, Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{Condition, DatabaseConnection, DbErr};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -41,18 +40,7 @@ pub mod snd_item {
 use snd_item::{SndItem, SndItemCreate};
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends keep tables across tests; drop first for a clean start.
-    db.execute(&Table::drop().table(snd_item::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&schema.create_table_from_entity(snd_item::Entity))
-        .await?;
-
-    Ok(db)
+    test_suite::reset_db!(snd_item::Entity).await
 }
 
 fn app_unscoped(db: &DatabaseConnection) -> axum::Router {

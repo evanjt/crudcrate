@@ -17,8 +17,7 @@
 
 use crudcrate::{CRUDResource, EntityToModels, FilterOperator, JoinedFilter};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Condition, Database, DatabaseConnection, DbErr, Order, Schema};
+use sea_orm::{Condition, DatabaseConnection, DbErr, Order};
 use uuid::Uuid;
 
 pub mod doc {
@@ -48,19 +47,7 @@ pub mod doc {
 use doc::{Column, TdcDoc, TdcDocCreate};
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
-    // drop first so every test starts from a clean schema. On sqlite::memory: each
-    // connection is a fresh database, so the drop is a harmless no-op.
-    db.execute(&Table::drop().table(doc::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&schema.create_table_from_entity(doc::Entity))
-        .await?;
-    Ok(db)
+    test_suite::reset_db!(doc::Entity).await
 }
 
 async fn create_doc(db: &DatabaseConnection, name: &str, is_private: bool) -> TdcDoc {

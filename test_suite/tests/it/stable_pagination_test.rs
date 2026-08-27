@@ -6,8 +6,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use crudcrate::{CRUDResource, EntityToModels};
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, Schema, entity::prelude::*};
+use sea_orm::{DatabaseConnection, entity::prelude::*};
 use serde_json::json;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -33,15 +32,8 @@ pub struct Model {
 pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {}
 
-async fn setup_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-    db.execute(&Table::drop().table(Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&schema.create_table_from_entity(Entity)).await?;
-    Ok(db)
+async fn setup_db() -> Result<DatabaseConnection, DbErr> {
+    test_suite::reset_db!(Entity).await
 }
 
 async fn get_ids(app: &Router, uri: &str) -> Vec<String> {

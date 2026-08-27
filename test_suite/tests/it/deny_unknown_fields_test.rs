@@ -5,8 +5,7 @@
 use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, Schema, entity::prelude::*};
+use sea_orm::{DatabaseConnection, entity::prelude::*};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -74,20 +73,8 @@ mod lenient {
 use lenient::LenientArticle;
 use strict::StrictArticle;
 
-async fn setup_db() -> Result<DatabaseConnection, sea_orm::DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-    db.execute(&Table::drop().table(strict::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&Table::drop().table(lenient::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&schema.create_table_from_entity(strict::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(lenient::Entity))
-        .await?;
-    Ok(db)
+async fn setup_db() -> Result<DatabaseConnection, DbErr> {
+    test_suite::reset_db!(strict::Entity, lenient::Entity).await
 }
 
 async fn post(app: &Router, uri: &str, payload: serde_json::Value) -> (u16, Vec<u8>) {

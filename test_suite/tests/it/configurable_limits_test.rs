@@ -5,8 +5,7 @@ use axum::body::Body;
 use axum::http::Request;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{DatabaseConnection, DbErr};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -72,36 +71,7 @@ pub mod default_item {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-
-    // Create tables
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
-    // drop first so every test starts from a clean schema and empty data. On
-    // sqlite::memory: each connection is a fresh database, so the drops are no-ops.
-    // create_table_from_entity emits no FK constraints, so drop order is irrelevant.
-    for stmt in [
-        Table::drop()
-            .table(limited_item::Entity)
-            .if_exists()
-            .to_owned(),
-        Table::drop()
-            .table(default_item::Entity)
-            .if_exists()
-            .to_owned(),
-    ] {
-        db.execute(&stmt).await?;
-    }
-
-    db.execute(&schema.create_table_from_entity(limited_item::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(default_item::Entity))
-        .await?;
-
-    Ok(db)
+    test_suite::reset_db!(limited_item::Entity, default_item::Entity).await
 }
 
 #[tokio::test]

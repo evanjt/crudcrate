@@ -20,8 +20,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{ApiError, CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -131,34 +130,7 @@ async fn transform_parent_after_read_one(
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
-    // drop first so every test starts from a clean schema and empty data. On
-    // sqlite::memory: each connection is a fresh database, so the drops are no-ops.
-    // create_table_from_entity emits FK constraints from belongs_to relations, so
-    // drop children before parents (reverse of the create order below).
-    for stmt in [
-        Table::drop()
-            .table(bcjs_child::Entity)
-            .if_exists()
-            .to_owned(),
-        Table::drop()
-            .table(bcjs_parent::Entity)
-            .if_exists()
-            .to_owned(),
-    ] {
-        db.execute(&stmt).await?;
-    }
-
-    db.execute(&schema.create_table_from_entity(bcjs_parent::Entity))
-        .await?;
-    db.execute(&schema.create_table_from_entity(bcjs_child::Entity))
-        .await?;
-    Ok(db)
+    test_suite::reset_db!(bcjs_parent::Entity, bcjs_child::Entity).await
 }
 
 fn app(db: &DatabaseConnection) -> axum::Router {

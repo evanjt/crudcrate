@@ -11,8 +11,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, PaginatorTrait, Schema};
+use sea_orm::{DatabaseConnection, DbErr, PaginatorTrait};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -45,18 +44,9 @@ pub mod bcr_item {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    db.execute(&Table::drop().table(bcr_item::Entity).if_exists().to_owned())
-        .await?;
-    db.execute(&schema.create_table_from_entity(bcr_item::Entity))
-        .await?;
+    let db = test_suite::reset_db!(bcr_item::Entity).await?;
     db.execute_unprepared("CREATE UNIQUE INDEX bcr_items_label_unique ON bcr_items (label)")
         .await?;
-
     Ok(db)
 }
 

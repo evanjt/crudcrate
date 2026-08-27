@@ -19,8 +19,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels, SecurityProfile};
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::Table;
-use sea_orm::{Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -52,27 +51,7 @@ pub mod ppb_thing {
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&url).await?;
-    let backend = db.get_database_backend();
-    let schema = Schema::new(backend);
-
-    // Persistent backends (Postgres/MySQL) keep tables across tests within a binary;
-    // drop first so every test starts from a clean schema. On sqlite::memory: each
-    // connection is a fresh database, so the drop is a harmless no-op.
-    db.execute(
-        &Table::drop()
-            .table(ppb_thing::Entity)
-            .if_exists()
-            .to_owned(),
-    )
-    .await?;
-    db.execute(&schema.create_table_from_entity(ppb_thing::Entity))
-        .await?;
-    // Ensure the unique index on `name` exists regardless of whether
-    // `create_table_from_entity` emitted the `#[sea_orm(unique)]` one. A
-    // duplicate-name insert is what induces a per-item failure in the partial
-    // create test (parity for a DB-level conflict without custom hooks).
+    let db = test_suite::reset_db!(ppb_thing::Entity).await?;
     db.execute_unprepared("CREATE UNIQUE INDEX ppb_things_name_unique ON ppb_things (name)")
         .await?;
     Ok(db)
