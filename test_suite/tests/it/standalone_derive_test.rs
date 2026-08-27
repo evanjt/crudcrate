@@ -1,3 +1,5 @@
+//! Create, Update and List model conversions from `EntityToModels` without a database.
+
 // Standalone derive test
 // ToCreateModel, ToUpdateModel and ToListModel apply directly to an API struct,
 // resolving the active model through the `<Name>ActiveModel` naming fallback

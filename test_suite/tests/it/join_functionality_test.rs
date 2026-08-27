@@ -1,3 +1,5 @@
+//! `join(one)`, `join(all)` and `join(one, all)` loading on Customer and Vehicle, including empty relations.
+
 // @doc-link-file relationships
 // Join Functionality Test
 // Tests join(one), join(all), and join(one, all) combinations

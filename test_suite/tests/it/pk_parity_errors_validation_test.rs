@@ -1,3 +1,5 @@
+//! Error mapping and validation parity for an integer primary key.
+
 // Error / validation parity for a non-UUID (auto-increment i32) primary key.
 //
 // Proves the error paths a UUID-PK model produces are the same when the PK is

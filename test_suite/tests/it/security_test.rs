@@ -1,3 +1,5 @@
+//! Hostile query input: empty fulltext, unknown fields, clause limits, and oversized filters.
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::json;

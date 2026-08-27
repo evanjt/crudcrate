@@ -1,3 +1,5 @@
+//! Native Postgres enum columns: insert, query and cast filter. Skipped on other backends.
+
 // Postgres Native ENUM Test
 // Tests that crudcrate works with REAL Postgres ENUM column types (not TEXT).
 // This test ONLY runs when DATABASE_URL points to Postgres. It's skipped on SQLite/MySQL.

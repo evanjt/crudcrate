@@ -1,3 +1,5 @@
+//! Pagination is stable across pages: ties break on the primary key, no row repeats or is skipped.
+
 // Stable pagination test
 // A sort column with duplicate values must still produce a total order, so paging
 // with LIMIT/OFFSET cannot repeat or skip a row between pages.

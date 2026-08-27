@@ -1,3 +1,5 @@
+//! Serde attributes (`rename`, `skip_serializing_if`) carry over to the generated List model.
+
 // List model serde attribute test
 // Field-level serde attributes shape the wire format, so the list response must
 // serialize a field the same way the single-record response does.

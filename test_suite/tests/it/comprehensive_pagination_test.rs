@@ -1,3 +1,5 @@
+//! Range and page pagination formats as documented, including the Content-Range header.
+
 // @doc-link-file pagination
 // Comprehensive Pagination Tests
 // Tests EVERY example from docs/src/features/pagination.md

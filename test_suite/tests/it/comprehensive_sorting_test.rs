@@ -1,3 +1,5 @@
+//! JSON-array and REST-style sort parameters as documented, including case-insensitive ordering.
+
 // @doc-link-file sorting
 // Comprehensive Sorting Tests
 // Tests EVERY example from docs/src/features/sorting.md

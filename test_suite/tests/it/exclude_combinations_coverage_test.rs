@@ -1,3 +1,5 @@
+//! Each `exclude(...)` target on its own: create, update, one, list, and their effect on models and responses.
+
 // Exclude combinations coverage test.
 //
 // Exercises crudcrate-derive model codegen (create.rs / update.rs / list.rs /

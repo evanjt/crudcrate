@@ -1,3 +1,5 @@
+//! Fulltext `q=` search as documented: combined with sort and pagination, case-insensitive substring matching.
+
 // @doc-link-file fulltext
 // Comprehensive Fulltext Search Tests
 // Tests remaining examples from docs/src/features/fulltext-search.md

@@ -1,3 +1,5 @@
+//! Filter values are bound with the column type (timestamps, integers) rather than compared as text.
+
 // Regression coverage for typed filter comparisons.
 //
 // A comparison filter on a non-text column (a date/timestamp, integer, etc.) sent

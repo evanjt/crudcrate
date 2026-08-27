@@ -1,3 +1,5 @@
+//! Batch create over HTTP: response order, optional fields, and rollback on a unique-constraint violation.
+
 // Scenario: the default `create_many` uses a single multi-row INSERT with
 // RETURNING on backends that support it (Postgres, SQLite >= 3.35) and a
 // per-row insert loop on backends that don't (MySQL).

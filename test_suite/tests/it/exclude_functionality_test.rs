@@ -1,3 +1,5 @@
+//! `exclude(...)` combinations on the Customer fixture, including auto-generated values.
+
 // @doc-link-file exclude
 // Exclude Functionality Test
 // Tests exclude(one), exclude(create), exclude(update), exclude(list), and mixed combinations

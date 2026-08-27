@@ -1,3 +1,5 @@
+//! CRUD and filtering smoke tests intended to run against SQLite, Postgres and MySQL.
+
 // Multi-Database Compatibility Tests
 // Tests that filtering and CRUD operations work across SQLite, PostgreSQL, and MySQL
 

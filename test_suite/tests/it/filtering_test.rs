@@ -1,3 +1,5 @@
+//! String comparison operators (`_neq`, `_gte`, `_lt`) over HTTP.
+
 // String Comparison Operator Tests
 // Tests that string filter operators (_neq, _gte, _lt, etc.) are applied correctly.
 // These expose BUG 1 (operators ignored for strings) and BUG 2 (operator-suffixed key

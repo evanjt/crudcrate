@@ -1,3 +1,5 @@
+//! Excluded fields in request bodies are ignored by default and rejected with `deny_unknown_fields`.
+
 // deny_unknown_fields test
 // Without the opt-in, a payload key the input model does not accept is ignored.
 // With `#[crudcrate(deny_unknown_fields)]`, it is rejected instead of dropped.

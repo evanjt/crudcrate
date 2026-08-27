@@ -1,3 +1,5 @@
+//! The List model omits fields marked `exclude(list)` and shrinks list payloads.
+
 // List Model Optimization Test
 // Tests list_model=false attribute for selective field visibility in list vs detail views
 

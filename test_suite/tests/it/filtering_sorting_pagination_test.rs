@@ -1,3 +1,5 @@
+//! Null, array, boolean and unknown-field filters over HTTP.
+
 // Integration Tests for Filtering Edge Cases
 // Tests unique filter behaviors not covered by comprehensive_* test files
 

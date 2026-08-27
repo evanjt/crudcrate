@@ -1,3 +1,5 @@
+//! Entities declared with the dense sea-orm `DeriveEntityModel` relation syntax generate a working API.
+
 // Scenario: entities written in the SeaORM 2.0 dense format (`#[sea_orm::model]`
 // with inline relation fields) also derive `EntityToModels`.
 // Expected behaviour: the derive attaches to the scalar `Model` that

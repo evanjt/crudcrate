@@ -1,3 +1,5 @@
+//! Scope middleware hides private records from list, get, update and delete.
+
 /// Scope Security Tests
 ///
 /// Validates that `ScopeCondition` + `exclude(scoped)` correctly:

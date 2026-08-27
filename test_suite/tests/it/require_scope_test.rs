@@ -1,3 +1,5 @@
+//! `require_scope` off: unscoped and scoped access both succeed; scoped `get_one` on a missing id is 404.
+
 /// `require_scope` Tests
 ///
 /// Validates the `#[crudcrate(require_scope)]` attribute:

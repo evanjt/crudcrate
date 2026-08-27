@@ -1,3 +1,5 @@
+//! Joins whose foreign key column does not follow the `<type>_id` convention.
+
 // Non-standard FK Join Test
 // Tests that joins work correctly when the FK column name doesn't follow
 // the {ParentStructName}Id convention.

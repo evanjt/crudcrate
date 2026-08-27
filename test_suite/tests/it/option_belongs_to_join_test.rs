@@ -1,3 +1,5 @@
+//! `Option<Parent>` belongs-to joins: loaded when present, `None` for orphans.
+
 // Test: Option<T> belongs_to join loading
 // Validates that Vehicle.customer (Option<Customer>) correctly loads
 // the parent Customer via a belongs_to FK relationship.

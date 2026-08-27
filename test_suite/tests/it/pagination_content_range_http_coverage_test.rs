@@ -1,3 +1,5 @@
+//! Range and page pagination over HTTP, checking both the slice and the Content-Range header.
+
 // HTTP coverage for pagination over the generated list endpoint.
 //
 // Exercises crudcrate::filtering::pagination::calculate_content_range and

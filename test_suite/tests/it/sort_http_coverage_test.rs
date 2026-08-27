@@ -1,3 +1,5 @@
+//! Sort parameter forms over HTTP, ordering by string and integer columns.
+
 // HTTP-driven coverage for crudcrate/src/filtering/sort.rs:
 // parse_sorting / parse_sorting_with_joins / find_column.
 //

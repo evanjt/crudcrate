@@ -1,3 +1,5 @@
+//! Filtering on enum columns: exact, case-insensitive, and array membership.
+
 // Enum Field Auto-Detection Tests
 // Tests that crudcrate automatically detects Sea-ORM enum fields (types implementing
 // ActiveEnum) at compile time using the inherent impl trick: NO explicit

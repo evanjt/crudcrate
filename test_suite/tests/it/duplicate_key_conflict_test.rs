@@ -1,3 +1,5 @@
+//! A unique-constraint violation maps to HTTP 409 from the handler and to a conflict error from the trait.
+
 // Regression for A8: duplicate-key inserts must surface as 409 CONFLICT, not an
 // opaque 500. A unique-constraint violation is a client error.
 //

@@ -1,3 +1,5 @@
+//! Join loading when the resource delegates to a `CRUDOperations` implementation.
+
 // Scenario: an entity with both `operations = ...` and `join(one, all)` fields.
 // Expected behaviour: join loading still populates related entities on get_one
 // and get_all, even though operations is set.

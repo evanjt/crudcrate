@@ -1,3 +1,5 @@
+//! Every filter operator documented in the book, exercised over HTTP against the Customer/Vehicle fixtures.
+
 // @doc-link-file filtering
 // Comprehensive Filtering Tests
 // Tests EVERY example from docs/src/features/filtering.md

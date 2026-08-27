@@ -1,3 +1,5 @@
+//! Scope conditions are applied in SQL to joined children, not filtered after loading.
+
 /// SQL-Level Scope Filtering Tests
 ///
 /// Validates that child entities with `exclude(scoped)` fields are filtered at the

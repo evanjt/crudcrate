@@ -1,3 +1,5 @@
+//! Per-resource `batch_limit` and `max_page_size` attributes and their defaults.
+
 // Tests for configurable limits feature
 // Verifies that batch_limit and max_page_size can be configured via struct attributes
 

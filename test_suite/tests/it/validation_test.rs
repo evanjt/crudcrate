@@ -1,3 +1,5 @@
+//! CRUD error conditions and database connection failures surface as errors, not panics.
+
 // Error Handling Tests
 // Tests error conditions and edge cases to improve coverage
 
