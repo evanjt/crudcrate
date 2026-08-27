@@ -35,6 +35,9 @@ Scheduled for removal in the next breaking release:
 ### Removed
 
 - The empty, hidden `crudcrate::routes` module.
+- The `spring-rs` feature and its optional `spring` and `spring-web` dependencies.
+  No code was gated on it; spring-web applications mount the generated axum
+  router directly.
 
 ### Changed
 

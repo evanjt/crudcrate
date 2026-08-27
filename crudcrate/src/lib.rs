@@ -118,7 +118,6 @@
 //! | `sqlite` | yes | SQLite support via sqlx |
 //! | `postgresql` | no | PostgreSQL support (enables GIN/tsvector fulltext) |
 //! | `mysql` | no | MySQL support (enables FULLTEXT indexes) |
-//! | `spring-rs` | no | Enables the optional `spring` and `spring-web` dependencies. No integration code is behind this flag. |
 
 pub mod batch;
 pub mod core;
