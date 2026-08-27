@@ -1,15 +1,12 @@
+//! Pure syn helpers: type inspection, path rewriting and ident derivation.
+
 use convert_case::{Case, Casing};
 use heck::ToPascalCase;
-use quote::{format_ident, quote};
-
-use crate::{
-    CRUDResourceMeta, attribute_parser::get_crudcrate_bool,
-    codegen::models::should_include_in_model,
-};
+use quote::{ToTokens, format_ident, quote};
 
 /// Map field types to their corresponding entity or model paths
 /// This function replaces both `get_entity_path_from_field_type` and `get_model_path_from_field_type`
-pub fn get_path_from_field_type(
+pub(crate) fn get_path_from_field_type(
     field_type: &syn::Type,
     target_suffix: &str,
 ) -> proc_macro2::TokenStream {
@@ -55,7 +52,7 @@ pub fn get_path_from_field_type(
 
 /// Extract the API struct type for recursive `get_one()` calls from field types
 /// Recursively unwraps Vec/Option wrappers and handles Join type aliases
-pub fn extract_api_struct_type_for_recursive_call(
+pub(crate) fn extract_api_struct_type_for_recursive_call(
     field_type: &syn::Type,
 ) -> proc_macro2::TokenStream {
     // Recursively unwrap Vec and Option wrappers using canonical helpers
@@ -98,7 +95,7 @@ pub fn extract_api_struct_type_for_recursive_call(
 ///
 /// For self-referencing joins (where the inner type matches `self_api_struct_name`),
 /// returns the original type unchanged.
-pub fn transform_type_to_list_variant(
+pub(crate) fn transform_type_to_list_variant(
     ty: &syn::Type,
     self_api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
@@ -164,7 +161,7 @@ fn append_list_to_type(ty: &syn::Type) -> proc_macro2::TokenStream {
 /// Examples:
 /// - `Vec<Sample>` → `Vec<SampleScopedList>`
 /// - `Vec<crate::isolates::db::Isolate>` → `Vec<crate::isolates::db::IsolateScopedList>`
-pub fn transform_type_to_scoped_list_variant(
+pub(crate) fn transform_type_to_scoped_list_variant(
     ty: &syn::Type,
     self_api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
@@ -214,12 +211,12 @@ fn append_suffix_to_type(ty: &syn::Type, suffix: &str) -> proc_macro2::TokenStre
 
 /// For a Vec<T> type, return the "`TList`" inner type token (not wrapped in Vec).
 /// Used when generating chained conversions for scoped response join fields.
-pub fn inner_list_type_of_vec(ty: &syn::Type) -> proc_macro2::TokenStream {
+pub(crate) fn inner_list_type_of_vec(ty: &syn::Type) -> proc_macro2::TokenStream {
     let inner = extract_vec_inner_type_ref(ty);
     append_suffix_to_type(inner, "List")
 }
 
-pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
+pub(crate) fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::TokenStream {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
         && segment.ident == "Option"
@@ -230,14 +227,15 @@ pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::Token
     }
     quote! { #ty }
 }
+
 /// The `Column` enum variant sea-orm generates for a field name. sea-orm
 /// derives variants with heck, which does not split on digit boundaries
 /// (`is_2fa_enabled` -> `Is2faEnabled`).
-pub fn column_ident(field_name: &str) -> syn::Ident {
+pub(crate) fn column_ident(field_name: &str) -> syn::Ident {
     format_ident!("{}", field_name.to_pascal_case())
 }
 
-pub fn is_vec_type(ty: &syn::Type) -> bool {
+pub(crate) fn is_vec_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
         && segment.ident == "Vec"
@@ -247,7 +245,7 @@ pub fn is_vec_type(ty: &syn::Type) -> bool {
     false
 }
 
-pub fn is_option_type(ty: &syn::Type) -> bool {
+pub(crate) fn is_option_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
         && segment.ident == "Option"
@@ -258,7 +256,7 @@ pub fn is_option_type(ty: &syn::Type) -> bool {
 }
 
 /// For an Option<T> type, return the "`TList`" inner type token (not wrapped in Option).
-pub fn inner_list_type_of_option(ty: &syn::Type) -> proc_macro2::TokenStream {
+pub(crate) fn inner_list_type_of_option(ty: &syn::Type) -> proc_macro2::TokenStream {
     let inner = extract_option_inner_type_ref(ty);
     append_suffix_to_type(inner, "List")
 }
@@ -266,7 +264,7 @@ pub fn inner_list_type_of_option(ty: &syn::Type) -> proc_macro2::TokenStream {
 /// Extract inner type from Vec<T>, or return the type itself if not a Vec
 /// This is the canonical implementation used across the codebase
 /// Returns a reference to the inner `syn::Type`
-pub fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
+pub(crate) fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
         && segment.ident == "Vec"
@@ -280,7 +278,7 @@ pub fn extract_vec_inner_type_ref(ty: &syn::Type) -> &syn::Type {
 
 /// Extract inner type from Option<T>, or return the type itself if not an Option
 /// Returns a reference to the inner `syn::Type`
-pub fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
+pub(crate) fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
         && segment.ident == "Option"
@@ -292,147 +290,8 @@ pub fn extract_option_inner_type_ref(ty: &syn::Type) -> &syn::Type {
     ty
 }
 
-pub fn generate_crud_type_aliases(
-    api_struct_name: &syn::Ident,
-    _crud_meta: &CRUDResourceMeta,
-    active_model_path: &str,
-) -> (
-    syn::Ident,
-    syn::Ident,
-    syn::Ident,
-    syn::Type,
-    syn::Type,
-    syn::Type,
-) {
-    let create_model_name = format_ident!("{}Create", api_struct_name);
-    let update_model_name = format_ident!("{}Update", api_struct_name);
-    let list_model_name = format_ident!("{}List", api_struct_name);
-
-    // Sea-ORM always uses Entity and Column - these are not configurable
-    let entity_type: syn::Type = syn::parse_quote!(Entity);
-    let column_type: syn::Type = syn::parse_quote!(Column);
-
-    let active_model_type: syn::Type =
-        syn::parse_str(active_model_path).unwrap_or_else(|_| syn::parse_quote!(ActiveModel));
-
-    (
-        create_model_name,
-        update_model_name,
-        list_model_name,
-        entity_type,
-        column_type,
-        active_model_type,
-    )
-}
-
-pub fn generate_id_column(primary_key_field: Option<&syn::Field>) -> proc_macro2::TokenStream {
-    if let Some(pk_field) = primary_key_field {
-        let field_name = &pk_field.ident.as_ref().unwrap();
-        let column_name = column_ident(&ident_to_string(field_name));
-        quote! { Self::ColumnType::#column_name }
-    } else {
-        quote! { Self::ColumnType::Id }
-    }
-}
-
-pub fn generate_field_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_str = ident_to_string(field_name);
-            let column_name = column_ident(&field_str);
-            quote! { (#field_str, Self::ColumnType::#column_name) }
-        })
-        .collect()
-}
-
-pub fn generate_like_filterable_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .filter_map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_str = ident_to_string(field_name);
-
-            // Check if this field should use LIKE queries based on its type
-            if is_text_type(&field.ty) {
-                Some(quote! { #field_str })
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-/// Generate string entries for columns excluded from scoped (public) requests.
-///
-/// Collects field names that have `exclude(scoped)`; these are stripped from
-/// filterable/sortable lists when a `ScopeCondition` is active, preventing
-/// schema probing by unauthenticated users.
-pub fn generate_scoped_excluded_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenStream> {
-    fields
-        .iter()
-        .filter(|field| !should_include_in_model(field, "scoped_model"))
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_str = ident_to_string(field_name);
-            quote! { #field_str }
-        })
-        .collect()
-}
-
-/// Generate enum field checker using compile-time trait detection.
-/// Automatically detects fields whose type implements `sea_orm::ActiveEnum`
-/// using the inherent impl trick; no explicit annotation needed.
-/// The `#[crudcrate(enum_field)]` attribute is still supported as an explicit override.
-pub fn generate_enum_field_checker(all_fields: &[&syn::Field]) -> proc_macro2::TokenStream {
-    let field_checks: Vec<proc_macro2::TokenStream> = all_fields
-        .iter()
-        .filter_map(|field| {
-            if let Some(field_name) = &field.ident {
-                let field_name_str = ident_to_string(field_name);
-
-                // Backward compat: explicit enum_field still works but is no longer required.
-                // Deprecated in 0.7.2: enum fields are now auto-detected.
-                let explicit = get_crudcrate_bool(field, "enum_field").unwrap_or(false);
-                if explicit {
-                    return Some(quote! { #field_name_str => true, });
-                }
-
-                // Auto-detect: unwrap Option<T> to get the inner type, then check
-                // at compile time whether it implements sea_orm::ActiveEnum.
-                // Uses the "inherent impl trick": inherent methods on a generic wrapper
-                // shadow trait methods, so if T: ActiveEnum the inherent const wins.
-                let inner_ty = extract_option_inner_type_ref(&field.ty);
-
-                Some(quote! {
-                    #field_name_str => {
-                        trait __Fallback { const V: bool = false; }
-                        impl<T> __Fallback for __Probe<T> {}
-                        struct __Probe<T>(::core::marker::PhantomData<T>);
-                        #[allow(dead_code)]
-                        impl<T: ::sea_orm::ActiveEnum> __Probe<T> {
-                            const V: bool = true;
-                        }
-                        <__Probe<#inner_ty>>::V
-                    },
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    quote! {
-        match field_name {
-            #(#field_checks)*
-            _ => false,
-        }
-    }
-}
-
 /// Helper function to handle raw identifiers properly by stripping the r# prefix
-pub fn ident_to_string(ident: &syn::Ident) -> String {
+pub(crate) fn ident_to_string(ident: &syn::Ident) -> String {
     let ident_str = ident.to_string();
     if let Some(stripped) = ident_str.strip_prefix("r#") {
         stripped.to_string() // Strip "r#" prefix from raw identifiers
@@ -442,7 +301,7 @@ pub fn ident_to_string(ident: &syn::Ident) -> String {
 }
 
 /// Check if a type is a text type (String or &str), handling Option<T> wrappers
-pub fn is_text_type(ty: &syn::Type) -> bool {
+pub(crate) fn is_text_type(ty: &syn::Type) -> bool {
     match ty {
         syn::Type::Path(type_path) => {
             if let Some(last_seg) = type_path.path.segments.last() {
@@ -471,5 +330,150 @@ pub fn is_text_type(ty: &syn::Type) -> bool {
             }
         }
         _ => false,
+    }
+}
+
+/// Returns true if the field's type is `Option<…>` (including `std::option::Option<…>`).
+pub(crate) fn field_is_optional(field: &syn::Field) -> bool {
+    is_option_type(&field.ty)
+}
+
+/// Resolves the target models (Create/Update) for a field with `use_target_models` attribute.
+/// Returns (`CreateModel`, `UpdateModel`) types for the target `CRUDResource`.
+pub(crate) fn resolve_target_models(field_type: &syn::Type) -> Option<(syn::Type, syn::Type)> {
+    // Extract the inner type if it's Vec<T>
+    let target_type = extract_vec_inner_type_ref(field_type);
+
+    // Convert target type to Create and Update models
+    // For example: crate::path::to::models::Entity -> (EntityCreate, EntityUpdate)
+    if let syn::Type::Path(type_path) = target_type
+        && let Some(last_seg) = type_path.path.segments.last()
+    {
+        let base_name = &last_seg.ident;
+
+        // Keep the module path but replace the struct name
+        let mut create_path = type_path.clone();
+        let mut update_path = type_path.clone();
+
+        // Update the last segment to be the Create/Update versions
+        if let Some(last_seg_mut) = create_path.path.segments.last_mut() {
+            last_seg_mut.ident = quote::format_ident!("{}Create", base_name);
+        }
+        if let Some(last_seg_mut) = update_path.path.segments.last_mut() {
+            last_seg_mut.ident = quote::format_ident!("{}Update", base_name);
+        }
+
+        let create_model = syn::Type::Path(create_path);
+        let update_model = syn::Type::Path(update_path);
+
+        return Some((create_model, update_model));
+    }
+    None
+}
+
+/// Resolves `DateTimeWithTimeZone` to `chrono::DateTime<chrono::FixedOffset>` in a type.
+///
+/// `SeaORM`'s `DateTimeWithTimeZone` is a type alias for `chrono::DateTime<chrono::FixedOffset>`,
+/// but utoipa's `ToSchema` derive only recognizes `DateTime` (the bare ident), not the alias.
+/// This function rewrites the type so utoipa's chrono feature can recognize it, while keeping
+/// the same underlying Rust type (no runtime conversion needed).
+///
+/// Returns the original token stream unchanged if `DateTimeWithTimeZone` is not present.
+pub(crate) fn resolve_dtwtz(ty: &impl ToTokens) -> proc_macro2::TokenStream {
+    let type_str = ty.to_token_stream().to_string();
+    if !type_str.contains("DateTimeWithTimeZone") {
+        return ty.to_token_stream();
+    }
+    let resolved = type_str.replace(
+        "DateTimeWithTimeZone",
+        "chrono::DateTime<chrono::FixedOffset>",
+    );
+    syn::parse_str::<syn::Type>(&resolved).map_or_else(|_| ty.to_token_stream(), |t| quote! { #t })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+    use syn::parse_quote;
+
+    #[test]
+    fn test_field_is_optional_with_option_type() {
+        let field: syn::Field = parse_quote! { pub field: Option<String> };
+        assert!(field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_field_is_optional_with_std_option() {
+        let field: syn::Field = parse_quote! { pub field: std::option::Option<i32> };
+        assert!(field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_field_is_optional_with_non_option_type() {
+        let field: syn::Field = parse_quote! { pub field: String };
+        assert!(!field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_field_is_optional_with_vec() {
+        let field: syn::Field = parse_quote! { pub field: Vec<String> };
+        assert!(!field_is_optional(&field));
+    }
+
+    #[test]
+    fn test_resolve_target_models_simple_type() {
+        let field_type: syn::Type = parse_quote! { Entity };
+        let result = resolve_target_models(&field_type);
+
+        assert!(result.is_some());
+        let (create, update) = result.unwrap();
+
+        // Verify the model names are correct
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+
+        assert!(create_str.contains("EntityCreate"));
+        assert!(update_str.contains("EntityUpdate"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_vec_type() {
+        let field_type: syn::Type = parse_quote! { Vec<Product> };
+        let result = resolve_target_models(&field_type);
+
+        assert!(result.is_some());
+        let (create, update) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+
+        assert!(create_str.contains("ProductCreate"));
+        assert!(update_str.contains("ProductUpdate"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_with_path() {
+        let field_type: syn::Type = parse_quote! { crate::entities::Customer };
+        let result = resolve_target_models(&field_type);
+
+        assert!(result.is_some());
+        let (create, update) = result.unwrap();
+
+        let create_str = quote!(#create).to_string();
+        let update_str = quote!(#update).to_string();
+
+        // Should preserve the path
+        assert!(create_str.contains("crate :: entities"));
+        assert!(create_str.contains("CustomerCreate"));
+        assert!(update_str.contains("CustomerUpdate"));
+    }
+
+    #[test]
+    fn test_resolve_target_models_invalid_type() {
+        // Non-path types should return None
+        let field_type: syn::Type = parse_quote! { &str };
+        let result = resolve_target_models(&field_type);
+        assert!(result.is_none());
     }
 }

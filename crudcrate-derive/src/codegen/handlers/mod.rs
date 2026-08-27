@@ -1,4 +1,6 @@
-pub mod create;
-pub mod delete;
-pub mod get;
-pub mod update;
+//! Emits the `CRUDResource` method bodies for each operation, with hook and join wiring.
+
+pub(crate) mod create;
+pub(crate) mod delete;
+pub(crate) mod get;
+pub(crate) mod update;

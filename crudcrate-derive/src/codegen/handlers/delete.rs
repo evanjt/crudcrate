@@ -1,4 +1,6 @@
-use crate::traits::crudresource::structs::CRUDResourceMeta;
+//! `delete` and `delete_many` bodies.
+
+use crate::ir::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate delete method implementation with hook support.
@@ -8,7 +10,7 @@ use quote::quote;
 /// - `delete::one::body`: Replaces default delete logic (receives id, returns `Uuid`)
 /// - `delete::one::transform`: Modify the result (receives `Uuid`, returns `Uuid`)
 /// - `delete::one::post`: Side effects after delete (receives deleted id)
-pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
@@ -78,7 +80,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 ///
 /// **Security Note**: The default implementation limits batch deletes to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
-pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {

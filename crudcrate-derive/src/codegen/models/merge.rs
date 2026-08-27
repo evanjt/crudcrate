@@ -4,9 +4,9 @@
 //! - Included field merge logic (fields in Update model)
 //! - Excluded field merge logic (fields with `on_update` but excluded from Update model)
 
-use crate::attribute_parser;
+use crate::attrs;
 use crate::codegen::models::shared::generate_active_value_assignment;
-use crate::fields;
+use crate::syn_type::field_is_optional;
 use quote::quote;
 
 /// Generates merge code for fields included in the Update model
@@ -16,12 +16,10 @@ pub(crate) fn generate_included_merge_code(
 ) -> Vec<proc_macro2::TokenStream> {
     included_fields
         .iter()
-        .filter(|field| {
-            !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
-        })
+        .filter(|field| !attrs::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false))
         .map(|field| {
             let ident = &field.ident;
-            let is_optional = fields::field_is_optional(field);
+            let is_optional = field_is_optional(field);
 
             if is_optional {
                 quote! {
@@ -57,13 +55,13 @@ pub(crate) fn generate_excluded_merge_code(
     fields
         .iter()
         .filter(|field| {
-            attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
-                && !attribute_parser::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
+            attrs::get_crudcrate_bool(field, "update_model") == Some(false)
+                && !attrs::get_crudcrate_bool(field, "non_db_attr").unwrap_or(false)
         })
         .filter_map(|field| {
-            attribute_parser::get_crudcrate_expr(field, "on_update").map(|expr| {
+            attrs::get_crudcrate_expr(field, "on_update").map(|expr| {
                 let ident = field.ident.as_ref().unwrap();
-                let is_optional = fields::field_is_optional(field);
+                let is_optional = field_is_optional(field);
                 generate_active_value_assignment(ident, &expr, is_optional)
             })
         })

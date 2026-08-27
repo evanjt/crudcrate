@@ -1,21 +1,20 @@
+//! Emits the `impl CRUDResource` block: associated consts, type aliases, column entries and the CRUD method bodies.
+
+use crate::attrs::get_join_config;
 use crate::codegen::{
     handlers::{create, delete, get, update},
-    joins::{
-        get_join_config,
-        loading::{
-            generate_get_all_joined_sorted_impl, generate_joined_field_has_scope_impl,
-            generate_resolve_joined_filters_impl,
-        },
+    joins::filter_sort::{
+        generate_get_all_joined_sorted_impl, generate_joined_field_has_scope_impl,
+        generate_resolve_joined_filters_impl,
     },
-    type_resolution::{
-        extract_api_struct_type_for_recursive_call, generate_crud_type_aliases,
-        generate_enum_field_checker, generate_field_entries, generate_id_column,
-        generate_like_filterable_entries, generate_scoped_excluded_entries,
-        get_path_from_field_type, is_vec_type,
+    trait_consts::{
+        generate_crud_type_aliases, generate_enum_field_checker, generate_field_entries,
+        generate_id_column, generate_like_filterable_entries, generate_scoped_excluded_entries,
     },
 };
-use crate::traits::crudresource::structs::{
-    CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig,
+use crate::ir::{CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig};
+use crate::syn_type::{
+    extract_api_struct_type_for_recursive_call, get_path_from_field_type, is_vec_type,
 };
 use quote::quote;
 

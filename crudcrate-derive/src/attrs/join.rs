@@ -1,8 +1,11 @@
+//! `join(...)` grammar: the field-level form and the struct-level `join(name = .., result = ..)` form.
+
+use crate::ir::StructLevelJoin;
 use syn::{Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma};
 
 /// Configuration for join behavior on a field
 #[derive(Debug, Clone, Default)]
-pub struct JoinConfig {
+pub(crate) struct JoinConfig {
     pub on_one: bool,
     pub on_all: bool,
     pub depth: Option<u8>,
@@ -17,7 +20,7 @@ pub struct JoinConfig {
 }
 
 /// Result of parsing join config - may contain deprecation errors
-pub struct JoinConfigResult {
+pub(crate) struct JoinConfigResult {
     pub config: Option<JoinConfig>,
     pub errors: Vec<syn::Error>,
 }
@@ -210,5 +213,153 @@ fn parse_join_parameters(meta_list: &syn::MetaList) -> Option<JoinConfig> {
         Some(config)
     } else {
         None
+    }
+}
+
+/// Parse a struct-level `join(name = "field", result = "Type", one, all, depth = N)` attribute.
+/// Returns `Some` only if both `name` and `result` are present (distinguishing from field-level joins).
+pub(crate) fn parse_struct_level_join(
+    meta_list: &syn::MetaList,
+) -> Option<crate::ir::StructLevelJoin> {
+    use crate::ir::StructLevelJoin;
+
+    let mut name = None;
+    let mut result_type = None;
+    let mut on_one = false;
+    let mut on_all = false;
+    let mut depth = None;
+    let mut relation = None;
+    let mut path = None;
+    let mut filterable_columns = Vec::new();
+    let mut sortable_columns = Vec::new();
+    let mut fk_column = None;
+    let metas = Punctuated::<Meta, Comma>::parse_terminated
+        .parse2(meta_list.tokens.clone())
+        .ok()?;
+
+    for meta in metas {
+        match meta {
+            Meta::NameValue(nv) => {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    match &expr_lit.lit {
+                        Lit::Str(s) => {
+                            if nv.path.is_ident("name") {
+                                name = Some(s.value());
+                            } else if nv.path.is_ident("result") {
+                                result_type = Some(s.value());
+                            } else if nv.path.is_ident("relation") {
+                                relation = Some(s.value());
+                            } else if nv.path.is_ident("path") {
+                                path = Some(s.value());
+                            } else if nv.path.is_ident("fk_column") {
+                                fk_column = Some(s.value());
+                            }
+                        }
+                        Lit::Int(i) if nv.path.is_ident("depth") => {
+                            depth = i.base10_parse().ok();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Meta::Path(p) => {
+                if p.is_ident("one") || p.is_ident("on_one") {
+                    on_one = true;
+                } else if p.is_ident("all") || p.is_ident("on_all") {
+                    on_all = true;
+                }
+            }
+            Meta::List(nested) => {
+                if nested.path.is_ident("filterable") {
+                    filterable_columns = parse_string_list(&nested);
+                } else if nested.path.is_ident("sortable") {
+                    sortable_columns = parse_string_list(&nested);
+                }
+            }
+        }
+    }
+
+    let name = name?;
+    let result_type = result_type?;
+    if !on_one && !on_all {
+        return None;
+    }
+
+    Some(StructLevelJoin {
+        name,
+        result_type,
+        on_one,
+        on_all,
+        depth,
+        relation,
+        path,
+        filterable_columns,
+        sortable_columns,
+        fk_column,
+    })
+}
+
+/// The synthetic field a struct-level `join(name = .., result = ..)` adds to the API struct.
+/// It exists only on the generated API struct, not on the Sea-ORM model.
+pub(crate) fn synthetic_join_field(
+    j: &StructLevelJoin,
+    input: &syn::DeriveInput,
+) -> Result<Option<syn::Field>, proc_macro2::TokenStream> {
+    let mut parts = Vec::new();
+    if j.on_one {
+        parts.push("one".to_string());
+    }
+    if j.on_all {
+        parts.push("all".to_string());
+    }
+    if let Some(d) = j.depth {
+        parts.push(format!("depth = {d}"));
+    }
+    if let Some(ref r) = j.relation {
+        parts.push(format!("relation = \"{r}\""));
+    }
+    if let Some(ref p) = j.path {
+        parts.push(format!("path = \"{p}\""));
+    }
+    if !j.filterable_columns.is_empty() {
+        let cols = j
+            .filterable_columns
+            .iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        parts.push(format!("filterable({cols})"));
+    }
+    if !j.sortable_columns.is_empty() {
+        let cols = j
+            .sortable_columns
+            .iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        parts.push(format!("sortable({cols})"));
+    }
+    if let Some(ref fk) = j.fk_column {
+        parts.push(format!("fk_column = \"{fk}\""));
+    }
+    let join_attr = parts.join(", ");
+    let struct_str = format!(
+        "struct S {{ #[sea_orm(ignore)] #[crudcrate(non_db_attr, exclude(create, update), join({join_attr}))] pub {}: {} }}",
+        j.name, j.result_type
+    );
+    match syn::parse_str::<syn::ItemStruct>(&struct_str) {
+        Ok(s) => {
+            if let syn::Fields::Named(named) = s.fields
+                && let Some(field) = named.named.into_iter().next()
+            {
+                return Ok(Some(field));
+            }
+            Ok(None)
+        }
+        Err(e) => Err(syn::Error::new_spanned(
+            input,
+            format!("Invalid struct-level join '{}': {e}", j.name),
+        )
+        .to_compile_error()),
     }
 }

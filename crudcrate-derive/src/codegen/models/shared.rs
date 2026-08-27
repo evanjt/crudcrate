@@ -1,9 +1,9 @@
 //! Shared utilities for model generation to eliminate code duplication
 
-use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_expr};
-use crate::codegen::type_resolution::is_vec_type;
-use crate::fields::resolve_target_models;
-use quote::{ToTokens, quote};
+use crate::attrs::{field_has_crudcrate_flag, get_crudcrate_expr};
+use crate::syn_type::is_vec_type;
+use crate::syn_type::resolve_target_models;
+use quote::quote;
 
 /// Field attributes carried from the source struct onto a generated serialization
 /// model (List, Response, and their scoped variants).
@@ -18,26 +18,6 @@ pub(crate) fn wire_attrs(field: &syn::Field) -> Vec<&syn::Attribute> {
         .iter()
         .filter(|attr| !attr.path().is_ident("crudcrate") && !attr.path().is_ident("sea_orm"))
         .collect()
-}
-
-/// Resolves `DateTimeWithTimeZone` to `chrono::DateTime<chrono::FixedOffset>` in a type.
-///
-/// `SeaORM`'s `DateTimeWithTimeZone` is a type alias for `chrono::DateTime<chrono::FixedOffset>`,
-/// but utoipa's `ToSchema` derive only recognizes `DateTime` (the bare ident), not the alias.
-/// This function rewrites the type so utoipa's chrono feature can recognize it, while keeping
-/// the same underlying Rust type (no runtime conversion needed).
-///
-/// Returns the original token stream unchanged if `DateTimeWithTimeZone` is not present.
-pub(crate) fn resolve_dtwtz(ty: &impl ToTokens) -> proc_macro2::TokenStream {
-    let type_str = ty.to_token_stream().to_string();
-    if !type_str.contains("DateTimeWithTimeZone") {
-        return ty.to_token_stream();
-    }
-    let resolved = type_str.replace(
-        "DateTimeWithTimeZone",
-        "chrono::DateTime<chrono::FixedOffset>",
-    );
-    syn::parse_str::<syn::Type>(&resolved).map_or_else(|_| ty.to_token_stream(), |t| quote! { #t })
 }
 
 /// Resolves the final type for a field, handling `use_target_models` transformations

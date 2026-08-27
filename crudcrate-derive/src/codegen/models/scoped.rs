@@ -1,19 +1,13 @@
-//! List and Response model generation orchestration
-//!
-//! This module coordinates the generation of both List and Response models
-//! from entity definitions, using the dedicated list and response generators.
+//! `ScopedList` and `ScopedResponse` models and the `ScopeFilterable` impls behind `exclude(scoped)`.
 
-use crate::codegen::joins::get_join_config;
+use crate::attrs::get_join_config;
 use crate::codegen::models::shared::wire_attrs;
 use crate::codegen::models::should_include_in_model;
-use crate::codegen::type_resolution::{
+use crate::syn_type::{
     column_ident, inner_list_type_of_option, inner_list_type_of_vec, is_option_type, is_vec_type,
     transform_type_to_scoped_list_variant,
 };
-use crate::fields;
-use crate::traits::crudresource::structs::EntityFieldAnalysis;
 use quote::{format_ident, quote};
-use syn::DeriveInput;
 
 /// Check if a type is `bool` (plain, not Option<bool>)
 fn is_bool_type(ty: &syn::Type) -> bool {
@@ -24,93 +18,14 @@ fn is_bool_type(ty: &syn::Type) -> bool {
     }
 }
 
-/// Generates both List and Response models from entity definition
-///
-/// `struct_level_joins` are synthetic fields from struct-level `join(...)` attributes.
-///
-/// Returns a tuple of (`list_model_tokens`, `response_model_tokens`)
-pub(crate) fn generate_list_and_response_models(
-    input: &DeriveInput,
+/// Distinct scoped structs when the entity has `exclude(scoped)` fields, otherwise type aliases
+/// so parents can always name `ChildScopedList` and `ChildScopedResponse`.
+pub(crate) fn generate_scoped_models(
+    all_fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     api_struct_name: &syn::Ident,
-    struct_name: &syn::Ident,
-    field_analysis: &EntityFieldAnalysis,
-    struct_level_joins: &[syn::Field],
-) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
-    // Generate List model
-    let list_name = format_ident!("{}List", api_struct_name);
-    let raw_fields = match fields::extract_named_fields(input) {
-        Ok(f) => f,
-        Err(_e) => {
-            return (quote::quote! {}, quote::quote! {});
-        }
-    };
-
-    // Combine real fields with synthetic join fields
-    let mut all_fields = raw_fields.clone();
-    for field in struct_level_joins {
-        all_fields.push(field.clone());
-    }
-
-    let list_struct_fields =
-        crate::codegen::models::list::generate_list_struct_fields(&all_fields, api_struct_name);
-    let list_from_assignments =
-        crate::codegen::models::list::generate_list_from_assignments(&all_fields);
-    let list_from_model_assignments =
-        crate::codegen::models::list::generate_list_from_model_assignments(field_analysis);
-
-    let list_derives =
-        quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
-
-    let list_model = quote! {
-        #[derive(#list_derives)]
-        pub struct #list_name {
-            #(#list_struct_fields),*
-        }
-
-        impl From<#api_struct_name> for #list_name {
-            fn from(model: #api_struct_name) -> Self {
-                Self {
-                    #(#list_from_assignments),*
-                }
-            }
-        }
-
-        impl From<#struct_name> for #list_name {
-            fn from(model: #struct_name) -> Self {
-                Self {
-                    #(#list_from_model_assignments),*
-                }
-            }
-        }
-    };
-
-    // Generate Response model
-    let response_name = format_ident!("{}Response", api_struct_name);
-    let response_struct_fields = crate::codegen::models::response::generate_response_struct_fields(
-        &all_fields,
-        api_struct_name,
-    );
-    let response_from_assignments =
-        crate::codegen::models::response::generate_response_from_assignments(&all_fields);
-
-    let response_derives =
-        quote! { Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema };
-
-    let response_model = quote! {
-        #[derive(#response_derives)]
-        pub struct #response_name {
-            #(#response_struct_fields),*
-        }
-
-        impl From<#api_struct_name> for #response_name {
-            fn from(model: #api_struct_name) -> Self {
-                Self {
-                    #(#response_from_assignments),*
-                }
-            }
-        }
-    };
-
+    list_name: &syn::Ident,
+    response_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
     // Always generate ScopedList/ScopedResponse so parent entities can reference
     // child scoped types in their own scoped models (join fields).
     let has_scoped_exclusions = all_fields
@@ -120,7 +35,7 @@ pub(crate) fn generate_list_and_response_models(
     let scoped_list_name = format_ident!("{}ScopedList", api_struct_name);
     let scoped_response_name = format_ident!("{}ScopedResponse", api_struct_name);
 
-    let scoped_models = if has_scoped_exclusions {
+    if has_scoped_exclusions {
         // Entity has exclude(scoped) fields: generate distinct scoped structs
 
         // ScopedList: fields included in list AND not exclude(scoped)
@@ -257,8 +172,15 @@ pub(crate) fn generate_list_and_response_models(
             pub type #scoped_list_name = #list_name;
             pub type #scoped_response_name = #response_name;
         }
-    };
+    }
+}
 
+/// `ScopeFilterable` for the list model and the API struct: hidden when any `exclude(scoped)` bool is set.
+pub(crate) fn generate_scope_filterable_impls(
+    all_fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    api_struct_name: &syn::Ident,
+    list_name: &syn::Ident,
+) -> proc_macro2::TokenStream {
     // Generate ScopeFilterable impls for ListModel and API struct.
     // If this entity has exclude(scoped) boolean fields, the impl returns false
     // when those fields are true (ie. the record is private).
@@ -275,7 +197,7 @@ pub(crate) fn generate_list_and_response_models(
         .filter_map(|f| f.ident.as_ref())
         .collect();
 
-    let scope_filterable_impls = if scope_filter_fields.is_empty() {
+    if scope_filter_fields.is_empty() {
         // No exclude(scoped) boolean fields: use default (always visible, no scope condition)
         quote! {
             impl crudcrate::ScopeFilterable for #list_name {}
@@ -314,8 +236,5 @@ pub(crate) fn generate_list_and_response_models(
                 }
             }
         }
-    };
-
-    let combined_list = quote! { #list_model #scoped_models #scope_filterable_impls };
-    (combined_list, response_model)
+    }
 }

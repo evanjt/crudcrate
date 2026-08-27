@@ -5,11 +5,9 @@
 //! - Depth exceeding `MAX_ALLOWED_DEPTH`
 //! - Bidirectional `SeaORM` relations that cause infinite recursion in `find_related()`
 
-use crate::codegen::joins::get_join_config;
-use crate::codegen::type_resolution::{
-    extract_api_struct_type_for_recursive_call, get_path_from_field_type,
-};
-use crate::traits::crudresource::structs::EntityFieldAnalysis;
+use crate::attrs::get_join_config;
+use crate::ir::EntityFieldAnalysis;
+use crate::syn_type::{extract_api_struct_type_for_recursive_call, get_path_from_field_type};
 use quote::quote;
 
 // Maximum allowed join depth (enforced at runtime, warned at compile-time)
@@ -18,7 +16,7 @@ const MAX_ALLOWED_DEPTH: u8 = 5;
 /// Check if join depth is potentially problematic for performance
 fn check_join_depth(
     field: &syn::Field,
-    join_config: &crate::codegen::joins::JoinConfig,
+    join_config: &crate::attrs::JoinConfig,
     entity_name: &str,
     warnings: &mut Vec<proc_macro2::TokenStream>,
 ) {
@@ -80,7 +78,7 @@ fn check_join_depth(
 /// - `depth = 1`: OK (crudcrate uses safe `Entity::find().filter()`)
 /// - `depth` unspecified: COMPILE ERROR (must explicitly set depth = 1)
 /// - `depth > 1`: COMPILE ERROR (recursive `get_one()` calls would infinitely recurse)
-pub fn generate_bidirectional_checks(
+pub(crate) fn generate_bidirectional_checks(
     analysis: &EntityFieldAnalysis,
     entity_name: &str,
 ) -> proc_macro2::TokenStream {

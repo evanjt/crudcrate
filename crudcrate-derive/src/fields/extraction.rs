@@ -3,7 +3,7 @@
 //! Functions for extracting and parsing fields from struct definitions,
 //! including entity-level attribute parsing.
 
-use crate::attribute_parser;
+use crate::attrs;
 use heck::ToPascalCase;
 use proc_macro2::TokenStream;
 use quote::format_ident;
@@ -12,7 +12,7 @@ use syn::{
 };
 
 /// Extract named fields from a struct, returning proper compile error if not valid
-pub fn extract_named_fields(
+pub(crate) fn extract_named_fields(
     input: &DeriveInput,
 ) -> Result<syn::punctuated::Punctuated<syn::Field, syn::token::Comma>, TokenStream> {
     match &input.data {
@@ -32,7 +32,7 @@ pub fn extract_named_fields(
 }
 
 /// Extract entity fields with proper error handling
-pub fn extract_entity_fields(
+pub(crate) fn extract_entity_fields(
     input: &DeriveInput,
 ) -> Result<&syn::punctuated::Punctuated<syn::Field, syn::token::Comma>, TokenStream> {
     match &input.data {
@@ -52,7 +52,7 @@ pub fn extract_entity_fields(
 }
 
 /// Parse entity-level attributes (`api_struct`, `active_model`)
-pub fn parse_entity_attributes(
+pub(crate) fn parse_entity_attributes(
     input: &DeriveInput,
     struct_name: &syn::Ident,
 ) -> (syn::Ident, String) {
@@ -84,8 +84,8 @@ pub fn parse_entity_attributes(
         }
     }
 
-    let table_name = attribute_parser::extract_table_name(&input.attrs)
-        .unwrap_or_else(|| struct_name.to_string());
+    let table_name =
+        attrs::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
     let api_struct_name =
         api_struct_name.unwrap_or_else(|| format_ident!("{}", table_name.to_pascal_case()));
     let active_model_path = active_model_path.unwrap_or_else(|| "ActiveModel".to_string());
@@ -94,7 +94,7 @@ pub fn parse_entity_attributes(
 }
 
 /// Check if a field has the #[`sea_orm(ignore)`] attribute
-pub fn has_sea_orm_ignore(field: &syn::Field) -> bool {
+pub(crate) fn has_sea_orm_ignore(field: &syn::Field) -> bool {
     for attr in &field.attrs {
         if attr.path().is_ident("sea_orm")
             && let Meta::List(meta_list) = &attr.meta

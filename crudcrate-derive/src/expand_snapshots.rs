@@ -51,10 +51,14 @@ fn expand_source(source: &str) -> String {
         let mut tokens = proc_macro2::TokenStream::new();
         for derive in derive_names(&item.attrs) {
             let out = match derive.as_str() {
-                "EntityToModels" => crate::entity_to_models_impl(input.clone()),
-                "ToCreateModel" => crate::to_create_model_impl(input.clone()),
-                "ToUpdateModel" => crate::to_update_model_impl(input.clone()),
-                "ToListModel" => crate::to_list_model_impl(input.clone()),
+                "EntityToModels" => crate::expand::entity::entity_to_models_impl(input.clone()),
+                "ToCreateModel" => {
+                    crate::expand::simple_models::to_create_model_impl(input.clone())
+                }
+                "ToUpdateModel" => {
+                    crate::expand::simple_models::to_update_model_impl(input.clone())
+                }
+                "ToListModel" => crate::expand::simple_models::to_list_model_impl(input.clone()),
                 _ => continue,
             };
             tokens.extend(out);

@@ -1,4 +1,6 @@
-use crate::traits::crudresource::structs::CRUDResourceMeta;
+//! `create` and `create_many` bodies.
+
+use crate::ir::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate create method implementation with hook support.
@@ -8,7 +10,7 @@ use quote::quote;
 /// - `create::one::body`: Replaces default create logic (receives `CreateModel`, returns `Self`)
 /// - `create::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `create::one::post`: Side effects after create (receives `&Self`)
-pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // Auto-validation: runs `Validatable::validate` when the CreateModel implements it,
     // and is a no-op otherwise (autoref specialization in `crudcrate::validation::__auto`).
     let validate = quote! {
@@ -82,7 +84,7 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 ///
 /// **Security Note**: The default implementation limits batch creates to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
-pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // Auto-validation: validate every item before any insert (no-op for CreateModels
     // that don't implement Validatable). See `crudcrate::validation::__auto`.
     let validate = quote! {

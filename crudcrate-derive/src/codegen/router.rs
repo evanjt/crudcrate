@@ -1,3 +1,5 @@
+//! Emits `router()` and `read_only_router()` on the API struct.
+
 use quote::{format_ident, quote};
 
 pub(crate) fn generate_router_impl(
@@ -19,26 +21,6 @@ pub(crate) fn generate_router_impl(
         response_model_name.clone()
     };
 
-    generate_axum_router(
-        api_struct_name,
-        &create_model_name,
-        &update_model_name,
-        &list_model_name,
-        &response_model_name,
-        &scoped_list_name,
-        &scoped_response_name,
-    )
-}
-
-fn generate_axum_router(
-    api_struct_name: &syn::Ident,
-    create_model_name: &syn::Ident,
-    update_model_name: &syn::Ident,
-    list_model_name: &syn::Ident,
-    response_model_name: &syn::Ident,
-    scoped_list_name: &syn::Ident,
-    scoped_response_name: &syn::Ident,
-) -> proc_macro2::TokenStream {
     quote! {
         // Generate CRUD handlers using the crudcrate macro
         crudcrate::crud_handlers!(#api_struct_name, #update_model_name, #create_model_name, #list_model_name, #response_model_name, #scoped_list_name, #scoped_response_name);

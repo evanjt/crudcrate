@@ -1,3 +1,5 @@
+//! Intermediate representation shared by attribute parsing and code generation: resource metadata, hooks, joins, field analysis.
+
 use convert_case::{Case, Casing};
 
 /// Hook configuration for a single operation phase (pre, body, transform, post)

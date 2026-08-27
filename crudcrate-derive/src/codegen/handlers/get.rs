@@ -1,10 +1,14 @@
-use crate::codegen::joins::loading::{
+//! `get_one` and `get_all` bodies.
+
+use crate::codegen::joins::batch::{
     generate_get_all_batch_loading, generate_get_all_scoped_batch_loading,
+};
+use crate::codegen::joins::per_row::{
     generate_get_one_join_loading, generate_get_one_scoped_join_loading,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::codegen::type_resolution::{column_ident, is_option_type};
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::ir::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::syn_type::{column_ident, is_option_type};
 use quote::quote;
 
 /// Generate `select_only()` column selection for list queries.
@@ -69,7 +73,7 @@ fn generate_select_only_columns(
 /// 1. Query all parents
 /// 2. Batch query all children WHERE `parent_id` IN (`parent_ids`)
 /// 3. Group children by `parent_id` in memory
-pub fn generate_get_all_impl(
+pub(crate) fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
@@ -249,7 +253,7 @@ pub fn generate_get_all_impl(
 /// - `read::one::body`: Replaces default fetch logic (receives id, returns `Self`)
 /// - `read::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `read::one::post`: Side effects after fetch (receives `&Self`)
-pub fn generate_get_one_impl(
+pub(crate) fn generate_get_one_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,

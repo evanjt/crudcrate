@@ -7,10 +7,10 @@
 //! - Join field initialization
 //! - Derive clause generation based on requirements
 
-use crate::attribute_parser;
-use crate::codegen::joins::get_join_config;
-use crate::codegen::models::shared::resolve_dtwtz;
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::attrs;
+use crate::attrs::get_join_config;
+use crate::ir::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::syn_type::resolve_dtwtz;
 use quote::quote;
 
 /// Generates API struct fields and From<Model> conversion assignments
@@ -52,7 +52,7 @@ pub(crate) fn generate_api_struct_content(
         let field_name = &field.ident;
         let field_type = &field.ty;
 
-        let default_expr = attribute_parser::get_crudcrate_expr(field, "default")
+        let default_expr = attrs::get_crudcrate_expr(field, "default")
             .unwrap_or_else(|| syn::parse_quote!(Default::default()));
 
         // Preserve crudcrate attributes
@@ -69,7 +69,7 @@ pub(crate) fn generate_api_struct_content(
         // struct would be misdetected as self-referencing. Matches the convention used by
         // the join-loading codegen.
         let is_self_referencing =
-            crate::codegen::type_resolution::extract_api_struct_type_for_recursive_call(field_type)
+            crate::syn_type::extract_api_struct_type_for_recursive_call(field_type)
                 .to_string()
                 .trim()
                 == api_struct_name.to_string().trim();
@@ -146,13 +146,13 @@ pub(crate) fn generate_api_struct(
     let has_fields_needing_default = has_join_fields
         || analysis.non_db_fields.iter().any(|field| {
             // Fields excluded from create/update need Default for join loading
-            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
-                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+            attrs::get_crudcrate_bool(field, "create_model") == Some(false)
+                || attrs::get_crudcrate_bool(field, "update_model") == Some(false)
         })
         || analysis.db_fields.iter().any(|field| {
             // Database fields excluded from create/update need Default
-            attribute_parser::get_crudcrate_bool(field, "create_model") == Some(false)
-                || attribute_parser::get_crudcrate_bool(field, "update_model") == Some(false)
+            attrs::get_crudcrate_bool(field, "create_model") == Some(false)
+                || attrs::get_crudcrate_bool(field, "update_model") == Some(false)
         });
 
     // Build derive clause declaratively based on requirements.

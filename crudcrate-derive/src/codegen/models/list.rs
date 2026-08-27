@@ -1,14 +1,14 @@
-use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
-use crate::codegen::joins::get_join_config;
+//! List model fields and conversions.
+
+use crate::attrs::get_join_config;
+use crate::attrs::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::models::shared::{
-    generate_target_model_conversion, resolve_dtwtz, resolve_field_type_with_target_models,
-    wire_attrs,
+    generate_target_model_conversion, resolve_field_type_with_target_models, wire_attrs,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::codegen::type_resolution::{
-    is_option_type, is_vec_type, transform_type_to_list_variant,
-};
-use crate::traits::crudresource::structs::EntityFieldAnalysis;
+use crate::ir::EntityFieldAnalysis;
+use crate::syn_type::resolve_dtwtz;
+use crate::syn_type::{is_option_type, is_vec_type, transform_type_to_list_variant};
 use quote::quote;
 
 pub(crate) fn generate_list_struct_fields(

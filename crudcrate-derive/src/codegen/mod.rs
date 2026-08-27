@@ -1,5 +1,7 @@
-pub mod handlers;
-pub mod joins;
-pub mod models;
-pub mod router;
-pub mod type_resolution;
+//! Token emitters, grouped by what they generate.
+
+pub(crate) mod handlers;
+pub(crate) mod joins;
+pub(crate) mod models;
+pub(crate) mod router;
+pub(crate) mod trait_consts;
