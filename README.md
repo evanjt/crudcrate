@@ -199,7 +199,7 @@ cargo run --example recursive_join     # Multi-level relationship loading
 Rust 1.85+ (edition 2024). No database is needed for the default test run: `DATABASE_URL` falls back to `sqlite::memory:`.
 
 ```bash
-cargo test --manifest-path test_suite/Cargo.toml --test filtering_test -- --test-threads=1
+cargo test --manifest-path test_suite/Cargo.toml --test filtering -- --test-threads=1
 ```
 
 The first build compiles around 460 crates, including all three sqlx drivers. `--test-threads=1` is required: `hook_system_test` and `custom_crud_functions_test` share process state.
@@ -207,7 +207,7 @@ The first build compiles around 460 crates, including all three sqlx drivers. `-
 Three test tiers:
 
 - Unit tests at the bottom of each `crudcrate/src` file
-- Integration tests in `test_suite/tests/*.rs`, one binary per file
+- Integration tests in `test_suite/tests/it/*.rs`, grouped into one binary per area (`filtering`, `sorting_pagination`, `joins`, `scope`, `security`, `pk_parity`, `batch`, `models`) by the roots in `test_suite/tests/`. Run one file with `--test joins -- join_functionality_test::`. A compile error in one file blocks its group. `hook_system_test` and `custom_crud_functions_test` stay standalone because they hold process-global state.
 - Macro diagnostics in `crudcrate-derive/tests/{ui-pass,ui-fail}` (regenerate with `TRYBUILD=overwrite`; snapshots move on rustc and sea-orm bumps)
 
 Changes to filtering or joins should also be run against Postgres and MySQL, since SQLite hides backend differences:

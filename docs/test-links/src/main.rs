@@ -39,20 +39,25 @@ struct TestRegistry {
 }
 
 impl TestRegistry {
-    /// Scan all `.rs` files in `test_dir` for `@doc-link` annotations.
+    /// Scan `test_dir` and its subdirectories for `@doc-link` annotations.
     /// File paths in the registry are stored relative to `repo_root`.
     fn from_scan(test_dir: &Path, repo_root: &Path) -> Result<Self, Vec<String>> {
         let mut registry = Self::default();
         let mut errors = Vec::new();
+        registry.scan_dir(test_dir, repo_root, &mut errors);
+        if errors.is_empty() {
+            Ok(registry)
+        } else {
+            Err(errors)
+        }
+    }
 
-        let entries = match fs::read_dir(test_dir) {
+    fn scan_dir(&mut self, dir: &Path, repo_root: &Path, errors: &mut Vec<String>) {
+        let entries = match fs::read_dir(dir) {
             Ok(e) => e,
             Err(e) => {
-                return Err(vec![format!(
-                    "Failed to read {}: {}",
-                    test_dir.display(),
-                    e
-                )])
+                errors.push(format!("Failed to read {}: {}", dir.display(), e));
+                return;
             }
         };
 
@@ -66,6 +71,10 @@ impl TestRegistry {
             };
 
             let path = entry.path();
+            if path.is_dir() {
+                self.scan_dir(&path, repo_root, errors);
+                continue;
+            }
             if path.extension().and_then(|e| e.to_str()) != Some("rs") {
                 continue;
             }
@@ -81,15 +90,9 @@ impl TestRegistry {
             let rel_path = path.strip_prefix(repo_root).unwrap_or(&path);
             let rel_path_str = rel_path.to_string_lossy().replace('\\', "/");
 
-            if let Err(scan_errors) = registry.scan_file(&content, &rel_path_str) {
+            if let Err(scan_errors) = self.scan_file(&content, &rel_path_str) {
                 errors.extend(scan_errors);
             }
-        }
-
-        if errors.is_empty() {
-            Ok(registry)
-        } else {
-            Err(errors)
         }
     }
 
