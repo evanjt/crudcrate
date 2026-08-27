@@ -73,7 +73,7 @@ fn check_join_depth(
 
 /// Generate compile-time bidirectional relation detection for all join fields.
 ///
-/// Uses the `impls!` crate to check at compile time whether each join target entity
+/// Uses the vendored `crudcrate::impls!` macro to check at compile time whether each join target entity
 /// has a `Related<SelfEntity>` impl. If so:
 /// - `depth = 1`: OK (crudcrate uses safe `Entity::find().filter()`)
 /// - `depth` unspecified: COMPILE ERROR (must explicitly set depth = 1)

@@ -414,6 +414,8 @@ The end-to-end behaviour described on this page is backed by
 
 ### Limitations
 
+- Joined-column string comparisons are sent to the database as written, without the case folding and enum casting applied to main-entity filters. Whether `{"vehicles.make":"bmw"}` matches `BMW` therefore depends on the column collation.
+
 **Single-level joins**: nested paths (`vehicles.parts.name`) are rejected
 by the parser.
 

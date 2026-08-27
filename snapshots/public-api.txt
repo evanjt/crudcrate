@@ -1,9 +1,81 @@
 pub mod crudcrate
 pub use crudcrate::<<crudcrate_derive::*>>
+pub use crudcrate::BatchOptions
+pub use crudcrate::FilterOperator
+pub use crudcrate::FilterOptions
+pub use crudcrate::JoinedColumnDef
+pub use crudcrate::JoinedFilter
+pub use crudcrate::ParsedFilters
+pub use crudcrate::SortConfig
+pub use crudcrate::apply_filters
+pub use crudcrate::apply_filters_with_joins
+pub use crudcrate::build_comparison_expr
+pub use crudcrate::calculate_content_range
+pub use crudcrate::parse_dot_notation
+pub use crudcrate::parse_pagination
+pub use crudcrate::parse_range
+pub use crudcrate::parse_sorting
+pub use crudcrate::parse_sorting_with_joins
 pub use crudcrate::sea_orm
-pub use crudcrate::serde_with
+pub use crudcrate::table_column_ref
+pub mod crudcrate::batch
+pub struct crudcrate::batch::BatchFailure
+pub crudcrate::batch::BatchFailure::error: alloc::string::String
+pub crudcrate::batch::BatchFailure::index: usize
+impl core::clone::Clone for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::clone(&self) -> crudcrate::batch::BatchFailure
+impl core::fmt::Debug for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl utoipa::ToSchema for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::name() -> alloc::borrow::Cow<'static, str>
+pub fn crudcrate::batch::BatchFailure::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
+impl utoipa::__dev::ComposeSchema for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+impl<'de> serde_core::de::Deserialize<'de> for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for crudcrate::batch::BatchFailure
+impl core::marker::Send for crudcrate::batch::BatchFailure
+impl core::marker::Sync for crudcrate::batch::BatchFailure
+impl core::marker::Unpin for crudcrate::batch::BatchFailure
+impl core::marker::UnsafeUnpin for crudcrate::batch::BatchFailure
+impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchFailure
+impl core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchFailure
+pub struct crudcrate::batch::BatchResult<T>
+pub crudcrate::batch::BatchResult::failed: alloc::vec::Vec<crudcrate::batch::BatchFailure>
+pub crudcrate::batch::BatchResult::succeeded: alloc::vec::Vec<T>
+impl<T> crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::add_failure(&mut self, usize, impl core::convert::Into<alloc::string::String>)
+pub fn crudcrate::batch::BatchResult<T>::add_success(&mut self, T)
+pub fn crudcrate::batch::BatchResult<T>::all_failed(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::all_succeeded(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::is_partial(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::new() -> Self
+impl<'de, T> serde_core::de::Deserialize<'de> for crudcrate::batch::BatchResult<T> where T: serde_core::de::Deserialize<'de>
+pub fn crudcrate::batch::BatchResult<T>::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T: core::clone::Clone> core::clone::Clone for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::clone(&self) -> crudcrate::batch::BatchResult<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T> core::default::Default for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::default() -> Self
+impl<T> serde_core::ser::Serialize for crudcrate::batch::BatchResult<T> where T: serde_core::ser::Serialize
+pub fn crudcrate::batch::BatchResult<T>::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<T> utoipa::ToSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
+pub fn crudcrate::batch::BatchResult<T>::name() -> alloc::borrow::Cow<'static, str>
+pub fn crudcrate::batch::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
+impl<T> utoipa::__dev::ComposeSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
+pub fn crudcrate::batch::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T>
+impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where T: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where T: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where T: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T>
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
 pub mod crudcrate::core
-pub mod crudcrate::core::crud_operations
+pub mod crudcrate::core::handler_macros
 pub mod crudcrate::core::traits
 pub struct crudcrate::core::traits::UuidIdResult
 pub crudcrate::core::traits::UuidIdResult::id: uuid::Uuid
@@ -48,12 +120,12 @@ pub fn crudcrate::core::traits::CRUDResource::get_one<'life0, 'async_trait>(&'li
 pub fn crudcrate::core::traits::CRUDResource::get_one_scoped<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<Self>, &'life1 sea_query::query::condition::Condition) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::core::traits::CRUDResource::is_enum_field(&str) -> bool
 pub fn crudcrate::core::traits::CRUDResource::joined_field_has_scope(&str) -> bool
-pub fn crudcrate::core::traits::CRUDResource::joined_filterable_columns() -> alloc::vec::Vec<crudcrate::filtering::joined::JoinedColumnDef>
-pub fn crudcrate::core::traits::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<crudcrate::filtering::joined::JoinedColumnDef>
+pub fn crudcrate::core::traits::CRUDResource::joined_filterable_columns() -> alloc::vec::Vec<crate::JoinedColumnDef>
+pub fn crudcrate::core::traits::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<crate::JoinedColumnDef>
 pub fn crudcrate::core::traits::CRUDResource::like_filterable_columns() -> alloc::vec::Vec<&'static str>
 pub fn crudcrate::core::traits::CRUDResource::max_page_size() -> u64
 pub fn crudcrate::core::traits::CRUDResource::normalize_enum_value(&str, &str) -> core::option::Option<alloc::string::String>
-pub fn crudcrate::core::traits::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crudcrate::filtering::joined::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
+pub fn crudcrate::core::traits::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crate::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::core::traits::CRUDResource::scoped_excluded_columns() -> &'static [&'static str]
 pub fn crudcrate::core::traits::CRUDResource::security_profile() -> crudcrate::profile::SecurityProfile
 pub fn crudcrate::core::traits::CRUDResource::sortable_columns() -> alloc::vec::Vec<(&'static str, Self::ColumnType)>
@@ -106,12 +178,12 @@ pub fn crudcrate::core::CRUDResource::get_one<'life0, 'async_trait>(&'life0 sea_
 pub fn crudcrate::core::CRUDResource::get_one_scoped<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<Self>, &'life1 sea_query::query::condition::Condition) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::core::CRUDResource::is_enum_field(&str) -> bool
 pub fn crudcrate::core::CRUDResource::joined_field_has_scope(&str) -> bool
-pub fn crudcrate::core::CRUDResource::joined_filterable_columns() -> alloc::vec::Vec<crudcrate::filtering::joined::JoinedColumnDef>
-pub fn crudcrate::core::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<crudcrate::filtering::joined::JoinedColumnDef>
+pub fn crudcrate::core::CRUDResource::joined_filterable_columns() -> alloc::vec::Vec<crate::JoinedColumnDef>
+pub fn crudcrate::core::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<crate::JoinedColumnDef>
 pub fn crudcrate::core::CRUDResource::like_filterable_columns() -> alloc::vec::Vec<&'static str>
 pub fn crudcrate::core::CRUDResource::max_page_size() -> u64
 pub fn crudcrate::core::CRUDResource::normalize_enum_value(&str, &str) -> core::option::Option<alloc::string::String>
-pub fn crudcrate::core::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crudcrate::filtering::joined::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
+pub fn crudcrate::core::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crate::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::core::CRUDResource::scoped_excluded_columns() -> &'static [&'static str]
 pub fn crudcrate::core::CRUDResource::security_profile() -> crudcrate::profile::SecurityProfile
 pub fn crudcrate::core::CRUDResource::sortable_columns() -> alloc::vec::Vec<(&'static str, Self::ColumnType)>
@@ -178,387 +250,77 @@ impl !core::panic::unwind_safe::UnwindSafe for crudcrate::errors::ApiError
 pub struct crudcrate::errors::BatchFailure
 pub crudcrate::errors::BatchFailure::error: alloc::string::String
 pub crudcrate::errors::BatchFailure::index: usize
-impl core::clone::Clone for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::clone(&self) -> crudcrate::errors::BatchFailure
-impl core::fmt::Debug for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl serde_core::ser::Serialize for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl utoipa::ToSchema for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::errors::BatchFailure::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::errors::BatchFailure
-impl core::marker::Send for crudcrate::errors::BatchFailure
-impl core::marker::Sync for crudcrate::errors::BatchFailure
-impl core::marker::Unpin for crudcrate::errors::BatchFailure
-impl core::marker::UnsafeUnpin for crudcrate::errors::BatchFailure
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::errors::BatchFailure
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::errors::BatchFailure
+impl core::clone::Clone for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::clone(&self) -> crudcrate::batch::BatchFailure
+impl core::fmt::Debug for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl utoipa::ToSchema for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::name() -> alloc::borrow::Cow<'static, str>
+pub fn crudcrate::batch::BatchFailure::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
+impl utoipa::__dev::ComposeSchema for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+impl<'de> serde_core::de::Deserialize<'de> for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for crudcrate::batch::BatchFailure
+impl core::marker::Send for crudcrate::batch::BatchFailure
+impl core::marker::Sync for crudcrate::batch::BatchFailure
+impl core::marker::Unpin for crudcrate::batch::BatchFailure
+impl core::marker::UnsafeUnpin for crudcrate::batch::BatchFailure
+impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchFailure
+impl core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchFailure
 pub struct crudcrate::errors::BatchResult<T>
-pub crudcrate::errors::BatchResult::failed: alloc::vec::Vec<crudcrate::errors::BatchFailure>
+pub crudcrate::errors::BatchResult::failed: alloc::vec::Vec<crudcrate::batch::BatchFailure>
 pub crudcrate::errors::BatchResult::succeeded: alloc::vec::Vec<T>
-impl<T> crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::add_failure(&mut self, usize, impl core::convert::Into<alloc::string::String>)
-pub fn crudcrate::errors::BatchResult<T>::add_success(&mut self, T)
-pub fn crudcrate::errors::BatchResult<T>::all_failed(&self) -> bool
-pub fn crudcrate::errors::BatchResult<T>::all_succeeded(&self) -> bool
-pub fn crudcrate::errors::BatchResult<T>::is_partial(&self) -> bool
-pub fn crudcrate::errors::BatchResult<T>::new() -> Self
-impl<'de, T> serde_core::de::Deserialize<'de> for crudcrate::errors::BatchResult<T> where T: serde_core::de::Deserialize<'de>
-pub fn crudcrate::errors::BatchResult<T>::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<T: core::clone::Clone> core::clone::Clone for crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::clone(&self) -> crudcrate::errors::BatchResult<T>
-impl<T: core::fmt::Debug> core::fmt::Debug for crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<T> core::default::Default for crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::default() -> Self
-impl<T> serde_core::ser::Serialize for crudcrate::errors::BatchResult<T> where T: serde_core::ser::Serialize
-pub fn crudcrate::errors::BatchResult<T>::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<T> utoipa::ToSchema for crudcrate::errors::BatchResult<T> where T: utoipa::ToSchema
-pub fn crudcrate::errors::BatchResult<T>::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::errors::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl<T> utoipa::__dev::ComposeSchema for crudcrate::errors::BatchResult<T> where T: utoipa::ToSchema
-pub fn crudcrate::errors::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<T> core::marker::Freeze for crudcrate::errors::BatchResult<T>
-impl<T> core::marker::Send for crudcrate::errors::BatchResult<T> where T: core::marker::Send
-impl<T> core::marker::Sync for crudcrate::errors::BatchResult<T> where T: core::marker::Sync
-impl<T> core::marker::Unpin for crudcrate::errors::BatchResult<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::errors::BatchResult<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::errors::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::errors::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::add_failure(&mut self, usize, impl core::convert::Into<alloc::string::String>)
+pub fn crudcrate::batch::BatchResult<T>::add_success(&mut self, T)
+pub fn crudcrate::batch::BatchResult<T>::all_failed(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::all_succeeded(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::is_partial(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::new() -> Self
+impl<'de, T> serde_core::de::Deserialize<'de> for crudcrate::batch::BatchResult<T> where T: serde_core::de::Deserialize<'de>
+pub fn crudcrate::batch::BatchResult<T>::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T: core::clone::Clone> core::clone::Clone for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::clone(&self) -> crudcrate::batch::BatchResult<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T> core::default::Default for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::default() -> Self
+impl<T> serde_core::ser::Serialize for crudcrate::batch::BatchResult<T> where T: serde_core::ser::Serialize
+pub fn crudcrate::batch::BatchResult<T>::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<T> utoipa::ToSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
+pub fn crudcrate::batch::BatchResult<T>::name() -> alloc::borrow::Cow<'static, str>
+pub fn crudcrate::batch::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
+impl<T> utoipa::__dev::ComposeSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
+pub fn crudcrate::batch::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T>
+impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where T: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where T: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where T: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T>
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
 pub mod crudcrate::filtering
-pub mod crudcrate::filtering::conditions
-pub fn crudcrate::filtering::conditions::apply_filters<T: crudcrate::core::traits::CRUDResource>(core::option::Option<alloc::string::String>, &[(&str, impl sea_orm::entity::column::ColumnTrait)], sea_orm::database::db_connection::DatabaseBackend) -> core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>
-pub fn crudcrate::filtering::conditions::apply_filters_with_joins<T: crudcrate::core::traits::CRUDResource>(core::option::Option<alloc::string::String>, &[(&str, impl sea_orm::entity::column::ColumnTrait)], sea_orm::database::db_connection::DatabaseBackend) -> core::result::Result<crudcrate::filtering::joined::ParsedFilters, crudcrate::errors::ApiError>
-pub fn crudcrate::filtering::conditions::build_comparison_expr<C>(C, crudcrate::filtering::joined::FilterOperator, &serde_json::value::Value) -> core::option::Option<sea_query::expr::enum::Expr> where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::filtering::conditions::parse_pagination(&crudcrate::filtering::query_parser::FilterOptions) -> (u64, u64)
-pub fn crudcrate::filtering::conditions::parse_range(core::option::Option<alloc::string::String>) -> (u64, u64)
-pub fn crudcrate::filtering::conditions::table_column_ref<T, C>(T, C) -> sea_query::types::iden::compound::ColumnRef where T: sea_query::types::iden::core::IntoIden, C: sea_query::types::iden::core::IntoIden
-pub mod crudcrate::filtering::joined
-pub enum crudcrate::filtering::joined::FilterOperator
-pub crudcrate::filtering::joined::FilterOperator::Eq
-pub crudcrate::filtering::joined::FilterOperator::Gt
-pub crudcrate::filtering::joined::FilterOperator::Gte
-pub crudcrate::filtering::joined::FilterOperator::In
-pub crudcrate::filtering::joined::FilterOperator::IsNull
-pub crudcrate::filtering::joined::FilterOperator::Like
-pub crudcrate::filtering::joined::FilterOperator::Lt
-pub crudcrate::filtering::joined::FilterOperator::Lte
-pub crudcrate::filtering::joined::FilterOperator::Neq
-impl crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::from_suffix(&str) -> core::option::Option<Self>
-pub fn crudcrate::filtering::joined::FilterOperator::suffix(&self) -> &'static str
-impl core::clone::Clone for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::clone(&self) -> crudcrate::filtering::joined::FilterOperator
-impl core::cmp::Eq for crudcrate::filtering::joined::FilterOperator
-impl core::cmp::PartialEq for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::eq(&self, &crudcrate::filtering::joined::FilterOperator) -> bool
-impl core::fmt::Debug for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for crudcrate::filtering::joined::FilterOperator
-impl core::marker::StructuralPartialEq for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Freeze for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Send for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Sync for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Unpin for crudcrate::filtering::joined::FilterOperator
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::FilterOperator
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::FilterOperator
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::FilterOperator
-pub enum crudcrate::filtering::joined::SortConfig<C>
-pub crudcrate::filtering::joined::SortConfig::Column
-pub crudcrate::filtering::joined::SortConfig::Column::column: C
-pub crudcrate::filtering::joined::SortConfig::Column::direction: sea_query::types::Order
-pub crudcrate::filtering::joined::SortConfig::Joined
-pub crudcrate::filtering::joined::SortConfig::Joined::column: alloc::string::String
-pub crudcrate::filtering::joined::SortConfig::Joined::direction: sea_query::types::Order
-pub crudcrate::filtering::joined::SortConfig::Joined::join_field: alloc::string::String
-impl<C> crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::direction(&self) -> sea_query::types::Order
-pub fn crudcrate::filtering::joined::SortConfig<C>::is_joined(&self) -> bool
-impl<C: core::clone::Clone> core::clone::Clone for crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::clone(&self) -> crudcrate::filtering::joined::SortConfig<C>
-impl<C: core::fmt::Debug> core::fmt::Debug for crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<C> core::marker::Freeze for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Freeze
-impl<C> core::marker::Send for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Send
-impl<C> core::marker::Sync for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Sync
-impl<C> core::marker::Unpin for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Unpin
-impl<C> core::marker::UnsafeUnpin for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::UnsafeUnpin
-impl<C> core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::SortConfig<C> where C: core::panic::unwind_safe::RefUnwindSafe
-impl<C> core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::SortConfig<C> where C: core::panic::unwind_safe::UnwindSafe
-pub struct crudcrate::filtering::joined::JoinedColumnDef
-pub crudcrate::filtering::joined::JoinedColumnDef::column_name: &'static str
-pub crudcrate::filtering::joined::JoinedColumnDef::full_path: &'static str
-pub crudcrate::filtering::joined::JoinedColumnDef::join_field: &'static str
-impl core::clone::Clone for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::clone(&self) -> crudcrate::filtering::joined::JoinedColumnDef
-impl core::cmp::Eq for crudcrate::filtering::joined::JoinedColumnDef
-impl core::cmp::PartialEq for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::eq(&self, &crudcrate::filtering::joined::JoinedColumnDef) -> bool
-impl core::fmt::Debug for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Freeze for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Send for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Sync for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Unpin for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::JoinedColumnDef
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::JoinedColumnDef
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::JoinedColumnDef
-pub struct crudcrate::filtering::joined::JoinedFilter
-pub crudcrate::filtering::joined::JoinedFilter::column: alloc::string::String
-pub crudcrate::filtering::joined::JoinedFilter::join_field: alloc::string::String
-pub crudcrate::filtering::joined::JoinedFilter::operator: crudcrate::filtering::joined::FilterOperator
-pub crudcrate::filtering::joined::JoinedFilter::value: serde_json::value::Value
-impl core::clone::Clone for crudcrate::filtering::joined::JoinedFilter
-pub fn crudcrate::filtering::joined::JoinedFilter::clone(&self) -> crudcrate::filtering::joined::JoinedFilter
-impl core::fmt::Debug for crudcrate::filtering::joined::JoinedFilter
-pub fn crudcrate::filtering::joined::JoinedFilter::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Send for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Sync for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Unpin for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::JoinedFilter
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::JoinedFilter
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::JoinedFilter
-pub struct crudcrate::filtering::joined::ParsedFilters
-pub crudcrate::filtering::joined::ParsedFilters::has_joined_filters: bool
-pub crudcrate::filtering::joined::ParsedFilters::joined_filters: alloc::vec::Vec<crudcrate::filtering::joined::JoinedFilter>
-pub crudcrate::filtering::joined::ParsedFilters::main_condition: sea_query::query::condition::Condition
-impl core::default::Default for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::ParsedFilters::default() -> Self
-impl core::fmt::Debug for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::ParsedFilters::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Send for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Sync for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Unpin for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::ParsedFilters
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::ParsedFilters
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::parse_dot_notation(&str) -> core::option::Option<(alloc::string::String, alloc::string::String, crudcrate::filtering::joined::FilterOperator)>
-pub mod crudcrate::filtering::pagination
-pub fn crudcrate::filtering::pagination::calculate_content_range(u64, u64, u64, &str) -> http::header::map::HeaderMap
-pub mod crudcrate::filtering::query_parser
-pub struct crudcrate::filtering::query_parser::BatchOptions
-pub crudcrate::filtering::query_parser::BatchOptions::partial: bool
-impl core::clone::Clone for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::clone(&self) -> crudcrate::filtering::query_parser::BatchOptions
-impl core::default::Default for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::default() -> crudcrate::filtering::query_parser::BatchOptions
-impl utoipa::IntoParams for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::into_params(impl core::ops::function::Fn() -> core::option::Option<utoipa::openapi::path::ParameterIn>) -> alloc::vec::Vec<utoipa::openapi::path::Parameter>
-impl utoipa::ToSchema for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::filtering::query_parser::BatchOptions::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Send for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Sync for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Unpin for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::UnsafeUnpin for crudcrate::filtering::query_parser::BatchOptions
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::query_parser::BatchOptions
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::query_parser::BatchOptions
-pub struct crudcrate::filtering::query_parser::FilterOptions
-pub crudcrate::filtering::query_parser::FilterOptions::filter: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::query_parser::FilterOptions::order: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::query_parser::FilterOptions::page: core::option::Option<u64>
-pub crudcrate::filtering::query_parser::FilterOptions::per_page: core::option::Option<u64>
-pub crudcrate::filtering::query_parser::FilterOptions::range: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::query_parser::FilterOptions::sort: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::query_parser::FilterOptions::sort_by: core::option::Option<alloc::string::String>
-impl core::default::Default for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::default() -> crudcrate::filtering::query_parser::FilterOptions
-impl utoipa::IntoParams for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::into_params(impl core::ops::function::Fn() -> core::option::Option<utoipa::openapi::path::ParameterIn>) -> alloc::vec::Vec<utoipa::openapi::path::Parameter>
-impl utoipa::ToSchema for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::filtering::query_parser::FilterOptions::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Send for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Sync for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Unpin for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::UnsafeUnpin for crudcrate::filtering::query_parser::FilterOptions
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::query_parser::FilterOptions
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::query_parser::FilterOptions
-pub mod crudcrate::filtering::search
-pub fn crudcrate::filtering::search::build_fulltext_condition<T: crudcrate::core::traits::CRUDResource>(&str, sea_orm::database::db_connection::DatabaseBackend) -> core::option::Option<sea_query::expr::enum::Expr>
-pub fn crudcrate::filtering::search::build_like_condition(&str, &str, sea_orm::database::db_connection::DatabaseBackend) -> sea_query::expr::enum::Expr
-pub mod crudcrate::filtering::sort
-pub fn crudcrate::filtering::sort::generic_sort<C>(core::option::Option<&str>, &[(&str, C)], C) -> (C, sea_query::types::Order) where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::filtering::sort::parse_sorting<C>(&crudcrate::filtering::query_parser::FilterOptions, &[(&str, C)], C) -> (C, sea_query::types::Order) where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::filtering::sort::parse_sorting_with_joins<T, C>(&crudcrate::filtering::query_parser::FilterOptions, &[(&str, C)], C, &[&str]) -> crudcrate::filtering::joined::SortConfig<C> where T: crudcrate::core::traits::CRUDResource, C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub enum crudcrate::filtering::FilterOperator
-pub crudcrate::filtering::FilterOperator::Eq
-pub crudcrate::filtering::FilterOperator::Gt
-pub crudcrate::filtering::FilterOperator::Gte
-pub crudcrate::filtering::FilterOperator::In
-pub crudcrate::filtering::FilterOperator::IsNull
-pub crudcrate::filtering::FilterOperator::Like
-pub crudcrate::filtering::FilterOperator::Lt
-pub crudcrate::filtering::FilterOperator::Lte
-pub crudcrate::filtering::FilterOperator::Neq
-impl crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::from_suffix(&str) -> core::option::Option<Self>
-pub fn crudcrate::filtering::joined::FilterOperator::suffix(&self) -> &'static str
-impl core::clone::Clone for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::clone(&self) -> crudcrate::filtering::joined::FilterOperator
-impl core::cmp::Eq for crudcrate::filtering::joined::FilterOperator
-impl core::cmp::PartialEq for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::eq(&self, &crudcrate::filtering::joined::FilterOperator) -> bool
-impl core::fmt::Debug for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for crudcrate::filtering::joined::FilterOperator
-impl core::marker::StructuralPartialEq for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Freeze for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Send for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Sync for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Unpin for crudcrate::filtering::joined::FilterOperator
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::FilterOperator
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::FilterOperator
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::FilterOperator
-pub enum crudcrate::filtering::SortConfig<C>
-pub crudcrate::filtering::SortConfig::Column
-pub crudcrate::filtering::SortConfig::Column::column: C
-pub crudcrate::filtering::SortConfig::Column::direction: sea_query::types::Order
-pub crudcrate::filtering::SortConfig::Joined
-pub crudcrate::filtering::SortConfig::Joined::column: alloc::string::String
-pub crudcrate::filtering::SortConfig::Joined::direction: sea_query::types::Order
-pub crudcrate::filtering::SortConfig::Joined::join_field: alloc::string::String
-impl<C> crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::direction(&self) -> sea_query::types::Order
-pub fn crudcrate::filtering::joined::SortConfig<C>::is_joined(&self) -> bool
-impl<C: core::clone::Clone> core::clone::Clone for crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::clone(&self) -> crudcrate::filtering::joined::SortConfig<C>
-impl<C: core::fmt::Debug> core::fmt::Debug for crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<C> core::marker::Freeze for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Freeze
-impl<C> core::marker::Send for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Send
-impl<C> core::marker::Sync for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Sync
-impl<C> core::marker::Unpin for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Unpin
-impl<C> core::marker::UnsafeUnpin for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::UnsafeUnpin
-impl<C> core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::SortConfig<C> where C: core::panic::unwind_safe::RefUnwindSafe
-impl<C> core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::SortConfig<C> where C: core::panic::unwind_safe::UnwindSafe
-pub struct crudcrate::filtering::BatchOptions
-pub crudcrate::filtering::BatchOptions::partial: bool
-impl core::clone::Clone for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::clone(&self) -> crudcrate::filtering::query_parser::BatchOptions
-impl core::default::Default for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::default() -> crudcrate::filtering::query_parser::BatchOptions
-impl utoipa::IntoParams for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::into_params(impl core::ops::function::Fn() -> core::option::Option<utoipa::openapi::path::ParameterIn>) -> alloc::vec::Vec<utoipa::openapi::path::Parameter>
-impl utoipa::ToSchema for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::filtering::query_parser::BatchOptions::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Send for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Sync for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Unpin for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::UnsafeUnpin for crudcrate::filtering::query_parser::BatchOptions
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::query_parser::BatchOptions
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::query_parser::BatchOptions
-pub struct crudcrate::filtering::FilterOptions
-pub crudcrate::filtering::FilterOptions::filter: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::FilterOptions::order: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::FilterOptions::page: core::option::Option<u64>
-pub crudcrate::filtering::FilterOptions::per_page: core::option::Option<u64>
-pub crudcrate::filtering::FilterOptions::range: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::FilterOptions::sort: core::option::Option<alloc::string::String>
-pub crudcrate::filtering::FilterOptions::sort_by: core::option::Option<alloc::string::String>
-impl core::default::Default for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::default() -> crudcrate::filtering::query_parser::FilterOptions
-impl utoipa::IntoParams for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::into_params(impl core::ops::function::Fn() -> core::option::Option<utoipa::openapi::path::ParameterIn>) -> alloc::vec::Vec<utoipa::openapi::path::Parameter>
-impl utoipa::ToSchema for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::filtering::query_parser::FilterOptions::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Send for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Sync for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Unpin for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::UnsafeUnpin for crudcrate::filtering::query_parser::FilterOptions
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::query_parser::FilterOptions
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::query_parser::FilterOptions
-pub struct crudcrate::filtering::JoinedColumnDef
-pub crudcrate::filtering::JoinedColumnDef::column_name: &'static str
-pub crudcrate::filtering::JoinedColumnDef::full_path: &'static str
-pub crudcrate::filtering::JoinedColumnDef::join_field: &'static str
-impl core::clone::Clone for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::clone(&self) -> crudcrate::filtering::joined::JoinedColumnDef
-impl core::cmp::Eq for crudcrate::filtering::joined::JoinedColumnDef
-impl core::cmp::PartialEq for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::eq(&self, &crudcrate::filtering::joined::JoinedColumnDef) -> bool
-impl core::fmt::Debug for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Freeze for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Send for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Sync for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Unpin for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::JoinedColumnDef
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::JoinedColumnDef
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::JoinedColumnDef
-pub struct crudcrate::filtering::JoinedFilter
-pub crudcrate::filtering::JoinedFilter::column: alloc::string::String
-pub crudcrate::filtering::JoinedFilter::join_field: alloc::string::String
-pub crudcrate::filtering::JoinedFilter::operator: crudcrate::filtering::joined::FilterOperator
-pub crudcrate::filtering::JoinedFilter::value: serde_json::value::Value
-impl core::clone::Clone for crudcrate::filtering::joined::JoinedFilter
-pub fn crudcrate::filtering::joined::JoinedFilter::clone(&self) -> crudcrate::filtering::joined::JoinedFilter
-impl core::fmt::Debug for crudcrate::filtering::joined::JoinedFilter
-pub fn crudcrate::filtering::joined::JoinedFilter::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Send for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Sync for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Unpin for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::JoinedFilter
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::JoinedFilter
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::JoinedFilter
-pub struct crudcrate::filtering::ParsedFilters
-pub crudcrate::filtering::ParsedFilters::has_joined_filters: bool
-pub crudcrate::filtering::ParsedFilters::joined_filters: alloc::vec::Vec<crudcrate::filtering::joined::JoinedFilter>
-pub crudcrate::filtering::ParsedFilters::main_condition: sea_query::query::condition::Condition
-impl core::default::Default for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::ParsedFilters::default() -> Self
-impl core::fmt::Debug for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::ParsedFilters::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Send for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Sync for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Unpin for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::ParsedFilters
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::ParsedFilters
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::apply_filters<T: crudcrate::core::traits::CRUDResource>(core::option::Option<alloc::string::String>, &[(&str, impl sea_orm::entity::column::ColumnTrait)], sea_orm::database::db_connection::DatabaseBackend) -> core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>
-pub fn crudcrate::filtering::apply_filters_with_joins<T: crudcrate::core::traits::CRUDResource>(core::option::Option<alloc::string::String>, &[(&str, impl sea_orm::entity::column::ColumnTrait)], sea_orm::database::db_connection::DatabaseBackend) -> core::result::Result<crudcrate::filtering::joined::ParsedFilters, crudcrate::errors::ApiError>
-pub fn crudcrate::filtering::build_comparison_expr<C>(C, crudcrate::filtering::joined::FilterOperator, &serde_json::value::Value) -> core::option::Option<sea_query::expr::enum::Expr> where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::filtering::build_fulltext_condition<T: crudcrate::core::traits::CRUDResource>(&str, sea_orm::database::db_connection::DatabaseBackend) -> core::option::Option<sea_query::expr::enum::Expr>
-pub fn crudcrate::filtering::calculate_content_range(u64, u64, u64, &str) -> http::header::map::HeaderMap
-pub fn crudcrate::filtering::parse_dot_notation(&str) -> core::option::Option<(alloc::string::String, alloc::string::String, crudcrate::filtering::joined::FilterOperator)>
-pub fn crudcrate::filtering::parse_pagination(&crudcrate::filtering::query_parser::FilterOptions) -> (u64, u64)
-pub fn crudcrate::filtering::parse_range(core::option::Option<alloc::string::String>) -> (u64, u64)
-pub fn crudcrate::filtering::parse_sorting<C>(&crudcrate::filtering::query_parser::FilterOptions, &[(&str, C)], C) -> (C, sea_query::types::Order) where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::filtering::parse_sorting_with_joins<T, C>(&crudcrate::filtering::query_parser::FilterOptions, &[(&str, C)], C, &[&str]) -> crudcrate::filtering::joined::SortConfig<C> where T: crudcrate::core::traits::CRUDResource, C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::filtering::table_column_ref<T, C>(T, C) -> sea_query::types::iden::compound::ColumnRef where T: sea_query::types::iden::core::IntoIden, C: sea_query::types::iden::core::IntoIden
+pub use crudcrate::filtering::BatchOptions
+pub use crudcrate::filtering::FilterOperator
+pub use crudcrate::filtering::FilterOptions
+pub use crudcrate::filtering::JoinedColumnDef
+pub use crudcrate::filtering::JoinedFilter
+pub use crudcrate::filtering::ParsedFilters
+pub use crudcrate::filtering::SortConfig
+pub use crudcrate::filtering::apply_filters
+pub use crudcrate::filtering::apply_filters_with_joins
+pub use crudcrate::filtering::build_comparison_expr
+pub use crudcrate::filtering::build_fulltext_condition
+pub use crudcrate::filtering::calculate_content_range
+pub use crudcrate::filtering::parse_dot_notation
+pub use crudcrate::filtering::parse_pagination
+pub use crudcrate::filtering::parse_range
+pub use crudcrate::filtering::parse_sorting
+pub use crudcrate::filtering::parse_sorting_with_joins
+pub use crudcrate::filtering::table_column_ref
 pub mod crudcrate::operations
 pub struct crudcrate::operations::DefaultCRUDOperations<T: crudcrate::core::traits::CRUDResource>
 impl<T: crudcrate::core::traits::CRUDResource> crudcrate::operations::DefaultCRUDOperations<T>
@@ -814,134 +576,61 @@ impl core::marker::Unpin for crudcrate::errors::ApiError
 impl core::marker::UnsafeUnpin for crudcrate::errors::ApiError
 impl !core::panic::unwind_safe::RefUnwindSafe for crudcrate::errors::ApiError
 impl !core::panic::unwind_safe::UnwindSafe for crudcrate::errors::ApiError
-pub enum crudcrate::FilterOperator
-pub crudcrate::FilterOperator::Eq
-pub crudcrate::FilterOperator::Gt
-pub crudcrate::FilterOperator::Gte
-pub crudcrate::FilterOperator::In
-pub crudcrate::FilterOperator::IsNull
-pub crudcrate::FilterOperator::Like
-pub crudcrate::FilterOperator::Lt
-pub crudcrate::FilterOperator::Lte
-pub crudcrate::FilterOperator::Neq
-impl crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::from_suffix(&str) -> core::option::Option<Self>
-pub fn crudcrate::filtering::joined::FilterOperator::suffix(&self) -> &'static str
-impl core::clone::Clone for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::clone(&self) -> crudcrate::filtering::joined::FilterOperator
-impl core::cmp::Eq for crudcrate::filtering::joined::FilterOperator
-impl core::cmp::PartialEq for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::eq(&self, &crudcrate::filtering::joined::FilterOperator) -> bool
-impl core::fmt::Debug for crudcrate::filtering::joined::FilterOperator
-pub fn crudcrate::filtering::joined::FilterOperator::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for crudcrate::filtering::joined::FilterOperator
-impl core::marker::StructuralPartialEq for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Freeze for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Send for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Sync for crudcrate::filtering::joined::FilterOperator
-impl core::marker::Unpin for crudcrate::filtering::joined::FilterOperator
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::FilterOperator
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::FilterOperator
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::FilterOperator
-pub enum crudcrate::SortConfig<C>
-pub crudcrate::SortConfig::Column
-pub crudcrate::SortConfig::Column::column: C
-pub crudcrate::SortConfig::Column::direction: sea_query::types::Order
-pub crudcrate::SortConfig::Joined
-pub crudcrate::SortConfig::Joined::column: alloc::string::String
-pub crudcrate::SortConfig::Joined::direction: sea_query::types::Order
-pub crudcrate::SortConfig::Joined::join_field: alloc::string::String
-impl<C> crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::direction(&self) -> sea_query::types::Order
-pub fn crudcrate::filtering::joined::SortConfig<C>::is_joined(&self) -> bool
-impl<C: core::clone::Clone> core::clone::Clone for crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::clone(&self) -> crudcrate::filtering::joined::SortConfig<C>
-impl<C: core::fmt::Debug> core::fmt::Debug for crudcrate::filtering::joined::SortConfig<C>
-pub fn crudcrate::filtering::joined::SortConfig<C>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<C> core::marker::Freeze for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Freeze
-impl<C> core::marker::Send for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Send
-impl<C> core::marker::Sync for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Sync
-impl<C> core::marker::Unpin for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::Unpin
-impl<C> core::marker::UnsafeUnpin for crudcrate::filtering::joined::SortConfig<C> where C: core::marker::UnsafeUnpin
-impl<C> core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::SortConfig<C> where C: core::panic::unwind_safe::RefUnwindSafe
-impl<C> core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::SortConfig<C> where C: core::panic::unwind_safe::UnwindSafe
 pub struct crudcrate::BatchFailure
 pub crudcrate::BatchFailure::error: alloc::string::String
 pub crudcrate::BatchFailure::index: usize
-impl core::clone::Clone for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::clone(&self) -> crudcrate::errors::BatchFailure
-impl core::fmt::Debug for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl serde_core::ser::Serialize for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl utoipa::ToSchema for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::errors::BatchFailure::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::errors::BatchFailure
-pub fn crudcrate::errors::BatchFailure::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::errors::BatchFailure
-impl core::marker::Send for crudcrate::errors::BatchFailure
-impl core::marker::Sync for crudcrate::errors::BatchFailure
-impl core::marker::Unpin for crudcrate::errors::BatchFailure
-impl core::marker::UnsafeUnpin for crudcrate::errors::BatchFailure
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::errors::BatchFailure
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::errors::BatchFailure
-pub struct crudcrate::BatchOptions
-pub crudcrate::BatchOptions::partial: bool
-impl core::clone::Clone for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::clone(&self) -> crudcrate::filtering::query_parser::BatchOptions
-impl core::default::Default for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::default() -> crudcrate::filtering::query_parser::BatchOptions
-impl utoipa::IntoParams for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::into_params(impl core::ops::function::Fn() -> core::option::Option<utoipa::openapi::path::ParameterIn>) -> alloc::vec::Vec<utoipa::openapi::path::Parameter>
-impl utoipa::ToSchema for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::filtering::query_parser::BatchOptions::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::filtering::query_parser::BatchOptions
-pub fn crudcrate::filtering::query_parser::BatchOptions::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Send for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Sync for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::Unpin for crudcrate::filtering::query_parser::BatchOptions
-impl core::marker::UnsafeUnpin for crudcrate::filtering::query_parser::BatchOptions
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::query_parser::BatchOptions
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::query_parser::BatchOptions
+impl core::clone::Clone for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::clone(&self) -> crudcrate::batch::BatchFailure
+impl core::fmt::Debug for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl utoipa::ToSchema for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::name() -> alloc::borrow::Cow<'static, str>
+pub fn crudcrate::batch::BatchFailure::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
+impl utoipa::__dev::ComposeSchema for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+impl<'de> serde_core::de::Deserialize<'de> for crudcrate::batch::BatchFailure
+pub fn crudcrate::batch::BatchFailure::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for crudcrate::batch::BatchFailure
+impl core::marker::Send for crudcrate::batch::BatchFailure
+impl core::marker::Sync for crudcrate::batch::BatchFailure
+impl core::marker::Unpin for crudcrate::batch::BatchFailure
+impl core::marker::UnsafeUnpin for crudcrate::batch::BatchFailure
+impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchFailure
+impl core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchFailure
 pub struct crudcrate::BatchResult<T>
-pub crudcrate::BatchResult::failed: alloc::vec::Vec<crudcrate::errors::BatchFailure>
+pub crudcrate::BatchResult::failed: alloc::vec::Vec<crudcrate::batch::BatchFailure>
 pub crudcrate::BatchResult::succeeded: alloc::vec::Vec<T>
-impl<T> crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::add_failure(&mut self, usize, impl core::convert::Into<alloc::string::String>)
-pub fn crudcrate::errors::BatchResult<T>::add_success(&mut self, T)
-pub fn crudcrate::errors::BatchResult<T>::all_failed(&self) -> bool
-pub fn crudcrate::errors::BatchResult<T>::all_succeeded(&self) -> bool
-pub fn crudcrate::errors::BatchResult<T>::is_partial(&self) -> bool
-pub fn crudcrate::errors::BatchResult<T>::new() -> Self
-impl<'de, T> serde_core::de::Deserialize<'de> for crudcrate::errors::BatchResult<T> where T: serde_core::de::Deserialize<'de>
-pub fn crudcrate::errors::BatchResult<T>::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<T: core::clone::Clone> core::clone::Clone for crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::clone(&self) -> crudcrate::errors::BatchResult<T>
-impl<T: core::fmt::Debug> core::fmt::Debug for crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<T> core::default::Default for crudcrate::errors::BatchResult<T>
-pub fn crudcrate::errors::BatchResult<T>::default() -> Self
-impl<T> serde_core::ser::Serialize for crudcrate::errors::BatchResult<T> where T: serde_core::ser::Serialize
-pub fn crudcrate::errors::BatchResult<T>::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<T> utoipa::ToSchema for crudcrate::errors::BatchResult<T> where T: utoipa::ToSchema
-pub fn crudcrate::errors::BatchResult<T>::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::errors::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl<T> utoipa::__dev::ComposeSchema for crudcrate::errors::BatchResult<T> where T: utoipa::ToSchema
-pub fn crudcrate::errors::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<T> core::marker::Freeze for crudcrate::errors::BatchResult<T>
-impl<T> core::marker::Send for crudcrate::errors::BatchResult<T> where T: core::marker::Send
-impl<T> core::marker::Sync for crudcrate::errors::BatchResult<T> where T: core::marker::Sync
-impl<T> core::marker::Unpin for crudcrate::errors::BatchResult<T> where T: core::marker::Unpin
-impl<T> core::marker::UnsafeUnpin for crudcrate::errors::BatchResult<T>
-impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::errors::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
-impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::errors::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
+impl<T> crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::add_failure(&mut self, usize, impl core::convert::Into<alloc::string::String>)
+pub fn crudcrate::batch::BatchResult<T>::add_success(&mut self, T)
+pub fn crudcrate::batch::BatchResult<T>::all_failed(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::all_succeeded(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::is_partial(&self) -> bool
+pub fn crudcrate::batch::BatchResult<T>::new() -> Self
+impl<'de, T> serde_core::de::Deserialize<'de> for crudcrate::batch::BatchResult<T> where T: serde_core::de::Deserialize<'de>
+pub fn crudcrate::batch::BatchResult<T>::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T: core::clone::Clone> core::clone::Clone for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::clone(&self) -> crudcrate::batch::BatchResult<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T> core::default::Default for crudcrate::batch::BatchResult<T>
+pub fn crudcrate::batch::BatchResult<T>::default() -> Self
+impl<T> serde_core::ser::Serialize for crudcrate::batch::BatchResult<T> where T: serde_core::ser::Serialize
+pub fn crudcrate::batch::BatchResult<T>::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<T> utoipa::ToSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
+pub fn crudcrate::batch::BatchResult<T>::name() -> alloc::borrow::Cow<'static, str>
+pub fn crudcrate::batch::BatchResult<T>::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
+impl<T> utoipa::__dev::ComposeSchema for crudcrate::batch::BatchResult<T> where T: utoipa::ToSchema
+pub fn crudcrate::batch::BatchResult<T>::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+impl<T> core::marker::Freeze for crudcrate::batch::BatchResult<T>
+impl<T> core::marker::Send for crudcrate::batch::BatchResult<T> where T: core::marker::Send
+impl<T> core::marker::Sync for crudcrate::batch::BatchResult<T> where T: core::marker::Sync
+impl<T> core::marker::Unpin for crudcrate::batch::BatchResult<T> where T: core::marker::Unpin
+impl<T> core::marker::UnsafeUnpin for crudcrate::batch::BatchResult<T>
+impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::RefUnwindSafe
+impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::batch::BatchResult<T> where T: core::panic::unwind_safe::UnwindSafe
 pub struct crudcrate::DefaultCRUDOperations<T: crudcrate::core::traits::CRUDResource>
 impl<T: crudcrate::core::traits::CRUDResource> crudcrate::operations::DefaultCRUDOperations<T>
 pub const fn crudcrate::operations::DefaultCRUDOperations<T>::new() -> Self
@@ -982,82 +671,6 @@ impl<T> core::marker::Unpin for crudcrate::operations::DefaultCRUDOperations<T> 
 impl<T> core::marker::UnsafeUnpin for crudcrate::operations::DefaultCRUDOperations<T>
 impl<T> core::panic::unwind_safe::RefUnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where T: core::panic::unwind_safe::RefUnwindSafe
 impl<T> core::panic::unwind_safe::UnwindSafe for crudcrate::operations::DefaultCRUDOperations<T> where T: core::panic::unwind_safe::UnwindSafe
-pub struct crudcrate::FilterOptions
-pub crudcrate::FilterOptions::filter: core::option::Option<alloc::string::String>
-pub crudcrate::FilterOptions::order: core::option::Option<alloc::string::String>
-pub crudcrate::FilterOptions::page: core::option::Option<u64>
-pub crudcrate::FilterOptions::per_page: core::option::Option<u64>
-pub crudcrate::FilterOptions::range: core::option::Option<alloc::string::String>
-pub crudcrate::FilterOptions::sort: core::option::Option<alloc::string::String>
-pub crudcrate::FilterOptions::sort_by: core::option::Option<alloc::string::String>
-impl core::default::Default for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::default() -> crudcrate::filtering::query_parser::FilterOptions
-impl utoipa::IntoParams for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::into_params(impl core::ops::function::Fn() -> core::option::Option<utoipa::openapi::path::ParameterIn>) -> alloc::vec::Vec<utoipa::openapi::path::Parameter>
-impl utoipa::ToSchema for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::name() -> alloc::borrow::Cow<'static, str>
-pub fn crudcrate::filtering::query_parser::FilterOptions::schemas(&mut alloc::vec::Vec<(alloc::string::String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>)
-impl utoipa::__dev::ComposeSchema for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::compose(alloc::vec::Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-impl<'de> serde_core::de::Deserialize<'de> for crudcrate::filtering::query_parser::FilterOptions
-pub fn crudcrate::filtering::query_parser::FilterOptions::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl core::marker::Freeze for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Send for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Sync for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::Unpin for crudcrate::filtering::query_parser::FilterOptions
-impl core::marker::UnsafeUnpin for crudcrate::filtering::query_parser::FilterOptions
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::query_parser::FilterOptions
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::query_parser::FilterOptions
-pub struct crudcrate::JoinedColumnDef
-pub crudcrate::JoinedColumnDef::column_name: &'static str
-pub crudcrate::JoinedColumnDef::full_path: &'static str
-pub crudcrate::JoinedColumnDef::join_field: &'static str
-impl core::clone::Clone for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::clone(&self) -> crudcrate::filtering::joined::JoinedColumnDef
-impl core::cmp::Eq for crudcrate::filtering::joined::JoinedColumnDef
-impl core::cmp::PartialEq for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::eq(&self, &crudcrate::filtering::joined::JoinedColumnDef) -> bool
-impl core::fmt::Debug for crudcrate::filtering::joined::JoinedColumnDef
-pub fn crudcrate::filtering::joined::JoinedColumnDef::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Freeze for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Send for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Sync for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::Unpin for crudcrate::filtering::joined::JoinedColumnDef
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::JoinedColumnDef
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::JoinedColumnDef
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::JoinedColumnDef
-pub struct crudcrate::JoinedFilter
-pub crudcrate::JoinedFilter::column: alloc::string::String
-pub crudcrate::JoinedFilter::join_field: alloc::string::String
-pub crudcrate::JoinedFilter::operator: crudcrate::filtering::joined::FilterOperator
-pub crudcrate::JoinedFilter::value: serde_json::value::Value
-impl core::clone::Clone for crudcrate::filtering::joined::JoinedFilter
-pub fn crudcrate::filtering::joined::JoinedFilter::clone(&self) -> crudcrate::filtering::joined::JoinedFilter
-impl core::fmt::Debug for crudcrate::filtering::joined::JoinedFilter
-pub fn crudcrate::filtering::joined::JoinedFilter::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Send for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Sync for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::Unpin for crudcrate::filtering::joined::JoinedFilter
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::JoinedFilter
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::JoinedFilter
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::JoinedFilter
-pub struct crudcrate::ParsedFilters
-pub crudcrate::ParsedFilters::has_joined_filters: bool
-pub crudcrate::ParsedFilters::joined_filters: alloc::vec::Vec<crudcrate::filtering::joined::JoinedFilter>
-pub crudcrate::ParsedFilters::main_condition: sea_query::query::condition::Condition
-impl core::default::Default for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::ParsedFilters::default() -> Self
-impl core::fmt::Debug for crudcrate::filtering::joined::ParsedFilters
-pub fn crudcrate::filtering::joined::ParsedFilters::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Freeze for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Send for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Sync for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::Unpin for crudcrate::filtering::joined::ParsedFilters
-impl core::marker::UnsafeUnpin for crudcrate::filtering::joined::ParsedFilters
-impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::filtering::joined::ParsedFilters
-impl core::panic::unwind_safe::UnwindSafe for crudcrate::filtering::joined::ParsedFilters
 pub struct crudcrate::ScopeCondition
 pub crudcrate::ScopeCondition::condition: sea_query::query::condition::Condition
 impl crudcrate::scope::ScopeCondition
@@ -1195,12 +808,12 @@ pub fn crudcrate::CRUDResource::get_one<'life0, 'async_trait>(&'life0 sea_orm::d
 pub fn crudcrate::CRUDResource::get_one_scoped<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, crudcrate::core::traits::PrimaryKeyType<Self>, &'life1 sea_query::query::condition::Condition) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<Self, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where Self: 'async_trait, 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::CRUDResource::is_enum_field(&str) -> bool
 pub fn crudcrate::CRUDResource::joined_field_has_scope(&str) -> bool
-pub fn crudcrate::CRUDResource::joined_filterable_columns() -> alloc::vec::Vec<crudcrate::filtering::joined::JoinedColumnDef>
-pub fn crudcrate::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<crudcrate::filtering::joined::JoinedColumnDef>
+pub fn crudcrate::CRUDResource::joined_filterable_columns() -> alloc::vec::Vec<crate::JoinedColumnDef>
+pub fn crudcrate::CRUDResource::joined_sortable_columns() -> alloc::vec::Vec<crate::JoinedColumnDef>
 pub fn crudcrate::CRUDResource::like_filterable_columns() -> alloc::vec::Vec<&'static str>
 pub fn crudcrate::CRUDResource::max_page_size() -> u64
 pub fn crudcrate::CRUDResource::normalize_enum_value(&str, &str) -> core::option::Option<alloc::string::String>
-pub fn crudcrate::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crudcrate::filtering::joined::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
+pub fn crudcrate::CRUDResource::resolve_joined_filters<'life0, 'life1, 'async_trait>(&'life0 sea_orm::database::db_connection::DatabaseConnection, sea_query::query::condition::Condition, &'life1 [crate::JoinedFilter]) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>> + core::marker::Send + 'async_trait)>> where 'life0: 'async_trait, 'life1: 'async_trait
 pub fn crudcrate::CRUDResource::scoped_excluded_columns() -> &'static [&'static str]
 pub fn crudcrate::CRUDResource::security_profile() -> crudcrate::profile::SecurityProfile
 pub fn crudcrate::CRUDResource::sortable_columns() -> alloc::vec::Vec<(&'static str, Self::ColumnType)>
@@ -1212,14 +825,4 @@ pub fn crudcrate::MergeIntoActiveModel::merge_into_activemodel(self, ActiveModel
 pub trait crudcrate::ScopeFilterable
 pub fn crudcrate::ScopeFilterable::is_scope_visible(&self) -> bool
 pub fn crudcrate::ScopeFilterable::scope_condition() -> core::option::Option<sea_query::query::condition::Condition>
-pub fn crudcrate::apply_filters<T: crudcrate::core::traits::CRUDResource>(core::option::Option<alloc::string::String>, &[(&str, impl sea_orm::entity::column::ColumnTrait)], sea_orm::database::db_connection::DatabaseBackend) -> core::result::Result<sea_query::query::condition::Condition, crudcrate::errors::ApiError>
-pub fn crudcrate::apply_filters_with_joins<T: crudcrate::core::traits::CRUDResource>(core::option::Option<alloc::string::String>, &[(&str, impl sea_orm::entity::column::ColumnTrait)], sea_orm::database::db_connection::DatabaseBackend) -> core::result::Result<crudcrate::filtering::joined::ParsedFilters, crudcrate::errors::ApiError>
-pub fn crudcrate::build_comparison_expr<C>(C, crudcrate::filtering::joined::FilterOperator, &serde_json::value::Value) -> core::option::Option<sea_query::expr::enum::Expr> where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::calculate_content_range(u64, u64, u64, &str) -> http::header::map::HeaderMap
-pub fn crudcrate::parse_dot_notation(&str) -> core::option::Option<(alloc::string::String, alloc::string::String, crudcrate::filtering::joined::FilterOperator)>
-pub fn crudcrate::parse_pagination(&crudcrate::filtering::query_parser::FilterOptions) -> (u64, u64)
-pub fn crudcrate::parse_range(core::option::Option<alloc::string::String>) -> (u64, u64)
-pub fn crudcrate::parse_sorting<C>(&crudcrate::filtering::query_parser::FilterOptions, &[(&str, C)], C) -> (C, sea_query::types::Order) where C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::parse_sorting_with_joins<T, C>(&crudcrate::filtering::query_parser::FilterOptions, &[(&str, C)], C, &[&str]) -> crudcrate::filtering::joined::SortConfig<C> where T: crudcrate::core::traits::CRUDResource, C: sea_orm::entity::column::ColumnTrait + core::marker::Copy
-pub fn crudcrate::table_column_ref<T, C>(T, C) -> sea_query::types::iden::compound::ColumnRef where T: sea_query::types::iden::core::IntoIden, C: sea_query::types::iden::core::IntoIden
 pub type crudcrate::PrimaryKeyType<R> = <<<R as crudcrate::core::traits::CRUDResource>::EntityType as sea_orm::entity::base_entity::EntityTrait>::PrimaryKey as sea_orm::entity::primary_key::PrimaryKeyTrait>::ValueType

@@ -1,7 +1,7 @@
 //! List model fields and conversions.
 
+use crate::attrs::get_crudcrate_expr;
 use crate::attrs::get_join_config;
-use crate::attrs::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::models::shared::{
     generate_target_model_conversion, resolve_field_type_with_target_models, wire_attrs,
 };
@@ -84,7 +84,7 @@ pub(crate) fn generate_list_from_model_assignments(
     for field in &analysis.db_fields {
         let field_name = &field.ident;
 
-        if get_crudcrate_bool(field, "list_model").unwrap_or(true) {
+        if should_include_in_model(field, "list_model") {
             // Field is included in ListModel - use actual data from Model
             if let Some(conversion) = generate_target_model_conversion(field, field_name.as_ref()) {
                 assignments.push(conversion);
@@ -102,15 +102,7 @@ pub(crate) fn generate_list_from_model_assignments(
     for field in &analysis.non_db_fields {
         let field_name = &field.ident;
 
-        let include_in_list = get_crudcrate_bool(field, "list_model").unwrap_or(true);
-        // Only exclude join(one) fields from List models - keep join(all) fields since they're meant for list responses
-        let is_join_one_only = if let Some(join_config) = get_join_config(field).config {
-            !join_config.on_all // Exclude if NOT loading in get_all (on_all = false)
-        } else {
-            false
-        };
-
-        if include_in_list && !is_join_one_only {
+        if should_include_in_model(field, "list_model") {
             // Check if this is a join(all) field
             let is_join_all = get_join_config(field).is_some_and(|c| c.on_all);
 

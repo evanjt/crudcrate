@@ -121,6 +121,7 @@
 //! | `mysql` | no | MySQL support (enables FULLTEXT indexes) |
 //! | `spring-rs` | no | [Spring-RS](https://spring-rs.github.io/docs/introduction) framework integration |
 
+pub mod batch;
 pub mod core;
 pub mod database;
 pub mod errors;
@@ -159,8 +160,9 @@ pub mod traits {
 
 pub use crudcrate_derive::*;
 
+pub use batch::{BatchFailure, BatchResult};
 pub use core::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};
-pub use errors::{ApiError, BatchFailure, BatchResult};
+pub use errors::ApiError;
 pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,
     SortConfig, apply_filters, apply_filters_with_joins, build_comparison_expr,
@@ -176,6 +178,7 @@ pub use scope::{ScopeCondition, ScopeFilterable};
 /// themselves.
 pub use sea_orm;
 
+#[doc(hidden)]
 pub use serde_with;
 
 /// Re-exported so derive-generated join code can call `crudcrate::tracing::warn!`

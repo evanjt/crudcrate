@@ -1,11 +1,11 @@
 //! Joined filter and sort sub-queries: `resolve_joined_filters`, `get_all_joined_sorted`, `joined_field_has_scope`.
 
 use crate::attrs::get_join_config;
-use crate::codegen::joins::fk::derive_fk_idents;
-use crate::ir::EntityFieldAnalysis;
-use crate::syn_type::{
-    column_ident, extract_api_struct_type_for_recursive_call, get_path_from_field_type, is_vec_type,
+use crate::codegen::joins::fk::{
+    child_paths, derive_fk_idents, fk_column_ref, list_type_of_child, self_referencing,
 };
+use crate::ir::EntityFieldAnalysis;
+use crate::syn_type::{column_ident, extract_api_struct_type_for_recursive_call, is_vec_type};
 use quote::quote;
 
 /// Generate `joined_field_has_scope` method for `CRUDResource` impl.
@@ -46,16 +46,8 @@ pub(crate) fn generate_joined_field_has_scope_impl(
 
     let arms = candidates.iter().map(|(field, field_name)| {
         let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let inner_type_string = inner_type.to_string();
-        let list_suffix = {
-            let struct_name = inner_type_string
-                .split("::")
-                .last()
-                .unwrap_or(&inner_type_string)
-                .trim();
-            format!("{struct_name}List")
-        };
-        let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+        let _inner_type_string = inner_type.to_string();
+        let child_list_type = list_type_of_child(field);
         quote! {
             #field_name => {
                 <#child_list_type as crudcrate::ScopeFilterable>::scope_condition().is_some()
@@ -125,41 +117,21 @@ pub(crate) fn generate_resolve_joined_filters_impl(
         let join_config = get_join_config(field).unwrap_or_default();
 
         let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let inner_type_string = inner_type.to_string();
-        let api_struct_name_string = api_struct_name.to_string();
-        let is_self_referencing = inner_type_string.trim() == api_struct_name_string.trim();
+        let _inner_type_string = inner_type.to_string();
+        let _api_struct_name_string = api_struct_name.to_string();
+        let is_self_referencing = self_referencing(&field.ty, api_struct_name);
 
         // Entity / Column / Model paths
-        let (entity_path, column_path) = if let Some(custom_path) = &join_config.path {
-            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() {
-                (
-                    quote! { #path_tokens::Entity },
-                    quote! { #path_tokens::Column },
-                )
-            } else {
-                let error_msg = format!("Invalid join path '{custom_path}' for field '{field_name}'");
-                return quote! { compile_error!(#error_msg); };
-            }
-        } else {
-            (
-                get_path_from_field_type(&field.ty, "Entity"),
-                get_path_from_field_type(&field.ty, "Column"),
-            )
+        let (entity_path, column_path) = match child_paths(field, field_name, &join_config) {
+            Ok(paths) => paths,
+            Err(e) => return e,
         };
 
         let (fk_column_pascal, _fk_field_snake, use_runtime_filter) =
             derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
 
         // Child List type path for ScopeFilterable::scope_condition()
-        let list_suffix = {
-            let struct_name = inner_type_string
-                .split("::")
-                .last()
-                .unwrap_or(&inner_type_string)
-                .trim();
-            format!("{struct_name}List")
-        };
-        let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+        let child_list_type = list_type_of_child(field);
 
         // Column match arms: "make" => Some(column::Make), ...
         let column_arms = filterable_columns.iter().map(|col| {
@@ -177,27 +149,13 @@ pub(crate) fn generate_resolve_joined_filters_impl(
         // self-referencing fields use the typed column. The convention-derived path
         // resolves the FK name from the RelationDef at runtime (as the sort path does),
         // avoiding a FromStr round-trip that could panic.
-        let fk_col_ref = if is_self_referencing || !use_runtime_filter {
-            quote! {
-                {
-                    let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
-                        &#column_path::#fk_column_pascal
-                    );
-                    crudcrate::table_column_ref(__t, __c)
-                }
-            }
-        } else {
-            quote! {
-                {
-                    let __rel_def = <#entity_path as sea_orm::Related<
-                        <Self as crudcrate::traits::CRUDResource>::EntityType
-                    >>::to();
-                    let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
-                    let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
-                    crudcrate::table_column_ref(__child_tbl, __fk_col_name)
-                }
-            }
-        };
+        let fk_col_ref = fk_column_ref(
+            is_self_referencing,
+            use_runtime_filter,
+            &entity_path,
+            &column_path,
+            &fk_column_pascal,
+        );
 
         quote! {
             #field_name => {
@@ -314,26 +272,14 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
         let join_config = get_join_config(field).unwrap_or_default();
 
         let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let inner_type_string = inner_type.to_string();
-        let api_struct_name_string = api_struct_name.to_string();
-        let is_self_referencing = inner_type_string.trim() == api_struct_name_string.trim();
+        let _inner_type_string = inner_type.to_string();
+        let _api_struct_name_string = api_struct_name.to_string();
+        let is_self_referencing = self_referencing(&field.ty, api_struct_name);
 
         // Entity / Column paths for the child table
-        let (entity_path, column_path) = if let Some(custom_path) = &join_config.path {
-            if let Ok(path_tokens) = custom_path.parse::<proc_macro2::TokenStream>() {
-                (
-                    quote! { #path_tokens::Entity },
-                    quote! { #path_tokens::Column },
-                )
-            } else {
-                let error_msg = format!("Invalid join path '{custom_path}' for field '{field_name}'");
-                return quote! { compile_error!(#error_msg); };
-            }
-        } else {
-            (
-                get_path_from_field_type(&field.ty, "Entity"),
-                get_path_from_field_type(&field.ty, "Column"),
-            )
+        let (entity_path, column_path) = match child_paths(field, field_name, &join_config) {
+            Ok(paths) => paths,
+            Err(e) => return e,
         };
 
         let (fk_column_pascal, _fk_field_snake, use_runtime_filter) =
@@ -344,27 +290,13 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
         // `ColumnTrait::as_column_ref()`; the convention-derived path resolves the
         // FK name from the SeaORM RelationDef at runtime (matching the batch
         // loader) and builds a table-qualified Alias ref.
-        let fk_col_ref = if is_self_referencing || !use_runtime_filter {
-            quote! {
-                {
-                    let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
-                        &#column_path::#fk_column_pascal
-                    );
-                    crudcrate::table_column_ref(__t, __c)
-                }
-            }
-        } else {
-            quote! {
-                {
-                    let __rel_def = <#entity_path as sea_orm::Related<
-                        <Self as crudcrate::traits::CRUDResource>::EntityType
-                    >>::to();
-                    let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
-                    let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
-                    crudcrate::table_column_ref(__child_tbl, __fk_col_name)
-                }
-            }
-        };
+        let fk_col_ref = fk_column_ref(
+            is_self_referencing,
+            use_runtime_filter,
+            &entity_path,
+            &column_path,
+            &fk_column_pascal,
+        );
 
         // Column match arms: "year" => Some(column::Year), ...
         let column_arms = sortable_columns.iter().map(|col| {

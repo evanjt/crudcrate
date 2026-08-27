@@ -1,5 +1,6 @@
 //! `create` and `create_many` bodies.
 
+use crate::codegen::handlers::transform_hook;
 use crate::ir::CRUDResourceMeta;
 use quote::quote;
 
@@ -53,9 +54,7 @@ pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     };
 
     // Generate transform hook call (modifies the result)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
@@ -174,9 +173,7 @@ pub(crate) fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     };
 
     // Generate transform hook call (modifies the results)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {

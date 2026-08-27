@@ -56,10 +56,10 @@ macro_rules! crud_handlers {
 #[macro_export]
 macro_rules! crud_handlers_impl {
     ($resource:ty, $update_model:ty, $create_model:ty, $list_model:ty, $response_model:ty, $scoped_list:ty, $scoped_response:ty) => {
-        use crudcrate::filter::{apply_filters, parse_pagination};
-        use crudcrate::models::FilterOptions;
-        use crudcrate::pagination::calculate_content_range;
-        use crudcrate::sort::parse_sorting;
+        use crudcrate::{apply_filters, parse_pagination};
+        use crudcrate::FilterOptions;
+        use crudcrate::calculate_content_range;
+        use crudcrate::parse_sorting;
 
         use axum::{
             extract::{Path, Query, State},
@@ -145,7 +145,7 @@ macro_rules! crud_handlers_impl {
                 (status = axum::http::StatusCode::OK, description = "List of resources", body = [$list_model]),
                 (status = axum::http::StatusCode::INTERNAL_SERVER_ERROR, description = "Internal Server Error")
             ),
-            params(crudcrate::models::FilterOptions),
+            params(crudcrate::FilterOptions),
             operation_id = format!("get_all_{}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             summary = format!("Get all {}", <$resource as CRUDResource>::RESOURCE_NAME_PLURAL),
             description = format!(
@@ -165,7 +165,7 @@ macro_rules! crud_handlers_impl {
             )
         )]
         pub async fn get_all_handler(
-            axum::extract::Query(params): axum::extract::Query<crudcrate::models::FilterOptions>,
+            axum::extract::Query(params): axum::extract::Query<crudcrate::FilterOptions>,
             axum::extract::State(db): axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             profile_ext: Option<axum::Extension<crudcrate::SecurityProfile>>,
@@ -196,7 +196,7 @@ macro_rules! crud_handlers_impl {
                 ));
             }
 
-            let (offset, limit) = crudcrate::filter::parse_pagination(&params);
+            let (offset, limit) = crudcrate::parse_pagination(&params);
             // `std::cmp::min` rather than `.min()`: Sea-Query's blanket `ExprTrait` impl
             // covers every type, so the method call is ambiguous wherever it is in scope.
             let limit = std::cmp::min(
@@ -315,7 +315,7 @@ macro_rules! crud_handlers_impl {
                 }
             };
             let total_count = <$resource as crudcrate::traits::CRUDResource>::total_count(&db, &condition).await;
-            let headers = crudcrate::pagination::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);
+            let headers = crudcrate::calculate_content_range(offset, limit, total_count, <$resource as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL);
 
             if is_scoped {
                 let scoped: Vec<$scoped_list> = items.into_iter().map(|item| { let converted: $scoped_list = item.into(); converted }).collect();

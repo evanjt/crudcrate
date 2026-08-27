@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use sea_orm::{
-    Condition, DatabaseConnection, EntityTrait, IntoActiveModel, Order, PaginatorTrait, QueryOrder,
-    QuerySelect, entity::prelude::*,
+    Condition, DatabaseConnection, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
+    entity::prelude::*,
 };
 use uuid::Uuid;
 
@@ -139,22 +139,15 @@ where
         offset: u64,
         limit: u64,
     ) -> Result<Vec<Self::ListModel>, ApiError> {
-        let mut query = Self::EntityType::find()
-            .filter(condition.clone())
-            .order_by(order_column, order_direction);
-        if order_column.as_str() != Self::ID_COLUMN.as_str() {
-            query = query.order_by(Self::ID_COLUMN, Order::Asc);
-        }
-        let models = query
-            .offset(offset)
-            .limit(limit)
-            .all(db)
-            .await
-            .map_err(ApiError::database)?;
-        Ok(models
-            .into_iter()
-            .map(|model| Self::ListModel::from(Self::from(model)))
-            .collect())
+        crate::core::defaults::get_all::<Self>(
+            db,
+            condition,
+            order_column,
+            order_direction,
+            offset,
+            limit,
+        )
+        .await
     }
 
     /// Scope-aware variant of `get_all` used by `get_all_handler` when a
@@ -253,14 +246,7 @@ where
     }
 
     async fn get_one(db: &DatabaseConnection, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
-        let model = Self::EntityType::find_by_id(id.clone())
-            .one(db)
-            .await
-            .map_err(ApiError::database)?
-            .ok_or_else(|| {
-                ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
-            })?;
-        Ok(Self::from(model))
+        crate::core::defaults::get_one::<Self>(db, id).await
     }
 
     /// Fetch a single entity by ID with a scope condition applied atomically.
@@ -295,16 +281,7 @@ where
         db: &DatabaseConnection,
         create_model: Self::CreateModel,
     ) -> Result<Self, ApiError> {
-        use sea_orm::ActiveModelTrait;
-        let active_model: Self::ActiveModelType = create_model.into();
-
-        // Use insert and return the model directly
-        // This works across all databases unlike last_insert_id for UUIDs
-        let model = active_model.insert(db).await.map_err(ApiError::database)?;
-
-        // Convert the model to Self which implements CRUDResource
-        // This gives us access to the id field directly
-        Ok(Self::from(model))
+        crate::core::defaults::create::<Self>(db, create_model).await
     }
 
     async fn update(
@@ -312,84 +289,21 @@ where
         id: PrimaryKeyType<Self>,
         update_model: Self::UpdateModel,
     ) -> Result<Self, ApiError> {
-        let model = Self::EntityType::find_by_id(id.clone())
-            .one(db)
-            .await
-            .map_err(ApiError::database)?
-            .ok_or_else(|| {
-                ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
-            })?;
-        let existing: Self::ActiveModelType = model.into_active_model();
-        let updated_model = update_model.merge_into_activemodel(existing)?;
-        let updated = updated_model.update(db).await.map_err(ApiError::database)?;
-        Ok(Self::from(updated))
+        crate::core::defaults::update::<Self>(db, id, update_model).await
     }
 
     async fn delete(
         db: &DatabaseConnection,
         id: PrimaryKeyType<Self>,
     ) -> Result<PrimaryKeyType<Self>, ApiError> {
-        let res = Self::EntityType::delete_by_id(id.clone())
-            .exec(db)
-            .await
-            .map_err(ApiError::database)?;
-        match res.rows_affected {
-            0 => Err(ApiError::not_found(
-                Self::RESOURCE_NAME_SINGULAR,
-                Some(id.to_string()),
-            )),
-            _ => Ok(id),
-        }
+        crate::core::defaults::delete::<Self>(db, id).await
     }
 
     async fn delete_many(
         db: &DatabaseConnection,
         ids: Vec<PrimaryKeyType<Self>>,
     ) -> Result<Vec<PrimaryKeyType<Self>>, ApiError> {
-        if ids.len() > Self::batch_limit() {
-            return Err(ApiError::bad_request(format!(
-                "Batch delete limited to {} items. Received {} items.",
-                Self::batch_limit(),
-                ids.len()
-            )));
-        }
-
-        if ids.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // Pre-query: which IDs actually exist? Select the PK column generically
-        // into the entity's own PK value type so this works for UUID, integer, or
-        // String primary keys without a UUID-specific FromQueryResult helper.
-        let existing: Vec<PrimaryKeyType<Self>> = Self::EntityType::find()
-            .select_only()
-            .column(Self::ID_COLUMN)
-            .filter(Self::ID_COLUMN.is_in(ids.clone()))
-            .into_tuple::<PrimaryKeyType<Self>>()
-            .all(db)
-            .await
-            .map_err(ApiError::database)?;
-        let existing_set: std::collections::HashSet<PrimaryKeyType<Self>> =
-            existing.into_iter().collect();
-
-        // Delete only existing IDs
-        if !existing_set.is_empty() {
-            Self::EntityType::delete_many()
-                .filter(Self::ID_COLUMN.is_in(existing_set.iter().cloned().collect::<Vec<_>>()))
-                .exec(db)
-                .await
-                .map_err(ApiError::database)?;
-        }
-
-        // Return only IDs that actually existed, de-duplicated while preserving input
-        // order. The DELETE itself is de-duplicated via `existing_set`, so echoing a
-        // duplicated input id (e.g. [a, a]) would over-report the rows actually deleted,
-        // both as the `{deleted: count}` integer and the returned array.
-        let mut seen = std::collections::HashSet::new();
-        Ok(ids
-            .into_iter()
-            .filter(|id| existing_set.contains(id) && seen.insert(id.clone()))
-            .collect())
+        crate::core::defaults::delete_many::<Self>(db, ids).await
     }
 
     /// Create multiple entities in a batch.

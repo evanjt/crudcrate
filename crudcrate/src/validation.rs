@@ -148,6 +148,7 @@ pub trait Validatable {
 /// model implements [`Validatable`], the inherent method on `Probe` wins method
 /// resolution and runs the real validation; otherwise the blanket
 /// `ValidatableFallback` trait method is used and does nothing.
+/// Not public API: reached only by crudcrate-derive-generated code.
 #[doc(hidden)]
 pub mod __auto {
     use super::{Validatable, ValidationError};

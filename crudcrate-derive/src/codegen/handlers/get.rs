@@ -1,5 +1,6 @@
 //! `get_one` and `get_all` bodies.
 
+use crate::codegen::handlers::transform_hook;
 use crate::codegen::joins::batch::{
     generate_get_all_batch_loading, generate_get_all_scoped_batch_loading,
 };
@@ -126,9 +127,7 @@ pub(crate) fn generate_get_all_impl(
         let pre = hooks.pre.as_ref().map(|fn_path| {
             quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
         });
-        let transform = hooks.transform.as_ref().map(|fn_path| {
-            quote! { let result = #fn_path(db, result).await?; }
-        });
+        let transform = transform_hook(hooks);
         let post = hooks.post.as_ref().map(|fn_path| {
             quote! { #fn_path(db, &result).await?; }
         });
@@ -289,9 +288,7 @@ pub(crate) fn generate_get_one_impl(
             let pre = hooks.pre.as_ref().map(|fn_path| {
                 quote! { #fn_path(db, id).await?; }
             });
-            let transform = hooks.transform.as_ref().map(|fn_path| {
-                quote! { let result = #fn_path(db, result).await?; }
-            });
+            let transform = transform_hook(hooks);
             let post = hooks.post.as_ref().map(|fn_path| {
                 quote! { #fn_path(db, &result).await?; }
             });

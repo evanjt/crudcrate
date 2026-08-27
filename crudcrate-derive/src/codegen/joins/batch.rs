@@ -1,7 +1,9 @@
 //! Batch join loading for `get_all`: one query per join field, grouped by parent id.
 
 use crate::attrs::get_join_config;
-use crate::codegen::joins::fk::{MAX_JOIN_DEPTH, derive_fk_idents};
+use crate::codegen::joins::fk::{
+    MAX_JOIN_DEPTH, derive_fk_idents, list_type_of_child, self_referencing,
+};
 use crate::ir::EntityFieldAnalysis;
 use crate::syn_type::{
     extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
@@ -92,9 +94,9 @@ fn generate_batch_loading_impl(
 
         // Check if this is a self-referencing field
         let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let inner_type_string = inner_type.to_string();
-        let api_struct_name_string = api_struct_name.to_string();
-        let is_self_referencing = inner_type_string.trim() == api_struct_name_string.trim();
+        let _inner_type_string = inner_type.to_string();
+        let _api_struct_name_string = api_struct_name.to_string();
+        let is_self_referencing = self_referencing(&field.ty, api_struct_name);
 
         // Security: Cap depth
         let effective_depth = if is_self_referencing {
@@ -147,15 +149,7 @@ fn generate_batch_loading_impl(
         // once per batch query and apply it to both the SQL-level filter and
         // the depth > 1 recursive fetch.
         let scope_filter_for_vec = if scoped && is_vec_field {
-            let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-            let inner_type_str = inner_type.to_string();
-            let struct_name = inner_type_str
-                .split("::")
-                .last()
-                .unwrap_or(&inner_type_str)
-                .trim();
-            let list_suffix = format!("{struct_name}List");
-            let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+            let child_list_type = list_type_of_child(field);
             quote! {
                 let __child_scope: Option<sea_orm::Condition> =
                     <#child_list_type as crudcrate::ScopeFilterable>::scope_condition();
@@ -419,15 +413,7 @@ fn generate_batch_loading_impl(
                 // a scope_condition) so the child's own nested joins stay scope-filtered.
                 // The Vec<T> branch already does this. Without it an Option<Child> leaks
                 // private grandchildren into a scoped response.
-                let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-                let inner_type_str = inner_type.to_string();
-                let struct_name = inner_type_str
-                    .split("::")
-                    .last()
-                    .unwrap_or(&inner_type_str)
-                    .trim();
-                let list_suffix = format!("{struct_name}List");
-                let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
+                let child_list_type = list_type_of_child(field);
                 quote! {
                     let related = match Box::pin(
                         parent_model.find_related(#entity_path).one(db)

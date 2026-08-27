@@ -8,12 +8,13 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use uuid::Uuid;
 
+#[cfg(test)]
+use super::pagination::{MAX_OFFSET, MAX_PAGE_SIZE};
+pub use super::pagination::{parse_pagination, parse_range};
 use super::search::{build_fulltext_condition, build_like_condition, escape_like_wildcards};
 
 // Basic safety limits
 const MAX_FIELD_VALUE_LENGTH: usize = 10_000;
-const MAX_PAGE_SIZE: u64 = 1000;
-const MAX_OFFSET: u64 = 1_000_000;
 /// Maximum number of elements accepted in a single array-valued filter.
 ///
 /// An array filter (`filter={"id":[...]}`) becomes one SQL `IN (...)` clause with
@@ -635,6 +636,36 @@ where
     }
 }
 
+/// Condition for one main-entity filter entry, dispatched on the JSON value type.
+fn main_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait>(
+    key: &str,
+    base_field: &str,
+    operator: &str,
+    value: &serde_json::Value,
+    column: C,
+    searchable_columns: &[(&str, C)],
+    backend: DatabaseBackend,
+) -> Option<Expr> {
+    match value {
+        serde_json::Value::String(string_value) => {
+            process_string_filter::<T>(base_field, operator, string_value, column, backend)
+        }
+        serde_json::Value::Number(number) => {
+            process_number_filter(key, number, column, searchable_columns)
+        }
+        serde_json::Value::Bool(bool_value) => Some(Expr::col(column).eq(*bool_value)),
+        serde_json::Value::Array(array_values) => {
+            process_array_filter(array_values, column, T::is_enum_field(base_field), backend)
+        }
+        serde_json::Value::Null => Some(if operator == "!=" {
+            Expr::col(column).is_not_null()
+        } else {
+            Expr::col(column).is_null()
+        }),
+        serde_json::Value::Object(_) => None,
+    }
+}
+
 /// Build a table-qualified column reference (`"table"."column"`).
 ///
 /// Used by the derive-macro-generated join code to name a child-table column
@@ -699,28 +730,15 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             .map(|(_, col)| col);
 
         if let Some(column) = column_opt {
-            // Handle different value types
-            let filter_condition = match value {
-                serde_json::Value::String(string_value) => {
-                    process_string_filter::<T>(base_field, operator, string_value, *column, backend)
-                }
-                serde_json::Value::Number(number) => {
-                    process_number_filter(key, number, *column, searchable_columns)
-                }
-                serde_json::Value::Bool(bool_value) => Some(Expr::col(*column).eq(*bool_value)),
-                serde_json::Value::Array(array_values) => process_array_filter(
-                    array_values,
-                    *column,
-                    T::is_enum_field(base_field),
-                    backend,
-                ),
-                serde_json::Value::Null => Some(if operator == "!=" {
-                    Expr::col(*column).is_not_null()
-                } else {
-                    Expr::col(*column).is_null()
-                }),
-                serde_json::Value::Object(_) => None, // Skip unsupported value types
-            };
+            let filter_condition = main_filter_expr::<T, _>(
+                key,
+                base_field,
+                operator,
+                value,
+                *column,
+                searchable_columns,
+                backend,
+            );
 
             if let Some(filter_expr) = filter_condition {
                 condition = condition.add(filter_expr);
@@ -729,45 +747,6 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
     }
 
     Ok(condition)
-}
-
-#[must_use]
-pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
-    range_str.map_or((0, 9), |r| {
-        serde_json::from_str::<[u64; 2]>(&r).map_or((0, 9), |range| (range[0], range[1]))
-    })
-}
-
-#[must_use]
-pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
-    // `std::cmp::min` is spelled out throughout: SeaQuery's blanket `ExprTrait` impl
-    // covers every type, so the `.min()` method call is ambiguous with `Ord::min`.
-    if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
-        // Standard REST pagination (1-based page numbers)
-        // Clamp on both ends: the upper bound prevents DoS, the lower bound keeps a
-        // `per_page=0` from producing an empty page that never advances (and from
-        // reaching backends that reject a zero page size).
-        let safe_per_page = Ord::clamp(per_page, 1, MAX_PAGE_SIZE);
-
-        // Use saturating_mul to prevent overflow panic
-        let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
-
-        // Enforce maximum offset to prevent excessive database queries
-        let safe_offset = std::cmp::min(offset, MAX_OFFSET);
-
-        (safe_offset, safe_per_page)
-    } else if let Some(range) = &params.range {
-        // React Admin pagination
-        let (start, end) = parse_range(Some(range.clone()));
-        // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
-        // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
-        let limit = std::cmp::min(end.saturating_sub(start).saturating_add(1), MAX_PAGE_SIZE);
-        let safe_start = std::cmp::min(start, MAX_OFFSET);
-        (safe_start, limit)
-    } else {
-        // Default pagination
-        (0, 10)
-    }
 }
 
 /// Parse filters with support for dot-notation filtering on joined entities.
@@ -850,28 +829,15 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
             .map(|(_, col)| col);
 
         if let Some(column) = column_opt {
-            // Handle different value types (same as apply_filters)
-            let filter_condition = match value {
-                serde_json::Value::String(string_value) => {
-                    process_string_filter::<T>(base_field, operator, string_value, *column, backend)
-                }
-                serde_json::Value::Number(number) => {
-                    process_number_filter(key, number, *column, searchable_columns)
-                }
-                serde_json::Value::Bool(bool_value) => Some(Expr::col(*column).eq(*bool_value)),
-                serde_json::Value::Array(array_values) => process_array_filter(
-                    array_values,
-                    *column,
-                    T::is_enum_field(base_field),
-                    backend,
-                ),
-                serde_json::Value::Null => Some(if operator == "!=" {
-                    Expr::col(*column).is_not_null()
-                } else {
-                    Expr::col(*column).is_null()
-                }),
-                serde_json::Value::Object(_) => None,
-            };
+            let filter_condition = main_filter_expr::<T, _>(
+                key,
+                base_field,
+                operator,
+                value,
+                *column,
+                searchable_columns,
+                backend,
+            );
 
             if let Some(filter_expr) = filter_condition {
                 result.main_condition = result.main_condition.add(filter_expr);

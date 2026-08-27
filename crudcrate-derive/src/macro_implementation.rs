@@ -1,6 +1,7 @@
 //! Emits the `impl CRUDResource` block: associated consts, type aliases, column entries and the CRUD method bodies.
 
 use crate::attrs::get_join_config;
+use crate::codegen::joins::fk::fk_field_name;
 use crate::codegen::{
     handlers::{create, delete, get, update},
     joins::filter_sort::{
@@ -274,10 +275,7 @@ fn generate_fk_validation_tests(
         }
 
         // Derive the convention FK column name
-        let fk_snake = {
-            use convert_case::{Case, Casing};
-            format!("{}_id", api_struct_name.to_string().to_case(Case::Snake))
-        };
+        let fk_snake = fk_field_name(api_struct_name);
 
         // Get child entity path
         let child_entity = get_path_from_field_type(&field.ty, "Entity");

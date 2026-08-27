@@ -44,7 +44,8 @@
 //! let deleted = Todo::delete(&db, id).await?;
 //! ```
 
-pub mod crud_operations;
+pub(crate) mod defaults;
+pub mod handler_macros;
 pub mod traits;
 
 // Re-export commonly used items

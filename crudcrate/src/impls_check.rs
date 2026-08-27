@@ -1,3 +1,5 @@
+//! Not public API: reached only by crudcrate-derive-generated code.
+//!
 //! Compile-time trait-bound detection: minimal vendored replacement for
 //! `impls::impls!`.
 //!
