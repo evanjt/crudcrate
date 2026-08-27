@@ -19,8 +19,8 @@ fn encode_filter(filter: &serde_json::Value) -> String {
         .to_string()
 }
 
-/// Test that {"name_neq": "Alice"} returns everyone EXCEPT Alice.
-/// BUG 1: process_string_filter ignores the comparison operator and always does equality,
+/// Test that {"`name_neq"`: "Alice"} returns everyone EXCEPT Alice.
+/// BUG 1: `process_string_filter` ignores the comparison operator and always does equality,
 /// so this currently returns only Alice (wrong) instead of everyone except Alice.
 #[tokio::test]
 async fn test_string_neq_filter() {
@@ -58,7 +58,7 @@ async fn test_string_neq_filter() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -84,8 +84,8 @@ async fn test_string_neq_filter() {
     );
 }
 
-/// Test that {"name_gte": "C"} returns names >= "C" (case-insensitive).
-/// BUG 1: process_string_filter always does equality, so this returns nothing (wrong).
+/// Test that {"`name_gte"`: "C"} returns names >= "C" (case-insensitive).
+/// BUG 1: `process_string_filter` always does equality, so this returns nothing (wrong).
 #[tokio::test]
 async fn test_string_gte_filter() {
     let db = setup_test_db()
@@ -121,7 +121,7 @@ async fn test_string_gte_filter() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -142,8 +142,8 @@ async fn test_string_gte_filter() {
     );
 }
 
-/// Test that {"name_lt": "C"} returns names < "C" (case-insensitive).
-/// BUG 1: process_string_filter always does equality, so this returns nothing (wrong).
+/// Test that {"`name_lt"`: "C"} returns names < "C" (case-insensitive).
+/// BUG 1: `process_string_filter` always does equality, so this returns nothing (wrong).
 #[tokio::test]
 async fn test_string_lt_filter() {
     let db = setup_test_db()
@@ -179,7 +179,7 @@ async fn test_string_lt_filter() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )

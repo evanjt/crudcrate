@@ -8,6 +8,9 @@
 //! - Cardinality: one (single item), many (batch)
 //! - Phases: pre (before), body (replace), transform (modify result), post (after)
 
+// Hook functions are async by signature contract even when their bodies do not await.
+#![allow(clippy::unused_async)]
+
 use chrono::{DateTime, Utc};
 use crudcrate::{ApiError, CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
@@ -100,10 +103,10 @@ async fn validate_before_update(
     UPDATE_PRE_CALLED.store(true, Ordering::SeqCst);
 
     // Validate name if provided (double Option: outer for "provided", inner for actual value)
-    if let Some(Some(ref name)) = data.name {
-        if name.is_empty() {
-            return Err(ApiError::bad_request("Name cannot be empty"));
-        }
+    if let Some(Some(ref name)) = data.name
+        && name.is_empty()
+    {
+        return Err(ApiError::bad_request("Name cannot be empty"));
     }
     Ok(())
 }
@@ -147,7 +150,7 @@ async fn transform_after_create(
     Ok(entity)
 }
 
-/// Transform hook for read::one: modify the entity before returning
+/// Transform hook for `read::one`: modify the entity before returning
 async fn transform_after_read_one(
     _db: &sea_orm::DatabaseConnection,
     mut entity: TransformTestItem,
@@ -292,19 +295,7 @@ fn test_hook_syntax_compiles() {
     assert!(!list_model.name.is_empty());
 }
 
-/// Test that the hook functions exist and have been defined.
-/// The actual signature verification happens at macro expansion time.
-#[test]
-fn test_hook_functions_defined() {
-    // If these functions didn't exist or had wrong signatures,
-    // the macro expansion would fail to compile
-    assert!(
-        true,
-        "Hook functions are defined - macro compilation succeeded"
-    );
-}
-
-/// Test that the CRUDResource trait is implemented
+/// Test that the `CRUDResource` trait is implemented
 #[test]
 fn test_crud_resource_trait_implemented() {
     // Verify the trait constants are set
@@ -404,7 +395,7 @@ mod integration {
             name: "test item".to_string(),
         };
         let result = HookTestItem::create(&db, create_data).await;
-        assert!(result.is_ok(), "Create should succeed: {:?}", result);
+        assert!(result.is_ok(), "Create should succeed: {result:?}");
 
         // Verify pre and post hooks were called
         assert!(
@@ -425,7 +416,7 @@ mod integration {
 
         // Try to create with empty name - should fail validation in pre hook
         let create_data = HookTestItemCreate {
-            name: "".to_string(),
+            name: String::new(),
         };
         let result = HookTestItem::create(&db, create_data).await;
         assert!(result.is_err(), "Create with empty name should fail");
@@ -461,7 +452,7 @@ mod integration {
 
         // Read the item
         let result = HookTestItem::get_one(&db, created.id).await;
-        assert!(result.is_ok(), "Get one should succeed: {:?}", result);
+        assert!(result.is_ok(), "Get one should succeed: {result:?}");
 
         // Verify read hooks were called
         assert!(
@@ -497,7 +488,7 @@ mod integration {
             name: Some(Some("updated name".to_string())),
         };
         let result = HookTestItem::update(&db, created.id, update_data).await;
-        assert!(result.is_ok(), "Update should succeed: {:?}", result);
+        assert!(result.is_ok(), "Update should succeed: {result:?}");
 
         // Verify update hooks were called
         assert!(
@@ -529,7 +520,7 @@ mod integration {
 
         // Try to update with empty name - should fail validation in pre hook
         let update_data = HookTestItemUpdate {
-            name: Some(Some("".to_string())),
+            name: Some(Some(String::new())),
         };
         let result = HookTestItem::update(&db, created.id, update_data).await;
         assert!(result.is_err(), "Update with empty name should fail");
@@ -566,7 +557,7 @@ mod integration {
 
         // Delete the item
         let result = HookTestItem::delete(&db, created.id).await;
-        assert!(result.is_ok(), "Delete should succeed: {:?}", result);
+        assert!(result.is_ok(), "Delete should succeed: {result:?}");
 
         // Verify delete hooks were called
         assert!(
@@ -644,7 +635,7 @@ mod integration {
         ];
 
         let result = HookTestItem::create_many(&db, items).await;
-        assert!(result.is_ok(), "create_many should succeed: {:?}", result);
+        assert!(result.is_ok(), "create_many should succeed: {result:?}");
 
         let created = result.unwrap();
         assert_eq!(created.len(), 3, "Should create 3 items");
@@ -687,7 +678,7 @@ mod integration {
             .collect();
 
         let result = HookTestItem::update_many(&db, updates).await;
-        assert!(result.is_ok(), "update_many should succeed: {:?}", result);
+        assert!(result.is_ok(), "update_many should succeed: {result:?}");
 
         let updated = result.unwrap();
         assert_eq!(updated.len(), 2, "Should update 2 items");
@@ -704,7 +695,7 @@ mod integration {
         // Try to create more than 100 items (should fail due to security limit)
         let items: Vec<HookTestItemCreate> = (0..101)
             .map(|i| HookTestItemCreate {
-                name: format!("item{}", i),
+                name: format!("item{i}"),
             })
             .collect();
 
@@ -713,11 +704,10 @@ mod integration {
 
         // Verify it's a bad_request error by checking the error message contains "limited"
         let err = result.unwrap_err();
-        let err_msg = format!("{}", err);
+        let err_msg = format!("{err}");
         assert!(
             err_msg.contains("limited") || err_msg.contains("100"),
-            "Error message should mention batch limit: {}",
-            err_msg
+            "Error message should mention batch limit: {err_msg}"
         );
     }
 
@@ -789,8 +779,7 @@ mod integration {
         let err_msg = format!("{}", result.unwrap_err());
         assert!(
             err_msg.contains("limited") || err_msg.contains("100"),
-            "Error message should mention batch limit: {}",
-            err_msg
+            "Error message should mention batch limit: {err_msg}"
         );
     }
 
@@ -824,7 +813,7 @@ mod integration {
         // Create exactly 100 items (should succeed - at the limit)
         let items: Vec<HookTestItemCreate> = (0..100)
             .map(|i| HookTestItemCreate {
-                name: format!("item{}", i),
+                name: format!("item{i}"),
             })
             .collect();
 
@@ -890,7 +879,7 @@ mod integration {
 
         // Create with empty name - pre hook validation should fail
         let create_data = HookTestItemCreate {
-            name: "".to_string(),
+            name: String::new(),
         };
         let result = HookTestItem::create(&db, create_data).await;
 
@@ -926,7 +915,7 @@ mod integration {
 
         // Update with empty name - pre hook validation should fail
         let update_data = HookTestItemUpdate {
-            name: Some(Some("".to_string())),
+            name: Some(Some(String::new())),
         };
         let result = HookTestItem::update(&db, created.id, update_data).await;
 
@@ -1037,7 +1026,7 @@ mod integration {
         // Create 5 items
         let items: Vec<HookTestItemCreate> = (0..5)
             .map(|i| HookTestItemCreate {
-                name: format!("item{}", i),
+                name: format!("item{i}"),
             })
             .collect();
         let _ = HookTestItem::create_many(&db, items)
@@ -1091,7 +1080,7 @@ mod integration {
         // Create 4 items
         let items: Vec<HookTestItemCreate> = (0..4)
             .map(|i| HookTestItemCreate {
-                name: format!("count_item{}", i),
+                name: format!("count_item{i}"),
             })
             .collect();
         let _ = HookTestItem::create_many(&db, items)
@@ -1143,7 +1132,7 @@ mod integration {
         // Should return ID column by default
         let column = HookTestItem::default_index_column();
         // Just verify it doesn't panic - column comparison would need more setup
-        let _ = format!("{:?}", column);
+        let _ = format!("{column:?}");
     }
 
     #[test]
@@ -1234,7 +1223,7 @@ mod integration {
             name: "original".to_string(),
         };
         let result = TransformTestItem::create(&db, create_data).await;
-        assert!(result.is_ok(), "Create should succeed: {:?}", result);
+        assert!(result.is_ok(), "Create should succeed: {result:?}");
 
         let created = result.unwrap();
 
@@ -1277,7 +1266,7 @@ mod integration {
 
         // Read the item
         let result = TransformTestItem::get_one(&db, created.id).await;
-        assert!(result.is_ok(), "Get one should succeed: {:?}", result);
+        assert!(result.is_ok(), "Get one should succeed: {result:?}");
 
         let fetched = result.unwrap();
 
@@ -1321,7 +1310,7 @@ mod integration {
             name: Some(Some("updated_value".to_string())),
         };
         let result = TransformTestItem::update(&db, created.id, update_data).await;
-        assert!(result.is_ok(), "Update should succeed: {:?}", result);
+        assert!(result.is_ok(), "Update should succeed: {result:?}");
 
         let updated = result.unwrap();
 
@@ -1360,7 +1349,7 @@ mod integration {
 
         // Delete the item
         let result = TransformTestItem::delete(&db, created.id).await;
-        assert!(result.is_ok(), "Delete should succeed: {:?}", result);
+        assert!(result.is_ok(), "Delete should succeed: {result:?}");
 
         // Verify delete transform hook was called
         assert!(

@@ -1,6 +1,6 @@
 //! Tests for partial success in batch operations.
 //!
-//! CRUDCrate supports two batch operation modes:
+//! `CRUDCrate` supports two batch operation modes:
 //!
 //! 1. **All-or-nothing** (default): If any item fails, the entire batch is rolled back.
 //! 2. **Partial success** (`?partial=true`): Items are processed independently.
@@ -133,9 +133,9 @@ async fn test_batch_update_all_valid_succeeds() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let updated: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    let updated_rows: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(updated.len(), 3, "Should update all 3 customers");
+    assert_eq!(updated_rows.len(), 3, "Should update all 3 customers");
 }
 
 /// Test that batch delete succeeds when all items exist
@@ -188,7 +188,7 @@ async fn test_batch_delete_all_valid_succeeds() {
     for id in &customer_ids {
         let request = Request::builder()
             .method("GET")
-            .uri(format!("/customers/{}", id))
+            .uri(format!("/customers/{id}"))
             .body(Body::empty())
             .unwrap();
 
@@ -260,7 +260,7 @@ async fn test_batch_update_nonexistent_fails_all_currently() {
     // Verify existing customer was NOT updated (all-or-nothing)
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/customers/{}", existing_id))
+        .uri(format!("/customers/{existing_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -453,7 +453,7 @@ async fn test_batch_delete_partial_success() {
     for id in &customer_ids {
         let request = Request::builder()
             .method("GET")
-            .uri(format!("/customers/{}", id))
+            .uri(format!("/customers/{id}"))
             .body(Body::empty())
             .unwrap();
 
@@ -568,7 +568,7 @@ async fn test_batch_create_consistency() {
         let id = customer["id"].as_str().unwrap();
         let request = Request::builder()
             .method("GET")
-            .uri(format!("/customers/{}", id))
+            .uri(format!("/customers/{id}"))
             .body(Body::empty())
             .unwrap();
 
@@ -602,8 +602,7 @@ async fn test_batch_create_consistency() {
     for id in &created_ids {
         assert!(
             all_customers.iter().any(|c| c.id.to_string() == *id),
-            "Created customer {} should be in list",
-            id
+            "Created customer {id} should be in list"
         );
     }
 }
@@ -613,7 +612,7 @@ async fn test_batch_create_consistency() {
 // =============================================================================
 
 /// Test that batch delete only returns IDs that actually existed.
-/// Previously, delete_many returned ALL input IDs regardless of whether they were deleted.
+/// Previously, `delete_many` returned ALL input IDs regardless of whether they were deleted.
 #[tokio::test]
 async fn test_batch_delete_returns_only_existing_ids() {
     let db = setup_test_db()
@@ -665,19 +664,19 @@ async fn test_batch_delete_returns_only_existing_ids() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let deleted_ids: Vec<String> = serde_json::from_slice(&body).unwrap();
+    let returned_ids: Vec<String> = serde_json::from_slice(&body).unwrap();
 
     // Should only contain the existing ID, not the nonexistent one
     assert!(
-        deleted_ids.contains(&existing_id),
+        returned_ids.contains(&existing_id),
         "Should contain the existing ID that was deleted"
     );
     assert!(
-        !deleted_ids.contains(&nonexistent_id.to_string()),
+        !returned_ids.contains(&nonexistent_id.to_string()),
         "Should NOT contain nonexistent ID - was a phantom return"
     );
     assert_eq!(
-        deleted_ids.len(),
+        returned_ids.len(),
         1,
         "Should return exactly 1 deleted ID, not 2"
     );
@@ -734,7 +733,7 @@ async fn test_batch_delete_partial_all_fail() {
     assert_eq!(failed.len(), 2, "Both items should fail");
 }
 
-/// Test that partial update with ALL valid items returns 200 with BatchResult shape
+/// Test that partial update with ALL valid items returns 200 with `BatchResult` shape
 #[tokio::test]
 async fn test_batch_update_partial_all_succeed() {
     let db = setup_test_db()
@@ -813,7 +812,7 @@ async fn test_batch_update_partial_all_succeed() {
     for (i, id) in customer_ids.iter().enumerate() {
         let request = Request::builder()
             .method("GET")
-            .uri(format!("/customers/{}", id))
+            .uri(format!("/customers/{id}"))
             .body(Body::empty())
             .unwrap();
 
@@ -825,7 +824,7 @@ async fn test_batch_update_partial_all_succeed() {
 
         assert_eq!(
             customer["name"].as_str().unwrap(),
-            format!("All Succeed Updated {}", i),
+            format!("All Succeed Updated {i}"),
             "Customer {} should be updated",
             id
         );

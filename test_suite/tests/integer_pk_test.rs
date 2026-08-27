@@ -1,7 +1,7 @@
 //! Non-UUID primary key support (integer i32 PKs) end-to-end.
 //!
 //! Exercises the full CRUD HTTP surface for an entity whose primary key is an
-//! auto-increment `i32` rather than a `uuid::Uuid`: create, get_one, get_all,
+//! auto-increment `i32` rather than a `uuid::Uuid`: create, `get_one`, `get_all`,
 //! update, delete, batch delete, and `get_all` batch join loading keyed by an
 //! integer FK. The path parameter must parse as an integer, never a UUID.
 

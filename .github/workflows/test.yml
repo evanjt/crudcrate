@@ -24,7 +24,7 @@ jobs:
       run: cargo fmt --check
 
     - name: Clippy
-      run: cargo clippy --workspace
+      run: cargo clippy --workspace --all-targets -- -D warnings
 
     - name: Build examples
       run: cargo build --examples
@@ -46,110 +46,33 @@ jobs:
     - name: Audit dependencies
       run: cargo audit
 
-  test-sqlite:
-    name: SQLite - Test & Benchmark
+  test:
+    name: Test (${{ matrix.backend }})
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: llvm-tools-preview
-
-    - uses: Swatinem/rust-cache@v2
-
-    - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@cargo-llvm-cov
-
-    - name: Run tests with coverage
-      run: cargo llvm-cov --workspace --lcov --output-path lcov.info
-      env:
-        DATABASE_URL: "sqlite::memory:"
-
-    - name: Run benchmarks
-      run: |
-        echo "Running benchmarks on SQLite..."
-        timeout 60s cargo bench --bench crud_benchmarks -- --test || true
-      env:
-        DATABASE_URL: "sqlite::memory:"
-        BENCHMARK_DATABASE_URL: "sqlite::memory:"
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: lcov.info
-        flags: unittests
-        name: codecov-umbrella-sqlite
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-  test-postgresql:
-    name: PostgreSQL - Test & Benchmark
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: sqlite
+            database_url: "sqlite::memory:"
+            flags: ""
+          - backend: postgresql
+            database_url: "postgres://postgres:password@localhost:5432/test_db"
+            flags: "unittests-postgresql"
+          - backend: mysql
+            database_url: "mysql://root:password@127.0.0.1:3306/test_db"
+            flags: "unittests-mysql"
     services:
       postgres:
-        image: postgres:16
+        image: ${{ matrix.backend == 'postgresql' && 'postgres:16' || '' }}
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: test_db
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         ports:
           - 5432:5432
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: llvm-tools-preview
-
-    - uses: Swatinem/rust-cache@v2
-
-    - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@cargo-llvm-cov
-
-    - name: Install PostgreSQL client
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y postgresql-client
-
-    - name: Wait for PostgreSQL
-      run: |
-        until pg_isready -h localhost -p 5432 -U postgres; do
-          echo "Waiting for PostgreSQL..."
-          sleep 2
-        done
-        PGPASSWORD=password createdb -h localhost -p 5432 -U postgres benchmark_db || true
-
-    - name: Run tests with coverage
-      run: cargo llvm-cov --workspace --lcov --output-path lcov.info -- --test-threads=1
-      env:
-        DATABASE_URL: "postgres://postgres:password@localhost:5432/test_db"
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: lcov.info
-        flags: unittests-postgresql
-        name: codecov-umbrella-postgresql
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Run benchmarks
-      run: |
-        echo "Running benchmarks on PostgreSQL..."
-        timeout 60s cargo bench --bench crud_benchmarks -- --test || true
-      env:
-        DATABASE_URL: "postgres://postgres:password@localhost:5432/benchmark_db"
-        BENCHMARK_DATABASE_URL: "postgres://postgres:password@localhost:5432/benchmark_db"
-
-  test-mysql:
-    name: MySQL - Test & Benchmark
-    runs-on: ubuntu-latest
-    services:
       mysql:
-        image: mysql:8.0
+        image: ${{ matrix.backend == 'mysql' && 'mysql:8.0' || '' }}
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: test_db
@@ -169,37 +92,46 @@ jobs:
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
 
-    - name: Install MySQL client
+    - name: Wait for PostgreSQL
+      if: matrix.backend == 'postgresql'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y mysql-client
+        sudo apt-get update && sudo apt-get install -y postgresql-client
+        until pg_isready -h localhost -p 5432 -U postgres; do sleep 2; done
 
     - name: Wait for MySQL
+      if: matrix.backend == 'mysql'
       run: |
-        until mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "SELECT 1;" 2>/dev/null; do
-          echo "Waiting for MySQL..."
-          sleep 2
-        done
-        mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "CREATE DATABASE IF NOT EXISTS benchmark_db;"
+        sudo apt-get update && sudo apt-get install -y mysql-client
+        until mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "SELECT 1;" 2>/dev/null; do sleep 2; done
 
     - name: Run tests with coverage
       run: cargo llvm-cov --workspace --lcov --output-path lcov.info -- --test-threads=1
       env:
-        DATABASE_URL: "mysql://root:password@127.0.0.1:3306/test_db"
+        DATABASE_URL: ${{ matrix.database_url }}
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         file: lcov.info
-        flags: unittests-mysql
-        name: codecov-umbrella-mysql
+        flags: ${{ matrix.flags || 'unittests' }}
+        name: codecov-umbrella-${{ matrix.backend }}
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Run benchmarks
-      run: |
-        echo "Running benchmarks on MySQL..."
-        timeout 60s cargo bench --bench crud_benchmarks -- --test || true
+  bench:
+    name: Benchmarks compile and run (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Run benchmarks in test mode
+      run: timeout 120s cargo bench --bench crud_benchmarks -- --test
       env:
-        DATABASE_URL: "mysql://root:password@127.0.0.1:3306/benchmark_db"
-        BENCHMARK_DATABASE_URL: "mysql://root:password@127.0.0.1:3306/benchmark_db"
+        DATABASE_URL: "sqlite::memory:"
+        BENCHMARK_DATABASE_URL: "sqlite::memory:"

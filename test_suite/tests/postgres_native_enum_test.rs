@@ -11,7 +11,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::{Database, DatabaseBackend, DbErr, Set};
 use serde::{Deserialize, Serialize};
 
-/// A standalone enum using db_type = "Enum": the native Postgres path
+/// A standalone enum using `db_type` = "Enum": the native Postgres path
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "color")]
 pub enum Color {
@@ -70,7 +70,7 @@ async fn setup_postgres_enum_table(db: &DatabaseConnection) -> Result<(), DbErr>
 }
 
 /// INSERT into a native Postgres ENUM column works when the Rust enum uses
-/// db_type = "Enum"
+/// `db_type` = "Enum"
 #[tokio::test]
 async fn test_native_postgres_enum_insert() {
     if !is_postgres() {

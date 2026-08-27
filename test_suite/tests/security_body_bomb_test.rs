@@ -1,4 +1,4 @@
-//! Issue 1: JSON body bomb DoS via batch endpoints.
+//! Issue 1: JSON body bomb `DoS` via batch endpoints.
 //!
 //! Without an explicit `DefaultBodyLimit` layer, the generated router would rely on
 //! Axum's per-handler 2 MiB default, but a batch resource with no override could

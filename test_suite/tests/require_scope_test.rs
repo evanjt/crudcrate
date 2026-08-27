@@ -1,9 +1,9 @@
-/// require_scope Tests
+/// `require_scope` Tests
 ///
 /// Validates the `#[crudcrate(require_scope)]` attribute:
-/// - Resources WITHOUT require_scope work normally without scope middleware
-/// - Resources WITH require_scope return 500 when scope middleware is missing
-/// - Resources WITH require_scope work normally when scope middleware is present
+/// - Resources WITHOUT `require_scope` work normally without scope middleware
+/// - Resources WITH `require_scope` return 500 when scope middleware is missing
+/// - Resources WITH `require_scope` work normally when scope middleware is present
 mod common;
 
 use axum::body::{Body, to_bytes};
@@ -48,23 +48,6 @@ async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
     let status = resp.status();
     let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
-}
-
-// =============================================================================
-// 1. Existing models have REQUIRE_SCOPE = false (regression)
-// =============================================================================
-
-#[test]
-fn existing_models_do_not_require_scope() {
-    use crudcrate::traits::CRUDResource;
-    assert!(
-        !common::customer::Customer::REQUIRE_SCOPE,
-        "Customer should NOT require scope by default"
-    );
-    assert!(
-        !common::vehicle::Vehicle::REQUIRE_SCOPE,
-        "Vehicle should NOT require scope by default"
-    );
 }
 
 // =============================================================================
@@ -137,18 +120,12 @@ async fn scoped_get_one_nonexistent_returns_404_not_500() {
     );
 }
 
-// =============================================================================
-// 5. REQUIRE_SCOPE constant is accessible and defaults correctly
-// =============================================================================
-
-#[test]
-fn require_scope_constant_has_correct_defaults() {
+// Models without the attribute default to REQUIRE_SCOPE = false.
+const _: () = {
     use crudcrate::traits::CRUDResource;
-
-    // All test models should have REQUIRE_SCOPE = false (none use the attribute)
     assert!(!common::customer::Customer::REQUIRE_SCOPE);
     assert!(!common::vehicle::Vehicle::REQUIRE_SCOPE);
     assert!(!common::vehicle_part::VehiclePart::REQUIRE_SCOPE);
     assert!(!common::maintenance_record::MaintenanceRecord::REQUIRE_SCOPE);
     assert!(!common::category::Category::REQUIRE_SCOPE);
-}
+};

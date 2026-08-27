@@ -65,8 +65,8 @@ pub fn setup_test_app(db: &DatabaseConnection) -> Router {
         )
 }
 
-/// Build app with ScopeCondition middleware applied to every request.
-/// Simulates unauthenticated/public access: scoped endpoints filter by is_private = false,
+/// Build app with `ScopeCondition` middleware applied to every request.
+/// Simulates unauthenticated/public access: scoped endpoints filter by `is_private` = false,
 /// and write operations are blocked by crudcrate's built-in scope guard (403).
 #[allow(dead_code)]
 pub fn setup_scoped_app(db: &DatabaseConnection) -> Router {
@@ -95,7 +95,7 @@ pub fn setup_scoped_app(db: &DatabaseConnection) -> Router {
         )
 }
 
-/// Scope middleware for customers: filter is_private = false
+/// Scope middleware for customers: filter `is_private` = false
 async fn scope_customers(mut req: Request, next: Next) -> Response {
     req.extensions_mut().insert(ScopeCondition::new(
         Condition::all().add(customer::Column::IsPrivate.eq(false)),
@@ -103,7 +103,7 @@ async fn scope_customers(mut req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
-/// Scope middleware for vehicles: filter is_private = false
+/// Scope middleware for vehicles: filter `is_private` = false
 async fn scope_vehicles(mut req: Request, next: Next) -> Response {
     req.extensions_mut().insert(ScopeCondition::new(
         Condition::all().add(vehicle::Column::IsPrivate.eq(false)),

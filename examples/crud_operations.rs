@@ -1,6 +1,6 @@
-//! # CRUDOperations & Lifecycle Hooks
+//! # `CRUDOperations` & Lifecycle Hooks
 //!
-//! Demonstrates the CRUDOperations trait - customize CRUD behavior by implementing hooks
+//! Demonstrates the `CRUDOperations` trait - customize CRUD behavior by implementing hooks
 //! and overriding operations. All customization logic lives in one place.
 //!
 //! ## Available Customization Levels:
@@ -9,7 +9,7 @@
 //! - Validation, logging, side effects
 //! - Original operation logic stays intact
 //!
-//! **Level 2: Core Method Overrides** (fetch_one, fetch_all, etc.)
+//! **Level 2: Core Method Overrides** (`fetch_one`, `fetch_all`, etc.)
 //! - Custom queries, filtering, authorization
 //! - Full control over data retrieval
 //!
@@ -161,6 +161,7 @@ impl CRUDOperations for ProductOperations {
 }
 
 // Simulated external service
+#[allow(clippy::unused_async)]
 async fn delete_from_s3(s3_key: &str) -> Result<(), String> {
     println!("  Deleting S3: {s3_key}");
     Ok(())

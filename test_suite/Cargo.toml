@@ -31,4 +31,5 @@ async-trait = { workspace = true }
 serial_test = "3.2"
 
 [lints.clippy]
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
+too_many_lines = "allow"

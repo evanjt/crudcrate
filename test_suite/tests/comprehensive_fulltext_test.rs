@@ -458,11 +458,11 @@ async fn test_fulltext_optimized_search_pattern_as_documented() {
     // Create many customers in different categories
     for i in 0..50 {
         let (name, _category) = if i < 10 {
-            (format!("Rust Developer {}", i), "programming")
+            (format!("Rust Developer {i}"), "programming")
         } else if i < 20 {
-            (format!("Python Developer {}", i), "programming")
+            (format!("Python Developer {i}"), "programming")
         } else {
-            (format!("Designer {}", i), "design")
+            (format!("Designer {i}"), "design")
         };
 
         let customer_data = json!({"name": name, "email": format!("user{}@example.com", i)});

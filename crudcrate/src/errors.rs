@@ -760,7 +760,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let err = ApiError::bad_request("Test error");
-        assert_eq!(format!("{}", err), "Test error");
+        assert_eq!(format!("{err}"), "Test error");
     }
 
     #[test]

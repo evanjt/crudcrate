@@ -1,11 +1,11 @@
 //! A joined filter must resolve to a correlated subquery, not materialise every
 //! matching child row and build an `id IN (<one bind per row>)` list. The
-//! duplicate-laden IN-list overflows the backend bind-parameter ceiling (SQLite
+//! duplicate-laden IN-list overflows the backend bind-parameter ceiling (`SQLite`
 //! 32766, Postgres/MySQL 65535) and 500s. Below that it is a memory-amplification
-//! DoS.
+//! `DoS`.
 //!
 //! Seeding is done directly on the connection (70k HTTP POSTs would be absurd).
-//! 70_000 > 65535 so the pre-fix IN-list overflows on every backend CI runs.
+//! `70_000` > 65535 so the pre-fix IN-list overflows on every backend CI runs.
 
 mod common;
 

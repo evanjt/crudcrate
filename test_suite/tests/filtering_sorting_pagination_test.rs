@@ -132,7 +132,7 @@ async fn test_filter_null_field() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/maintenance_records?filter={}", encoded_filter))
+                .uri(format!("/maintenance_records?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -192,7 +192,7 @@ async fn test_filter_array_in() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -321,7 +321,7 @@ async fn test_filter_boolean() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/vehicle_parts?filter={}", encoded_filter))
+                .uri(format!("/vehicle_parts?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -345,7 +345,7 @@ async fn test_filter_boolean() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/vehicle_parts?filter={}", encoded_filter))
+                .uri(format!("/vehicle_parts?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -393,7 +393,7 @@ async fn test_filter_unknown_field_ignored() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )

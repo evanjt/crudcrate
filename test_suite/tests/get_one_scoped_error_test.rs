@@ -1,6 +1,6 @@
-//! Scoped get_one must surface real hook errors instead of masking them as 404.
+//! Scoped `get_one` must surface real hook errors instead of masking them as 404.
 //!
-//! The scoped get_one handler runs the resource's read hooks inside
+//! The scoped `get_one` handler runs the resource's read hooks inside
 //! `get_one_scoped`, then propagates the result with `?`. The handler used to
 //! wrap that call in `.map_err(|_| ApiError::not_found(..))`, which collapsed
 //! EVERY error from the scoped fetch (including genuine 500-class faults raised
@@ -17,7 +17,7 @@
 //!   returns `NotFound` before the hook ever runs. That still surfaces as 404, so
 //!   excluded rows stay indistinguishable from missing ones.
 //!
-//! Real SQLite-in-memory database, no mocks. Mirrors the ScopeCondition layering
+//! Real SQLite-in-memory database, no mocks. Mirrors the `ScopeCondition` layering
 //! pattern from `scope_security_test.rs` / `pk_parity_scope_test.rs`.
 
 use axum::body::{Body, to_bytes};
@@ -33,9 +33,10 @@ use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-/// read::one::transform hook that always fails. Reached only when the scoped
+/// `read::one::transform` hook that always fails. Reached only when the scoped
 /// fetch returns a row, ie. when the scope condition INCLUDES it. Returning a
 /// 500-class error here is the exact fault the handler must no longer mask.
+#[allow(clippy::unused_async)]
 async fn boom_on_read(
     _db: &DatabaseConnection,
     _entity: thing::Thing,
@@ -90,7 +91,7 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     Ok(db)
 }
 
-/// Scoped app: every request carries a `ScopeCondition` filtering is_private=false,
+/// Scoped app: every request carries a `ScopeCondition` filtering `is_private=false`,
 /// so public rows are INCLUDED by the scope and private rows are EXCLUDED.
 fn scoped_app(db: &DatabaseConnection) -> axum::Router {
     axum::Router::new().nest(
@@ -132,10 +133,10 @@ async fn get(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
     (status, value)
 }
 
-/// Seed a row by inserting its ActiveModel directly, bypassing the CRUDResource
+/// Seed a row by inserting its `ActiveModel` directly, bypassing the `CRUDResource`
 /// `create` path. That path re-fetches via `get_one`, which would run the failing
 /// `read::one::transform` hook during setup, so seeding through it is impossible.
-/// Inserting straight into the table isolates the test to the get_one_scoped path.
+/// Inserting straight into the table isolates the test to the `get_one_scoped` path.
 async fn seed(db: &DatabaseConnection, name: &str, is_private: bool) -> Uuid {
     let id = Uuid::new_v4();
     thing::ActiveModel {

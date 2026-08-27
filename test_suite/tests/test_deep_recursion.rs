@@ -1,17 +1,17 @@
 //! Deep recursion and join loading tests
 //!
-//! This module provides comprehensive test coverage for CrudCrate's recursive join loading
+//! This module provides comprehensive test coverage for `CrudCrate`'s recursive join loading
 //! using **API integration tests** (HTTP calls via axum tower service).
 //!
 //! ## Depth Limits
-//! - **Cross-model joins**: Support depth 1-5 (MAX_JOIN_DEPTH = 5)
+//! - **Cross-model joins**: Support depth 1-5 (`MAX_JOIN_DEPTH` = 5)
 //! - **Self-referencing joins**: Automatically limited to depth=1 only
 //!
 //! ## Test Coverage
 //! - Self-referencing depth=1 enforcement
 //! - Cross-model recursive joins (depth 1-5)
 //! - Field exclusion (create, update, one, list)
-//! - Consistency between get_one() and get_all() responses
+//! - Consistency between `get_one()` and `get_all()` responses
 //! - exclude(create) auto-generates fields
 //! - exclude(update) prevents field changes
 
@@ -116,7 +116,7 @@ async fn test_self_referencing_depth_1_only() {
     }
 
     // Fetch root via API - should only load immediate children (depth=1)
-    let (status, root_loaded) = get_json(&app, &format!("/categories/{}", root_id)).await;
+    let (status, root_loaded) = get_json(&app, &format!("/categories/{root_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // Verify: Root has exactly 1 immediate child
@@ -165,7 +165,7 @@ async fn test_self_referencing_multiple_children() {
         assert_eq!(status, StatusCode::CREATED);
     }
 
-    let (status, root_loaded) = get_json(&app, &format!("/categories/{}", root_id)).await;
+    let (status, root_loaded) = get_json(&app, &format!("/categories/{root_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // All 3 immediate children should be loaded
@@ -218,7 +218,7 @@ async fn test_cross_model_depth_1() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let (status, loaded) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (status, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // Depth 1: Customer → Vehicles
@@ -275,7 +275,7 @@ async fn test_cross_model_depth_2() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let (status, loaded) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (status, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // Depth 2: Customer → Vehicle → Parts
@@ -348,7 +348,7 @@ async fn test_cross_model_depth_2_multiple_relations() {
     )
     .await;
 
-    let (_, loaded) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
 
     // Both relationships at depth 2 should load
     let vehicles = loaded["vehicles"].as_array().unwrap();
@@ -415,7 +415,7 @@ async fn test_exclude_create_auto_generates_timestamps() {
     let customer_id = customer["id"].as_str().unwrap();
 
     // Get the customer - updated_at should be recent (not year 2000)
-    let (_, loaded) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
 
     // updated_at is visible in get_one (only excluded from list)
     let updated_at = loaded["updated_at"].as_str().unwrap();
@@ -445,7 +445,7 @@ async fn test_exclude_update_prevents_id_change() {
     // Try to update with a different ID - it should be ignored
     let (status, updated) = put_json(
         &app,
-        &format!("/customers/{}", original_id),
+        &format!("/customers/{original_id}"),
         json!({
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "name": "Updated Name",
@@ -489,7 +489,7 @@ async fn test_exclude_update_auto_updates_timestamps() {
     // Update the customer
     let (status, updated) = put_json(
         &app,
-        &format!("/customers/{}", customer_id),
+        &format!("/customers/{customer_id}"),
         json!({
             "name": "After Update"
         }),
@@ -505,7 +505,7 @@ async fn test_exclude_update_auto_updates_timestamps() {
     );
 }
 
-/// Test exclude(one) - created_at excluded from get_one but present in get_all
+/// Test exclude(one) - `created_at` excluded from `get_one` but present in `get_all`
 #[tokio::test]
 async fn test_exclude_one_field_behavior() {
     let db = setup_test_db().await.expect("Database setup failed");
@@ -523,7 +523,7 @@ async fn test_exclude_one_field_behavior() {
     let customer_id = customer["id"].as_str().unwrap();
 
     // get_one should NOT have created_at (exclude(one))
-    let (_, one) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, one) = get_json(&app, &format!("/customers/{customer_id}")).await;
     assert!(
         one.get("created_at").is_none(),
         "created_at should be excluded from get_one"
@@ -543,7 +543,7 @@ async fn test_exclude_one_field_behavior() {
     );
 }
 
-/// Test exclude(list) - updated_at excluded from get_all but present in get_one
+/// Test exclude(list) - `updated_at` excluded from `get_all` but present in `get_one`
 #[tokio::test]
 async fn test_exclude_list_field_behavior() {
     let db = setup_test_db().await.expect("Database setup failed");
@@ -561,7 +561,7 @@ async fn test_exclude_list_field_behavior() {
     let customer_id = customer["id"].as_str().unwrap();
 
     // get_one SHOULD have updated_at
-    let (_, one) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, one) = get_json(&app, &format!("/customers/{customer_id}")).await;
     assert!(
         one.get("updated_at").is_some(),
         "updated_at should be present in get_one"
@@ -585,7 +585,7 @@ async fn test_exclude_list_field_behavior() {
 // CONSISTENCY TESTS
 // ============================================================================
 
-/// Test consistency between get_one and get_all for join fields
+/// Test consistency between `get_one` and `get_all` for join fields
 #[tokio::test]
 async fn test_get_one_get_all_join_consistency() {
     let db = setup_test_db().await.expect("Database setup failed");
@@ -615,7 +615,7 @@ async fn test_get_one_get_all_join_consistency() {
     )
     .await;
 
-    let (_, one) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, one) = get_json(&app, &format!("/customers/{customer_id}")).await;
     let (_, all) = get_json(&app, "/customers").await;
 
     let from_all = all
@@ -661,7 +661,7 @@ async fn test_empty_relationships() {
     .await;
     let customer_id = customer["id"].as_str().unwrap();
 
-    let (_, loaded) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
 
     // Empty array, not null
     let vehicles = loaded["vehicles"].as_array().unwrap();
@@ -689,7 +689,7 @@ async fn test_self_referencing_no_children() {
     .await;
     let leaf_id = leaf["id"].as_str().unwrap();
 
-    let (_, loaded) = get_json(&app, &format!("/categories/{}", leaf_id)).await;
+    let (_, loaded) = get_json(&app, &format!("/categories/{leaf_id}")).await;
 
     let children = loaded["children"].as_array().unwrap();
     assert_eq!(
@@ -752,7 +752,7 @@ async fn test_self_referencing_join_via_direct_api() {
     );
 }
 
-/// Test join(one) fields are NOT loaded in get_all (list) responses
+/// Test join(one) fields are NOT loaded in `get_all` (list) responses
 #[tokio::test]
 async fn test_join_one_excluded_from_get_all() {
     let db = setup_test_db().await.expect("Database setup failed");
@@ -789,12 +789,12 @@ async fn test_join_one_excluded_from_get_all() {
             || root_in_list["children"].is_null()
             || root_in_list["children"]
                 .as_array()
-                .map_or(true, |a| a.is_empty()),
+                .is_none_or(std::vec::Vec::is_empty),
         "join(one) should not load in get_all - children should be empty"
     );
 
     // But get_one SHOULD load children
-    let (_, one) = get_json(&app, &format!("/categories/{}", root_id)).await;
+    let (_, one) = get_json(&app, &format!("/categories/{root_id}")).await;
     assert!(
         one["children"].is_array() && !one["children"].as_array().unwrap().is_empty(),
         "join(one) SHOULD load children in get_one"
@@ -842,14 +842,14 @@ async fn test_hierarchy_structure() {
                 "name": format!("Part {}", i),
                 "part_number": format!("PN-{}", i),
                 "category": "Test",
-                "price": (i as f64) * 10.0,
+                "price": f64::from(i) * 10.0,
                 "in_stock": true
             }),
         )
         .await;
     }
 
-    let (_, loaded) = get_json(&app, &format!("/customers/{}", customer_id)).await;
+    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
 
     // Verify complete hierarchy
     assert_eq!(loaded["name"], "Hierarchy Test");

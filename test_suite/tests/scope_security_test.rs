@@ -1,7 +1,7 @@
 /// Scope Security Tests
 ///
 /// Validates that `ScopeCondition` + `exclude(scoped)` correctly:
-/// - Filters private records from list and get_one endpoints
+/// - Filters private records from list and `get_one` endpoints
 /// - Strips `is_private` from all response JSON (top-level and nested joins)
 /// - Blocks all write operations (create, update, delete, batch) with 403
 /// - Strips scoped columns from filterable/sortable lists
@@ -23,7 +23,7 @@ fn encode_filter(filter: &Value) -> String {
 }
 
 /// POST a record via the unscoped (admin) app, return status + JSON body.
-/// Note: is_private defaults to false on create (exclude(create)), use admin_update to make private.
+/// Note: `is_private` defaults to false on create (exclude(create)), use `admin_update` to make private.
 async fn admin_post(app: &axum::Router, path: &str, payload: Value) -> (StatusCode, Value) {
     let resp = app
         .clone()
@@ -97,9 +97,7 @@ async fn create_private(app: &axum::Router, path: &str, payload: Value) -> Value
 
 /// Send an arbitrary method request, return status
 async fn send(app: &axum::Router, method: &str, uri: &str, body: Option<Value>) -> StatusCode {
-    let b = body
-        .map(|v| Body::from(v.to_string()))
-        .unwrap_or(Body::empty());
+    let b = body.map_or(Body::empty(), |v| Body::from(v.to_string()));
     let resp = app
         .clone()
         .oneshot(

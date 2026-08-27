@@ -5,9 +5,9 @@
 //! to a LIKE search over the filterable columns. That fallback escapes the SQL LIKE
 //! wildcards (`%`, `_`) so a literal `%` or `_` in the query does not act as a wildcard.
 //!
-//! Pre-fix, `GET /things?filter={"q":"a%b"}` matched both `a%b` and `axxb` on SQLite:
+//! Pre-fix, `GET /things?filter={"q":"a%b"}` matched both `a%b` and `axxb` on `SQLite`:
 //! `handle_fulltext_search` escaped wildcards with a backslash but emitted no `ESCAPE`
-//! clause, so SQLite (whose default LIKE has no escape char) still treated `%`/`_` as
+//! clause, so `SQLite` (whose default LIKE has no escape char) still treated `%`/`_` as
 //! wildcards. The fix routes the fallback through `LikeExpr::...escape('!')`, declaring
 //! an explicit `ESCAPE '!'`, so a literal `%`/`_` matches only the literal row and never
 //! the wildcard sibling.

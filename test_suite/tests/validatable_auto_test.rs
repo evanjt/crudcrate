@@ -10,7 +10,7 @@
 //!
 //! This file is fully self-contained: it defines its own entities, its own
 //! `setup_test_db`, and its own router wiring. Run with:
-//!     DATABASE_URL="sqlite::memory:" cargo test -p test_suite --test validatable_auto_test -- --test-threads=1
+//!     `DATABASE_URL="sqlite::memory`:" cargo test -p `test_suite` --test `validatable_auto_test` -- --test-threads=1
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};

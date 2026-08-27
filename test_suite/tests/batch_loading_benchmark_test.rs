@@ -4,8 +4,11 @@
 //! the number of database queries from N+1 to 2 (or 1+J where J is the number of join fields).
 //!
 //! We measure performance by:
-//! 1. Timing get_all operations with varying numbers of parent entities
+//! 1. Timing `get_all` operations with varying numbers of parent entities
 //! 2. Verifying that time scales linearly (not quadratically) with entity count
+
+// Timing and count ratios are compared loosely; f64 precision loss is irrelevant.
+#![allow(clippy::cast_precision_loss)]
 
 mod common;
 
@@ -53,7 +56,7 @@ async fn create_customers_with_vehicles(
                 "customer_id": customer_id,
                 "make": format!("Make{}", j),
                 "model": format!("Model{}", j),
-                "year": 2020 + (j as i32 % 5),
+                "year": 2020 + i32::try_from(j % 5).unwrap(),
                 "vin": format!("VIN-{}-{}", i, j)
             });
 
@@ -83,7 +86,7 @@ async fn time_get_all_customers(
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/customers?page=1&per_page={}", per_page))
+        .uri(format!("/customers?page=1&per_page={per_page}"))
         .body(Body::empty())
         .unwrap();
 
@@ -119,26 +122,19 @@ async fn test_batch_loading_scales_linearly() {
     let vehicles_per = 3;
 
     println!("\n=== Batch Loading Benchmark ===\n");
-    println!(
-        "Creating {} customers with {} vehicles each...",
-        small_count, vehicles_per
-    );
+    println!("Creating {small_count} customers with {vehicles_per} vehicles each...");
 
     create_customers_with_vehicles(&app, small_count, vehicles_per).await;
 
     // Warm up and measure small dataset
     let (small_time, small_result_count) = time_get_all_customers(&app, 100).await;
     println!(
-        "Small dataset ({} customers): {:?} ({} results)",
-        small_count, small_time, small_result_count
+        "Small dataset ({small_count} customers): {small_time:?} ({small_result_count} results)"
     );
 
     // Now test with larger dataset
     let large_count = 40; // Add 40 more for total of 50
-    println!(
-        "\nCreating {} more customers with {} vehicles each...",
-        large_count, vehicles_per
-    );
+    println!("\nCreating {large_count} more customers with {vehicles_per} vehicles each...");
 
     create_customers_with_vehicles(&app, large_count, vehicles_per).await;
 
@@ -156,9 +152,9 @@ async fn test_batch_loading_scales_linearly() {
     let count_ratio = (small_count + large_count) as f64 / small_count as f64; // 5x
 
     println!("\n--- Results ---");
-    println!("Count ratio: {:.1}x", count_ratio);
-    println!("Time ratio: {:.1}x", time_ratio);
-    println!("Expected with batch loading (linear): ~{:.1}x", count_ratio);
+    println!("Count ratio: {count_ratio:.1}x");
+    println!("Time ratio: {time_ratio:.1}x");
+    println!("Expected with batch loading (linear): ~{count_ratio:.1}x");
     println!(
         "Expected with N+1 (quadratic): ~{:.1}x",
         count_ratio * count_ratio
@@ -174,19 +170,14 @@ async fn test_batch_loading_scales_linearly() {
     let max_acceptable_ratio = count_ratio * 3.0; // Allow 3x linear (still much better than quadratic)
 
     println!(
-        "\nAssertion: time_ratio ({:.1}) <= max_acceptable ({:.1})",
-        time_ratio, max_acceptable_ratio
+        "\nAssertion: time_ratio ({time_ratio:.1}) <= max_acceptable ({max_acceptable_ratio:.1})"
     );
 
     assert!(
         time_ratio <= max_acceptable_ratio,
-        "Time scaling is worse than expected! Got {:.1}x for {:.1}x data increase. \
+        "Time scaling is worse than expected! Got {time_ratio:.1}x for {count_ratio:.1}x data increase. \
          This suggests N+1 queries might not be optimized. \
-         Expected roughly linear scaling (~{:.1}x), got {:.1}x",
-        time_ratio,
-        count_ratio,
-        count_ratio,
-        time_ratio
+         Expected roughly linear scaling (~{count_ratio:.1}x), got {time_ratio:.1}x"
     );
 
     println!("\n=== Batch Loading Benchmark PASSED ===");
@@ -205,10 +196,7 @@ async fn test_batch_loading_correctness_with_many_entities() {
     let customer_count = 20;
     let vehicles_per_customer = 5;
 
-    println!(
-        "\nCreating {} customers with {} vehicles each...",
-        customer_count, vehicles_per_customer
-    );
+    println!("\nCreating {customer_count} customers with {vehicles_per_customer} vehicles each...");
     let _customer_ids =
         create_customers_with_vehicles(&app, customer_count, vehicles_per_customer).await;
 
@@ -250,7 +238,7 @@ async fn test_batch_loading_correctness_with_many_entities() {
     // Verify total vehicle count
     let total_vehicles: usize = customers
         .iter()
-        .map(|c| c["vehicles"].as_array().map(|v| v.len()).unwrap_or(0))
+        .map(|c| c["vehicles"].as_array().map_or(0, std::vec::Vec::len))
         .sum();
 
     assert_eq!(
@@ -259,10 +247,7 @@ async fn test_batch_loading_correctness_with_many_entities() {
         "Total vehicles should match expected"
     );
 
-    println!(
-        "Verified {} customers with {} total vehicles",
-        customer_count, total_vehicles
-    );
+    println!("Verified {customer_count} customers with {total_vehicles} total vehicles");
 }
 
 /// Stress test with larger dataset
@@ -277,15 +262,12 @@ async fn test_batch_loading_stress_test() {
     let customer_count = 100;
     let vehicles_per = 3;
 
-    println!(
-        "\n=== Stress Test: {} customers x {} vehicles ===",
-        customer_count, vehicles_per
-    );
+    println!("\n=== Stress Test: {customer_count} customers x {vehicles_per} vehicles ===");
 
     let start = Instant::now();
     create_customers_with_vehicles(&app, customer_count, vehicles_per).await;
     let setup_time = start.elapsed();
-    println!("Setup time: {:?}", setup_time);
+    println!("Setup time: {setup_time:?}");
 
     // Time the get_all operation
     let start = Instant::now();
@@ -317,8 +299,7 @@ async fn test_batch_loading_stress_test() {
     // With N+1 queries, this could take much longer
     assert!(
         fetch_time.as_millis() < 5000, // 5 second max (very generous for in-memory DB)
-        "Fetch took too long ({:?}), possible N+1 issue",
-        fetch_time
+        "Fetch took too long ({fetch_time:?}), possible N+1 issue"
     );
 
     assert_eq!(customers.len(), customer_count);

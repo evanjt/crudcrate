@@ -1038,7 +1038,7 @@ mod tests {
     /// The LIKE paths in this module share search.rs's `!`-based escaper, which is
     /// always paired with an explicit `ESCAPE '!'` clause (see
     /// `test_build_comparison_expr_like_escapes_wildcards`). Backslash escaping was
-    /// removed because it is a no-op on SQLite (`.like()` emits no ESCAPE clause).
+    /// removed because it is a no-op on `SQLite` (`.like()` emits no ESCAPE clause).
     #[test]
     fn test_escape_like_wildcards() {
         assert_eq!(escape_like_wildcards("normal text"), "normal text");
@@ -1244,7 +1244,7 @@ mod tests {
 
     use crate::filtering::joined::FilterOperator;
 
-    /// Render an expression to inlined SQLite SQL so the ESCAPE clause and the
+    /// Render an expression to inlined `SQLite` SQL so the ESCAPE clause and the
     /// (escaped) bound pattern are both visible as text.
     fn cmp_sql(expr: Expr) -> String {
         use sea_orm::sea_query::{Query, SqliteQueryBuilder};
@@ -1288,7 +1288,7 @@ mod tests {
     }
 
     /// A1 regression: the joined `_like` path must escape user wildcards with `!`
-    /// AND declare `ESCAPE '!'` so the escaping is not a no-op on SQLite.
+    /// AND declare `ESCAPE '!'` so the escaping is not a no-op on `SQLite`.
     #[test]
     fn test_build_comparison_expr_like_escapes_wildcards() {
         let expr = build_comparison_expr(
@@ -1431,7 +1431,7 @@ mod tests {
     }
 
     /// A JSON integer above `i64::MAX` must bind as an exact `u64`, not fall through
-    /// to a lossy `f64`. 9223372036854775810 (= i64::MAX as u64 + 3) is NOT exactly
+    /// to a lossy `f64`. 9223372036854775810 (= `i64::MAX` as u64 + 3) is NOT exactly
     /// representable in `f64` (it rounds to 9223372036854775808), so the rendered SQL
     /// proves whether the value was preserved.
     #[test]
@@ -1454,7 +1454,7 @@ mod tests {
     /// array longer than the element cap yields `None` instead of an oversized `IN`.
     #[test]
     fn test_build_comparison_expr_rejects_overlong_array() {
-        let arr: Vec<serde_json::Value> = (0..=super::MAX_FILTER_ARRAY_LEN as i64)
+        let arr: Vec<serde_json::Value> = (0..=i64::try_from(super::MAX_FILTER_ARRAY_LEN).unwrap())
             .map(|n| serde_json::json!(n))
             .collect();
         assert!(
@@ -1604,7 +1604,10 @@ mod tests {
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed.get("name").and_then(|v| v.as_str()), Some("John"));
-        assert_eq!(parsed.get("age").and_then(|v| v.as_i64()), Some(30));
+        assert_eq!(
+            parsed.get("age").and_then(sea_orm::JsonValue::as_i64),
+            Some(30)
+        );
     }
 
     #[test]
@@ -1659,12 +1662,12 @@ mod tests {
     /// rejected with `BadRequest` rather than fanning out into an oversized `IN (...)`.
     #[test]
     fn test_parse_filter_json_rejects_overlong_array() {
-        let at_limit: Vec<i64> = (0..MAX_FILTER_ARRAY_LEN as i64).collect();
+        let at_limit: Vec<i64> = (0..i64::try_from(MAX_FILTER_ARRAY_LEN).unwrap()).collect();
         let filter_str = Some(serde_json::json!({ "id": at_limit }).to_string());
         let parsed = parse_filter_json(filter_str).expect("array at the cap is accepted");
         assert_eq!(parsed.len(), 1);
 
-        let over_limit: Vec<i64> = (0..=MAX_FILTER_ARRAY_LEN as i64).collect();
+        let over_limit: Vec<i64> = (0..=i64::try_from(MAX_FILTER_ARRAY_LEN).unwrap()).collect();
         let filter_str = Some(serde_json::json!({ "id": over_limit }).to_string());
         let err = parse_filter_json(filter_str)
             .expect_err("array one element over the cap must be rejected");
@@ -1707,7 +1710,7 @@ mod tests {
     }
 
     /// The typed builder accepts the numeric Rust types the number-filter path feeds
-    /// it (i64, f64, and u64 above i64::MAX), binding each without a lossy cast.
+    /// it (i64, f64, and u64 above `i64::MAX`), binding each without a lossy cast.
     #[test]
     fn test_apply_typed_comparison_various_types() {
         let i64_sql = cmp_sql(apply_typed_comparison(
@@ -1831,7 +1834,7 @@ mod tests {
     }
 
     /// The number-filter range path binds the real column with a typed value for each
-    /// JSON numeric kind (i64, u64 above i64::MAX, f64); a bare key is plain equality,
+    /// JSON numeric kind (i64, u64 above `i64::MAX`, f64); a bare key is plain equality,
     /// and a key whose base field isn't searchable is dropped.
     #[test]
     fn process_number_filter_binds_typed_values() {
@@ -1863,7 +1866,7 @@ mod tests {
     // PAGINATION TESTS - Range parsing and default pagination
     // ========================================================================
 
-    /// Test parse_range with valid JSON array
+    /// Test `parse_range` with valid JSON array
     #[test]
     fn test_parse_range_valid() {
         let (start, end) = parse_range(Some("[0,9]".to_string()));
@@ -1879,7 +1882,7 @@ mod tests {
         assert_eq!(end, 74);
     }
 
-    /// Test parse_range with invalid JSON returns default
+    /// Test `parse_range` with invalid JSON returns default
     #[test]
     fn test_parse_range_invalid_json() {
         let (start, end) = parse_range(Some("invalid".to_string()));
@@ -1895,7 +1898,7 @@ mod tests {
         assert_eq!(end, 9);
     }
 
-    /// Test parse_range with None returns default
+    /// Test `parse_range` with None returns default
     #[test]
     fn test_parse_range_none() {
         let (start, end) = parse_range(None);
@@ -1936,7 +1939,7 @@ mod tests {
         assert_eq!(limit, 5, "Limit should be 5 for range [5,9]");
     }
 
-    /// Test page/per_page takes priority over range
+    /// Test `page/per_page` takes priority over range
     #[test]
     fn test_pagination_page_priority_over_range() {
         let params = crate::models::FilterOptions {
@@ -1962,8 +1965,7 @@ mod tests {
         let (_offset, limit) = parse_pagination(&params);
         assert!(
             limit <= MAX_PAGE_SIZE,
-            "Range limit should be capped at {}",
-            MAX_PAGE_SIZE
+            "Range limit should be capped at {MAX_PAGE_SIZE}"
         );
 
         // Test max offset enforcement
@@ -1974,8 +1976,7 @@ mod tests {
         let (offset, _limit) = parse_pagination(&params);
         assert!(
             offset <= MAX_OFFSET,
-            "Range offset should be capped at {}",
-            MAX_OFFSET
+            "Range offset should be capped at {MAX_OFFSET}"
         );
     }
 

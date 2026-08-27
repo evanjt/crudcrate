@@ -105,6 +105,7 @@ async fn create_tables(db: &DatabaseConnection) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn seed_data(db: &DatabaseConnection) {
     println!("\nSeeding 5-level deep organizational data...");
 
@@ -227,7 +228,7 @@ async fn seed_data(db: &DatabaseConnection) {
         employee_id: Set(emp1_id),
         name: Set("API Redesign".to_string()),
         status: Set("In Progress".to_string()),
-        budget: Set(Some(150000)),
+        budget: Set(Some(150_000)),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     }
@@ -241,7 +242,7 @@ async fn seed_data(db: &DatabaseConnection) {
         employee_id: Set(emp1_id),
         name: Set("Mobile App v2".to_string()),
         status: Set("Planning".to_string()),
-        budget: Set(Some(200000)),
+        budget: Set(Some(200_000)),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     }
@@ -255,7 +256,7 @@ async fn seed_data(db: &DatabaseConnection) {
         employee_id: Set(emp2_id),
         name: Set("Infrastructure Upgrade".to_string()),
         status: Set("In Progress".to_string()),
-        budget: Set(Some(100000)),
+        budget: Set(Some(100_000)),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     }

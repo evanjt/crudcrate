@@ -2,12 +2,12 @@
 //!
 //! Proves that an entity whose PK is an auto-increment `i32` exhibits exactly
 //! the same HTTP surface a `uuid::Uuid`-keyed entity would: create returns 201
-//! with a DB-assigned id, get_one returns 200, list returns 200 with ascending
+//! with a DB-assigned id, `get_one` returns 200, list returns 200 with ascending
 //! ids, update returns 200 and persists, delete returns 204, and reads against
 //! a deleted or never-existing id return 404. Throughout we assert the id is a
 //! JSON number, never a string.
 //!
-//! The slug `ppc` keeps the table/api_struct names unique within the suite.
+//! The slug `ppc` keeps the `table/api_struct` names unique within the suite.
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};

@@ -9,14 +9,14 @@
 //!
 //! Two isolated subtrees (every PK and FK is `i32`):
 //!
-//!   has_many depth chain (mirrors `join_get_all_depth_coverage_test.rs`):
+//!   `has_many` depth chain (mirrors `join_get_all_depth_coverage_test.rs`):
 //!     Author (i32 PK)
-//!       -> Book    (i32 PK, `author_id` i32 FK)   has_many, join(one, all, depth = 2)
-//!            -> Chapter (i32 PK, `book_id` i32 FK) has_many, join(one, all, depth = 1)
+//!       -> Book    (i32 PK, `author_id` i32 FK)   `has_many`, join(one, all, depth = 2)
+//!            -> Chapter (i32 PK, `book_id` i32 FK) `has_many`, join(one, all, depth = 1)
 //!
-//!   Option<T> belongs_to (mirrors `option_belongs_to_join_all_test.rs`):
+//!   Option<T> `belongs_to` (mirrors `option_belongs_to_join_all_test.rs`):
 //!     Membership (i32 PK, `reader_id` Option<i32> FK)
-//!       reader: Option<Reader>  belongs_to, join(one, all, depth = 1)
+//!       reader: Option<Reader>  `belongs_to`, join(one, all, depth = 1)
 //!     Reader (i32 PK) does NOT join back, so there is no recursion cycle.
 //!
 //! Every assertion here is the i32 analogue of one in those UUID files; the only
@@ -301,7 +301,7 @@ async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
     (status, json)
 }
 
-/// Ids assigned by the DB for the has_many subtree.
+/// Ids assigned by the DB for the `has_many` subtree.
 struct SeededTree {
     author_with_books: i32,
     childless_author: i32,
@@ -358,7 +358,7 @@ async fn seed_tree(db: &DatabaseConnection) -> SeededTree {
     }
 }
 
-/// Ids for the Option belongs_to subtree.
+/// Ids for the Option `belongs_to` subtree.
 struct SeededMemberships {
     reader_id: i32,
     member_ids: Vec<i32>,
@@ -579,9 +579,9 @@ async fn get_one_author_agrees_with_list_at_depth_two() {
     assert_eq!(chapter_total(&one), 5, "2 + 3 chapters across two books");
 }
 
-/// LIST of memberships exercises the `Option<Reader>` belongs_to batch path:
+/// LIST of memberships exercises the `Option<Reader>` `belongs_to` batch path:
 /// the FK (`reader_id`) is on the membership row, so each owned membership
-/// carries its reader and the orphan (reader_id = None) stays null. Mirrors
+/// carries its reader and the orphan (`reader_id` = None) stays null. Mirrors
 /// `option_belongs_to_join_all_test::list_widgets_populates_belongs_to_owner_and_leaves_orphan_null`.
 #[tokio::test]
 async fn list_memberships_populates_belongs_to_reader_and_leaves_orphan_null() {
@@ -625,7 +625,7 @@ async fn list_memberships_populates_belongs_to_reader_and_leaves_orphan_null() {
 }
 
 /// `get_one` on a membership (integer path param) must agree with the LIST
-/// shape for the belongs_to reader. Mirrors
+/// shape for the `belongs_to` reader. Mirrors
 /// `option_belongs_to_join_all_test::get_one_widget_agrees_with_list`.
 #[tokio::test]
 async fn get_one_membership_agrees_on_belongs_to_reader() {
@@ -721,7 +721,7 @@ async fn get_all_trait_call_populates_typed_nested_fields_with_i32() {
     );
 }
 
-/// Direct trait call for the Option belongs_to side: `PpjMembership::get_all`
+/// Direct trait call for the Option `belongs_to` side: `PpjMembership::get_all`
 /// returns api structs whose typed `reader: Option<PpjReader>` is `Some` with
 /// the right i32 id for owned rows and `None` for the orphan.
 #[tokio::test]

@@ -7,14 +7,14 @@
 //! The N+1 problem occurs when:
 //! 1. We load N parent entities
 //! 2. For each parent, we execute a separate query for related entities
-//! Result: 1 + N queries (instead of 2 queries with batch loading)
+//!    Result: 1 + N queries (instead of 2 queries with batch loading)
 //!
 //! Batch loading solution:
 //! 1. Load N parent entities (1 query)
 //! 2. Collect all parent IDs
 //! 3. Load all related entities for all parents in one query (1 query)
 //! 4. Group related entities by parent ID
-//! Result: 2 queries total (regardless of N)
+//!    Result: 2 queries total (regardless of N)
 //!
 //! These tests ensure that:
 //! 1. The current implementation returns correct data
@@ -36,7 +36,7 @@ use crate::common::models::vehicle::VehicleList;
 // CORRECTNESS TESTS - Verify data is loaded correctly
 // =============================================================================
 
-/// Test that get_all correctly loads vehicles for multiple customers
+/// Test that `get_all` correctly loads vehicles for multiple customers
 /// This is the core test for batch loading - with N+1, this does 1 + N queries
 /// With batch loading, this should do 2 queries
 #[tokio::test]
@@ -363,10 +363,10 @@ async fn test_batch_loading_handles_empty_relationships() {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let customers: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
+    let customer_rows: Vec<CustomerList> = serde_json::from_slice(&body).unwrap();
 
     // Find customer without vehicles
-    let no_vehicle_customer = customers
+    let no_vehicle_customer = customer_rows
         .iter()
         .find(|c| c.id.to_string() == customer2_id)
         .expect("Customer without vehicles should be in list");
@@ -377,8 +377,8 @@ async fn test_batch_loading_handles_empty_relationships() {
         "Customer without vehicles should have empty array"
     );
 
-    // Other customers should have vehicles
-    let has_vehicle_customers: Vec<_> = customers
+    // Other customer_rows should have vehicles
+    let has_vehicle_customers: Vec<_> = customer_rows
         .iter()
         .filter(|c| c.id.to_string() != customer2_id)
         .collect();
@@ -564,7 +564,7 @@ async fn test_batch_loading_with_filtering() {
         percent_encoding::utf8_percent_encode(&filter_str, percent_encoding::NON_ALPHANUMERIC);
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/customers?filter={}", encoded_filter))
+        .uri(format!("/customers?filter={encoded_filter}"))
         .body(Body::empty())
         .unwrap();
 
@@ -865,8 +865,7 @@ async fn test_batch_loading_many_parents() {
     assert_eq!(
         customers.len(),
         num_customers,
-        "Should have all {} customers",
-        num_customers
+        "Should have all {num_customers} customers"
     );
 
     // Every customer should have exactly 1 vehicle
@@ -879,7 +878,7 @@ async fn test_batch_loading_many_parents() {
     }
 }
 
-/// Test that get_one still works correctly (should not be affected by batch loading)
+/// Test that `get_one` still works correctly (should not be affected by batch loading)
 #[tokio::test]
 async fn test_get_one_unaffected_by_batch_loading() {
     let db = setup_test_db()
@@ -930,7 +929,7 @@ async fn test_get_one_unaffected_by_batch_loading() {
     // Fetch single customer by ID
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/customers/{}", customer_id))
+        .uri(format!("/customers/{customer_id}"))
         .body(Body::empty())
         .unwrap();
 

@@ -2,7 +2,7 @@
 //! backend.
 //!
 //! `create_table_from_entity` emits the FK constraint from the child's
-//! `belongs_to` relation. Postgres and MySQL enforce it natively; SQLite only
+//! `belongs_to` relation. Postgres and `MySQL` enforce it natively; `SQLite` only
 //! enforces foreign keys when `PRAGMA foreign_keys = ON`, which this test enables
 //! so the behaviour is uniform across all three engines. Posting a child whose
 //! `parent_id` references a non-existent parent must return 409 (the documented

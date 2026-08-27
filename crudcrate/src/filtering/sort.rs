@@ -272,7 +272,7 @@ mod tests {
     // Full parse_sorting tests are in integration tests (require real entities)
     // ========================================================================
 
-    /// Test that sort_by parameter extraction works (tests internal logic)
+    /// Test that `sort_by` parameter extraction works (tests internal logic)
     #[test]
     fn test_sort_by_parameter_extraction() {
         // Test that sort_by with order produces expected column/order strings
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(params.order, Some("DESC".to_string()));
     }
 
-    /// Test that sort_by takes priority over sort (parameter structure)
+    /// Test that `sort_by` takes priority over sort (parameter structure)
     #[test]
     fn test_sort_by_priority_parameter_structure() {
         let params = crate::models::FilterOptions {

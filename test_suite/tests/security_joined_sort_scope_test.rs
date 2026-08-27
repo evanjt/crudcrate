@@ -30,7 +30,7 @@ async fn get_status(app: &axum::Router, uri: &str) -> StatusCode {
         .status()
 }
 
-/// VehiclePart carries no scope_condition, so ordering scoped vehicles by a parts
+/// `VehiclePart` carries no `scope_condition`, so ordering scoped vehicles by a parts
 /// column would leak child existence through the row order. Rejected with 400.
 #[tokio::test]
 async fn scoped_joined_sort_on_unscoped_child_is_rejected() {
@@ -46,7 +46,7 @@ async fn scoped_joined_sort_on_unscoped_child_is_rejected() {
     );
 }
 
-/// Vehicle carries a scope_condition, so a joined sort on it stays allowed.
+/// Vehicle carries a `scope_condition`, so a joined sort on it stays allowed.
 #[tokio::test]
 async fn scoped_joined_sort_on_scoped_child_is_allowed() {
     let db = setup_test_db().await.expect("setup");

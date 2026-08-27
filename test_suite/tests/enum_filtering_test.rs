@@ -131,7 +131,7 @@ async fn test_enum_field_filter_case_insensitive() {
 }
 
 /// Test array/IN filtering on an enum field: this is the code path we fixed
-/// in process_array_filter (added CAST(col AS TEXT) + UPPER for enum fields)
+/// in `process_array_filter` (added CAST(col AS TEXT) + UPPER for enum fields)
 #[tokio::test]
 async fn test_enum_field_filter_array_in() {
     let db = setup_test_db()
@@ -199,7 +199,7 @@ async fn test_enum_field_sort() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/vehicles?sort={sort}"))
+                .uri(format!("/vehicles?sort={sort}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -212,7 +212,7 @@ async fn test_enum_field_sort() {
     );
 }
 
-/// Test that the OpenAPI documentation endpoint serves correctly at runtime,
+/// Test that the `OpenAPI` documentation endpoint serves correctly at runtime,
 /// including the enum type schema. This hits the actual /api-docs endpoint
 /// through the router, the same path a real client would use.
 #[tokio::test]
@@ -324,10 +324,10 @@ async fn test_enum_field_filter_neq() {
 // Proves the compile-time enum detection is generic, not specific to FuelType
 // =============================================================================
 
-/// Directly assert is_enum_field() returns correct values for EVERY field type
+/// Directly assert `is_enum_field()` returns correct values for EVERY field type
 /// in the Vehicle model. This is the core proof that auto-detection is generic:
-/// - DeriveActiveEnum types (FuelType, Transmission) → true
-/// - String, i32, Uuid, DateTime, bool → false
+/// - `DeriveActiveEnum` types (`FuelType`, Transmission) → true
+/// - String, i32, Uuid, `DateTime`, bool → false
 #[test]
 fn test_enum_auto_detection_all_field_types() {
     use common::vehicle::Vehicle;
@@ -385,7 +385,7 @@ fn test_enum_auto_detection_all_field_types() {
 }
 
 /// Integration test: the SECOND enum (Transmission) also works for filtering
-/// without any enum_field annotation: proves detection is truly generic
+/// without any `enum_field` annotation: proves detection is truly generic
 #[tokio::test]
 async fn test_second_enum_filter_works_without_annotation() {
     let db = setup_test_db()

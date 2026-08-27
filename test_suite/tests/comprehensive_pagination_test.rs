@@ -317,7 +317,7 @@ async fn test_pagination_content_range_header_as_documented() {
         "Content-Range should contain '0-9'"
     );
     assert!(
-        content_range_str.contains("/"),
+        content_range_str.contains('/'),
         "Content-Range should contain '/' separator"
     );
 
@@ -605,9 +605,9 @@ async fn test_pagination_with_filtering_as_documented() {
     // Create mix of customers with different names
     for i in 0..50 {
         let name = if i % 2 == 0 {
-            format!("Active User {}", i)
+            format!("Active User {i}")
         } else {
-            format!("Inactive User {}", i)
+            format!("Inactive User {i}")
         };
         let customer_data = json!({"name": name, "email": format!("user{}@example.com", i)});
         app.clone()

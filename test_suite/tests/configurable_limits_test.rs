@@ -127,7 +127,7 @@ async fn test_batch_create_within_limit_succeeds() {
     // Create 5 items (at the limit)
     let items: Vec<limited_item::LimitedItemCreate> = (0..5)
         .map(|i| limited_item::LimitedItemCreate {
-            name: format!("Item {}", i),
+            name: format!("Item {i}"),
         })
         .collect();
 
@@ -145,7 +145,7 @@ async fn test_batch_create_exceeds_limit_fails() {
     // Create 6 items (exceeds limit of 5)
     let items: Vec<limited_item::LimitedItemCreate> = (0..6)
         .map(|i| limited_item::LimitedItemCreate {
-            name: format!("Item {}", i),
+            name: format!("Item {i}"),
         })
         .collect();
 
@@ -153,11 +153,10 @@ async fn test_batch_create_exceeds_limit_fails() {
     assert!(result.is_err(), "Creating 6 items should fail");
 
     let error = result.unwrap_err();
-    let error_message = format!("{:?}", error);
+    let error_message = format!("{error:?}");
     assert!(
         error_message.contains("Batch create limited to 5 items"),
-        "Error should mention the batch limit: {}",
-        error_message
+        "Error should mention the batch limit: {error_message}"
     );
 }
 
@@ -170,7 +169,7 @@ async fn test_default_model_allows_more_items() {
     // Create 50 items (well under default limit of 100)
     let items: Vec<default_item::DefaultItemCreate> = (0..50)
         .map(|i| default_item::DefaultItemCreate {
-            name: format!("Default Item {}", i),
+            name: format!("Default Item {i}"),
         })
         .collect();
 
@@ -191,7 +190,7 @@ async fn test_batch_update_within_limit_succeeds() {
     // First create 5 items
     let items: Vec<limited_item::LimitedItemCreate> = (0..5)
         .map(|i| limited_item::LimitedItemCreate {
-            name: format!("Item {}", i),
+            name: format!("Item {i}"),
         })
         .collect();
 
@@ -238,11 +237,10 @@ async fn test_batch_update_exceeds_limit_fails() {
     assert!(result.is_err(), "Updating 6 items should fail");
 
     let error = result.unwrap_err();
-    let error_message = format!("{:?}", error);
+    let error_message = format!("{error:?}");
     assert!(
         error_message.contains("Batch update limited to 5 items"),
-        "Error should mention the batch limit: {}",
-        error_message
+        "Error should mention the batch limit: {error_message}"
     );
 }
 
@@ -255,7 +253,7 @@ async fn test_max_page_size_enforced_at_handler_level() {
     // Create 60 items (more than max_page_size=50 for LimitedItem)
     let items: Vec<limited_item::LimitedItemCreate> = (0..60)
         .map(|i| limited_item::LimitedItemCreate {
-            name: format!("Page Size Test Item {}", i),
+            name: format!("Page Size Test Item {i}"),
         })
         .collect();
 

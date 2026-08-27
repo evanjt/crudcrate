@@ -310,7 +310,7 @@ mod tests {
         );
     }
 
-    /// Test build_like_condition with empty value
+    /// Test `build_like_condition` with empty value
     #[test]
     fn test_build_like_condition_empty_value() {
         let result = build_like_condition("field", "", DatabaseBackend::Sqlite);
@@ -318,7 +318,7 @@ mod tests {
         assert!(sql.contains("field"), "Should include field name");
     }
 
-    /// Test build_like_condition case insensitivity
+    /// Test `build_like_condition` case insensitivity
     #[test]
     fn test_build_like_condition_case_insensitive() {
         let result = build_like_condition("title", "TeSt", DatabaseBackend::Sqlite);
@@ -330,7 +330,7 @@ mod tests {
         );
     }
 
-    /// Test build_like_condition with special characters
+    /// Test `build_like_condition` with special characters
     #[test]
     fn test_build_like_condition_special_chars() {
         let result = build_like_condition("title", "test@email.com", DatabaseBackend::Sqlite);
@@ -376,8 +376,7 @@ mod tests {
         // The pattern should contain the uppercased value
         assert!(
             sql.contains("MIXED CASE"),
-            "Pattern should be uppercased for case-insensitive match: {}",
-            sql
+            "Pattern should be uppercased for case-insensitive match: {sql}"
         );
     }
 
@@ -402,7 +401,7 @@ mod tests {
 
     // --- Issue 5: Fulltext SQL must route user value through a bind parameter ---
 
-    /// Split a `CustomWithExpr` debug string into (template, values_section).
+    /// Split a `CustomWithExpr` debug string into (template, `values_section`).
     /// Returns (`"`..., `[`Value(...)`]`).
     fn split_custom_with_expr(debug: &str) -> (&str, &str) {
         let prefix = "CustomWithExpr(\"";
@@ -440,7 +439,7 @@ mod tests {
         );
     }
 
-    /// MySQL fulltext path must use a bind parameter.
+    /// `MySQL` fulltext path must use a bind parameter.
     #[test]
     fn test_mysql_fulltext_binds_query_value() {
         let malicious = "' OR '1'='1";
@@ -517,8 +516,8 @@ mod tests {
     }
 
     /// A2 regression: a query longer than the byte cap whose boundary lands inside
-    /// a multi-byte codepoint must not panic the truncation slice. 9_999 ASCII bytes
-    /// followed by `é` (2 bytes) puts byte index 10_000 inside the `é`.
+    /// a multi-byte codepoint must not panic the truncation slice. `9_999` ASCII bytes
+    /// followed by `é` (2 bytes) puts byte index `10_000` inside the `é`.
     #[test]
     fn test_fulltext_multibyte_truncation_does_not_panic() {
         let query = format!("{}é", "a".repeat(MAX_SEARCH_QUERY_LENGTH - 1));
@@ -530,7 +529,7 @@ mod tests {
     }
 
     /// `build_like_condition` on Postgres must use the `$1` placeholder, not `?`.
-    /// All other unit tests use SQLite; this covers the Postgres `placeholder_for` arm.
+    /// All other unit tests use `SQLite`; this covers the Postgres `placeholder_for` arm.
     #[test]
     fn test_build_like_condition_postgres_placeholder() {
         let result = build_like_condition("title", "x", DatabaseBackend::Postgres);
@@ -575,7 +574,7 @@ mod tests {
         }
     }
 
-    /// MySQL single-column fulltext uses a bare `COALESCE(...)` (no `CONCAT`), unlike
+    /// `MySQL` single-column fulltext uses a bare `COALESCE(...)` (no `CONCAT`), unlike
     /// the multi-column path. Exercises the `coalesced.len() == 1` branch.
     #[test]
     fn test_mysql_fulltext_single_column_no_concat() {

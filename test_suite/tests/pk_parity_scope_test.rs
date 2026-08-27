@@ -6,13 +6,13 @@
 //! drives every `/things/{id}` route with an INTEGER path parameter.
 //!
 //! What is asserted, and the UUID test each case mirrors:
-//! - scoped get_one returns the row when scope matches (mirrors
+//! - scoped `get_one` returns the row when scope matches (mirrors
 //!   `scope_get_one_ok_for_public`)
-//! - scoped get_one returns 404 when scope excludes it, with an integer id
+//! - scoped `get_one` returns 404 when scope excludes it, with an integer id
 //!   (mirrors `scope_get_one_404_for_private`)
 //! - scoped list filters private rows out (mirrors
 //!   `scope_list_excludes_private_records`)
-//! - `is_private` is stripped from scoped list + get_one responses (mirrors
+//! - `is_private` is stripped from scoped list + `get_one` responses (mirrors
 //!   `scope_list_response_omits_is_private` / `scope_get_one_response_omits_is_private`)
 //! - admin (unscoped) responses keep `is_private` (mirrors
 //!   `admin_response_includes_is_private`)
@@ -90,7 +90,7 @@ fn admin_app(db: &DatabaseConnection) -> axum::Router {
     axum::Router::new().nest("/things", thing::Thing::router(db).into())
 }
 
-/// Scoped app: every request carries a `ScopeCondition` filtering is_private=false.
+/// Scoped app: every request carries a `ScopeCondition` filtering `is_private=false`.
 /// Mirrors `common::setup_scoped_app` from the UUID suite.
 fn scoped_app(db: &DatabaseConnection) -> axum::Router {
     axum::Router::new().nest(
@@ -120,9 +120,7 @@ async fn send(
     uri: &str,
     body: Option<Value>,
 ) -> (StatusCode, Value, axum::http::HeaderMap) {
-    let b = body
-        .map(|v| Body::from(v.to_string()))
-        .unwrap_or_else(Body::empty);
+    let b = body.map_or_else(Body::empty, |v| Body::from(v.to_string()));
     let resp = app
         .clone()
         .oneshot(

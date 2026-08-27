@@ -95,12 +95,12 @@ async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
     Ok(db)
 }
 
-/// Router for the require_scope entity, mounted WITHOUT any scope layer.
+/// Router for the `require_scope` entity, mounted WITHOUT any scope layer.
 fn items_app_unscoped(db: &DatabaseConnection) -> axum::Router {
     axum::Router::new().nest("/items", rse_item::RseItem::router(db).into())
 }
 
-/// Router for the require_scope entity, mounted WITH a ScopeCondition that matches
+/// Router for the `require_scope` entity, mounted WITH a `ScopeCondition` that matches
 /// everything (`Condition::all()` with no predicates is an always-true AND).
 fn items_app_scoped(db: &DatabaseConnection) -> axum::Router {
     items_app_unscoped(db).layer(axum::Extension(crudcrate::ScopeCondition {
@@ -108,7 +108,7 @@ fn items_app_scoped(db: &DatabaseConnection) -> axum::Router {
     }))
 }
 
-/// Router for the control entity (no require_scope), mounted WITHOUT any scope layer.
+/// Router for the control entity (no `require_scope`), mounted WITHOUT any scope layer.
 fn others_app(db: &DatabaseConnection) -> axum::Router {
     axum::Router::new().nest("/others", rse_other::RseOther::router(db).into())
 }
@@ -401,7 +401,7 @@ async fn require_scope_get_one_with_scope_resolves_existing_row() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/items/{}", created.id))
+                .uri(format!("/items/{}", created.id))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -449,18 +449,8 @@ async fn non_require_scope_get_one_without_scope_returns_404_not_500() {
     );
 }
 
-// =============================================================================
-// 4. Trait-level constant sanity: REQUIRE_SCOPE reflects the attribute.
-// =============================================================================
-
-#[tokio::test]
-async fn require_scope_constant_is_set_correctly() {
-    assert!(
-        <rse_item::RseItem as CRUDResource>::REQUIRE_SCOPE,
-        "RseItem declares require_scope, so REQUIRE_SCOPE must be true"
-    );
-    assert!(
-        !<rse_other::RseOther as CRUDResource>::REQUIRE_SCOPE,
-        "RseOther does not declare require_scope, so REQUIRE_SCOPE must default to false"
-    );
-}
+// REQUIRE_SCOPE reflects the attribute.
+const _: () = {
+    assert!(<rse_item::RseItem as CRUDResource>::REQUIRE_SCOPE);
+    assert!(!<rse_other::RseOther as CRUDResource>::REQUIRE_SCOPE);
+};

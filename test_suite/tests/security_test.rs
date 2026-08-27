@@ -67,7 +67,7 @@ async fn test_empty_fulltext_returns_all_without_filter() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -138,7 +138,7 @@ async fn test_whitespace_fulltext_returns_all_without_filter() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -187,7 +187,7 @@ async fn test_invalid_filter_field_ignored() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", encoded_filter))
+                .uri(format!("/customers?filter={encoded_filter}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -248,7 +248,7 @@ async fn test_invalid_sort_field_uses_default() {
     );
 }
 
-/// Defence against DoS via filter-clause flooding.
+/// Defence against `DoS` via filter-clause flooding.
 /// A request whose filter JSON has more than the built-in limit (100 keys)
 /// must be rejected with 400 Bad Request, NOT silently dropped into an
 /// unfiltered response.

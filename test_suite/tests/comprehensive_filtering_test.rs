@@ -615,14 +615,14 @@ async fn test_filtering_uuid_exact_match_as_documented() {
 
     // Test: UUID exact match (docs example: {"user_id":"550e8400-e29b-41d4-a716-446655440000"})
     // Manually URL-encode the filter
-    let filter_encoded = format!("%7B%22id%22%3A%22{}%22%7D", created_id);
+    let filter_encoded = format!("%7B%22id%22%3A%22{created_id}%22%7D");
 
     let response = app
         .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/customers?filter={}", filter_encoded))
+                .uri(format!("/customers?filter={filter_encoded}"))
                 .body(Body::empty())
                 .unwrap(),
         )
