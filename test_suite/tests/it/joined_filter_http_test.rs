@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
+use test_suite::http;
 
 async fn admin_post(app: &axum::Router, path: &str, payload: Value) -> Value {
     let resp = app
@@ -53,28 +54,6 @@ async fn admin_update(app: &axum::Router, path: &str, payload: Value) {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK, "{path} update failed");
-}
-
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value, axum::http::HeaderMap) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let headers = resp.headers().clone();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (
-        status,
-        serde_json::from_slice(&body).unwrap_or(Value::Null),
-        headers,
-    )
 }
 
 /// Seed three customers, each owning one vehicle with a distinct make/year.
@@ -170,7 +149,8 @@ async fn joined_filter_by_make_returns_only_matching_customer() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let got = names(&body);
@@ -187,7 +167,8 @@ async fn joined_filter_year_gte_filters_by_range() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"vehicles.year_gte":2020}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.year_gte":2020}"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let mut got = names(&body);
@@ -201,7 +182,8 @@ async fn joined_filter_year_lt_excludes_newer_vehicles() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"vehicles.year_lt":2020}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.year_lt":2020}"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let got = names(&body);
@@ -214,7 +196,8 @@ async fn joined_filter_neq_excludes_matching_make() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"vehicles.make_neq":"BMW"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make_neq":"BMW"}"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let mut got = names(&body);
@@ -233,7 +216,7 @@ async fn main_and_joined_filters_intersect() {
     let _ = seed_three_customers(&app).await;
 
     // name=Alice AND vehicles.make=BMW → Alice
-    let (status, body, _) = get_json(
+    let (status, body, _) = http::get_with_headers(
         &app,
         &filter_query(r#"{"name":"Alice","vehicles.make":"BMW"}"#),
     )
@@ -242,7 +225,7 @@ async fn main_and_joined_filters_intersect() {
     assert_eq!(names(&body), vec!["Alice".to_string()]);
 
     // name=Alice AND vehicles.make=Toyota → empty (Alice doesn't own a Toyota)
-    let (status, body, _) = get_json(
+    let (status, body, _) = http::get_with_headers(
         &app,
         &filter_query(r#"{"name":"Alice","vehicles.make":"Toyota"}"#),
     )
@@ -263,7 +246,7 @@ async fn multiple_joined_filters_on_same_field_intersect() {
 
     // Bob owns a 2020 Toyota. Filter year_gte=2019 AND year_lte=2020 → Bob only
     // (Alice has 2023, out of range; Carol has 2018, out of range)
-    let (status, body, _) = get_json(
+    let (status, body, _) = http::get_with_headers(
         &app,
         &filter_query(r#"{"vehicles.year_gte":2019,"vehicles.year_lte":2020}"#),
     )
@@ -285,7 +268,7 @@ async fn non_whitelisted_joined_column_is_ignored() {
     // `vehicles.fuel_type` is NOT in Customer.vehicles filterable("make","model","year","vin")
     // The filter should be silently dropped and all 3 customers returned.
     let (status, body, _) =
-        get_json(&app, &filter_query(r#"{"vehicles.fuel_type":"Gasoline"}"#)).await;
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.fuel_type":"Gasoline"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body).len(), 3);
 }
@@ -297,7 +280,8 @@ async fn unknown_join_field_is_ignored() {
     let _ = seed_three_customers(&app).await;
 
     // `pets` doesn't exist as a join on Customer. Should not 500, should return all.
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"pets.name":"Rex"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"pets.name":"Rex"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body).len(), 3);
 }
@@ -312,7 +296,8 @@ async fn content_range_reflects_joined_filter_count() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, _, headers) = get_json(&app, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
+    let (status, _, headers) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let content_range = headers
@@ -350,12 +335,14 @@ async fn joined_filter_respects_parent_scope_middleware() {
     )
     .await;
 
-    let (status, body, _) = get_json(&scoped, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&scoped, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body).len(), 0, "private Alice should be hidden");
 
     // Admin still sees her
-    let (status, body, _) = get_json(&admin, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&admin, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body), vec!["Alice".to_string()]);
 }
@@ -371,7 +358,7 @@ async fn joined_filter_with_no_matches_returns_empty() {
     let _ = seed_three_customers(&app).await;
 
     let (status, body, _) =
-        get_json(&app, &filter_query(r#"{"vehicles.make":"Lamborghini"}"#)).await;
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make":"Lamborghini"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body).len(), 0);
 }
@@ -400,7 +387,8 @@ async fn parent_with_many_matching_children_appears_once() {
     )
     .await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make":"BMW"}"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let got = names(&body);
@@ -419,7 +407,8 @@ async fn main_filter_equality_folds_case() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"name":"alice"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"name":"alice"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(names(&body), vec!["Alice".to_string()]);
 }
@@ -435,7 +424,8 @@ async fn joined_filter_equality_is_passed_through_unfolded() {
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
 
-    let (status, body, _) = get_json(&app, &filter_query(r#"{"vehicles.make":"bmw"}"#)).await;
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make":"bmw"}"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(names(&body).is_empty(), "got {:?}", names(&body));
 }

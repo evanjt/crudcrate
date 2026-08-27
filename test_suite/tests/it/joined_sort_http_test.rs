@@ -10,13 +10,12 @@
 //! parent PK order it silently used before), that plain parent-column sorts are
 //! unaffected, and that a non-whitelisted dot-path does not 500.
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::Value;
-use tower::ServiceExt;
+use test_suite::http;
 use uuid::Uuid;
 
 pub mod player {
@@ -135,24 +134,6 @@ async fn seed_team(db: &DatabaseConnection, name: &str, scores: &[i32]) -> Uuid 
     team.id
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
-
 fn team_names(list: &Value) -> Vec<String> {
     list.as_array()
         .unwrap()
@@ -184,7 +165,7 @@ async fn joined_sort_score_asc_orders_teams_by_min_child_score() {
     seed_three_teams(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     assert_eq!(
@@ -200,7 +181,7 @@ async fn joined_sort_score_desc_reverses_team_order() {
     seed_three_teams(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &sort_query(r#"["players.score","DESC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["players.score","DESC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     assert_eq!(
@@ -220,7 +201,7 @@ async fn joined_sort_is_not_parent_default_order() {
     seed_team(&db, "alpha", &[50]).await; // highest score, first alphabetically
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     assert_eq!(
@@ -239,7 +220,7 @@ async fn parent_column_sort_still_works() {
     seed_team(&db, "bravo", &[3]).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &sort_query(r#"["name","ASC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["name","ASC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     assert_eq!(
@@ -262,12 +243,12 @@ async fn disallowed_dot_path_does_not_500() {
 
     let app = app(&db);
     // `players.name` is not in the team's join sortable("score") whitelist.
-    let (status, body) = get_json(&app, &sort_query(r#"["players.name","ASC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["players.name","ASC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.as_array().expect("list response").len(), 3);
 
     // An unknown join field is likewise harmless.
-    let (status, body) = get_json(&app, &sort_query(r#"["coaches.salary","DESC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["coaches.salary","DESC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.as_array().expect("list response").len(), 3);
 }
@@ -290,7 +271,7 @@ async fn joined_sort_ties_are_ordered_by_primary_key() {
     }
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let ids = team_ids(&body);
@@ -313,8 +294,8 @@ async fn joined_sort_pages_do_not_repeat_or_skip_rows() {
 
     let app = app(&db);
     let sorted = sort_query(r#"["players.score","ASC"]"#);
-    let (status_one, page_one) = get_json(&app, &format!("{sorted}&page=1&per_page=5")).await;
-    let (status_two, page_two) = get_json(&app, &format!("{sorted}&page=2&per_page=5")).await;
+    let (status_one, page_one) = http::get(&app, &format!("{sorted}&page=1&per_page=5")).await;
+    let (status_two, page_two) = http::get(&app, &format!("{sorted}&page=2&per_page=5")).await;
     assert_eq!(status_one, StatusCode::OK);
     assert_eq!(status_two, StatusCode::OK);
 
@@ -338,7 +319,7 @@ async fn team_without_players_is_included_in_joined_sort() {
     seed_team(&db, "empty", &[]).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
+    let (status, body) = http::get(&app, &sort_query(r#"["players.score","ASC"]"#)).await;
     assert_eq!(status, StatusCode::OK);
 
     let mut names = team_names(&body);

@@ -22,13 +22,12 @@
 //! Every assertion here is the i32 analogue of one in those UUID files; the only
 //! difference is the PK/FK type and that the `Path<id>` parameter is an integer.
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::Value;
-use tower::ServiceExt;
+use test_suite::http;
 
 pub mod author {
     use super::*;
@@ -252,24 +251,6 @@ fn app(db: &DatabaseConnection) -> axum::Router {
         .nest("/memberships", membership::PpjMembership::router(db).into())
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
-
 /// Ids assigned by the DB for the `has_many` subtree.
 struct SeededTree {
     author_with_books: i32,
@@ -384,7 +365,7 @@ async fn seeded_ids_are_integers() {
     let s = seed_tree(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, &format!("/authors/{}", s.author_with_books)).await;
+    let (status, body) = http::get(&app, &format!("/authors/{}", s.author_with_books)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(
         body["id"].is_i64() || body["id"].is_u64(),
@@ -404,7 +385,7 @@ async fn list_authors_batch_loads_books_keyed_by_integer_fk() {
     let s = seed_tree(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/authors").await;
+    let (status, body) = http::get(&app, "/authors").await;
     assert_eq!(status, StatusCode::OK, "authors list: {body:?}");
 
     let authors = body.as_array().expect("list response is an array");
@@ -443,7 +424,7 @@ async fn childless_author_gets_empty_books_array() {
     let s = seed_tree(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/authors").await;
+    let (status, body) = http::get(&app, "/authors").await;
     assert_eq!(status, StatusCode::OK);
 
     let childless = body
@@ -468,7 +449,7 @@ async fn list_authors_loads_grandchild_chapters_at_depth_two() {
     let s = seed_tree(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/authors").await;
+    let (status, body) = http::get(&app, "/authors").await;
     assert_eq!(status, StatusCode::OK);
 
     let with_books = body
@@ -518,12 +499,12 @@ async fn get_one_author_agrees_with_list_at_depth_two() {
     let app = app(&db);
 
     // Integer path param, not a UUID.
-    let (status, one) = get_json(&app, &format!("/authors/{}", s.author_with_books)).await;
+    let (status, one) = http::get(&app, &format!("/authors/{}", s.author_with_books)).await;
     assert_eq!(status, StatusCode::OK);
     let one_books = one["books"].as_array().expect("books on get_one");
     assert_eq!(one_books.len(), 2);
 
-    let (_, list) = get_json(&app, "/authors").await;
+    let (_, list) = http::get(&app, "/authors").await;
     let from_list = list
         .as_array()
         .unwrap()
@@ -558,7 +539,7 @@ async fn list_memberships_populates_belongs_to_reader_and_leaves_orphan_null() {
     let s = seed_memberships(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/memberships").await;
+    let (status, body) = http::get(&app, "/memberships").await;
     assert_eq!(status, StatusCode::OK, "memberships list: {body:?}");
 
     let memberships = body.as_array().expect("list response is an array");
@@ -603,7 +584,7 @@ async fn get_one_membership_agrees_on_belongs_to_reader() {
 
     let app = app(&db);
 
-    let (status, owned) = get_json(&app, &format!("/memberships/{}", s.member_ids[0])).await;
+    let (status, owned) = http::get(&app, &format!("/memberships/{}", s.member_ids[0])).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         owned["reader"]["id"].as_i64(),
@@ -612,7 +593,7 @@ async fn get_one_membership_agrees_on_belongs_to_reader() {
     );
     assert_eq!(owned["reader"]["name"].as_str(), Some("Ada"));
 
-    let (status, orphan) = get_json(&app, &format!("/memberships/{}", s.orphan_membership)).await;
+    let (status, orphan) = http::get(&app, &format!("/memberships/{}", s.orphan_membership)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(
         orphan["reader"].is_null(),
@@ -629,7 +610,7 @@ async fn missing_integer_id_returns_404_not_parse_error() {
     let _ = seed_tree(&db).await;
 
     let app = app(&db);
-    let (status, _) = get_json(&app, "/authors/99999").await;
+    let (status, _) = http::get(&app, "/authors/99999").await;
     assert_eq!(
         status,
         StatusCode::NOT_FOUND,

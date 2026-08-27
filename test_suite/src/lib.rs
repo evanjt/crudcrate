@@ -15,6 +15,75 @@ use sea_orm_migration::prelude::*;
 // Import local test models
 pub mod models;
 
+/// Request helpers for handler tests. Every function returns the status and the
+/// JSON body (`Value::Null` when the body is not JSON).
+pub mod http {
+    use axum::Router;
+    use axum::body::{Body, to_bytes};
+    use axum::http::{HeaderMap, Request, StatusCode};
+    use serde_json::Value;
+    use tower::ServiceExt;
+
+    pub async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value, HeaderMap) {
+        let resp = app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let headers = resp.headers().clone();
+        let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (
+            status,
+            serde_json::from_slice(&body).unwrap_or(Value::Null),
+            headers,
+        )
+    }
+
+    pub async fn get_with_headers(app: &Router, uri: &str) -> (StatusCode, Value, HeaderMap) {
+        send(
+            app,
+            Request::builder().uri(uri).body(Body::empty()).unwrap(),
+        )
+        .await
+    }
+
+    pub async fn get(app: &Router, uri: &str) -> (StatusCode, Value) {
+        let (status, body, _) = get_with_headers(app, uri).await;
+        (status, body)
+    }
+
+    async fn with_json(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        payload: &Value,
+    ) -> (StatusCode, Value) {
+        let req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let (status, body, _) = send(app, req).await;
+        (status, body)
+    }
+
+    pub async fn post(app: &Router, uri: &str, payload: &Value) -> (StatusCode, Value) {
+        with_json(app, "POST", uri, payload).await
+    }
+
+    pub async fn put(app: &Router, uri: &str, payload: &Value) -> (StatusCode, Value) {
+        with_json(app, "PUT", uri, payload).await
+    }
+
+    pub async fn delete(app: &Router, uri: &str) -> (StatusCode, Value) {
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(uri)
+            .body(Body::empty())
+            .unwrap();
+        let (status, body, _) = send(app, req).await;
+        (status, body)
+    }
+}
+
 // Re-export local test models for easy access
 pub use self::models::{
     author, book, category, customer, maintenance_record, managed_author, vehicle, vehicle_part,

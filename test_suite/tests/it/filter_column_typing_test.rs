@@ -17,25 +17,7 @@ use tower::ServiceExt;
 
 use common::{create_test_customer, setup_test_app, setup_test_db};
 use test_suite as common;
-
-async fn post(app: &axum::Router, uri: &str, payload: &Value) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("content-type", "application/json")
-                .body(Body::from(payload.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
+use test_suite::http;
 
 async fn get_list(app: &axum::Router, base: &str, filter: &Value) -> (StatusCode, Vec<Value>) {
     let encoded = utf8_percent_encode(&filter.to_string(), NON_ALPHANUMERIC).to_string();
@@ -61,7 +43,7 @@ async fn get_list(app: &axum::Router, base: &str, filter: &Value) -> (StatusCode
 }
 
 async fn create_vehicle(app: &axum::Router, customer_id: &str, year: i32) -> String {
-    let (status, v) = post(
+    let (status, v) = http::post(
         app,
         "/vehicles",
         &json!({
@@ -78,7 +60,7 @@ async fn create_vehicle(app: &axum::Router, customer_id: &str, year: i32) -> Str
 }
 
 async fn create_maintenance(app: &axum::Router, vehicle_id: &str, service_date: &str) {
-    let (status, v) = post(
+    let (status, v) = http::post(
         app,
         "/maintenance_records",
         &json!({

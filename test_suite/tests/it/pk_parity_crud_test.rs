@@ -9,13 +9,13 @@
 //!
 //! The slug `ppc` keeps the `table/api_struct` names unique within the suite.
 
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::{Value, json};
-use tower::ServiceExt;
+use test_suite::http;
 
 pub mod thing {
     use super::*;
@@ -51,15 +51,8 @@ fn app(db: &DatabaseConnection) -> axum::Router {
 }
 
 async fn send(app: &axum::Router, req: Request<Body>) -> (StatusCode, Value) {
-    let resp = app.clone().oneshot(req).await.unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let value = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
-    };
-    (status, value)
+    let (status, body, _) = http::send(app, req).await;
+    (status, body)
 }
 
 async fn create_thing(app: &axum::Router, name: &str, note: Option<&str>) -> Value {

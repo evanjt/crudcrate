@@ -13,13 +13,11 @@
 //! org's teams AND each team's members (grandchildren). The `get_one` path is
 //! contrasted against the same fixture.
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
-use serde_json::Value;
-use tower::ServiceExt;
+use test_suite::http;
 use uuid::Uuid;
 
 pub mod org {
@@ -199,24 +197,6 @@ async fn seed_hierarchy(
     org_id
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
-
 /// LIST endpoint exercises the batch `get_all` loader. `Org.teams` is
 /// `join(one, all, depth = 3)` so the depth > 1 branch must recurse into each
 /// team via `JgdTeam::get_one` and populate the grandchild `members`.
@@ -226,7 +206,7 @@ async fn list_orgs_populates_teams_and_grandchild_members() {
     let org_id = seed_hierarchy(&db, "acme", 2, 2).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/orgs").await;
+    let (status, body) = http::get(&app, "/orgs").await;
     assert_eq!(status, StatusCode::OK);
 
     let orgs = body.as_array().expect("list response is an array");
@@ -260,7 +240,7 @@ async fn get_one_org_populates_teams_and_grandchild_members() {
     let org_id = seed_hierarchy(&db, "globex", 2, 2).await;
 
     let app = app(&db);
-    let (status, org) = get_json(&app, &format!("/orgs/{org_id}")).await;
+    let (status, org) = http::get(&app, &format!("/orgs/{org_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     let teams = org["teams"].as_array().expect("teams populated on get_one");
@@ -282,8 +262,8 @@ async fn list_and_get_one_agree_on_nested_shape() {
     let org_id = seed_hierarchy(&db, "initech", 3, 1).await;
 
     let app = app(&db);
-    let (_, list_body) = get_json(&app, "/orgs").await;
-    let (_, one_body) = get_json(&app, &format!("/orgs/{org_id}")).await;
+    let (_, list_body) = http::get(&app, "/orgs").await;
+    let (_, one_body) = http::get(&app, &format!("/orgs/{org_id}")).await;
 
     let from_list = list_body
         .as_array()
@@ -324,7 +304,7 @@ async fn list_multiple_orgs_each_gets_own_subtree() {
     let org_b = seed_hierarchy(&db, "bravo", 2, 1).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/orgs").await;
+    let (status, body) = http::get(&app, "/orgs").await;
     assert_eq!(status, StatusCode::OK);
 
     let orgs = body.as_array().unwrap();
@@ -366,7 +346,7 @@ async fn list_org_with_childless_teams_yields_empty_member_arrays() {
     let org_id = seed_hierarchy(&db, "hooli", 2, 0).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/orgs").await;
+    let (status, body) = http::get(&app, "/orgs").await;
     assert_eq!(status, StatusCode::OK);
 
     let org_row = body
@@ -393,7 +373,7 @@ async fn list_org_with_no_teams_yields_empty_teams_array() {
     let org_id = seed_hierarchy(&db, "umbrella", 0, 0).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/orgs").await;
+    let (status, body) = http::get(&app, "/orgs").await;
     assert_eq!(status, StatusCode::OK);
 
     let org_row = body
@@ -447,7 +427,7 @@ async fn list_preserves_grandchild_identity_per_team() {
     let org_id = seed_hierarchy(&db, "wayne", 2, 2).await;
 
     let app = app(&db);
-    let (_, body) = get_json(&app, "/orgs").await;
+    let (_, body) = http::get(&app, "/orgs").await;
 
     let org_row = body
         .as_array()

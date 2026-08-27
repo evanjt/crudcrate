@@ -8,49 +8,11 @@
 /// - Resources WITH `require_scope` work normally when scope middleware is present
 use test_suite as common;
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
-use serde_json::{Value, json};
-use tower::ServiceExt;
+use axum::http::StatusCode;
+use serde_json::json;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
-
-/// POST a record via the admin app
-async fn admin_post(app: &axum::Router, path: &str, payload: Value) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(path)
-                .header("content-type", "application/json")
-                .body(Body::from(payload.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
-}
-
-/// GET via any app, return status + body
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
-}
+use test_suite::http;
 
 // =============================================================================
 // 2. Resources without require_scope allow unscoped access
@@ -62,15 +24,15 @@ async fn no_require_scope_allows_unscoped_access() {
     let admin = setup_test_app(&db);
 
     // Create a customer
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Public", "email": "pub@example.com"}),
+        &json!({"name": "Public", "email": "pub@example.com"}),
     )
     .await;
 
     // get_all without scope middleware: should succeed
-    let (status, body) = get_json(&admin, "/customers").await;
+    let (status, body) = http::get(&admin, "/customers").await;
     assert_eq!(status, StatusCode::OK, "Unscoped get_all should succeed");
     let items = body.as_array().unwrap();
     assert!(!items.is_empty(), "Should return data");
@@ -86,15 +48,15 @@ async fn no_require_scope_allows_scoped_access() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "ScopedOK", "email": "sok@example.com"}),
+        &json!({"name": "ScopedOK", "email": "sok@example.com"}),
     )
     .await;
 
     // get_all with scope middleware: should also succeed
-    let (status, body) = get_json(&scoped, "/customers").await;
+    let (status, body) = http::get(&scoped, "/customers").await;
     assert_eq!(status, StatusCode::OK, "Scoped get_all should succeed");
     let items = body.as_array().unwrap();
     assert!(!items.is_empty(), "Should return scoped data");
@@ -114,7 +76,7 @@ async fn scoped_get_one_nonexistent_returns_404_not_500() {
     let scoped = setup_scoped_app(&db);
 
     let fake_id = "00000000-0000-0000-0000-ffffffffffff";
-    let (status, _) = get_json(&scoped, &format!("/customers/{fake_id}")).await;
+    let (status, _) = http::get(&scoped, &format!("/customers/{fake_id}")).await;
     assert_eq!(
         status,
         StatusCode::NOT_FOUND,

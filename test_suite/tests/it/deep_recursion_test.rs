@@ -22,6 +22,7 @@ use tower::ServiceExt;
 
 use common::{setup_test_app, setup_test_db};
 use test_suite as common;
+use test_suite::http;
 
 // Helper to make POST request and return JSON
 async fn post_json(app: &axum::Router, uri: &str, data: Value) -> (StatusCode, Value) {
@@ -42,21 +43,6 @@ async fn post_json(app: &axum::Router, uri: &str, data: Value) -> (StatusCode, V
 }
 
 // Helper to make GET request and return JSON
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let request = Request::builder()
-        .method("GET")
-        .uri(uri)
-        .body(Body::empty())
-        .unwrap();
-
-    let response = app.clone().oneshot(request).await.unwrap();
-    let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
-    (status, json)
-}
 
 // Helper to make PUT request and return JSON
 async fn put_json(app: &axum::Router, uri: &str, data: Value) -> (StatusCode, Value) {
@@ -116,7 +102,7 @@ async fn test_self_referencing_depth_1_only() {
     }
 
     // Fetch root via API - should only load immediate children (depth=1)
-    let (status, root_loaded) = get_json(&app, &format!("/categories/{root_id}")).await;
+    let (status, root_loaded) = http::get(&app, &format!("/categories/{root_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // Verify: Root has exactly 1 immediate child
@@ -165,7 +151,7 @@ async fn test_self_referencing_multiple_children() {
         assert_eq!(status, StatusCode::CREATED);
     }
 
-    let (status, root_loaded) = get_json(&app, &format!("/categories/{root_id}")).await;
+    let (status, root_loaded) = http::get(&app, &format!("/categories/{root_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // All 3 immediate children should be loaded
@@ -218,7 +204,7 @@ async fn test_cross_model_depth_1() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let (status, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (status, loaded) = http::get(&app, &format!("/customers/{customer_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // Depth 1: Customer → Vehicles
@@ -275,7 +261,7 @@ async fn test_cross_model_depth_2() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let (status, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (status, loaded) = http::get(&app, &format!("/customers/{customer_id}")).await;
     assert_eq!(status, StatusCode::OK);
 
     // Depth 2: Customer → Vehicle → Parts
@@ -348,7 +334,7 @@ async fn test_cross_model_depth_2_multiple_relations() {
     )
     .await;
 
-    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (_, loaded) = http::get(&app, &format!("/customers/{customer_id}")).await;
 
     // Both relationships at depth 2 should load
     let vehicles = loaded["vehicles"].as_array().unwrap();
@@ -415,7 +401,7 @@ async fn test_exclude_create_auto_generates_timestamps() {
     let customer_id = customer["id"].as_str().unwrap();
 
     // Get the customer - updated_at should be recent (not year 2000)
-    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (_, loaded) = http::get(&app, &format!("/customers/{customer_id}")).await;
 
     // updated_at is visible in get_one (only excluded from list)
     let updated_at = loaded["updated_at"].as_str().unwrap();
@@ -523,14 +509,14 @@ async fn test_exclude_one_field_behavior() {
     let customer_id = customer["id"].as_str().unwrap();
 
     // get_one should NOT have created_at (exclude(one))
-    let (_, one) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (_, one) = http::get(&app, &format!("/customers/{customer_id}")).await;
     assert!(
         one.get("created_at").is_none(),
         "created_at should be excluded from get_one"
     );
 
     // get_all SHOULD have created_at
-    let (_, all) = get_json(&app, "/customers").await;
+    let (_, all) = http::get(&app, "/customers").await;
     let found = all
         .as_array()
         .unwrap()
@@ -561,14 +547,14 @@ async fn test_exclude_list_field_behavior() {
     let customer_id = customer["id"].as_str().unwrap();
 
     // get_one SHOULD have updated_at
-    let (_, one) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (_, one) = http::get(&app, &format!("/customers/{customer_id}")).await;
     assert!(
         one.get("updated_at").is_some(),
         "updated_at should be present in get_one"
     );
 
     // get_all should NOT have updated_at (exclude(list))
-    let (_, all) = get_json(&app, "/customers").await;
+    let (_, all) = http::get(&app, "/customers").await;
     let found = all
         .as_array()
         .unwrap()
@@ -615,8 +601,8 @@ async fn test_get_one_get_all_join_consistency() {
     )
     .await;
 
-    let (_, one) = get_json(&app, &format!("/customers/{customer_id}")).await;
-    let (_, all) = get_json(&app, "/customers").await;
+    let (_, one) = http::get(&app, &format!("/customers/{customer_id}")).await;
+    let (_, all) = http::get(&app, "/customers").await;
 
     let from_all = all
         .as_array()
@@ -661,7 +647,7 @@ async fn test_empty_relationships() {
     .await;
     let customer_id = customer["id"].as_str().unwrap();
 
-    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (_, loaded) = http::get(&app, &format!("/customers/{customer_id}")).await;
 
     // Empty array, not null
     let vehicles = loaded["vehicles"].as_array().unwrap();
@@ -689,7 +675,7 @@ async fn test_self_referencing_no_children() {
     .await;
     let leaf_id = leaf["id"].as_str().unwrap();
 
-    let (_, loaded) = get_json(&app, &format!("/categories/{leaf_id}")).await;
+    let (_, loaded) = http::get(&app, &format!("/categories/{leaf_id}")).await;
 
     let children = loaded["children"].as_array().unwrap();
     assert_eq!(
@@ -775,7 +761,7 @@ async fn test_join_one_excluded_from_get_all() {
     .await;
 
     // Get list - children should NOT be loaded (join(one) only)
-    let (status, all) = get_json(&app, "/categories").await;
+    let (status, all) = http::get(&app, "/categories").await;
     assert_eq!(status, StatusCode::OK);
 
     let categories: Vec<Value> = serde_json::from_value(all).unwrap();
@@ -794,7 +780,7 @@ async fn test_join_one_excluded_from_get_all() {
     );
 
     // But get_one SHOULD load children
-    let (_, one) = get_json(&app, &format!("/categories/{root_id}")).await;
+    let (_, one) = http::get(&app, &format!("/categories/{root_id}")).await;
     assert!(
         one["children"].is_array() && !one["children"].as_array().unwrap().is_empty(),
         "join(one) SHOULD load children in get_one"
@@ -849,7 +835,7 @@ async fn test_hierarchy_structure() {
         .await;
     }
 
-    let (_, loaded) = get_json(&app, &format!("/customers/{customer_id}")).await;
+    let (_, loaded) = http::get(&app, &format!("/customers/{customer_id}")).await;
 
     // Verify complete hierarchy
     assert_eq!(loaded["name"], "Hierarchy Test");

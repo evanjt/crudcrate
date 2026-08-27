@@ -16,13 +16,11 @@
 //! `get_all` batch loader and the `get_one` single-item loader; the two must
 //! agree.
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
-use serde_json::Value;
-use tower::ServiceExt;
+use test_suite::http;
 use uuid::Uuid;
 
 pub mod obj_owner {
@@ -148,24 +146,6 @@ async fn seed(db: &DatabaseConnection) -> (Uuid, Vec<Uuid>, Uuid) {
     (owner.id, widget_ids, orphan.id)
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let json: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, json)
-}
-
 /// LIST exercises the batch `get_all` loader. Each widget with an `owner_id`
 /// must carry the matching owner; the orphan must come back with `owner = null`.
 #[tokio::test]
@@ -174,7 +154,7 @@ async fn list_widgets_populates_belongs_to_owner_and_leaves_orphan_null() {
     let (owner_id, widget_ids, orphan) = seed(&db).await;
 
     let app = app(&db);
-    let (status, body) = get_json(&app, "/widgets").await;
+    let (status, body) = http::get(&app, "/widgets").await;
     assert_eq!(status, StatusCode::OK);
 
     let widgets = body.as_array().expect("list response is an array");
@@ -214,7 +194,7 @@ async fn get_one_widget_agrees_with_list() {
 
     let app = app(&db);
 
-    let (status, widget) = get_json(&app, &format!("/widgets/{}", widget_ids[0])).await;
+    let (status, widget) = http::get(&app, &format!("/widgets/{}", widget_ids[0])).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         widget["owner"]["id"].as_str(),
@@ -223,7 +203,7 @@ async fn get_one_widget_agrees_with_list() {
     );
     assert_eq!(widget["owner"]["name"].as_str(), Some("Acme"));
 
-    let (status, orphan_widget) = get_json(&app, &format!("/widgets/{orphan}")).await;
+    let (status, orphan_widget) = http::get(&app, &format!("/widgets/{orphan}")).await;
     assert_eq!(status, StatusCode::OK);
     assert!(
         orphan_widget["owner"].is_null(),

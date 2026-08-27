@@ -17,25 +17,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
-
-/// POST a record via the unscoped (admin) app, return status + JSON body.
-async fn admin_post(app: &axum::Router, path: &str, payload: Value) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(path)
-                .header("content-type", "application/json")
-                .body(Body::from(payload.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
-}
+use test_suite::http;
 
 /// PUT (update) a record via the unscoped (admin) app
 async fn admin_update(app: &axum::Router, path: &str, payload: Value) -> (StatusCode, Value) {
@@ -58,36 +40,13 @@ async fn admin_update(app: &axum::Router, path: &str, payload: Value) -> (Status
 
 /// Create a record and then mark it private via update. Returns the created JSON.
 async fn create_private(app: &axum::Router, path: &str, payload: Value) -> Value {
-    let (s, created) = admin_post(app, path, payload).await;
+    let (s, created) = http::post(app, path, &payload).await;
     assert_eq!(s, StatusCode::CREATED);
     let id = created["id"].as_str().unwrap();
     let (s, updated) =
         admin_update(app, &format!("{path}/{id}"), json!({"is_private": true})).await;
     assert_eq!(s, StatusCode::OK);
     updated
-}
-
-/// GET via any app, return status + JSON body + headers
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value, axum::http::HeaderMap) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let headers = resp.headers().clone();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (
-        status,
-        serde_json::from_slice(&body).unwrap_or(Value::Null),
-        headers,
-    )
 }
 
 // =============================================================================
@@ -101,20 +60,20 @@ async fn scope_sql_filters_private_children_from_get_one() {
     let scoped = setup_scoped_app(&db);
 
     // Create a public customer
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "BigParent", "email": "big@example.com"}),
+        &json!({"name": "BigParent", "email": "big@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // Create 10 public + 10 private vehicles
     for i in 0..10 {
-        admin_post(
+        http::post(
             &admin,
             "/vehicles",
-            json!({
+            &json!({
                 "customer_id": cust_id,
                 "make": format!("Public{i}"),
                 "model": "X",
@@ -140,13 +99,13 @@ async fn scope_sql_filters_private_children_from_get_one() {
     }
 
     // Admin get_one: all 20 vehicles
-    let (s, body, _) = get_json(&admin, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&admin, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let vehicles = body["vehicles"].as_array().expect("should have vehicles");
     assert_eq!(vehicles.len(), 20, "Admin should see all 20 vehicles");
 
     // Scoped get_one: only 10 public vehicles
-    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let vehicles = body["vehicles"].as_array().expect("should have vehicles");
     assert_eq!(
@@ -182,16 +141,16 @@ async fn scope_sql_filters_private_children_from_get_all() {
     let scoped = setup_scoped_app(&db);
 
     // Create 2 public customers
-    let (_, cust1) = admin_post(
+    let (_, cust1) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Parent1", "email": "p1@example.com"}),
+        &json!({"name": "Parent1", "email": "p1@example.com"}),
     )
     .await;
-    let (_, cust2) = admin_post(
+    let (_, cust2) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Parent2", "email": "p2@example.com"}),
+        &json!({"name": "Parent2", "email": "p2@example.com"}),
     )
     .await;
     let cust1_id = cust1["id"].as_str().unwrap();
@@ -200,10 +159,10 @@ async fn scope_sql_filters_private_children_from_get_all() {
     // Each customer gets 3 public + 2 private vehicles
     for (cid, prefix) in [(cust1_id, "C1"), (cust2_id, "C2")] {
         for i in 0..3 {
-            admin_post(
+            http::post(
                 &admin,
                 "/vehicles",
-                json!({
+                &json!({
                     "customer_id": cid,
                     "make": format!("{prefix}Pub{i}"),
                     "model": "X",
@@ -230,7 +189,7 @@ async fn scope_sql_filters_private_children_from_get_all() {
     }
 
     // Scoped get_all: both customers, each with only 3 vehicles
-    let (s, body, _) = get_json(&scoped, "/customers").await;
+    let (s, body, _) = http::get_with_headers(&scoped, "/customers").await;
     assert_eq!(s, StatusCode::OK);
     let customers = body.as_array().unwrap();
     assert_eq!(customers.len(), 2);
@@ -265,10 +224,10 @@ async fn scope_sql_filter_all_children_private() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "AllPrivate", "email": "ap@example.com"}),
+        &json!({"name": "AllPrivate", "email": "ap@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
@@ -290,7 +249,7 @@ async fn scope_sql_filter_all_children_private() {
     }
 
     // Scoped get_one: empty vehicles array (not null, not missing)
-    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let vehicles = body["vehicles"]
         .as_array()
@@ -314,18 +273,18 @@ async fn scope_sql_filter_no_scoped_fields_on_child() {
 
     // Create customer → vehicle → vehicle_parts
     // vehicle_parts do NOT have exclude(scoped) / is_private field
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "PartsOwner", "email": "po@example.com"}),
+        &json!({"name": "PartsOwner", "email": "po@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
-    let (_, vehicle) = admin_post(
+    let (_, vehicle) = http::post(
         &admin,
         "/vehicles",
-        json!({
+        &json!({
             "customer_id": cust_id,
             "make": "Toyota",
             "model": "Corolla",
@@ -338,10 +297,10 @@ async fn scope_sql_filter_no_scoped_fields_on_child() {
 
     // Create 3 vehicle parts (no is_private field on parts)
     for i in 0..3 {
-        let (ps, _pbody) = admin_post(
+        let (ps, _pbody) = http::post(
             &admin,
             "/vehicle_parts",
-            json!({
+            &json!({
                 "vehicle_id": vehicle_id,
                 "name": format!("Part{i}"),
                 "part_number": format!("PN{i}"),
@@ -354,7 +313,7 @@ async fn scope_sql_filter_no_scoped_fields_on_child() {
     }
 
     // Admin get_one on vehicle: verify parts are loaded
-    let (s, body, _) = get_json(&admin, &format!("/vehicles/{vehicle_id}")).await;
+    let (s, body, _) = http::get_with_headers(&admin, &format!("/vehicles/{vehicle_id}")).await;
     assert_eq!(s, StatusCode::OK);
     // Debug: print the response keys for this vehicle
     let admin_parts = body["parts"]
@@ -369,7 +328,7 @@ async fn scope_sql_filter_no_scoped_fields_on_child() {
 
     // Scoped get_one on vehicle: all 3 parts should be present
     // (vehicle_parts don't have scoped fields, so no filtering)
-    let (s, body, _) = get_json(&scoped, &format!("/vehicles/{vehicle_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/vehicles/{vehicle_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let parts = body["parts"].as_array().expect("should have parts");
     assert_eq!(
@@ -390,19 +349,19 @@ async fn scope_sql_deep_joins_filter_at_each_level() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "DeepJoin", "email": "dj@example.com"}),
+        &json!({"name": "DeepJoin", "email": "dj@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // 1 public vehicle + 1 private vehicle, each with parts
-    let (_, pub_vehicle) = admin_post(
+    let (_, pub_vehicle) = http::post(
         &admin,
         "/vehicles",
-        json!({
+        &json!({
             "customer_id": cust_id,
             "make": "PublicCar",
             "model": "X",
@@ -429,10 +388,10 @@ async fn scope_sql_deep_joins_filter_at_each_level() {
 
     // Add parts to the public vehicle
     for i in 0..2 {
-        admin_post(
+        http::post(
             &admin,
             "/vehicle_parts",
-            json!({
+            &json!({
                 "vehicle_id": pub_vid,
                 "name": format!("PubPart{i}"),
                 "part_number": format!("PP{i}"),
@@ -444,7 +403,7 @@ async fn scope_sql_deep_joins_filter_at_each_level() {
     }
 
     // Scoped get_one on customer: only public vehicle with its parts
-    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
 
     let vehicles = body["vehicles"].as_array().expect("should have vehicles");
@@ -471,20 +430,20 @@ async fn scope_unscoped_returns_all_children() {
     let db = setup_test_db().await.unwrap();
     let admin = setup_test_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "AdminFull", "email": "af@example.com"}),
+        &json!({"name": "AdminFull", "email": "af@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // Create 5 public + 5 private vehicles
     for i in 0..5 {
-        admin_post(
+        http::post(
             &admin,
             "/vehicles",
-            json!({
+            &json!({
                 "customer_id": cust_id,
                 "make": format!("Pub{i}"),
                 "model": "X",
@@ -510,7 +469,7 @@ async fn scope_unscoped_returns_all_children() {
     }
 
     // Admin (unscoped) get_one: should see all 10 vehicles
-    let (s, body, _) = get_json(&admin, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&admin, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let vehicles = body["vehicles"].as_array().expect("should have vehicles");
     assert_eq!(
@@ -542,18 +501,18 @@ async fn scope_defense_in_depth_memory_filter_still_active() {
     let admin = setup_test_app(&db);
 
     // Create a public and private vehicle
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "TraitTest", "email": "tt@example.com"}),
+        &json!({"name": "TraitTest", "email": "tt@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({
+        &json!({
             "customer_id": cust_id,
             "make": "Visible",
             "model": "X",
@@ -614,24 +573,24 @@ async fn scope_get_all_depth_gt_1_filters_private_children_at_sql_level() {
     let scoped = setup_scoped_app(&db);
 
     // Two public customers with a mix of public and private vehicles.
-    let (_, c1) = admin_post(
+    let (_, c1) = http::post(
         &admin,
         "/customers",
-        json!({"name": "DepthA", "email": "a@x.test"}),
+        &json!({"name": "DepthA", "email": "a@x.test"}),
     )
     .await;
-    let (_, c2) = admin_post(
+    let (_, c2) = http::post(
         &admin,
         "/customers",
-        json!({"name": "DepthB", "email": "b@x.test"}),
+        &json!({"name": "DepthB", "email": "b@x.test"}),
     )
     .await;
     for cid in [c1["id"].as_str().unwrap(), c2["id"].as_str().unwrap()] {
         for i in 0..2 {
-            admin_post(
+            http::post(
                 &admin,
                 "/vehicles",
-                json!({
+                &json!({
                     "customer_id": cid,
                     "make": format!("Pub{i}"),
                     "model": "X",
@@ -658,7 +617,7 @@ async fn scope_get_all_depth_gt_1_filters_private_children_at_sql_level() {
     }
 
     // Scoped list: both customers, each with only their 2 public vehicles.
-    let (s, body, _) = get_json(&scoped, "/customers").await;
+    let (s, body, _) = http::get_with_headers(&scoped, "/customers").await;
     assert_eq!(s, StatusCode::OK);
     let customers = body.as_array().unwrap();
     assert_eq!(customers.len(), 2, "both customers should be visible");
@@ -684,7 +643,7 @@ async fn scope_get_all_depth_gt_1_filters_private_children_at_sql_level() {
     }
 
     // Admin list: every vehicle visible on both customers (8 total, 4 each).
-    let (s, body, _) = get_json(&admin, "/customers").await;
+    let (s, body, _) = http::get_with_headers(&admin, "/customers").await;
     assert_eq!(s, StatusCode::OK);
     for c in body.as_array().unwrap() {
         let vehicles = c["vehicles"].as_array().expect("vehicles array");

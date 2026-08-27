@@ -8,13 +8,12 @@
 //! `parent_id` references a non-existent parent must return 409 (the documented
 //! constraint-violation response), while a child with a valid parent returns 201.
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
-use serde_json::{Value, json};
-use tower::ServiceExt;
+use serde_json::json;
+use test_suite::http;
 
 pub mod fkv_parent {
     use super::*;
@@ -88,35 +87,16 @@ fn app(db: &DatabaseConnection) -> axum::Router {
         .nest("/children", fkv_child::FkvChild::router(db).into())
 }
 
-async fn post(app: &axum::Router, uri: &str, body: Value) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    (status, value)
-}
-
 #[tokio::test]
 async fn child_with_dangling_fk_returns_409() {
     let db = setup_test_db().await.expect("setup db");
     let app = app(&db);
 
     // No parent with id 9999 exists -> the insert violates the FK constraint.
-    let (status, _) = post(
+    let (status, _) = http::post(
         &app,
         "/children",
-        json!({ "parent_id": 9999, "label": "orphan" }),
+        &json!({ "parent_id": 9999, "label": "orphan" }),
     )
     .await;
     assert_eq!(
@@ -131,14 +111,14 @@ async fn child_with_valid_fk_returns_201() {
     let db = setup_test_db().await.expect("setup db");
     let app = app(&db);
 
-    let (status, parent) = post(&app, "/parents", json!({ "name": "root" })).await;
+    let (status, parent) = http::post(&app, "/parents", &json!({ "name": "root" })).await;
     assert_eq!(status, StatusCode::CREATED);
     let parent_id = parent["id"].as_i64().expect("parent id");
 
-    let (status, _) = post(
+    let (status, _) = http::post(
         &app,
         "/children",
-        json!({ "parent_id": parent_id, "label": "ok" }),
+        &json!({ "parent_id": parent_id, "label": "ok" }),
     )
     .await;
     assert_eq!(

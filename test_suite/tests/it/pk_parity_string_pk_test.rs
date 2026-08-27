@@ -14,13 +14,13 @@
 //!
 //! Each test notes which `integer_pk_test.rs` test it mirrors.
 
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::{Value, json};
-use tower::ServiceExt;
+use test_suite::http;
 
 /// Resource with a caller-supplied `String` primary key (slug "ppstr").
 pub mod thing {
@@ -58,15 +58,8 @@ fn app(db: &DatabaseConnection) -> axum::Router {
 }
 
 async fn send(app: &axum::Router, req: Request<Body>) -> (StatusCode, Value) {
-    let resp = app.clone().oneshot(req).await.unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let value = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
-    };
-    (status, value)
+    let (status, body, _) = http::send(app, req).await;
+    (status, body)
 }
 
 async fn create_thing(app: &axum::Router, id: &str, name: &str, color: Option<&str>) -> Value {

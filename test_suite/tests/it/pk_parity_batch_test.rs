@@ -15,13 +15,13 @@
 //!   - `test_ppb_batch_delete_partial_success`  ~ `test_batch_delete_partial_success`
 //!   - `test_ppb_batch_delete_dedups_input`     ~ `test_batch_delete_returns_only_existing_ids`
 
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use crudcrate::{CRUDResource, EntityToModels, SecurityProfile};
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::{Value, json};
-use tower::ServiceExt;
+use test_suite::http;
 
 /// Auto-increment `i32` PK. The id is DB-assigned (no `on_create`) and excluded
 /// from the create/update models, exactly as a Uuid PK would exclude itself.
@@ -69,15 +69,8 @@ fn legacy_app(db: &DatabaseConnection) -> axum::Router {
 }
 
 async fn send(app: &axum::Router, req: Request<Body>) -> (StatusCode, Value) {
-    let resp = app.clone().oneshot(req).await.unwrap();
-    let status = resp.status();
-    let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    let value = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
-    };
-    (status, value)
+    let (status, body, _) = http::send(app, req).await;
+    (status, body)
 }
 
 fn post(uri: &str, body: &Value) -> Request<Body> {

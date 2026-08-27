@@ -18,53 +18,11 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use common::{setup_scoped_app, setup_test_app, setup_test_db};
+use test_suite::http;
 
 fn encode_filter(filter: &Value) -> String {
     percent_encoding::utf8_percent_encode(&filter.to_string(), percent_encoding::NON_ALPHANUMERIC)
         .to_string()
-}
-
-/// POST a record via the unscoped (admin) app, return status + JSON body.
-/// Note: `is_private` defaults to false on create (exclude(create)), use `admin_update` to make private.
-async fn admin_post(app: &axum::Router, path: &str, payload: Value) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(path)
-                .header("content-type", "application/json")
-                .body(Body::from(payload.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
-}
-
-/// GET via any app, return status + JSON body + headers
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value, axum::http::HeaderMap) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let headers = resp.headers().clone();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (
-        status,
-        serde_json::from_slice(&body).unwrap_or(Value::Null),
-        headers,
-    )
 }
 
 /// PUT (update) a record via the unscoped (admin) app
@@ -88,7 +46,7 @@ async fn admin_update(app: &axum::Router, path: &str, payload: Value) -> (Status
 
 /// Create a record and then mark it private via update. Returns the created JSON.
 async fn create_private(app: &axum::Router, path: &str, payload: Value) -> Value {
-    let (s, created) = admin_post(app, path, payload).await;
+    let (s, created) = http::post(app, path, &payload).await;
     assert_eq!(s, StatusCode::CREATED);
     let id = created["id"].as_str().unwrap();
     let (s, updated) =
@@ -125,10 +83,10 @@ async fn scope_list_excludes_private_records() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Public Alice", "email": "alice@example.com"}),
+        &json!({"name": "Public Alice", "email": "alice@example.com"}),
     )
     .await;
     create_private(
@@ -138,7 +96,7 @@ async fn scope_list_excludes_private_records() {
     )
     .await;
 
-    let (status, body, _) = get_json(&scoped, "/customers").await;
+    let (status, body, _) = http::get_with_headers(&scoped, "/customers").await;
     assert_eq!(status, StatusCode::OK);
     let items = body.as_array().unwrap();
     assert_eq!(items.len(), 1, "Only the public customer should be visible");
@@ -163,7 +121,7 @@ async fn scope_get_one_404_for_private() {
     .await;
     let id = created["id"].as_str().unwrap();
 
-    let (status, _, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    let (status, _, _) = http::get_with_headers(&scoped, &format!("/customers/{id}")).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -177,15 +135,15 @@ async fn scope_get_one_ok_for_public() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, created) = admin_post(
+    let (_, created) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Visible", "email": "v@example.com"}),
+        &json!({"name": "Visible", "email": "v@example.com"}),
     )
     .await;
     let id = created["id"].as_str().unwrap();
 
-    let (status, body, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    let (status, body, _) = http::get_with_headers(&scoped, &format!("/customers/{id}")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["name"], "Visible");
 }
@@ -200,14 +158,14 @@ async fn scope_list_response_omits_is_private() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Test", "email": "t@example.com"}),
+        &json!({"name": "Test", "email": "t@example.com"}),
     )
     .await;
 
-    let (_, body, _) = get_json(&scoped, "/customers").await;
+    let (_, body, _) = http::get_with_headers(&scoped, "/customers").await;
     let items = body.as_array().unwrap();
     assert!(!items.is_empty());
     assert!(
@@ -227,15 +185,15 @@ async fn scope_get_one_response_omits_is_private() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, created) = admin_post(
+    let (_, created) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Test", "email": "t@example.com"}),
+        &json!({"name": "Test", "email": "t@example.com"}),
     )
     .await;
     let id = created["id"].as_str().unwrap();
 
-    let (_, body, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    let (_, body, _) = http::get_with_headers(&scoped, &format!("/customers/{id}")).await;
     assert!(
         body.get("is_private").is_none(),
         "is_private must not appear in scoped get_one response"
@@ -253,24 +211,24 @@ async fn scope_nested_join_omits_is_private() {
     let scoped = setup_scoped_app(&db);
 
     // Create a public customer
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Owner", "email": "o@example.com"}),
+        &json!({"name": "Owner", "email": "o@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // Create a public vehicle under that customer
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Toyota", "model": "Corolla", "year": 2020, "vin": "VIN001"}),
+        &json!({"customer_id": cust_id, "make": "Toyota", "model": "Corolla", "year": 2020, "vin": "VIN001"}),
     )
     .await;
 
     // List customers: the joined vehicles array should also omit is_private
-    let (_, body, _) = get_json(&scoped, "/customers").await;
+    let (_, body, _) = http::get_with_headers(&scoped, "/customers").await;
     let customers = body.as_array().unwrap();
     assert!(!customers.is_empty());
     let vehicles = customers[0]["vehicles"].as_array().unwrap();
@@ -292,22 +250,22 @@ async fn scope_get_one_nested_join_omits_is_private() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Owner2", "email": "o2@example.com"}),
+        &json!({"name": "Owner2", "email": "o2@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Honda", "model": "Civic", "year": 2021, "vin": "VIN002"}),
+        &json!({"customer_id": cust_id, "make": "Honda", "model": "Civic", "year": 2021, "vin": "VIN002"}),
     )
     .await;
 
-    let (status, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (status, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(status, StatusCode::OK);
     let vehicles = body["vehicles"].as_array().unwrap();
     assert!(!vehicles.is_empty());
@@ -335,7 +293,7 @@ async fn admin_response_includes_is_private() {
     let id = created["id"].as_str().unwrap();
 
     // List
-    let (_, body, _) = get_json(&admin, "/customers").await;
+    let (_, body, _) = http::get_with_headers(&admin, "/customers").await;
     let items = body.as_array().unwrap();
     assert!(
         items[0].get("is_private").is_some(),
@@ -343,7 +301,7 @@ async fn admin_response_includes_is_private() {
     );
 
     // get_one
-    let (_, body, _) = get_json(&admin, &format!("/customers/{id}")).await;
+    let (_, body, _) = http::get_with_headers(&admin, &format!("/customers/{id}")).await;
     assert!(
         body.get("is_private").is_some(),
         "Admin get_one should include is_private"
@@ -474,10 +432,10 @@ async fn scope_filter_on_excluded_column_ignored() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Public", "email": "p@example.com"}),
+        &json!({"name": "Public", "email": "p@example.com"}),
     )
     .await;
     create_private(
@@ -489,7 +447,8 @@ async fn scope_filter_on_excluded_column_ignored() {
 
     // Attempt to filter is_private=true on the scoped endpoint: should be silently ignored
     let filter = encode_filter(&json!({"is_private": true}));
-    let (status, body, _) = get_json(&scoped, &format!("/customers?filter={filter}")).await;
+    let (status, body, _) =
+        http::get_with_headers(&scoped, &format!("/customers?filter={filter}")).await;
     assert_eq!(status, StatusCode::OK);
     let items = body.as_array().unwrap();
     // The filter on is_private should be dropped; scope still filters to public only
@@ -511,24 +470,25 @@ async fn scope_filter_is_private_false_ignored() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Pub1", "email": "p1@example.com"}),
+        &json!({"name": "Pub1", "email": "p1@example.com"}),
     )
     .await;
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Pub2", "email": "p2@example.com"}),
+        &json!({"name": "Pub2", "email": "p2@example.com"}),
     )
     .await;
 
     // With the filter
     let filter = encode_filter(&json!({"is_private": false}));
-    let (_, with_filter, _) = get_json(&scoped, &format!("/customers?filter={filter}")).await;
+    let (_, with_filter, _) =
+        http::get_with_headers(&scoped, &format!("/customers?filter={filter}")).await;
     // Without the filter
-    let (_, without_filter, _) = get_json(&scoped, "/customers").await;
+    let (_, without_filter, _) = http::get_with_headers(&scoped, "/customers").await;
 
     assert_eq!(
         with_filter.as_array().unwrap().len(),
@@ -549,10 +509,10 @@ async fn scope_content_range_reflects_scoped_count() {
 
     // Create 2 public + 3 private
     for i in 0..2 {
-        admin_post(
+        http::post(
             &admin,
             "/customers",
-            json!({"name": format!("Pub{i}"), "email": format!("pub{i}@ex.com")}),
+            &json!({"name": format!("Pub{i}"), "email": format!("pub{i}@ex.com")}),
         )
         .await;
     }
@@ -566,7 +526,7 @@ async fn scope_content_range_reflects_scoped_count() {
     }
 
     // Admin sees all 5
-    let (_, _, admin_headers) = get_json(&admin, "/customers").await;
+    let (_, _, admin_headers) = http::get_with_headers(&admin, "/customers").await;
     let admin_range = admin_headers
         .get("content-range")
         .unwrap()
@@ -579,7 +539,7 @@ async fn scope_content_range_reflects_scoped_count() {
     );
 
     // Scoped sees only 2
-    let (_, _, scoped_headers) = get_json(&scoped, "/customers").await;
+    let (_, _, scoped_headers) = http::get_with_headers(&scoped, "/customers").await;
     let scoped_range = scoped_headers
         .get("content-range")
         .unwrap()
@@ -602,19 +562,19 @@ async fn scope_join_filters_private_children_from_parent_list() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Parent", "email": "p@ex.com"}),
+        &json!({"name": "Parent", "email": "p@ex.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // Create 1 public + 1 private vehicle
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Public", "model": "Car", "year": 2020, "vin": "V1"}),
+        &json!({"customer_id": cust_id, "make": "Public", "model": "Car", "year": 2020, "vin": "V1"}),
     )
     .await;
     create_private(
@@ -625,7 +585,7 @@ async fn scope_join_filters_private_children_from_parent_list() {
     .await;
 
     // Scoped vehicle list should only show the public one
-    let (_, body, _) = get_json(&scoped, "/vehicles").await;
+    let (_, body, _) = http::get_with_headers(&scoped, "/vehicles").await;
     let vehicles = body.as_array().unwrap();
     assert_eq!(vehicles.len(), 1);
     assert_eq!(vehicles[0]["make"], "Public");
@@ -650,8 +610,8 @@ async fn scope_nonexistent_and_private_both_404() {
     let private_id = created["id"].as_str().unwrap();
     let fake_id = "00000000-0000-0000-0000-ffffffffffff";
 
-    let (s1, _, _) = get_json(&scoped, &format!("/customers/{private_id}")).await;
-    let (s2, _, _) = get_json(&scoped, &format!("/customers/{fake_id}")).await;
+    let (s1, _, _) = http::get_with_headers(&scoped, &format!("/customers/{private_id}")).await;
+    let (s2, _, _) = http::get_with_headers(&scoped, &format!("/customers/{fake_id}")).await;
     assert_eq!(s1, StatusCode::NOT_FOUND);
     assert_eq!(s2, StatusCode::NOT_FOUND);
 }
@@ -666,10 +626,10 @@ async fn scope_head_request_allowed() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "HeadTest", "email": "ht@ex.com"}),
+        &json!({"name": "HeadTest", "email": "ht@ex.com"}),
     )
     .await;
 
@@ -698,19 +658,19 @@ async fn scope_parent_get_one_excludes_private_join_children() {
     let scoped = setup_scoped_app(&db);
 
     // Create a customer (customers don't have is_private, so always visible)
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "Parent", "email": "p@ex.com"}),
+        &json!({"name": "Parent", "email": "p@ex.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // Create 1 public + 1 private vehicle under this customer
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Public", "model": "Car", "year": 2020, "vin": "PUB1"}),
+        &json!({"customer_id": cust_id, "make": "Public", "model": "Car", "year": 2020, "vin": "PUB1"}),
     )
     .await;
     create_private(
@@ -721,13 +681,13 @@ async fn scope_parent_get_one_excludes_private_join_children() {
     .await;
 
     // Admin get_one sees both vehicles in the join
-    let (s, body, _) = get_json(&admin, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&admin, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let vehicles = body["vehicles"].as_array().expect("should have vehicles");
     assert_eq!(vehicles.len(), 2, "Admin should see both vehicles");
 
     // Scoped get_one should only see the public vehicle
-    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     let vehicles = body["vehicles"].as_array().expect("should have vehicles");
     assert_eq!(
@@ -748,18 +708,18 @@ async fn scope_parent_list_excludes_private_join_children() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "ListParent", "email": "lp@ex.com"}),
+        &json!({"name": "ListParent", "email": "lp@ex.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Visible", "model": "X", "year": 2022, "vin": "VIS1"}),
+        &json!({"customer_id": cust_id, "make": "Visible", "model": "X", "year": 2022, "vin": "VIS1"}),
     )
     .await;
     create_private(
@@ -770,7 +730,7 @@ async fn scope_parent_list_excludes_private_join_children() {
     .await;
 
     // Scoped list: customer's vehicles join should only contain the public one
-    let (s, body, _) = get_json(&scoped, "/customers").await;
+    let (s, body, _) = http::get_with_headers(&scoped, "/customers").await;
     assert_eq!(s, StatusCode::OK);
     let customers = body.as_array().unwrap();
     assert_eq!(customers.len(), 1);
@@ -795,16 +755,16 @@ async fn scope_sort_on_excluded_column_ignored() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Zulu", "email": "z@example.com"}),
+        &json!({"name": "Zulu", "email": "z@example.com"}),
     )
     .await;
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Alpha", "email": "a@example.com"}),
+        &json!({"name": "Alpha", "email": "a@example.com"}),
     )
     .await;
 
@@ -814,7 +774,8 @@ async fn scope_sort_on_excluded_column_ignored() {
         percent_encoding::NON_ALPHANUMERIC,
     )
     .to_string();
-    let (status, body, _) = get_json(&scoped, &format!("/customers?sort={sort}")).await;
+    let (status, body, _) =
+        http::get_with_headers(&scoped, &format!("/customers?sort={sort}")).await;
     assert_eq!(status, StatusCode::OK);
     let items = body.as_array().unwrap();
     assert_eq!(items.len(), 2, "Both public customers should be returned");
@@ -837,16 +798,16 @@ async fn scope_search_respects_scope_filter() {
     let scoped = setup_scoped_app(&db);
 
     // Create 2 public and 1 private customer with similar names
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Alice Public", "email": "ap@example.com"}),
+        &json!({"name": "Alice Public", "email": "ap@example.com"}),
     )
     .await;
-    admin_post(
+    http::post(
         &admin,
         "/customers",
-        json!({"name": "Bob Public", "email": "bp@example.com"}),
+        &json!({"name": "Bob Public", "email": "bp@example.com"}),
     )
     .await;
     create_private(
@@ -859,7 +820,8 @@ async fn scope_search_respects_scope_filter() {
     // Search for "Alice" in scoped context: should only return the public Alice
     // Customer `name` is `like_filterable`, so `{"name": "Alice"}` does LIKE matching
     let filter = encode_filter(&json!({"name": "Alice"}));
-    let (status, body, _) = get_json(&scoped, &format!("/customers?filter={filter}")).await;
+    let (status, body, _) =
+        http::get_with_headers(&scoped, &format!("/customers?filter={filter}")).await;
     assert_eq!(status, StatusCode::OK);
     let items = body.as_array().unwrap();
     assert_eq!(
@@ -870,7 +832,8 @@ async fn scope_search_respects_scope_filter() {
     assert_eq!(items[0]["name"], "Alice Public");
 
     // Admin search should find both Alices
-    let (_, admin_body, _) = get_json(&admin, &format!("/customers?filter={filter}")).await;
+    let (_, admin_body, _) =
+        http::get_with_headers(&admin, &format!("/customers?filter={filter}")).await;
     let admin_items = admin_body.as_array().unwrap();
     assert_eq!(
         admin_items.len(),
@@ -890,16 +853,16 @@ async fn scope_get_one_atomic_single_query() {
     let scoped = setup_scoped_app(&db);
 
     // Create public customer
-    let (_, created) = admin_post(
+    let (_, created) = http::post(
         &admin,
         "/customers",
-        json!({"name": "WillGoPrivate", "email": "flip@example.com"}),
+        &json!({"name": "WillGoPrivate", "email": "flip@example.com"}),
     )
     .await;
     let id = created["id"].as_str().unwrap();
 
     // Confirm visible in scoped
-    let (s, _, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    let (s, _, _) = http::get_with_headers(&scoped, &format!("/customers/{id}")).await;
     assert_eq!(s, StatusCode::OK, "Public customer should be visible");
 
     // Flip to private
@@ -912,7 +875,7 @@ async fn scope_get_one_atomic_single_query() {
 
     // Scoped get_one must return 404: the scope condition is part of the fetch,
     // not a separate verification query (atomic single-query check).
-    let (s, _, _) = get_json(&scoped, &format!("/customers/{id}")).await;
+    let (s, _, _) = http::get_with_headers(&scoped, &format!("/customers/{id}")).await;
     assert_eq!(
         s,
         StatusCode::NOT_FOUND,
@@ -930,25 +893,25 @@ async fn scope_get_one_scoped_preserves_join_loading() {
     let admin = setup_test_app(&db);
     let scoped = setup_scoped_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "JoinParent", "email": "jp@example.com"}),
+        &json!({"name": "JoinParent", "email": "jp@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
     // Create 2 public + 1 private vehicle
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Pub1", "model": "X", "year": 2020, "vin": "JP1"}),
+        &json!({"customer_id": cust_id, "make": "Pub1", "model": "X", "year": 2020, "vin": "JP1"}),
     )
     .await;
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Pub2", "model": "Y", "year": 2021, "vin": "JP2"}),
+        &json!({"customer_id": cust_id, "make": "Pub2", "model": "Y", "year": 2021, "vin": "JP2"}),
     )
     .await;
     create_private(
@@ -959,7 +922,7 @@ async fn scope_get_one_scoped_preserves_join_loading() {
     .await;
 
     // Scoped get_one: should return customer with only 2 public vehicles
-    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
 
     let vehicles = body["vehicles"]
@@ -999,15 +962,15 @@ async fn scope_get_one_scoped_404_does_not_leak_existence() {
     .await;
     let cust_id = private_cust["id"].as_str().unwrap();
 
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "Hidden", "model": "Car", "year": 2020, "vin": "HID99"}),
+        &json!({"customer_id": cust_id, "make": "Hidden", "model": "Car", "year": 2020, "vin": "HID99"}),
     )
     .await;
 
     // Scoped get_one must return 404, NOT 200 with empty joins
-    let (s, body, _) = get_json(&scoped, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&scoped, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "Private customer must return 404");
 
     // Body must NOT contain any customer fields
@@ -1030,23 +993,23 @@ async fn scope_get_one_unscoped_still_works() {
     let db = setup_test_db().await.unwrap();
     let admin = setup_test_app(&db);
 
-    let (_, cust) = admin_post(
+    let (_, cust) = http::post(
         &admin,
         "/customers",
-        json!({"name": "FullData", "email": "full@example.com"}),
+        &json!({"name": "FullData", "email": "full@example.com"}),
     )
     .await;
     let cust_id = cust["id"].as_str().unwrap();
 
-    admin_post(
+    http::post(
         &admin,
         "/vehicles",
-        json!({"customer_id": cust_id, "make": "AdminCar", "model": "X", "year": 2024, "vin": "ADM1"}),
+        &json!({"customer_id": cust_id, "make": "AdminCar", "model": "X", "year": 2024, "vin": "ADM1"}),
     )
     .await;
 
     // Admin (unscoped) get_one: full data including is_private
-    let (s, body, _) = get_json(&admin, &format!("/customers/{cust_id}")).await;
+    let (s, body, _) = http::get_with_headers(&admin, &format!("/customers/{cust_id}")).await;
     assert_eq!(s, StatusCode::OK);
     assert!(
         body.get("is_private").is_some(),

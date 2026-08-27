@@ -9,15 +9,13 @@
 
 use test_suite as common;
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-use serde_json::Value;
-use tower::ServiceExt;
 use uuid::Uuid;
 
 use common::{setup_test_app, setup_test_db, vehicle};
+use test_suite::http;
 
 const MATCHING_CHILDREN: usize = 70_000;
 const CHUNK: usize = 2_000;
@@ -54,23 +52,6 @@ fn vehicle_am(customer_id: Uuid, make: &str, i: usize) -> vehicle::ActiveModel {
     }
 }
 
-async fn get_json(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-    (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
-}
-
 /// A broad joined filter over a parent with tens of thousands of matching children
 /// returns exactly the matching parent, without a bind-parameter overflow.
 #[tokio::test]
@@ -98,7 +79,7 @@ async fn broad_joined_filter_does_not_overflow_bind_params() {
     }
 
     let app = setup_test_app(&db);
-    let (status, body) = get_json(
+    let (status, body) = http::get(
         &app,
         "/customers?filter=%7B%22vehicles.make%22%3A%22BMW%22%7D",
     )
