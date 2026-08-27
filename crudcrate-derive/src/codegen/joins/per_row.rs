@@ -2,7 +2,7 @@
 
 use crate::attrs::get_join_config;
 use crate::codegen::joins::fk::{
-    MAX_JOIN_DEPTH, derive_fk_idents, list_type_of_child, self_referencing,
+    MAX_JOIN_DEPTH, derive_fk_idents, list_type_of_child, relation_def_expr, self_referencing,
 };
 use crate::ir::EntityFieldAnalysis;
 use crate::syn_type::{
@@ -138,6 +138,7 @@ fn generate_join_loading_impl(
 
         let (fk_column_pascal, _fk_field_snake, use_runtime_join) =
             derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
+        let relation_def = relation_def_expr(&join_config, &field.ty, &entity_path);
 
         // When scoped, derive the child's {StructName}List type path so we can
         // reuse its ScopeFilterable::scope_condition() for both SQL-level
@@ -175,9 +176,7 @@ fn generate_join_loading_impl(
 
                 let filter_expr = if use_runtime_join {
                     quote! {
-                        let __rel_def = <#entity_path as sea_orm::Related<
-                            <Self as crudcrate::traits::CRUDResource>::EntityType
-                        >>::to();
+                        let __rel_def = #relation_def;
                         let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                         let query = #entity_path::find()
                             .filter(sea_orm::sea_query::Expr::col(
@@ -244,9 +243,7 @@ fn generate_join_loading_impl(
 
                 let filter_expr_deep = if use_runtime_join {
                     quote! {
-                        let __rel_def = <#entity_path as sea_orm::Related<
-                            <Self as crudcrate::traits::CRUDResource>::EntityType
-                        >>::to();
+                        let __rel_def = #relation_def;
                         let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                         let query = #entity_path::find()
                             .filter(sea_orm::sea_query::Expr::col(

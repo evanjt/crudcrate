@@ -2,7 +2,7 @@
 
 use crate::attrs::get_join_config;
 use crate::codegen::joins::fk::{
-    MAX_JOIN_DEPTH, derive_fk_idents, list_type_of_child, self_referencing,
+    MAX_JOIN_DEPTH, derive_fk_idents, list_type_of_child, relation_def_expr, self_referencing,
 };
 use crate::ir::EntityFieldAnalysis;
 use crate::syn_type::{
@@ -141,6 +141,7 @@ fn generate_batch_loading_impl(
 
         let (fk_column_pascal, fk_field_snake, use_runtime) =
             derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
+        let relation_def = relation_def_expr(&join_config, &field.ty, &entity_path);
 
         // HashMap variable for storing batch-loaded data
         let map_var = quote::format_ident!("{}_by_parent", field_name);
@@ -200,9 +201,7 @@ fn generate_batch_loading_impl(
                             use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait, ModelTrait};
                             use std::str::FromStr;
 
-                            let __rel_def = <#entity_path as sea_orm::Related<
-                                <Self as crudcrate::traits::CRUDResource>::EntityType
-                            >>::to();
+                            let __rel_def = #relation_def;
                             let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
 
                             let query = #entity_path::find()
@@ -308,9 +307,7 @@ fn generate_batch_loading_impl(
                             use sea_orm::{EntityTrait, ExprTrait, QueryFilter, ColumnTrait, ModelTrait};
                             use std::str::FromStr;
 
-                            let __rel_def = <#entity_path as sea_orm::Related<
-                                <Self as crudcrate::traits::CRUDResource>::EntityType
-                            >>::to();
+                            let __rel_def = #relation_def;
                             let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
 
                             let query = #entity_path::find()

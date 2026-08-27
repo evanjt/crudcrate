@@ -278,7 +278,7 @@ fn generate_fk_validation_tests(
         }
 
         // If fk_column is explicitly set, the user owns the mapping; skip validation
-        if join_config.fk_column.is_some() {
+        if join_config.fk_column.is_some() || join_config.relation.is_some() {
             continue;
         }
 

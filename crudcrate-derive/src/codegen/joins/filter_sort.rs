@@ -2,7 +2,8 @@
 
 use crate::attrs::get_join_config;
 use crate::codegen::joins::fk::{
-    child_paths, derive_fk_idents, fk_column_ref, list_type_of_child, self_referencing,
+    child_paths, derive_fk_idents, fk_column_ref, list_type_of_child, relation_def_expr,
+    self_referencing,
 };
 use crate::ir::EntityFieldAnalysis;
 use crate::syn_type::{column_ident, extract_api_struct_type_for_recursive_call, is_vec_type};
@@ -129,6 +130,7 @@ pub(crate) fn generate_resolve_joined_filters_impl(
 
         let (fk_column_pascal, _fk_field_snake, use_runtime_filter) =
             derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
+        let relation_def = relation_def_expr(&join_config, &field.ty, &entity_path);
 
         // Child List type path for ScopeFilterable::scope_condition()
         let child_list_type = list_type_of_child(field);
@@ -152,6 +154,7 @@ pub(crate) fn generate_resolve_joined_filters_impl(
         let fk_col_ref = fk_column_ref(
             is_self_referencing,
             use_runtime_filter,
+            &relation_def,
             &entity_path,
             &column_path,
             &fk_column_pascal,
@@ -284,6 +287,7 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
 
         let (fk_column_pascal, _fk_field_snake, use_runtime_filter) =
             derive_fk_idents(&join_config, api_struct_name, is_self_referencing);
+        let relation_def = relation_def_expr(&join_config, &field.ty, &entity_path);
 
         // The correlated sub-query references the child FK column and the parent
         // PK column. Static FK columns and self-referencing fields use the typed
@@ -293,6 +297,7 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
         let fk_col_ref = fk_column_ref(
             is_self_referencing,
             use_runtime_filter,
+            &relation_def,
             &entity_path,
             &column_path,
             &fk_column_pascal,

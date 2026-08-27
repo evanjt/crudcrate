@@ -52,6 +52,26 @@ pub(crate) fn derive_fk_idents(
     }
 }
 
+/// Expression yielding the child-to-parent `RelationDef`: the variant named by
+/// `relation = "..."` on the child's `Relation` enum, else `Related<Parent>::to()`.
+pub(crate) fn relation_def_expr(
+    join_config: &JoinConfig,
+    field_ty: &syn::Type,
+    entity_path: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if let Some(name) = &join_config.relation {
+        let relation_path = get_path_from_field_type(field_ty, "Relation");
+        let variant = quote::format_ident!("{}", name);
+        quote! { sea_orm::RelationTrait::def(&#relation_path::#variant) }
+    } else {
+        quote! {
+            <#entity_path as sea_orm::Related<
+                <Self as crudcrate::traits::CRUDResource>::EntityType
+            >>::to()
+        }
+    }
+}
+
 /// `{Child}List` path for a join field: the list model of the field's inner type.
 pub(crate) fn list_type_of_child(field: &syn::Field) -> proc_macro2::TokenStream {
     let inner_type_string = extract_api_struct_type_for_recursive_call(&field.ty).to_string();
@@ -106,6 +126,7 @@ pub(crate) fn child_paths(
 pub(crate) fn fk_column_ref(
     is_self_referencing: bool,
     use_runtime_filter: bool,
+    relation_def: &proc_macro2::TokenStream,
     entity_path: &proc_macro2::TokenStream,
     column_path: &proc_macro2::TokenStream,
     fk_column_pascal: &syn::Ident,
@@ -122,9 +143,7 @@ pub(crate) fn fk_column_ref(
     } else {
         quote! {
             {
-                let __rel_def = <#entity_path as sea_orm::Related<
-                    <Self as crudcrate::traits::CRUDResource>::EntityType
-                >>::to();
+                let __rel_def = #relation_def;
                 let __fk_col_name = sea_orm::Iden::to_string(&__rel_def.from_col);
                 let __child_tbl = sea_orm::EntityName::table_name(&#entity_path).to_string();
                 crudcrate::table_column_ref(__child_tbl, __fk_col_name)
