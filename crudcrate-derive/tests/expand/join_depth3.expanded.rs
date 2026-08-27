@@ -1914,7 +1914,7 @@ mod customer__Model {
             Self: crudcrate::traits::CRUDResource,
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
-            tracing::info!(
+            crudcrate::tracing::info!(
                 resource = Self::RESOURCE_NAME_PLURAL, table = Self::TABLE_NAME,
                 batch_limit = Self::batch_limit(), max_page_size = Self::max_page_size(),
                 "Mounting CRUD routes with security defaults: input_sanitization=enabled, sql_parameterization=enabled. See https://crudcrate.evanjt.com/latest/advanced/security.html"
@@ -1955,7 +1955,7 @@ mod customer__Model {
             Self: crudcrate::traits::CRUDResource,
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
-            tracing::info!(
+            crudcrate::tracing::info!(
                 resource = Self::RESOURCE_NAME_PLURAL, table = Self::TABLE_NAME,
                 max_page_size = Self::max_page_size(), "Mounting read-only routes"
             );

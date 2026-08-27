@@ -3,22 +3,9 @@ use crate::codegen::joins::loading::{
     generate_get_one_join_loading, generate_get_one_scoped_join_loading,
 };
 use crate::codegen::models::should_include_in_model;
+use crate::codegen::type_resolution::{column_ident, is_option_type};
 use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use convert_case::{Case, Casing};
-use quote::{format_ident, quote};
-
-/// Check if a type is `Option<T>`
-fn is_option_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty {
-        type_path
-            .path
-            .segments
-            .last()
-            .is_some_and(|s| s.ident == "Option")
-    } else {
-        false
-    }
-}
+use quote::quote;
 
 /// Generate `select_only()` column selection for list queries.
 /// Included columns are selected normally. Excluded Option<T> columns are replaced
@@ -42,7 +29,7 @@ fn generate_select_only_columns(
     for field in &analysis.db_fields {
         let col_ident = {
             let name = field.ident.as_ref().unwrap().to_string();
-            format_ident!("{}", name.to_case(Case::Pascal))
+            column_ident(&name)
         };
         let included = should_include_in_model(field, "list_model");
 

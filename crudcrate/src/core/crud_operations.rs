@@ -702,7 +702,7 @@ macro_rules! generate_crud_router {
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
 
-            tracing::info!(
+            crudcrate::tracing::info!(
                 resource = <$api_struct as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL,
                 table = <$api_struct as crudcrate::traits::CRUDResource>::TABLE_NAME,
                 batch_limit = <$api_struct as crudcrate::traits::CRUDResource>::batch_limit(),
@@ -735,7 +735,7 @@ macro_rules! generate_crud_router {
         {
             use utoipa_axum::{router::OpenApiRouter, routes};
 
-            tracing::info!(
+            crudcrate::tracing::info!(
                 resource = <$api_struct as crudcrate::traits::CRUDResource>::RESOURCE_NAME_PLURAL,
                 table = <$api_struct as crudcrate::traits::CRUDResource>::TABLE_NAME,
                 batch_limit = <$api_struct as crudcrate::traits::CRUDResource>::batch_limit(),

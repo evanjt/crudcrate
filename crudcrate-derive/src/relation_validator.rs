@@ -15,18 +15,6 @@ use quote::quote;
 // Maximum allowed join depth (enforced at runtime, warned at compile-time)
 const MAX_ALLOWED_DEPTH: u8 = 5;
 
-/// Check for hard compile errors in join configurations.
-/// Returns non-empty only for errors that MUST block compilation.
-/// Advisory warnings are handled by `generate_bidirectional_checks` instead.
-pub fn generate_cyclic_dependency_check(
-    _analysis: &EntityFieldAnalysis,
-    _entity_name: &str,
-) -> proc_macro2::TokenStream {
-    // All checks moved to generate_bidirectional_checks which is included
-    // in the main output (not the early-return error path).
-    quote! {}
-}
-
 /// Check if join depth is potentially problematic for performance
 fn check_join_depth(
     field: &syn::Field,
@@ -214,23 +202,6 @@ mod tests {
         let ty: syn::Type = parse_quote!(Vec<crate::sites::replicates::db::SiteReplicate>);
         let inner = extract_api_struct_type_for_recursive_call(&ty);
         assert_ne!(inner.to_string().trim(), "Site");
-    }
-
-    #[test]
-    fn test_generate_cyclic_dependency_check_no_joins() {
-        let analysis = EntityFieldAnalysis {
-            db_fields: vec![],
-            non_db_fields: vec![],
-            primary_key_field: None,
-            sortable_fields: vec![],
-            filterable_fields: vec![],
-            fulltext_fields: vec![],
-            join_on_one_fields: vec![],
-            join_on_all_fields: vec![],
-            join_filter_sort_configs: vec![],
-        };
-        let result = generate_cyclic_dependency_check(&analysis, "TestEntity");
-        assert!(result.is_empty());
     }
 
     #[test]

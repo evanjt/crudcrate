@@ -3,46 +3,11 @@
 //! Provides low-level functions for examining field types, extracting inner types,
 //! and resolving target model types for `use_target_models` attribute.
 
-use crate::codegen::type_resolution::extract_vec_inner_type_ref;
+use crate::codegen::type_resolution::{extract_vec_inner_type_ref, is_option_type};
 
 /// Returns true if the field's type is `Option<…>` (including `std::option::Option<…>`).
 pub fn field_is_optional(field: &syn::Field) -> bool {
-    if let syn::Type::Path(type_path) = &field.ty {
-        // Look at the *last* segment in the path to see if its identifier is "Option"
-        if let Some(last_seg) = type_path.path.segments.last() {
-            last_seg.ident == "Option"
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
-/// Resolves the target models (Create/Update/List) for a field with `use_target_models` attribute.
-/// Returns (`CreateModel`, `UpdateModel`, `ListModel`) types for the target `CRUDResource`.
-/// If you only need Create/Update, call `resolve_target_models()` instead.
-pub fn resolve_target_models_with_list(
-    field_type: &syn::Type,
-) -> Option<(syn::Type, syn::Type, syn::Type)> {
-    if let Some((create_model, update_model)) = resolve_target_models(field_type) {
-        // Extract the target type path to create the List model
-        let target_type = extract_vec_inner_type_ref(field_type);
-        if let syn::Type::Path(type_path) = target_type
-            && let Some(last_seg) = type_path.path.segments.last()
-        {
-            let base_name = &last_seg.ident;
-            let mut list_path = type_path.clone();
-
-            if let Some(last_seg_mut) = list_path.path.segments.last_mut() {
-                last_seg_mut.ident = quote::format_ident!("{}List", base_name);
-            }
-
-            let list_model = syn::Type::Path(list_path);
-            return Some((create_model, update_model, list_model));
-        }
-    }
-    None
+    is_option_type(&field.ty)
 }
 
 /// Resolves the target models (Create/Update) for a field with `use_target_models` attribute.
@@ -157,69 +122,10 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_target_models_with_list_simple() {
-        let field_type: syn::Type = parse_quote! { Vehicle };
-        let result = resolve_target_models_with_list(&field_type);
-
-        assert!(result.is_some());
-        let (create, update, list) = result.unwrap();
-
-        let create_str = quote!(#create).to_string();
-        let update_str = quote!(#update).to_string();
-        let list_str = quote!(#list).to_string();
-
-        assert!(create_str.contains("VehicleCreate"));
-        assert!(update_str.contains("VehicleUpdate"));
-        assert!(list_str.contains("VehicleList"));
-    }
-
-    #[test]
-    fn test_resolve_target_models_with_list_vec() {
-        let field_type: syn::Type = parse_quote! { Vec<Order> };
-        let result = resolve_target_models_with_list(&field_type);
-
-        assert!(result.is_some());
-        let (create, update, list) = result.unwrap();
-
-        let create_str = quote!(#create).to_string();
-        let update_str = quote!(#update).to_string();
-        let list_str = quote!(#list).to_string();
-
-        assert!(create_str.contains("OrderCreate"));
-        assert!(update_str.contains("OrderUpdate"));
-        assert!(list_str.contains("OrderList"));
-    }
-
-    #[test]
-    fn test_resolve_target_models_with_list_full_path() {
-        let field_type: syn::Type = parse_quote! { Vec<crate::models::Invoice> };
-        let result = resolve_target_models_with_list(&field_type);
-
-        assert!(result.is_some());
-        let (create, update, list) = result.unwrap();
-
-        let create_str = quote!(#create).to_string();
-        let update_str = quote!(#update).to_string();
-        let list_str = quote!(#list).to_string();
-
-        assert!(create_str.contains("crate :: models"));
-        assert!(create_str.contains("InvoiceCreate"));
-        assert!(update_str.contains("InvoiceUpdate"));
-        assert!(list_str.contains("InvoiceList"));
-    }
-
-    #[test]
     fn test_resolve_target_models_invalid_type() {
         // Non-path types should return None
         let field_type: syn::Type = parse_quote! { &str };
         let result = resolve_target_models(&field_type);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_resolve_target_models_with_list_invalid_type() {
-        let field_type: syn::Type = parse_quote! { &str };
-        let result = resolve_target_models_with_list(&field_type);
         assert!(result.is_none());
     }
 }

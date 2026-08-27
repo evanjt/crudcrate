@@ -7,7 +7,7 @@ use crate::codegen::joins::get_join_config;
 use crate::codegen::models::shared::wire_attrs;
 use crate::codegen::models::should_include_in_model;
 use crate::codegen::type_resolution::{
-    inner_list_type_of_option, inner_list_type_of_vec, is_option_type, is_vec_type,
+    column_ident, inner_list_type_of_option, inner_list_type_of_vec, is_option_type, is_vec_type,
     transform_type_to_scoped_list_variant,
 };
 use crate::fields;
@@ -284,12 +284,10 @@ pub(crate) fn generate_list_and_response_models(
     } else {
         // Generate scope_condition() that returns a Condition filtering by the boolean fields.
         // E.g., for `is_private: bool` → `Condition::all().add(Column::IsPrivate.eq(false))`
-        use convert_case::{Case, Casing};
         let scope_condition_adds: Vec<_> = scope_filter_fields
             .iter()
             .map(|field_name| {
-                let col_pascal =
-                    quote::format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
+                let col_pascal = column_ident(&field_name.to_string());
                 quote! { .add(Column::#col_pascal.eq(false)) }
             })
             .collect();

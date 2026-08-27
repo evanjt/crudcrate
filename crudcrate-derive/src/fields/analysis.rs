@@ -62,7 +62,6 @@ pub fn analyze_entity_fields<'a>(
                     .join_filter_sort_configs
                     .push(JoinFilterSortConfig {
                         field_name,
-                        entity_path: join_config.path.clone(),
                         filterable_columns: join_config.filterable_columns.clone(),
                         sortable_columns: join_config.sortable_columns.clone(),
                     });

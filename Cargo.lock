@@ -3600,7 +3600,6 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http 0.7.0",
- "tracing",
  "utoipa",
  "utoipa-axum",
  "uuid",

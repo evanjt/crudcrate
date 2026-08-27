@@ -1,7 +1,8 @@
 //! Shared utilities for model generation to eliminate code duplication
 
 use crate::attribute_parser::{field_has_crudcrate_flag, get_crudcrate_expr};
-use crate::fields::{resolve_target_models, resolve_target_models_with_list};
+use crate::codegen::type_resolution::is_vec_type;
+use crate::fields::resolve_target_models;
 use quote::{ToTokens, quote};
 
 /// Field attributes carried from the source struct onto a generated serialization
@@ -59,15 +60,10 @@ pub(crate) fn resolve_field_type_with_target_models(
     }
 
     // Try to resolve target models
-    let target_model = if let Some((create, update)) = resolve_target_models(ty) {
-        // For create/update (2 models)
-        model_selector(&quote! { #create }, &quote! { #update }, &quote! { #ty })
-    } else if let Some((create, update, list)) = resolve_target_models_with_list(ty) {
-        // For list (3 models)
-        model_selector(&quote! { #create }, &quote! { #update }, &quote! { #list })
-    } else {
+    let Some((create, update)) = resolve_target_models(ty) else {
         return quote! { #ty };
     };
+    let target_model = model_selector(&quote! { #create }, &quote! { #update }, &quote! { #ty });
 
     // Check if original type is Vec<T>
     if is_vec_type(ty) {
@@ -75,16 +71,6 @@ pub(crate) fn resolve_field_type_with_target_models(
     } else {
         target_model
     }
-}
-
-/// Checks if a type is Vec<T>
-fn is_vec_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty
-        && let Some(last_seg) = type_path.path.segments.last()
-    {
-        return last_seg.ident == "Vec";
-    }
-    false
 }
 
 /// Generates a field with optional default serde attribute
@@ -118,8 +104,7 @@ pub(crate) fn generate_target_model_conversion(
     let ty = &field.ty;
 
     // Check if we can resolve target models
-    let has_targets =
-        resolve_target_models(ty).is_some() || resolve_target_models_with_list(ty).is_some();
+    let has_targets = resolve_target_models(ty).is_some();
 
     if !has_targets {
         return None;
@@ -174,24 +159,6 @@ pub(crate) fn generate_active_value_assignment(
 mod tests {
     use super::*;
     use syn::parse_quote;
-
-    #[test]
-    fn test_is_vec_type_true() {
-        let ty: syn::Type = parse_quote!(Vec<String>);
-        assert!(is_vec_type(&ty));
-    }
-
-    #[test]
-    fn test_is_vec_type_false_option() {
-        let ty: syn::Type = parse_quote!(Option<String>);
-        assert!(!is_vec_type(&ty));
-    }
-
-    #[test]
-    fn test_is_vec_type_false_simple() {
-        let ty: syn::Type = parse_quote!(String);
-        assert!(!is_vec_type(&ty));
-    }
 
     #[test]
     fn test_generate_set_value_non_optional() {

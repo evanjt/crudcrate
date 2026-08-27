@@ -47,11 +47,10 @@ const MAX_JOIN_DEPTH: u8 = 5;
 
 use crate::codegen::joins::get_join_config;
 use crate::codegen::type_resolution::{
-    extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
+    column_ident, extract_api_struct_type_for_recursive_call, extract_option_or_direct_inner_type,
     get_path_from_field_type, is_vec_type,
 };
 use crate::traits::crudresource::structs::EntityFieldAnalysis;
-use heck::ToPascalCase;
 use quote::quote;
 
 /// Generate `joined_field_has_scope` method for `CRUDResource` impl.
@@ -65,7 +64,6 @@ use quote::quote;
 /// impl's conservative posture.
 pub fn generate_joined_field_has_scope_impl(
     analysis: &EntityFieldAnalysis,
-    api_struct_name: &syn::Ident,
 ) -> proc_macro2::TokenStream {
     let candidates: Vec<(&syn::Field, String)> = analysis
         .join_on_all_fields
@@ -103,7 +101,6 @@ pub fn generate_joined_field_has_scope_impl(
             format!("{struct_name}List")
         };
         let child_list_type = get_path_from_field_type(&field.ty, &list_suffix);
-        let _ = api_struct_name;
         quote! {
             #field_name => {
                 <#child_list_type as crudcrate::ScopeFilterable>::scope_condition().is_some()
@@ -211,7 +208,7 @@ pub fn generate_resolve_joined_filters_impl(
 
         // Column match arms: "make" => Some(column::Make), ...
         let column_arms = filterable_columns.iter().map(|col| {
-            let col_pascal = quote::format_ident!("{}", col.to_pascal_case());
+            let col_pascal = column_ident(col);
             quote! {
                 #col => crudcrate::build_comparison_expr(
                     #column_path::#col_pascal,
@@ -416,7 +413,7 @@ pub fn generate_get_all_joined_sorted_impl(
 
         // Column match arms: "year" => Some(column::Year), ...
         let column_arms = sortable_columns.iter().map(|col| {
-            let col_pascal = quote::format_ident!("{}", col.to_pascal_case());
+            let col_pascal = column_ident(col);
             quote! {
                 #col => {
                     let (__t, __c) = sea_orm::ColumnTrait::as_column_ref(
@@ -553,7 +550,7 @@ fn generate_get_one_join_loading_inner(
         }
     }
 
-    generate_join_loading_impl(&join_fields, "get_one", api_struct_name, scoped)
+    generate_join_loading_impl(&join_fields, api_struct_name, scoped)
 }
 
 /// Generate batch loading code for `get_all()` method
@@ -1111,7 +1108,6 @@ fn derive_fk_idents(
 /// filtering private children at the SQL level.
 fn generate_join_loading_impl(
     join_fields: &[&syn::Field],
-    _context: &str,
     api_struct_name: &syn::Ident,
     scoped: bool,
 ) -> proc_macro2::TokenStream {

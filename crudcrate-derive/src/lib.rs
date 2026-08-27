@@ -503,15 +503,6 @@ fn entity_to_models_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenS
         return e;
     }
 
-    // Setup join validation - check for cyclic dependencies
-    let cyclic_dependency_check = relation_validator::generate_cyclic_dependency_check(
-        &field_analysis,
-        &api_struct_name.to_string(),
-    );
-    if !cyclic_dependency_check.is_empty() {
-        return cyclic_dependency_check;
-    }
-
     // Generate core API model components
     let (api_struct_fields, from_model_assignments) =
         codegen::models::api_struct::generate_api_struct_content(&field_analysis, &api_struct_name);

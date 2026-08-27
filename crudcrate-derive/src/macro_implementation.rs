@@ -55,8 +55,7 @@ pub(crate) fn generate_crud_resource_impl(
     // Generate resolve_joined_filters override (empty if no filterable joined cols)
     let resolve_joined_filters_impl =
         generate_resolve_joined_filters_impl(analysis, api_struct_name);
-    let joined_field_has_scope_impl =
-        generate_joined_field_has_scope_impl(analysis, api_struct_name);
+    let joined_field_has_scope_impl = generate_joined_field_has_scope_impl(analysis);
     // Generate get_all_joined_sorted override (empty if no sortable joined cols)
     let get_all_joined_sorted_impl = generate_get_all_joined_sorted_impl(analysis, api_struct_name);
 
@@ -70,11 +69,6 @@ pub(crate) fn generate_crud_resource_impl(
         delete_impl,
         delete_many_impl,
     ) = generate_method_impls(crud_meta, analysis, api_struct_name);
-
-    // Generate registration lazy static and auto-registration call only for models without join fields
-    // Models with join fields may have circular dependencies that prevent CRUDResource compilation
-    let _has_join_fields =
-        !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
     // Generate resource name plural constant
     let resource_name_plural_impl = {

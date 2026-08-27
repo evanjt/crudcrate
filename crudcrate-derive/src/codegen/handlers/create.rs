@@ -1,4 +1,3 @@
-// join_generators functionality consolidated into this file to avoid duplicate/stub implementations
 use crate::traits::crudresource::structs::CRUDResourceMeta;
 use quote::quote;
 

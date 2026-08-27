@@ -109,10 +109,6 @@ impl CRUDResourceMeta {
 pub(crate) struct JoinFilterSortConfig {
     /// Name of the join field (e.g., "vehicles")
     pub(crate) field_name: String,
-    /// Path to the related entity module (from join config or derived from type)
-    /// Reserved for future use (e.g., generating join queries)
-    #[allow(dead_code)]
-    pub(crate) entity_path: Option<String>,
     /// Column names on the related entity that can be filtered (e.g., `["make", "year"]`)
     pub(crate) filterable_columns: Vec<String>,
     /// Column names on the related entity that can be sorted (e.g., `["year"]`)

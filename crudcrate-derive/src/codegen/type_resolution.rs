@@ -230,6 +230,13 @@ pub fn extract_option_or_direct_inner_type(ty: &syn::Type) -> proc_macro2::Token
     }
     quote! { #ty }
 }
+/// The `Column` enum variant sea-orm generates for a field name. sea-orm
+/// derives variants with heck, which does not split on digit boundaries
+/// (`is_2fa_enabled` -> `Is2faEnabled`).
+pub fn column_ident(field_name: &str) -> syn::Ident {
+    format_ident!("{}", field_name.to_pascal_case())
+}
+
 pub fn is_vec_type(ty: &syn::Type) -> bool {
     if let syn::Type::Path(type_path) = ty
         && let Some(segment) = type_path.path.segments.last()
@@ -321,7 +328,7 @@ pub fn generate_crud_type_aliases(
 pub fn generate_id_column(primary_key_field: Option<&syn::Field>) -> proc_macro2::TokenStream {
     if let Some(pk_field) = primary_key_field {
         let field_name = &pk_field.ident.as_ref().unwrap();
-        let column_name = format_ident!("{}", ident_to_string(field_name).to_pascal_case());
+        let column_name = column_ident(&ident_to_string(field_name));
         quote! { Self::ColumnType::#column_name }
     } else {
         quote! { Self::ColumnType::Id }
@@ -334,7 +341,7 @@ pub fn generate_field_entries(fields: &[&syn::Field]) -> Vec<proc_macro2::TokenS
         .map(|field| {
             let field_name = field.ident.as_ref().unwrap();
             let field_str = ident_to_string(field_name);
-            let column_name = format_ident!("{}", field_str.to_pascal_case());
+            let column_name = column_ident(&field_str);
             quote! { (#field_str, Self::ColumnType::#column_name) }
         })
         .collect()
