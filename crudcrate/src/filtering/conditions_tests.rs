@@ -946,33 +946,28 @@ fn binds_typed_value_covers_non_text_columns() {
     assert!(!binds_typed_value(&ColumnType::Char(None)));
 }
 
-/// The number-filter range path binds the real column with a typed value for each
-/// JSON numeric kind (i64, u64 above `i64::MAX`, f64); a bare key is plain equality,
-/// and a key whose base field isn't searchable is dropped.
+/// Number comparisons bind the real column with a typed value for each JSON
+/// numeric kind (i64, u64 above `i64::MAX`, f64).
 #[test]
-fn process_number_filter_binds_typed_values() {
-    let cols: &[(&str, cmp_entity::Column)] = &[("id", cmp_entity::Column::Id)];
+fn number_comparisons_bind_typed_values() {
+    use crate::filtering::joined::FilterOperator;
 
-    let i = serde_json::Number::from(42_i64);
-    let gte = process_number_filter("id_gte", &i, cmp_entity::Column::Id, cols).unwrap();
+    let gte = ordered_comparison(cmp_entity::Column::Id, FilterOperator::Gte, 42_i64).unwrap();
     assert!(cmp_sql(gte).contains(r#""id" >= 42"#));
 
     // A u64 above i64::MAX must bind exactly, not fall through to a lossy f64.
-    let big = serde_json::Number::from((i64::MAX as u64) + 3);
-    let lte = process_number_filter("id_lte", &big, cmp_entity::Column::Id, cols).unwrap();
+    let big = (i64::MAX as u64) + 3;
+    let lte = ordered_comparison(cmp_entity::Column::Id, FilterOperator::Lte, big).unwrap();
     assert!(cmp_sql(lte).contains("9223372036854775810"));
 
-    let f = serde_json::Number::from_f64(1.5).unwrap();
-    let lt = process_number_filter("id_lt", &f, cmp_entity::Column::Id, cols).unwrap();
+    let lt = ordered_comparison(cmp_entity::Column::Id, FilterOperator::Lt, 1.5_f64).unwrap();
     let sql = cmp_sql(lt);
     assert!(sql.contains(r#""id" < "#) && sql.contains("1.5"), "{sql}");
 
-    // Bare key -> equality.
-    let eq = process_number_filter("id", &i, cmp_entity::Column::Id, cols).unwrap();
+    let eq = ordered_comparison(cmp_entity::Column::Id, FilterOperator::Eq, 42_i64).unwrap();
     assert!(cmp_sql(eq).contains(r#""id" = 42"#));
 
-    // Base field not in the searchable set -> dropped.
-    assert!(process_number_filter("missing_gte", &i, cmp_entity::Column::Id, cols).is_none());
+    assert!(ordered_comparison(cmp_entity::Column::Id, FilterOperator::Like, 42_i64).is_none());
 }
 
 // ========================================================================

@@ -10,6 +10,7 @@ pub use crudcrate::SortConfig
 pub use crudcrate::apply_filters
 pub use crudcrate::apply_filters_with_joins
 pub use crudcrate::build_comparison_expr
+pub use crudcrate::build_filter_expr
 pub use crudcrate::calculate_content_range
 pub use crudcrate::parse_dot_notation
 pub use crudcrate::parse_pagination
@@ -314,6 +315,7 @@ pub use crudcrate::filtering::SortConfig
 pub use crudcrate::filtering::apply_filters
 pub use crudcrate::filtering::apply_filters_with_joins
 pub use crudcrate::filtering::build_comparison_expr
+pub use crudcrate::filtering::build_filter_expr
 pub use crudcrate::filtering::build_fulltext_condition
 pub use crudcrate::filtering::calculate_content_range
 pub use crudcrate::filtering::parse_dot_notation

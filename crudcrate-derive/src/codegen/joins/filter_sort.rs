@@ -46,8 +46,6 @@ pub(crate) fn generate_joined_field_has_scope_impl(
     }
 
     let arms = candidates.iter().map(|(field, field_name)| {
-        let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let _inner_type_string = inner_type.to_string();
         let child_list_type = list_type_of_child(field);
         quote! {
             #field_name => {
@@ -118,8 +116,6 @@ pub(crate) fn generate_resolve_joined_filters_impl(
         let join_config = get_join_config(field).unwrap_or_default();
 
         let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let _inner_type_string = inner_type.to_string();
-        let _api_struct_name_string = api_struct_name.to_string();
         let is_self_referencing = self_referencing(&field.ty, api_struct_name);
 
         // Entity / Column / Model paths
@@ -139,10 +135,12 @@ pub(crate) fn generate_resolve_joined_filters_impl(
         let column_arms = filterable_columns.iter().map(|col| {
             let col_pascal = column_ident(col);
             quote! {
-                #col => crudcrate::build_comparison_expr(
+                #col => crudcrate::build_filter_expr::<#inner_type, _>(
                     #column_path::#col_pascal,
+                    #col,
                     __jf.operator,
                     &__jf.value,
+                    __backend,
                 ),
             }
         });
@@ -200,7 +198,7 @@ pub(crate) fn generate_resolve_joined_filters_impl(
 
     quote! {
         async fn resolve_joined_filters(
-            _db: &sea_orm::DatabaseConnection,
+            db: &sea_orm::DatabaseConnection,
             condition: sea_orm::Condition,
             joined_filters: &[crudcrate::JoinedFilter],
         ) -> Result<sea_orm::Condition, crudcrate::ApiError> {
@@ -208,6 +206,7 @@ pub(crate) fn generate_resolve_joined_filters_impl(
                 return Ok(condition);
             }
 
+            let __backend = sea_orm::ConnectionTrait::get_database_backend(db);
             let mut __augmented = condition;
 
             for __jf in joined_filters {
@@ -274,9 +273,6 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
     let field_arms = candidates.iter().map(|(field, field_name, sortable_columns)| {
         let join_config = get_join_config(field).unwrap_or_default();
 
-        let inner_type = extract_api_struct_type_for_recursive_call(&field.ty);
-        let _inner_type_string = inner_type.to_string();
-        let _api_struct_name_string = api_struct_name.to_string();
         let is_self_referencing = self_referencing(&field.ty, api_struct_name);
 
         // Entity / Column paths for the child table

@@ -167,7 +167,7 @@ pub use core::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult}
 pub use errors::ApiError;
 pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,
-    SortConfig, apply_filters, apply_filters_with_joins, build_comparison_expr,
+    SortConfig, apply_filters, apply_filters_with_joins, build_comparison_expr, build_filter_expr,
     calculate_content_range, parse_dot_notation, parse_pagination, parse_range, parse_sorting,
     parse_sorting_with_joins, table_column_ref,
 };

@@ -23,6 +23,7 @@ use crudcrate::ToCreateModel;
 use crudcrate::ToListModel;
 use crudcrate::ToUpdateModel;
 use crudcrate::build_comparison_expr;
+use crudcrate::build_filter_expr;
 use crudcrate::crud_handlers;
 use crudcrate::impls;
 use crudcrate::serde_with::rust::double_option;

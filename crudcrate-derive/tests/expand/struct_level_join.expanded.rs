@@ -561,13 +561,14 @@ mod customer__Model {
             ]
         }
         async fn resolve_joined_filters(
-            _db: &sea_orm::DatabaseConnection,
+            db: &sea_orm::DatabaseConnection,
             condition: sea_orm::Condition,
             joined_filters: &[crudcrate::JoinedFilter],
         ) -> Result<sea_orm::Condition, crudcrate::ApiError> {
             if joined_filters.is_empty() {
                 return Ok(condition);
             }
+            let __backend = sea_orm::ConnectionTrait::get_database_backend(db);
             let mut __augmented = condition;
             for __jf in joined_filters {
                 match __jf.join_field.as_str() {
@@ -577,10 +578,15 @@ mod customer__Model {
                             .as_str()
                         {
                             "make" => {
-                                crudcrate::build_comparison_expr(
+                                crudcrate::build_filter_expr::<
+                                    super::vehicle::Vehicle,
+                                    _,
+                                >(
                                     super::vehicle::Column::Make,
+                                    "make",
                                     __jf.operator,
                                     &__jf.value,
+                                    __backend,
                                 )
                             }
                             _ => None,

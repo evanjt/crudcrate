@@ -361,48 +361,6 @@ fn process_string_filter<T: crate::traits::CRUDResource>(
     Some(apply_string_comparison(column, operator, trimmed_value))
 }
 
-fn process_number_filter(
-    key: &str,
-    number: &serde_json::Number,
-    column: impl sea_orm::ColumnTrait + Copy,
-    searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
-) -> Option<Expr> {
-    if let Some((base_field, operator)) = parse_comparison_operator(key) {
-        // Check if the base field exists in searchable columns
-        if searchable_columns
-            .iter()
-            .any(|(col_name, _)| *col_name == base_field)
-        {
-            if let Some(int_value) = number.as_i64() {
-                return Some(apply_typed_comparison(column, operator, int_value));
-            } else if let Some(uint_value) = number.as_u64() {
-                // Values above i64::MAX (e.g. a BIGINT UNSIGNED column) must bind as
-                // u64, not fall through to a lossy f64 that mis-matches rows.
-                return Some(apply_typed_comparison(column, operator, uint_value));
-            } else if let Some(float_value) = number.as_f64() {
-                return Some(apply_typed_comparison(column, operator, float_value));
-            }
-        }
-    } else {
-        // Regular number equality
-        if let Some(int_value) = number.as_i64() {
-            return Some(Expr::col(column).eq(int_value));
-        } else if let Some(uint_value) = number.as_u64() {
-            return Some(Expr::col(column).eq(uint_value));
-        } else if let Some(float_value) = number.as_f64() {
-            return Some(Expr::col(column).eq(float_value));
-        }
-    }
-    None
-}
-
-/// Build a type-matched `IN (...)` expression for a homogeneous JSON array so the
-/// bound values match the column type on strict backends. Postgres rejects
-/// `int_col IN ('1','3')` and `bool_col IN ('true')` (`operator does not exist:
-/// integer = text`); `SQLite`'s loose typing silently accepted the stringified form.
-/// Returns `None` unless every element is an integer, every element is a number,
-/// or every element is a boolean; callers fall back to a string IN list for
-/// string/enum/mixed arrays.
 fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
     column: C,
     array_values: &[serde_json::Value],
@@ -522,18 +480,14 @@ where
     }
 }
 
-/// Build a Sea-ORM `Expr` from a column, operator, and a JSON value.
+/// Build a Sea-ORM `Expr` from a column, operator, and a JSON value without
+/// any resource-aware normalisation (no case folding, enum casts or
+/// `like_filterable` handling). Hand-written `resolve_joined_filters`
+/// implementations can use it for plain columns; the derive uses
+/// [`build_filter_expr`], which applies the same rules as main-entity filters.
 ///
-/// Used by the derive-macro-generated `resolve_joined_filters` to translate
-/// parsed [`crate::filtering::joined::JoinedFilter`] entries into concrete
-/// sub-query conditions on child tables.
-///
-/// Unlike the main-entity filter path, this builder does not apply enum or
-/// fulltext normalization; joined filters target plain columns (strings,
-/// numbers, UUIDs, bools). Attempts to use range operators (`_gt`, `_gte`,
-/// `_lt`, `_lte`) against unsupported value kinds return `None` so the caller
-/// can silently skip the filter, matching the existing "skip invalid filters"
-/// convention.
+/// Attempts to use range operators (`_gt`, `_gte`, `_lt`, `_lte`) against
+/// unsupported value kinds return `None` so the caller can skip the filter.
 ///
 /// Returns `None` for:
 /// - empty strings / overlong strings (> `10_000` chars)
@@ -636,34 +590,106 @@ where
     }
 }
 
+fn operator_symbol(operator: super::joined::FilterOperator) -> &'static str {
+    use super::joined::FilterOperator;
+    match operator {
+        FilterOperator::Neq => "!=",
+        FilterOperator::Gt => ">",
+        FilterOperator::Gte => ">=",
+        FilterOperator::Lt => "<",
+        FilterOperator::Lte => "<=",
+        FilterOperator::Eq | FilterOperator::Like | FilterOperator::In | FilterOperator::IsNull => {
+            "="
+        }
+    }
+}
+
+fn operator_from_symbol(symbol: &str) -> super::joined::FilterOperator {
+    use super::joined::FilterOperator;
+    match symbol {
+        "!=" => FilterOperator::Neq,
+        ">" => FilterOperator::Gt,
+        ">=" => FilterOperator::Gte,
+        "<" => FilterOperator::Lt,
+        "<=" => FilterOperator::Lte,
+        _ => FilterOperator::Eq,
+    }
+}
+
+/// Condition for one filter entry on a column of resource `T`.
+///
+/// This is the value dispatch behind both main-entity filters and the
+/// derive-generated `resolve_joined_filters`: string comparisons fold case,
+/// enum columns are cast to text on Postgres, `like_filterable` columns and
+/// the `_like` operator use a case-insensitive `LIKE`, and date, decimal,
+/// numeric, boolean and UUID columns bind typed values. Returns `None` when
+/// the value cannot be applied to the column (empty or overlong strings,
+/// ranges on booleans, objects), in which case the filter is skipped.
+#[must_use]
+pub fn build_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait + Copy>(
+    column: C,
+    column_name: &str,
+    operator: super::joined::FilterOperator,
+    value: &serde_json::Value,
+    backend: DatabaseBackend,
+) -> Option<Expr> {
+    use super::joined::FilterOperator;
+    match value {
+        serde_json::Value::String(s) => {
+            if operator == FilterOperator::Like {
+                if !validate_field_value(s) {
+                    return None;
+                }
+                let trimmed = s.trim();
+                if trimmed.is_empty() {
+                    return None;
+                }
+                return Some(build_like_condition(column_name, trimmed, backend));
+            }
+            process_string_filter::<T>(column_name, operator_symbol(operator), s, column, backend)
+        }
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                return ordered_comparison(column, operator, i);
+            }
+            if let Some(u) = n.as_u64() {
+                return ordered_comparison(column, operator, u);
+            }
+            n.as_f64()
+                .and_then(|f| ordered_comparison(column, operator, f))
+        }
+        serde_json::Value::Bool(b) => match operator {
+            FilterOperator::Eq => Some(Expr::col(column).eq(*b)),
+            FilterOperator::Neq => Some(Expr::col(column).ne(*b)),
+            _ => None,
+        },
+        serde_json::Value::Array(values) => {
+            process_array_filter(values, column, T::is_enum_field(column_name), backend)
+        }
+        serde_json::Value::Null => match operator {
+            FilterOperator::Eq | FilterOperator::IsNull => Some(Expr::col(column).is_null()),
+            FilterOperator::Neq => Some(Expr::col(column).is_not_null()),
+            _ => None,
+        },
+        serde_json::Value::Object(_) => None,
+    }
+}
+
 /// Condition for one main-entity filter entry, dispatched on the JSON value type.
-fn main_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait>(
-    key: &str,
+fn main_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait + Copy>(
     base_field: &str,
     operator: &str,
     value: &serde_json::Value,
     column: C,
-    searchable_columns: &[(&str, C)],
     backend: DatabaseBackend,
 ) -> Option<Expr> {
-    match value {
-        serde_json::Value::String(string_value) => {
-            process_string_filter::<T>(base_field, operator, string_value, column, backend)
-        }
-        serde_json::Value::Number(number) => {
-            process_number_filter(key, number, column, searchable_columns)
-        }
-        serde_json::Value::Bool(bool_value) => Some(Expr::col(column).eq(*bool_value)),
-        serde_json::Value::Array(array_values) => {
-            process_array_filter(array_values, column, T::is_enum_field(base_field), backend)
-        }
-        serde_json::Value::Null => Some(if operator == "!=" {
-            Expr::col(column).is_not_null()
-        } else {
-            Expr::col(column).is_null()
-        }),
-        serde_json::Value::Object(_) => None,
-    }
+    build_filter_expr::<T, C>(
+        column,
+        base_field,
+        operator_from_symbol(operator),
+        value,
+        backend,
+    )
 }
 
 /// Build a table-qualified column reference (`"table"."column"`).
@@ -730,15 +756,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
             .map(|(_, col)| col);
 
         if let Some(column) = column_opt {
-            let filter_condition = main_filter_expr::<T, _>(
-                key,
-                base_field,
-                operator,
-                value,
-                *column,
-                searchable_columns,
-                backend,
-            );
+            let filter_condition =
+                main_filter_expr::<T, _>(base_field, operator, value, *column, backend);
 
             if let Some(filter_expr) = filter_condition {
                 condition = condition.add(filter_expr);
@@ -829,15 +848,8 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
             .map(|(_, col)| col);
 
         if let Some(column) = column_opt {
-            let filter_condition = main_filter_expr::<T, _>(
-                key,
-                base_field,
-                operator,
-                value,
-                *column,
-                searchable_columns,
-                backend,
-            );
+            let filter_condition =
+                main_filter_expr::<T, _>(base_field, operator, value, *column, backend);
 
             if let Some(filter_expr) = filter_condition {
                 result.main_condition = result.main_condition.add(filter_expr);

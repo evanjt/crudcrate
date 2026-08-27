@@ -396,9 +396,7 @@ async fn parent_with_many_matching_children_appears_once() {
 }
 
 // ============================================================================
-// Case handling differs between the main-entity and joined paths.
-// Main-entity string equality folds case; joined equality is passed to the
-// database as written. Both are pinned so any unification is a visible change.
+// Main-entity and joined filters share one value dispatch, so both fold case.
 // ============================================================================
 
 #[tokio::test]
@@ -414,12 +412,7 @@ async fn main_filter_equality_folds_case() {
 }
 
 #[tokio::test]
-async fn joined_filter_equality_is_passed_through_unfolded() {
-    // MySQL's default collation compares case-insensitively at the database
-    // level, so the pass-through is only observable on SQLite and Postgres.
-    if std::env::var("DATABASE_URL").is_ok_and(|u| u.starts_with("mysql")) {
-        return;
-    }
+async fn joined_filter_equality_folds_case() {
     let db = setup_test_db().await.unwrap();
     let app = setup_test_app(&db);
     let _ = seed_three_customers(&app).await;
@@ -427,5 +420,17 @@ async fn joined_filter_equality_is_passed_through_unfolded() {
     let (status, body, _) =
         http::get_with_headers(&app, &filter_query(r#"{"vehicles.make":"bmw"}"#)).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(names(&body).is_empty(), "got {:?}", names(&body));
+    assert_eq!(names(&body), vec!["Alice".to_string()]);
+}
+
+#[tokio::test]
+async fn joined_filter_like_is_case_insensitive() {
+    let db = setup_test_db().await.unwrap();
+    let app = setup_test_app(&db);
+    let _ = seed_three_customers(&app).await;
+
+    let (status, body, _) =
+        http::get_with_headers(&app, &filter_query(r#"{"vehicles.make_like":"bm"}"#)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(names(&body), vec!["Alice".to_string()]);
 }

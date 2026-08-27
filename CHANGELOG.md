@@ -52,6 +52,12 @@ Scheduled for removal in the next breaking release:
 
 ### Changed
 
+- Joined filters (`?filter={"vehicles.make":"bmw"}`) go through the same value
+  dispatch as main-entity filters: string equality folds case, enum columns
+  are cast on Postgres, `like_filterable` columns and `_like` use a
+  case-insensitive `LIKE`, and typed columns bind typed values. New public
+  `build_filter_expr` exposes that dispatch for custom resolvers.
+- Boolean filters with `_neq` now negate; previously the suffix was ignored.
 - `crudcrate::core::crud_operations` (the handler macros, no nameable items) is
   now `crudcrate::core::handler_macros`. The macros are unchanged and still
   exported at the crate root.

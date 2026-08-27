@@ -75,7 +75,8 @@ pub(crate) mod test_support;
 
 // Re-export commonly used items
 pub use conditions::{
-    apply_filters, apply_filters_with_joins, build_comparison_expr, table_column_ref,
+    apply_filters, apply_filters_with_joins, build_comparison_expr, build_filter_expr,
+    table_column_ref,
 };
 pub use joined::{
     FilterOperator, JoinedColumnDef, JoinedFilter, ParsedFilters, SortConfig, parse_dot_notation,
