@@ -231,9 +231,8 @@ pub struct Model {
 
     pub parent_id: Option<i32>,
 
-    // Children categories (with depth limit!)
     #[sea_orm(ignore)]
-    #[crudcrate(non_db_attr, join(one, depth = 3))]
+    #[crudcrate(non_db_attr, join(one, depth = 1))]
     pub children: Vec<Category>,
 }
 ```
@@ -243,19 +242,13 @@ pub struct Model {
   "id": 1,
   "name": "Electronics",
   "children": [
-    {
-      "id": 2,
-      "name": "Phones",
-      "children": [
-        {"id": 5, "name": "Smartphones", "children": []},
-        {"id": 6, "name": "Feature Phones", "children": []}
-      ]
-    }
+    {"id": 2, "name": "Phones", "children": []},
+    {"id": 3, "name": "Laptops", "children": []}
   ]
 }
 ```
 
-**Important**: Always use `depth` limit for self-referencing relationships!
+Self-referencing fields load one level: each child is returned with an empty `children`. Omitting `depth` on a self-referencing field is the same as `depth = 1`; any value above 1 is a compile error.
 
 ## Complete Example
 

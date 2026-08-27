@@ -227,7 +227,7 @@ Check the [Changelog](./changelog.md) for breaking changes. Most updates are bac
 
 ### How can I contribute?
 
-See [Contributing](./contributing.md) for guidelines.
+See the Contributing section of the [README](https://github.com/evanjt/crudcrate#contributing).
 
 ### Where do I report bugs?
 

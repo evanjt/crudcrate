@@ -285,7 +285,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Extension > CRUDResource::security_profile() > trait default`.
 
 - **Default profile flipped to `secure()`**. New resources ship hardened
-  defaults. See [MIGRATION_0.9.md](docs/MIGRATION_0.9.md) for the per-flag
+  defaults. See [MIGRATION_0.9.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.9.md) for the per-flag
   breakdown and opt-out instructions.
 
 - **Explicit batch body limit**. The generated router now applies an

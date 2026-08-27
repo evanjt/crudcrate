@@ -13,12 +13,12 @@
 //!
 //! **Self-Referencing Joins - Depth = 1 Only**: Self-referencing fields (e.g., `Category { children: Vec<Category> }`)
 //! are automatically limited to depth=1 to prevent exponential query growth. This means self-referencing fields
-//! will load immediate children only, without recursive nesting. Depths > 1 will trigger a compile-time warning.
+//! will load immediate children only, without recursive nesting. Depths > 1 are a compile error.
 //!
 //! **To use deeper joins**:
 //! - Explicitly set `depth` parameter: `#[crudcrate(join(all, depth = 3))]`
 //! - Regular joins (cross-model): Maximum 5 (values > 5 are capped to 5)
-//! - Self-referencing: Always 1 (values > 1 trigger warning and are set to 1)
+//! - Self-referencing: Always 1 (values > 1 are a compile error)
 //! - Unspecified depth defaults to 5 for regular joins, 1 for self-referencing
 //!
 //! **Example**:
@@ -37,7 +37,7 @@
 //! #[crudcrate(join(all))]  // Loads immediate children only
 //! pub children: Vec<Category>
 //!
-//! #[crudcrate(join(all, depth = 5))]  // WARNING: Ignored, self-references always use depth=1
+//! #[crudcrate(join(all, depth = 5))]  // Compile error: self-references only support depth = 1
 //! pub subcategories: Vec<Category>
 //! ```
 

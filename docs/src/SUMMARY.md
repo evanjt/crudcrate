@@ -21,19 +21,38 @@ Build a task manager from scratch, adding features as you need them.
 
 ---
 
+# Features
+
+- [Filtering](./features/filtering.md)
+- [Sorting](./features/sorting.md)
+- [Pagination](./features/pagination.md)
+- [Fulltext Search](./features/fulltext-search.md)
+- [Relationships & Joins](./features/relationships.md)
+- [Field Exclusion](./features/field-exclusion.md)
+- [Default Values](./features/default-values.md)
+- [Error Handling](./features/error-handling.md)
+
+---
+
 # Advanced
 
 - [Security Best Practices](./advanced/security.md)
 - [Multi-Tenant Scoping](./advanced/multi-tenant.md)
 - [Performance](./advanced/performance.md)
 - [Custom Operations](./advanced/custom-operations.md)
+- [Lifecycle Hooks](./advanced/lifecycle-hooks.md)
+- [Validation](./advanced/validation.md)
+- [Multi-Database Support](./advanced/multi-database.md)
 
 ---
 
 # How It Works
 
 - [Architecture Overview](./concepts/how-it-works.md)
+- [The Entity Model](./concepts/entity-model.md)
+- [Attribute System](./concepts/attributes.md)
 - [Generated Models](./concepts/generated-models.md)
+- [The CRUDResource Trait](./concepts/crudresource-trait.md)
 
 ---
 
@@ -42,6 +61,9 @@ Build a task manager from scratch, adding features as you need them.
 - [Struct Attributes](./reference/struct-attributes.md)
 - [Field Attributes](./reference/field-attributes.md)
 - [Query Parameters](./reference/query-parameters.md)
+- [CRUDResource API](./reference/crudresource-api.md)
+- [CRUDOperations API](./reference/crudoperations-api.md)
+- [Error Types](./reference/error-types.md)
 
 ---
 
