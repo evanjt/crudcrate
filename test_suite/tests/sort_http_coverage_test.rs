@@ -1,5 +1,5 @@
 // HTTP-driven coverage for crudcrate/src/filtering/sort.rs:
-// parse_sorting / parse_sorting_with_joins / generic_sort / find_column.
+// parse_sorting / parse_sorting_with_joins / find_column.
 //
 // Self-contained: a single `shc_widgets` entity with a Uuid PK, a sortable+filterable
 // `name` String, and a sortable integer `rank`. Every test drives the generated HTTP

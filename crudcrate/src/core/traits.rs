@@ -7,11 +7,40 @@ use uuid::Uuid;
 
 use crate::ApiError;
 
-/// Helper for extracting UUID PKs in batch queries.
-/// Used by `delete_many` to verify which IDs actually existed.
-#[derive(Debug, sea_orm::FromQueryResult)]
+/// Row type selecting a UUID primary key. No longer used by `delete_many`, which
+/// selects the entity's own primary key type.
+#[deprecated(
+    note = "unused since delete_many became generic over the primary key type; removed in the next breaking release"
+)]
 pub struct UuidIdResult {
     pub id: Uuid,
+}
+
+#[allow(deprecated)]
+impl std::fmt::Debug for UuidIdResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UuidIdResult")
+            .field("id", &self.id)
+            .finish()
+    }
+}
+
+#[allow(deprecated)]
+impl sea_orm::FromQueryResult for UuidIdResult {
+    fn from_query_result(row: &sea_orm::QueryResult, pre: &str) -> Result<Self, sea_orm::DbErr> {
+        Ok(Self::from_query_result_nullable(row, pre)?)
+    }
+
+    fn from_query_result_nullable(
+        row: &sea_orm::QueryResult,
+        pre: &str,
+    ) -> Result<Self, sea_orm::TryGetError> {
+        let id = match row.try_get_nullable(pre, "id") {
+            Err(v @ sea_orm::TryGetError::DbErr(_)) => return Err(v),
+            v => v,
+        };
+        Ok(Self { id: id? })
+    }
 }
 
 /// The primary-key value type of a [`CRUDResource`]'s entity.

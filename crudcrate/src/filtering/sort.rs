@@ -42,6 +42,9 @@ where
         .map_or(default, |&(_, col)| col)
 }
 
+#[deprecated(
+    note = "use parse_sorting: generic_sort parses every value as a JSON pair, so a plain column name falls back to the default column, and it cannot see sort_by or order; removed in the next breaking release"
+)]
 pub fn generic_sort<C>(
     sort: Option<&str>,
     order_column_logic: &[(&str, C)],

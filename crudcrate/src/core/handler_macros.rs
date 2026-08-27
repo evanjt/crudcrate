@@ -1,3 +1,7 @@
+/// Axum handlers for a resource. The seven-argument form is what
+/// `#[crudcrate(generate_router)]` emits. The five- and three-argument forms
+/// collapse the scoped or list models onto the plain ones and are kept for
+/// compatibility until the next breaking release.
 #[macro_export]
 macro_rules! crud_handlers {
     // Version with scoped models for auth-aware field visibility
@@ -691,6 +695,11 @@ macro_rules! crud_handlers_impl {
     };
 }
 
+/// Legacy router generator. Emits a free `router` function and collapses every
+/// response model to the resource type, ignoring `exclude(one)`, `exclude(list)`
+/// and scoped fields. `#[crudcrate(generate_router)]` supersedes it.
+#[deprecated(note = "use #[crudcrate(generate_router)]; removed in the next breaking release")]
+#[doc(hidden)]
 #[macro_export]
 macro_rules! generate_crud_router {
     ($model:ty, $api_struct:ty, $create_model:ty, $update_model:ty) => {

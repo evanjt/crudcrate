@@ -193,7 +193,6 @@ pub fn crudcrate::core::CRUDResource::update_many<'life0, 'async_trait>(&'life0 
 pub trait crudcrate::core::MergeIntoActiveModel<ActiveModelType>
 pub fn crudcrate::core::MergeIntoActiveModel::merge_into_activemodel(self, ActiveModelType) -> core::result::Result<ActiveModelType, crudcrate::errors::ApiError>
 pub type crudcrate::core::PrimaryKeyType<R> = <<<R as crudcrate::core::traits::CRUDResource>::EntityType as sea_orm::entity::base_entity::EntityTrait>::PrimaryKey as sea_orm::entity::primary_key::PrimaryKeyTrait>::ValueType
-pub mod crudcrate::database
 pub mod crudcrate::errors
 pub enum crudcrate::errors::ApiError
 pub crudcrate::errors::ApiError::BadRequest
@@ -445,7 +444,6 @@ impl core::marker::UnsafeUnpin for crudcrate::profile::SecurityProfile
 impl core::panic::unwind_safe::RefUnwindSafe for crudcrate::profile::SecurityProfile
 impl core::panic::unwind_safe::UnwindSafe for crudcrate::profile::SecurityProfile
 pub fn crudcrate::profile::resolve<F>(core::option::Option<axum::extension::Extension<crudcrate::profile::SecurityProfile>>, F) -> crudcrate::profile::SecurityProfile where F: core::ops::function::FnOnce() -> crudcrate::profile::SecurityProfile
-pub mod crudcrate::relationships
 pub mod crudcrate::scope
 pub struct crudcrate::scope::ScopeCondition
 pub crudcrate::scope::ScopeCondition::condition: sea_query::query::condition::Condition
@@ -522,7 +520,6 @@ pub trait crudcrate::validation::Validatable
 pub fn crudcrate::validation::Validatable::validate(&self) -> core::result::Result<(), crudcrate::validation::ValidationError>
 pub macro crudcrate::crud_handlers!
 pub macro crudcrate::crud_handlers_impl!
-pub macro crudcrate::generate_crud_router!
 pub macro crudcrate::impls!
 pub enum crudcrate::ApiError
 pub crudcrate::ApiError::BadRequest

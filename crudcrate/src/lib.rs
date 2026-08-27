@@ -108,7 +108,6 @@
 //! - [`filtering`]: Query parameter parsing, filter conditions, pagination, sorting, fulltext search
 //! - [`operations`]: [`CRUDOperations`] trait for struct-based customization
 //! - [`errors`]: [`ApiError`] type with automatic HTTP status codes and internal logging
-//! - [`database`]: reserved for future database-specific features
 //! - [`validation`]: Input validation helpers
 //!
 //! # Feature flags
@@ -119,10 +118,11 @@
 //! | `sqlite` | yes | SQLite support via sqlx |
 //! | `postgresql` | no | PostgreSQL support (enables GIN/tsvector fulltext) |
 //! | `mysql` | no | MySQL support (enables FULLTEXT indexes) |
-//! | `spring-rs` | no | [Spring-RS](https://spring-rs.github.io/docs/introduction) framework integration |
+//! | `spring-rs` | no | Enables the optional `spring` and `spring-web` dependencies. No integration code is behind this flag. |
 
 pub mod batch;
 pub mod core;
+#[doc(hidden)]
 pub mod database;
 pub mod errors;
 pub mod filtering;
@@ -130,11 +130,15 @@ pub mod filtering;
 pub mod impls_check;
 pub mod operations;
 pub mod profile;
+#[doc(hidden)]
 pub mod relationships;
 pub mod scope;
 pub mod validation;
 
-// Deprecated module aliases; use the canonical paths above instead.
+// Compatibility aliases for paths older releases exposed. `filter`, `models`,
+// `pagination` and `sort` are no longer named by crudcrate's own macros.
+// `traits` still is (`crudcrate::traits::CRUDResource` in the handler macros
+// and in derive output) and is not going away.
 #[doc(hidden)]
 pub mod filter {
     pub use crate::filtering::conditions::*;
@@ -148,8 +152,6 @@ pub mod pagination {
     pub use crate::filtering::pagination::*;
 }
 #[doc(hidden)]
-pub mod routes {}
-#[doc(hidden)]
 pub mod sort {
     pub use crate::filtering::sort::*;
 }
@@ -161,6 +163,7 @@ pub mod traits {
 pub use crudcrate_derive::*;
 
 pub use batch::{BatchFailure, BatchResult};
+#[allow(deprecated)]
 pub use core::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};
 pub use errors::ApiError;
 pub use filtering::{
@@ -169,6 +172,7 @@ pub use filtering::{
     calculate_content_range, parse_dot_notation, parse_pagination, parse_range, parse_sorting,
     parse_sorting_with_joins, table_column_ref,
 };
+#[allow(deprecated)]
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
 pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};

@@ -5,6 +5,50 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Generated routers named `tracing::info!` without qualification, so a crate
+  without a direct `tracing` dependency failed to compile. Generated code now
+  goes through `crudcrate::tracing`.
+- Column variant idents for field names with a digit boundary (`is_2fa_enabled`)
+  were built with `convert_case` (`Is2FaEnabled`) while Sea-ORM names them with
+  heck (`Is2faEnabled`), so such entities failed to compile. All column idents
+  now use heck.
+
+### Deprecated
+
+Scheduled for removal in the next breaking release:
+
+- `UuidIdResult`, unused since `delete_many` became generic over the primary key type.
+- `filtering::sort::generic_sort`: parses every value as a JSON pair, so a plain
+  column name falls back to the default column. Use `parse_sorting`.
+- `ValidationErrors`: generated validation returns the singular `ValidationError`.
+- `DefaultCRUDOperations`: never constructed by generated code.
+- `BatchResult::all_succeeded`: check `failed.is_empty()`.
+- `generate_crud_router!`: collapses every response model to the resource type.
+  Use `#[crudcrate(generate_router)]`.
+- The five- and three-argument arms of `crud_handlers!`.
+- The `crudcrate::database` and `crudcrate::relationships` modules, which contain no items.
+
+### Removed
+
+- The empty, hidden `crudcrate::routes` module.
+
+### Changed
+
+- `crudcrate::core::crud_operations` (the handler macros, no nameable items) is
+  now `crudcrate::core::handler_macros`. The macros are unchanged and still
+  exported at the crate root.
+- The handler macros name `apply_filters`, `parse_pagination`, `FilterOptions`,
+  `calculate_content_range` and `parse_sorting` at the crate root instead of
+  through the `filter`, `models`, `pagination` and `sort` alias modules. The
+  aliases remain exported.
+- Generated code is pinned by expansion snapshots in
+  `crudcrate-derive/tests/expand`, and `test_suite` carries a compile-only test
+  naming every `crudcrate::` path generated code emits.
+
 ## [0.10.1] - 2026-08-20
 
 ### Fixed

@@ -63,10 +63,14 @@ impl std::error::Error for ValidationError {}
 
 /// Collection of validation errors
 #[derive(Debug, Clone, Serialize)]
+#[deprecated(
+    note = "generated validation returns the singular ValidationError; removed in the next breaking release"
+)]
 pub struct ValidationErrors {
     errors: Vec<ValidationError>,
 }
 
+#[allow(deprecated)]
 impl ValidationErrors {
     /// Create a new empty validation errors collection
     #[must_use]
@@ -106,12 +110,14 @@ impl ValidationErrors {
     }
 }
 
+#[allow(deprecated)]
 impl Default for ValidationErrors {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[allow(deprecated)]
 impl fmt::Display for ValidationErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Validation failed with {} error(s):", self.errors.len())?;
@@ -122,6 +128,7 @@ impl fmt::Display for ValidationErrors {
     }
 }
 
+#[allow(deprecated)]
 impl std::error::Error for ValidationErrors {}
 
 /// Trait for types that can be validated
@@ -302,6 +309,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_validation_errors_collection() {
         let mut errors = ValidationErrors::new();
         assert!(errors.is_empty());

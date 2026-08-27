@@ -54,6 +54,7 @@ impl<T> BatchResult<T> {
     }
 
     /// Returns true if all items succeeded
+    #[deprecated(note = "check failed.is_empty(); removed in the next breaking release")]
     #[must_use]
     pub fn all_succeeded(&self) -> bool {
         !self.succeeded.is_empty() && self.failed.is_empty()

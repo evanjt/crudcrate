@@ -630,10 +630,14 @@ pub trait CRUDOperations: Send + Sync {
 /// }
 /// // Automatically uses DefaultCRUDOperations<Todo>
 /// ```
+#[deprecated(
+    note = "never constructed by generated code; implement CRUDOperations on your own type; removed in the next breaking release"
+)]
 pub struct DefaultCRUDOperations<T: CRUDResource> {
     _phantom: std::marker::PhantomData<T>,
 }
 
+#[allow(deprecated)]
 impl<T: CRUDResource> DefaultCRUDOperations<T> {
     /// Create a new default operations instance
     #[must_use]
@@ -644,6 +648,7 @@ impl<T: CRUDResource> DefaultCRUDOperations<T> {
     }
 }
 
+#[allow(deprecated)]
 impl<T: CRUDResource> Default for DefaultCRUDOperations<T> {
     fn default() -> Self {
         Self::new()
@@ -651,6 +656,7 @@ impl<T: CRUDResource> Default for DefaultCRUDOperations<T> {
 }
 
 #[async_trait]
+#[allow(deprecated)]
 impl<T: CRUDResource> CRUDOperations for DefaultCRUDOperations<T> {
     type Resource = T;
 

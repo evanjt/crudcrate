@@ -49,4 +49,5 @@ pub mod handler_macros;
 pub mod traits;
 
 // Re-export commonly used items
+#[allow(deprecated)]
 pub use traits::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};
