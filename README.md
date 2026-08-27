@@ -217,6 +217,8 @@ docker run -d --name crudcrate-pg -e POSTGRES_PASSWORD=password -e POSTGRES_DB=t
 DATABASE_URL="postgres://postgres:password@localhost:5432/test_db" cargo test --workspace -- --test-threads=1
 ```
 
+Generated code is pinned by `crudcrate-derive/tests/expand/*.expanded.rs`. A refactor of the derive crate must leave those files unchanged; `EXPAND_OVERWRITE=1 cargo test -p crudcrate-derive` accepts an intended change. `scripts/expand-baselines.sh` records the full downstream expansion and the public API for a before/after diff.
+
 Commits are a single imperative line with no prefix and no body.
 
 ## Known limitations

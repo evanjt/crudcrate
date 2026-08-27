@@ -92,6 +92,9 @@
 //!
 //! **Module guide**: `fields/` (field processing) | `codegen/` (models, handlers, joins, routes)
 
+#[cfg(test)]
+mod expand_snapshots;
+
 mod attribute_parser;
 mod codegen;
 mod fields;
@@ -101,7 +104,7 @@ mod traits;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{DeriveInput, parse_macro_input};
+use syn::DeriveInput;
 use traits::crudresource::structs::CRUDResourceMeta;
 
 /// Outcome of screening a derive target against Sea-ORM 2.0's dense entity
@@ -203,16 +206,23 @@ fn extract_active_model_type(
 /// Implements `From<NameCreate>` for `ActiveModel` with automatic value generation.
 #[proc_macro_derive(ToCreateModel, attributes(crudcrate, active_model))]
 pub fn to_create_model(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    to_create_model_impl(input.into()).into()
+}
+
+fn to_create_model_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let input = match syn::parse2::<DeriveInput>(input) {
+        Ok(input) => input,
+        Err(e) => return e.to_compile_error(),
+    };
     if let Some(tokens) = screen_tokens(&input) {
-        return tokens.into();
+        return tokens;
     }
     let name = &input.ident;
     let create_name = format_ident!("{}Create", name);
 
     let active_model_type = match extract_active_model_type(&input, name) {
         Ok(ty) => ty,
-        Err(e) => return e.into(),
+        Err(e) => return e,
     };
     let fields = match fields::extract_named_fields(&input) {
         Ok(f) => f,
@@ -243,7 +253,7 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
         }
     };
 
-    TokenStream::from(expanded)
+    expanded
 }
 
 /// Generates `<Name>Update` struct with fields not excluded by `exclude(update)`.
@@ -251,16 +261,23 @@ pub fn to_create_model(input: TokenStream) -> TokenStream {
 /// Implements `MergeIntoActiveModel` trait with `on_update` expression handling.
 #[proc_macro_derive(ToUpdateModel, attributes(crudcrate, active_model))]
 pub fn to_update_model(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    to_update_model_impl(input.into()).into()
+}
+
+fn to_update_model_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let input = match syn::parse2::<DeriveInput>(input) {
+        Ok(input) => input,
+        Err(e) => return e.to_compile_error(),
+    };
     if let Some(tokens) = screen_tokens(&input) {
-        return tokens.into();
+        return tokens;
     }
     let name = &input.ident;
     let update_name = format_ident!("{}Update", name);
 
     let active_model_type = match extract_active_model_type(&input, name) {
         Ok(ty) => ty,
-        Err(e) => return e.into(),
+        Err(e) => return e,
     };
     let fields = match fields::extract_named_fields(&input) {
         Ok(f) => f,
@@ -300,7 +317,7 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
         }
     };
 
-    TokenStream::from(expanded)
+    expanded
 }
 
 /// Generates `<Name>List` struct with fields not excluded by `exclude(list)`.
@@ -308,9 +325,16 @@ pub fn to_update_model(input: TokenStream) -> TokenStream {
 /// Implements `From<Name>` and `From<Model>` conversions.
 #[proc_macro_derive(ToListModel, attributes(crudcrate))]
 pub fn to_list_model(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    to_list_model_impl(input.into()).into()
+}
+
+fn to_list_model_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let input = match syn::parse2::<DeriveInput>(input) {
+        Ok(input) => input,
+        Err(e) => return e.to_compile_error(),
+    };
     if let Some(tokens) = screen_tokens(&input) {
-        return tokens.into();
+        return tokens;
     }
     let name = &input.ident;
     let list_name = format_ident!("{}List", name);
@@ -343,7 +367,7 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
         }
     };
 
-    TokenStream::from(expanded)
+    expanded
 }
 
 /// Generates complete CRUD API structures from Sea-ORM entities.
@@ -361,9 +385,16 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 /// - When required Sea-ORM relation enums are missing for join fields
 #[proc_macro_derive(EntityToModels, attributes(crudcrate))]
 pub fn entity_to_models(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    entity_to_models_impl(input.into()).into()
+}
+
+fn entity_to_models_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let input = match syn::parse2::<DeriveInput>(input) {
+        Ok(input) => input,
+        Err(e) => return e.to_compile_error(),
+    };
     if let Some(tokens) = screen_tokens(&input) {
-        return tokens.into();
+        return tokens;
     }
     let struct_name = &input.ident;
 
@@ -380,7 +411,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
             .iter()
             .map(syn::Error::to_compile_error)
             .collect();
-        return errors.into();
+        return errors;
     }
 
     let crud_meta = meta.with_defaults(&table_name);
@@ -391,8 +422,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
             &input,
             format!("Invalid active_model path: {active_model_path}"),
         )
-        .to_compile_error()
-        .into();
+        .to_compile_error();
     }
 
     // Extract fields and create field analysis
@@ -460,8 +490,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
                     &input,
                     format!("Invalid struct-level join '{}': {e}", j.name),
                 )
-                .to_compile_error()
-                .into();
+                .to_compile_error();
             }
         }
     }
@@ -480,7 +509,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         &api_struct_name.to_string(),
     );
     if !cyclic_dependency_check.is_empty() {
-        return cyclic_dependency_check.into();
+        return cyclic_dependency_check;
     }
 
     // Generate core API model components
@@ -566,7 +595,7 @@ pub fn entity_to_models(input: TokenStream) -> TokenStream {
         #bidirectional_checks
     };
 
-    TokenStream::from(expanded)
+    expanded
 }
 
 #[cfg(test)]

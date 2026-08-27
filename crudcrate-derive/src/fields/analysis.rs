@@ -7,7 +7,7 @@ use crate::attribute_parser;
 use crate::codegen::joins::get_join_config;
 use crate::fields::extraction::has_sea_orm_ignore;
 use crate::traits::crudresource::structs::{EntityFieldAnalysis, JoinFilterSortConfig};
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 
 /// Analyze entity fields and categorize them by attributes.
 /// `struct_level_joins` are synthetic fields from struct-level `join(...)` attributes
@@ -96,7 +96,7 @@ pub fn analyze_entity_fields<'a>(
         for err in deprecation_errors {
             combined.combine(err);
         }
-        return Err(combined.to_compile_error().into());
+        return Err(combined.to_compile_error());
     }
 
     Ok(analysis)
@@ -115,8 +115,7 @@ pub fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), Tok
             pk_field,
             "Only one field can be marked with 'primary_key' attribute",
         )
-        .to_compile_error()
-        .into());
+        .to_compile_error());
     }
 
     // Validate that non_db_attr fields have #[sea_orm(ignore)]
@@ -134,8 +133,7 @@ pub fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), Tok
                      Add #[sea_orm(ignore)] above the #[crudcrate(...)] attribute."
                 ),
             )
-            .to_compile_error()
-            .into());
+            .to_compile_error());
         }
     }
 

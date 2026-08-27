@@ -961,7 +961,7 @@ dependencies = [
  "convert_case",
  "crudcrate",
  "heck 0.5.0",
- "macrotest",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "rust_decimal",
@@ -1132,12 +1132,6 @@ dependencies = [
  "syn 2.0.119",
  "unicode-xid",
 ]
-
-[[package]]
-name = "diff"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "digest"
@@ -1971,23 +1965,6 @@ dependencies = [
  "nix",
  "serde",
  "winapi",
-]
-
-[[package]]
-name = "macrotest"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd198afd908012e57564b66e43e7d4d19056cec7e6232e9e6d54a1798622f81d"
-dependencies = [
- "diff",
- "fastrand",
- "glob",
- "prettyplease",
- "serde",
- "serde_derive",
- "serde_json",
- "syn 2.0.119",
- "toml 1.1.4+spec-1.1.0",
 ]
 
 [[package]]

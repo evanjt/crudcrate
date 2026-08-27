@@ -5,7 +5,7 @@
 
 use crate::attribute_parser;
 use heck::ToPascalCase;
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::format_ident;
 use syn::{
     Data, DeriveInput, Fields, Lit, Meta, parse::Parser, punctuated::Punctuated, token::Comma,
@@ -22,13 +22,11 @@ pub fn extract_named_fields(
                 input,
                 "This derive macro only supports structs with named fields",
             )
-            .to_compile_error()
-            .into()),
+            .to_compile_error()),
         },
         _ => Err(
             syn::Error::new_spanned(input, "This derive macro only supports structs")
-                .to_compile_error()
-                .into(),
+                .to_compile_error(),
         ),
     }
 }
@@ -44,13 +42,11 @@ pub fn extract_entity_fields(
                 input,
                 "EntityToModels only supports structs with named fields",
             )
-            .to_compile_error()
-            .into()),
+            .to_compile_error()),
         },
         _ => Err(
             syn::Error::new_spanned(input, "EntityToModels only supports structs")
-                .to_compile_error()
-                .into(),
+                .to_compile_error(),
         ),
     }
 }
