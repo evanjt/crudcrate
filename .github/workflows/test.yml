@@ -129,6 +129,9 @@ jobs:
 
     - uses: Swatinem/rust-cache@v2
 
+    - name: Build benchmarks
+      run: cargo bench --bench crud_benchmarks --no-run
+
     - name: Run benchmarks in test mode
       run: timeout 120s cargo bench --bench crud_benchmarks -- --test
       env:
