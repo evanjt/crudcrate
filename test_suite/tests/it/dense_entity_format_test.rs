@@ -73,6 +73,8 @@ pub mod dense_book {
 
 // Dense entity with no relation fields: the ModelEx companion has no relation
 // wrapper fields either, so the derives skip it purely by its generated name.
+// The sea-orm macro generates async trait methods that do not await.
+#[allow(clippy::unused_async_trait_impl)]
 pub mod dense_plain {
     use crudcrate::{CRUDResource, EntityToModels};
     use sea_orm::entity::prelude::*;
@@ -96,6 +98,8 @@ pub mod dense_plain {
 
 // Classic compact entity opted into the transitional `#[sea_orm::compact_model]`
 // macro, which generates the same ModelEx companion.
+// The sea-orm macro generates async trait methods that do not await.
+#[allow(clippy::unused_async_trait_impl)]
 pub mod compact_item {
     use crudcrate::{CRUDResource, EntityToModels};
     use sea_orm::entity::prelude::*;
