@@ -587,7 +587,7 @@ mod customer__Model {
                                     __jf.operator,
                                     &__jf.value,
                                     __backend,
-                                )
+                                )?
                             }
                             _ => None,
                         };

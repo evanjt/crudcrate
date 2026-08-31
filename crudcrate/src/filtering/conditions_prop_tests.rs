@@ -49,16 +49,20 @@ fn json_value() -> impl Strategy<Value = serde_json::Value> {
 proptest! {
     /// `build_comparison_expr` never panics for any operator/value combination on
     /// either an integer or a string column, and is deterministic (the same input
-    /// yields the same Some/None outcome). This is the joined-filter path, fed by
-    /// attacker-controlled `filter={...}` JSON.
+    /// yields the same rejected/skipped/applied outcome). This is the joined-filter
+    /// path, fed by attacker-controlled `filter={...}` JSON.
     #[test]
     fn build_comparison_expr_never_panics(value in json_value()) {
+        // ApiError is not PartialEq, so compare the outcome the caller acts on.
+        let outcome = |r: Result<Option<sea_orm::sea_query::Expr>, crate::errors::ApiError>| {
+            (r.is_err(), r.ok().flatten().is_some())
+        };
         for op in OPS {
-            let a = build_comparison_expr(pe::Column::Id, op, &value).is_some();
-            let b = build_comparison_expr(pe::Column::Id, op, &value).is_some();
+            let a = outcome(build_comparison_expr(pe::Column::Id, op, &value));
+            let b = outcome(build_comparison_expr(pe::Column::Id, op, &value));
             prop_assert_eq!(a, b);
-            let c = build_comparison_expr(pe::Column::Name, op, &value).is_some();
-            let d = build_comparison_expr(pe::Column::Name, op, &value).is_some();
+            let c = outcome(build_comparison_expr(pe::Column::Name, op, &value));
+            let d = outcome(build_comparison_expr(pe::Column::Name, op, &value));
             prop_assert_eq!(c, d);
         }
     }
@@ -69,7 +73,8 @@ proptest! {
     #[test]
     fn build_comparison_expr_binds_string_values(s in "[a-z][a-zA-Z0-9 ';-]{0,23}") {
         use sea_orm::sea_query::{Query, SqliteQueryBuilder};
-        let expr = build_comparison_expr(pe::Column::Name, FilterOperator::Eq, &serde_json::json!(s));
+        let expr = build_comparison_expr(pe::Column::Name, FilterOperator::Eq, &serde_json::json!(s))
+            .expect("string value on a text column is accepted");
         prop_assert!(expr.is_some());
         let (sql, values) = Query::select()
             .column(pe::Column::Id)

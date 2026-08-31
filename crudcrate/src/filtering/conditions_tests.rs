@@ -227,10 +227,12 @@ fn test_process_array_filter_enum_postgres_cast() {
     let values = [serde_json::json!("active"), serde_json::json!("archived")];
     let expr = process_array_filter(
         &values,
+        "status",
         entity::Column::Status,
         true,
         DatabaseBackend::Postgres,
     )
+    .expect("enum IN list is buildable")
     .expect("enum IN list yields a condition");
     let sql = format!("{expr:?}");
     assert!(
@@ -348,6 +350,8 @@ mod cmp_entity {
         #[sea_orm(primary_key)]
         pub id: i32,
         pub name: String,
+        pub service_date: DateTimeWithTimeZone,
+        pub cost: Decimal,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -357,6 +361,16 @@ mod cmp_entity {
 }
 
 use crate::filtering::joined::FilterOperator;
+
+/// `build_comparison_expr` for the cases that cannot fail: an unparseable element
+/// of an array value is a 400, which the tests below assert on directly.
+fn cmp_expr<C: sea_orm::ColumnTrait + Copy>(
+    column: C,
+    operator: FilterOperator,
+    value: &serde_json::Value,
+) -> Option<Expr> {
+    build_comparison_expr(column, operator, value).expect("filter value accepted")
+}
 
 /// Render an expression to inlined `SQLite` SQL so the ESCAPE clause and the
 /// (escaped) bound pattern are both visible as text.
@@ -405,7 +419,7 @@ fn test_table_column_ref_accepts_as_column_ref_pair() {
 /// AND declare `ESCAPE '!'` so the escaping is not a no-op on `SQLite`.
 #[test]
 fn test_build_comparison_expr_like_escapes_wildcards() {
-    let expr = build_comparison_expr(
+    let expr = cmp_expr(
         cmp_entity::Column::Name,
         FilterOperator::Like,
         &serde_json::json!("100%"),
@@ -433,8 +447,7 @@ fn test_build_comparison_expr_string_ops_build() {
         FilterOperator::Lte,
     ] {
         assert!(
-            build_comparison_expr(cmp_entity::Column::Name, op, &serde_json::json!("abc"))
-                .is_some(),
+            cmp_expr(cmp_entity::Column::Name, op, &serde_json::json!("abc")).is_some(),
             "string {op:?} should build an expression"
         );
     }
@@ -443,7 +456,7 @@ fn test_build_comparison_expr_string_ops_build() {
 #[test]
 fn test_build_comparison_expr_empty_and_overlong_string_none() {
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Eq,
             &serde_json::json!("")
@@ -451,7 +464,7 @@ fn test_build_comparison_expr_empty_and_overlong_string_none() {
         .is_none()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Eq,
             &serde_json::json!("   "),
@@ -460,7 +473,7 @@ fn test_build_comparison_expr_empty_and_overlong_string_none() {
     );
     let overlong = "a".repeat(10_001);
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Eq,
             &serde_json::json!(overlong),
@@ -473,7 +486,7 @@ fn test_build_comparison_expr_empty_and_overlong_string_none() {
 fn test_build_comparison_expr_uuid_only_eq_neq() {
     let uuid = "550e8400-e29b-41d4-a716-446655440000";
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Eq,
             &serde_json::json!(uuid)
@@ -481,7 +494,7 @@ fn test_build_comparison_expr_uuid_only_eq_neq() {
         .is_some()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Neq,
             &serde_json::json!(uuid)
@@ -490,7 +503,7 @@ fn test_build_comparison_expr_uuid_only_eq_neq() {
     );
     // Ranges and LIKE on a UUID are meaningless -> None.
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Gt,
             &serde_json::json!(uuid)
@@ -498,7 +511,7 @@ fn test_build_comparison_expr_uuid_only_eq_neq() {
         .is_none()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Like,
             &serde_json::json!(uuid)
@@ -517,16 +530,12 @@ fn test_build_comparison_expr_number_ops_and_rejections() {
         FilterOperator::Lt,
         FilterOperator::Lte,
     ] {
-        assert!(
-            build_comparison_expr(cmp_entity::Column::Id, op, &serde_json::json!(42)).is_some()
-        );
-        assert!(
-            build_comparison_expr(cmp_entity::Column::Id, op, &serde_json::json!(3.5)).is_some()
-        );
+        assert!(cmp_expr(cmp_entity::Column::Id, op, &serde_json::json!(42)).is_some());
+        assert!(cmp_expr(cmp_entity::Column::Id, op, &serde_json::json!(3.5)).is_some());
     }
     // In / IsNull are not valid against a scalar number -> None.
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Id,
             FilterOperator::In,
             &serde_json::json!(42)
@@ -534,7 +543,7 @@ fn test_build_comparison_expr_number_ops_and_rejections() {
         .is_none()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Id,
             FilterOperator::IsNull,
             &serde_json::json!(42),
@@ -554,7 +563,7 @@ fn test_build_comparison_expr_u64_above_i64_max_binds_exact() {
     let v = serde_json::json!(big);
     assert!(v.as_i64().is_none(), "value must exceed i64::MAX");
 
-    let expr = build_comparison_expr(cmp_entity::Column::Id, FilterOperator::Gte, &v)
+    let expr = cmp_expr(cmp_entity::Column::Id, FilterOperator::Gte, &v)
         .expect("u64 value builds an expression");
     let sql = cmp_sql(expr);
     assert!(
@@ -571,7 +580,7 @@ fn test_build_comparison_expr_rejects_overlong_array() {
         .map(|n| serde_json::json!(n))
         .collect();
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Id,
             FilterOperator::In,
             &serde_json::Value::Array(arr)
@@ -584,7 +593,7 @@ fn test_build_comparison_expr_rejects_overlong_array() {
 #[test]
 fn test_build_comparison_expr_bool_eq_neq_only() {
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Eq,
             &serde_json::json!(true)
@@ -592,7 +601,7 @@ fn test_build_comparison_expr_bool_eq_neq_only() {
         .is_some()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Neq,
             &serde_json::json!(false),
@@ -600,7 +609,7 @@ fn test_build_comparison_expr_bool_eq_neq_only() {
         .is_some()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Gt,
             &serde_json::json!(true)
@@ -613,7 +622,7 @@ fn test_build_comparison_expr_bool_eq_neq_only() {
 fn test_build_comparison_expr_array_null_object() {
     // Non-empty array -> IN.
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::In,
             &serde_json::json!(["a", "b"]),
@@ -622,7 +631,7 @@ fn test_build_comparison_expr_array_null_object() {
     );
     // Empty array, or an array of only objects (no extractable scalars) -> None.
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::In,
             &serde_json::json!([])
@@ -630,7 +639,7 @@ fn test_build_comparison_expr_array_null_object() {
         .is_none()
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::In,
             &serde_json::json!([{"k": "v"}]),
@@ -638,7 +647,7 @@ fn test_build_comparison_expr_array_null_object() {
         .is_none()
     );
     // Null + Eq/IsNull -> IS NULL; Null + Neq -> IS NOT NULL; other operators -> None.
-    let eq_null = build_comparison_expr(
+    let eq_null = cmp_expr(
         cmp_entity::Column::Name,
         FilterOperator::Eq,
         &serde_json::Value::Null,
@@ -649,14 +658,14 @@ fn test_build_comparison_expr_array_null_object() {
         "Eq + null must render IS NULL"
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::IsNull,
             &serde_json::Value::Null,
         )
         .is_some()
     );
-    let neq_null = build_comparison_expr(
+    let neq_null = cmp_expr(
         cmp_entity::Column::Name,
         FilterOperator::Neq,
         &serde_json::Value::Null,
@@ -667,7 +676,7 @@ fn test_build_comparison_expr_array_null_object() {
         "Neq + null must render IS NOT NULL (paired/has-value filter)"
     );
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Gt,
             &serde_json::Value::Null
@@ -676,10 +685,158 @@ fn test_build_comparison_expr_array_null_object() {
     );
     // Object value is unsupported -> None.
     assert!(
-        build_comparison_expr(
+        cmp_expr(
             cmp_entity::Column::Name,
             FilterOperator::Eq,
             &serde_json::json!({"k": "v"}),
+        )
+        .is_none()
+    );
+}
+
+/// The bound parameters an expression carries, in order.
+fn cmp_bound_values(expr: Expr) -> Vec<sea_orm::Value> {
+    use sea_orm::sea_query::{Query, SqliteQueryBuilder};
+    Query::select()
+        .column(cmp_entity::Column::Id)
+        .from(cmp_entity::Entity)
+        .and_where(expr)
+        .build(SqliteQueryBuilder)
+        .1
+        .0
+}
+
+/// An `IN` list over a `timestamptz` column binds `DateTime<FixedOffset>` values,
+/// not text. Postgres rejects `ts_col IN ('2026-01-01T00:00:00Z')`.
+#[test]
+fn test_timestamptz_array_binds_typed_values() {
+    let values = serde_json::json!(["2026-01-01T00:00:00Z", "2026-02-01T13:45:30+02:00"]);
+    let expr = cmp_expr(cmp_entity::Column::ServiceDate, FilterOperator::In, &values)
+        .expect("timestamptz IN list yields a condition");
+    let bound = cmp_bound_values(expr);
+    assert_eq!(bound.len(), 2);
+    assert!(
+        bound
+            .iter()
+            .all(|v| matches!(v, sea_orm::Value::ChronoDateTimeWithTimeZone(_))),
+        "expected typed timestamp binds, got {bound:?}"
+    );
+}
+
+/// One unparseable element rejects the request. Dropping the clause would return
+/// every row, and dropping the element would silently answer a different query.
+#[test]
+fn test_timestamptz_array_rejects_unparseable_element() {
+    let values = serde_json::json!(["2026-01-01T00:00:00Z", "not-a-date"]);
+    let err = build_comparison_expr(cmp_entity::Column::ServiceDate, FilterOperator::In, &values)
+        .expect_err("an unparseable element is a client error");
+    assert!(
+        matches!(err, crate::errors::ApiError::BadRequest { .. }),
+        "expected 400, got {err:?}"
+    );
+}
+
+/// The 400 names the field the client sent, but not the column's SQL type: joined
+/// filters deliberately keep the schema hidden.
+#[test]
+fn test_typed_array_error_does_not_name_the_column_type() {
+    let values = serde_json::json!(["not-a-date"]);
+    let err = build_comparison_expr(cmp_entity::Column::ServiceDate, FilterOperator::In, &values)
+        .expect_err("an unparseable element is a client error");
+    let message = format!("{err:?}");
+    assert!(message.contains("service_date"), "{message}");
+    assert!(
+        !message.to_lowercase().contains("timestamp"),
+        "message must not disclose the SQL type: {message}"
+    );
+}
+
+/// Numeric strings against an integer column bind integers, matching what the
+/// scalar path already does.
+#[test]
+fn test_integer_array_of_strings_binds_integers() {
+    let values = serde_json::json!(["1", "3"]);
+    let expr = cmp_expr(cmp_entity::Column::Id, FilterOperator::In, &values)
+        .expect("integer IN list yields a condition");
+    let bound = cmp_bound_values(expr);
+    assert_eq!(bound.len(), 2);
+    assert!(
+        bound.iter().all(|v| matches!(v, sea_orm::Value::BigInt(_))),
+        "expected integer binds, got {bound:?}"
+    );
+}
+
+/// Decimals arrive as JSON numbers or as strings; strings are the exact form.
+#[test]
+fn test_decimal_array_accepts_numbers_and_strings() {
+    let values = serde_json::json!([10.5, "10.50"]);
+    let expr = cmp_expr(cmp_entity::Column::Cost, FilterOperator::In, &values)
+        .expect("decimal IN list yields a condition");
+    let bound = cmp_bound_values(expr);
+    assert_eq!(bound.len(), 2);
+    assert!(
+        bound
+            .iter()
+            .all(|v| matches!(v, sea_orm::Value::Decimal(_))),
+        "expected decimal binds, got {bound:?}"
+    );
+}
+
+/// A float against an integer column can never match a row, so it is rejected
+/// rather than binding a value the column cannot hold.
+#[test]
+fn test_integer_array_rejects_fractional_element() {
+    let values = serde_json::json!([2020, 2020.5]);
+    assert!(
+        build_comparison_expr(cmp_entity::Column::Id, FilterOperator::In, &values).is_err(),
+        "a fractional value on an integer column must be rejected"
+    );
+}
+
+/// Text columns keep the string `IN` list: the type routing is for columns whose
+/// SQL type the backend compares natively.
+#[test]
+fn test_text_array_keeps_string_binds() {
+    let values = serde_json::json!(["alpha", "beta"]);
+    let expr = cmp_expr(cmp_entity::Column::Name, FilterOperator::In, &values)
+        .expect("text IN list yields a condition");
+    let bound = cmp_bound_values(expr);
+    assert_eq!(bound.len(), 2);
+    assert!(
+        bound.iter().all(|v| matches!(v, sea_orm::Value::String(_))),
+        "expected string binds, got {bound:?}"
+    );
+}
+
+/// The scalar arm routes by column type too, so a hand-written
+/// `resolve_joined_filters` comparing a timestamptz child column binds a timestamp.
+#[test]
+fn test_scalar_string_on_typed_column_binds_typed_value() {
+    let expr = cmp_expr(
+        cmp_entity::Column::ServiceDate,
+        FilterOperator::Gte,
+        &serde_json::json!("2026-01-15T13:45:30+02:00"),
+    )
+    .expect("RFC 3339 value on a timestamptz column yields a condition");
+    let bound = cmp_bound_values(expr);
+    assert!(
+        matches!(
+            bound.as_slice(),
+            [sea_orm::Value::ChronoDateTimeWithTimeZone(_)]
+        ),
+        "expected a typed timestamp bind, got {bound:?}"
+    );
+}
+
+/// A scalar that does not parse for the column type is still dropped rather than
+/// rejected, matching the main-entity path.
+#[test]
+fn test_scalar_unparseable_on_typed_column_is_skipped() {
+    assert!(
+        cmp_expr(
+            cmp_entity::Column::ServiceDate,
+            FilterOperator::Gte,
+            &serde_json::json!("2026-01-15"),
         )
         .is_none()
     );

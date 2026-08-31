@@ -141,7 +141,7 @@ pub(crate) fn generate_resolve_joined_filters_impl(
                     __jf.operator,
                     &__jf.value,
                     __backend,
-                ),
+                )?,
             }
         });
 

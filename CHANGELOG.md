@@ -16,8 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `join(relation = "Variant")` selects the child's `Relation` variant for
   foreign key resolution.
 
+### Changed
+
+- `build_filter_expr` and `build_comparison_expr` return
+  `Result<Option<Expr>, ApiError>` instead of `Option<Expr>`. Hand-written
+  `resolve_joined_filters` implementations add `?` at the call site; generated
+  code is updated. See `docs/MIGRATION_0.11.md`.
+
 ### Fixed
 
+- Array filters (`filter={"created_at":["...","..."]}`) bound every element as
+  text, so an `IN` list over a date, timestamp, decimal or float column was
+  rejected by Postgres and compared lexically elsewhere. Elements are now parsed
+  against the column's SQL type, as scalar filters already were. An element that
+  does not parse returns `400 Bad Request` rather than dropping the clause and
+  returning unfiltered rows.
+- `build_comparison_expr` bound every non-UUID string as text, so a hand-written
+  `resolve_joined_filters` comparing a non-text child column had the same defect.
+  It now routes by column type on both its scalar and array arms.
 - Join loading at depth 2 or more read `related_model.id`, so a child entity
   whose primary key field has another name failed to compile. Loaders now go
   through the new provided `CRUDResource::pk_value(&model)`, which the derive

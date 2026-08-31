@@ -167,6 +167,40 @@ fn typed_value_for_column(col_type: &ColumnType, raw: &str) -> Option<sea_orm::V
     }
 }
 
+/// Parse every element of an array-valued filter into a `sea_orm::Value` matching the
+/// column's SQL type.
+///
+/// # Errors
+/// Returns `ApiError::BadRequest` when an element cannot be parsed to the column's
+/// type. Dropping the clause instead would silently return unfiltered rows, which is
+/// the same reject-don't-silently-drop policy as `MAX_FILTER_ARRAY_LEN`.
+fn typed_array_values(
+    col_type: &ColumnType,
+    field: &str,
+    array_values: &[serde_json::Value],
+) -> Result<Vec<sea_orm::Value>, crate::errors::ApiError> {
+    array_values
+        .iter()
+        .map(|element| {
+            let raw = match element {
+                serde_json::Value::String(s) => s.trim().to_string(),
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::Bool(b) => b.to_string(),
+                // Null, nested arrays and objects have no scalar form, and the
+                // empty string parses to no column type.
+                _ => String::new(),
+            };
+            typed_value_for_column(col_type, &raw).ok_or_else(|| {
+                // Echo only what the client sent; naming the column's SQL type here
+                // would expose schema that joined filters deliberately keep hidden.
+                crate::errors::ApiError::bad_request(format!(
+                    "Filter value {element} is not valid for field `{field}`"
+                ))
+            })
+        })
+        .collect()
+}
+
 /// Accept a bare `YYYY-MM-DDTHH:MM:SS` / space-separated datetime, or a full RFC 3339
 /// timestamp (normalised to naive UTC), for naive datetime columns.
 fn parse_naive_datetime(raw: &str) -> Option<NaiveDateTime> {
@@ -396,12 +430,23 @@ fn typed_array_in_list<C: sea_orm::ColumnTrait + Copy>(
 
 fn process_array_filter(
     array_values: &[serde_json::Value],
+    field: &str,
     column: impl sea_orm::ColumnTrait + Copy,
     is_enum: bool,
     backend: DatabaseBackend,
-) -> Option<Expr> {
+) -> Result<Option<Expr>, crate::errors::ApiError> {
     if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
-        return None;
+        return Ok(None);
+    }
+
+    // Route by the column's SQL type, as the scalar path does: an IN list over a
+    // date, timestamp, numeric or uuid column must bind typed values, not text.
+    // Enum columns keep the casted/uppercased string path below.
+    let column_def = column.def();
+    let col_type = column_def.get_column_type();
+    if !is_enum && binds_typed_value(col_type) {
+        let values = typed_array_values(col_type, field, array_values)?;
+        return Ok(Some(Expr::col(column).is_in(values)));
     }
 
     // Try to parse all values as UUIDs first
@@ -419,14 +464,14 @@ fn process_array_filter(
     }
 
     if all_uuids && !uuid_values.is_empty() {
-        return Some(Expr::col(column).is_in(uuid_values));
+        return Ok(Some(Expr::col(column).is_in(uuid_values)));
     }
 
     // Type-matched IN list (integers/floats/bools) so the bound values match the
     // column type on strict backends. Enum columns keep the string path below;
     // their casted/uppercased comparison needs text binds.
     if !is_enum && let Some(expr) = typed_array_in_list(column, array_values) {
-        return Some(expr);
+        return Ok(Some(expr));
     }
 
     // Fall back to string-based IN for non-UUID values
@@ -447,11 +492,11 @@ fn process_array_filter(
                 column, backend,
             )));
             let upper_values: Vec<String> = in_values.iter().map(|v| v.to_uppercase()).collect();
-            return Some(col_upper.is_in(upper_values));
+            return Ok(Some(col_upper.is_in(upper_values)));
         }
-        return Some(Expr::col(column).is_in(in_values));
+        return Ok(Some(Expr::col(column).is_in(in_values)));
     }
-    None
+    Ok(None)
 }
 
 /// Comparison for value types where ordering operators apply; `Like`, `In` and
@@ -487,19 +532,24 @@ where
 /// [`build_filter_expr`], which applies the same rules as main-entity filters.
 ///
 /// Attempts to use range operators (`_gt`, `_gte`, `_lt`, `_lte`) against
-/// unsupported value kinds return `None` so the caller can skip the filter.
+/// unsupported value kinds return `Ok(None)` so the caller can skip the filter.
 ///
-/// Returns `None` for:
+/// Returns `Ok(None)` for:
 /// - empty strings / overlong strings (> `10_000` chars)
 /// - range operators against UUIDs, bools, arrays, or null
 /// - `IsNull` / `In` operators against non-matching value kinds
 /// - objects as values
-#[must_use]
+/// - a scalar value that cannot be parsed to the column's SQL type
+///
+/// # Errors
+/// Returns `ApiError::BadRequest` when an element of an array-valued filter cannot
+/// be parsed to the column's SQL type. The clause is rejected rather than dropped,
+/// because a dropped clause returns unfiltered rows.
 pub fn build_comparison_expr<C>(
     column: C,
     operator: super::joined::FilterOperator,
     value: &serde_json::Value,
-) -> Option<Expr>
+) -> Result<Option<Expr>, crate::errors::ApiError>
 where
     C: sea_orm::ColumnTrait + Copy,
 {
@@ -507,27 +557,39 @@ where
     use serde_json::Value;
 
     let col = || Expr::col(column);
+    let column_def = column.def();
+    let col_type = column_def.get_column_type();
 
     match value {
         Value::String(s) => {
             if !validate_field_value(s) {
-                return None;
+                return Ok(None);
             }
             let trimmed = s.trim();
             if trimmed.is_empty() {
-                return None;
+                return Ok(None);
             }
 
-            // Try UUID first: ranges on UUIDs are meaningless, so only allow eq/neq
+            // Try UUID first: ranges on UUIDs are meaningless, so only allow eq/neq.
+            // This stays ahead of the type routing below, which would otherwise make
+            // ranges expressible on a `Uuid` column.
             if let Ok(uuid_val) = Uuid::parse_str(trimmed) {
-                return match operator {
+                return Ok(match operator {
                     FilterOperator::Eq => Some(col().eq(uuid_val)),
                     FilterOperator::Neq => Some(col().ne(uuid_val)),
                     _ => None,
-                };
+                });
             }
 
-            match operator {
+            // Route by the column's SQL type, as the main-entity path does, so a date,
+            // timestamp or numeric column binds a typed value rather than text.
+            // `Like` keeps the string path below.
+            if operator != FilterOperator::Like && binds_typed_value(col_type) {
+                return Ok(typed_value_for_column(col_type, trimmed)
+                    .and_then(|typed| ordered_comparison(column, operator, typed)));
+            }
+
+            Ok(match operator {
                 FilterOperator::Eq => Some(col().eq(trimmed)),
                 FilterOperator::Neq => Some(col().ne(trimmed)),
                 FilterOperator::Gt => Some(col().gt(trimmed)),
@@ -539,33 +601,38 @@ where
                     Some(col().like(LikeExpr::new(format!("%{escaped}%")).escape('!')))
                 }
                 FilterOperator::In | FilterOperator::IsNull => None,
-            }
+            })
         }
         Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                return ordered_comparison(column, operator, i);
+                return Ok(ordered_comparison(column, operator, i));
             }
             // Values above i64::MAX bind as u64 rather than falling through to a
             // lossy f64 (a BIGINT UNSIGNED column would otherwise mis-compare).
             if let Some(u) = n.as_u64() {
-                return ordered_comparison(column, operator, u);
+                return Ok(ordered_comparison(column, operator, u));
             }
-            n.as_f64()
-                .and_then(|f| ordered_comparison(column, operator, f))
+            Ok(n.as_f64()
+                .and_then(|f| ordered_comparison(column, operator, f)))
         }
-        Value::Bool(b) => match operator {
+        Value::Bool(b) => Ok(match operator {
             FilterOperator::Eq => Some(col().eq(*b)),
             FilterOperator::Neq => Some(col().ne(*b)),
             _ => None,
-        },
+        }),
         Value::Array(arr) => {
             if arr.is_empty() || arr.len() > MAX_FILTER_ARRAY_LEN {
-                return None;
+                return Ok(None);
             }
-            // Type-matched IN list so integer/float/bool arrays bind as their
-            // native type (Postgres rejects `int_col IN ('1','3')`).
+            // Type-matched IN list so the bound values match the column type
+            // (Postgres rejects `int_col IN ('1','3')` and `ts_col IN ('...')`).
+            if binds_typed_value(col_type) {
+                let values =
+                    typed_array_values(col_type, sea_orm::IdenStatic::as_str(&column), arr)?;
+                return Ok(Some(col().is_in(values)));
+            }
             if let Some(expr) = typed_array_in_list(column, arr) {
-                return Some(expr);
+                return Ok(Some(expr));
             }
             let strings: Vec<String> = arr
                 .iter()
@@ -577,16 +644,16 @@ where
                 })
                 .collect();
             if strings.is_empty() {
-                return None;
+                return Ok(None);
             }
-            Some(col().is_in(strings))
+            Ok(Some(col().is_in(strings)))
         }
-        Value::Null => match operator {
+        Value::Null => Ok(match operator {
             FilterOperator::Eq | FilterOperator::IsNull => Some(col().is_null()),
             FilterOperator::Neq => Some(col().is_not_null()),
             _ => None,
-        },
-        Value::Object(_) => None,
+        }),
+        Value::Object(_) => Ok(None),
     }
 }
 
@@ -622,56 +689,71 @@ fn operator_from_symbol(symbol: &str) -> super::joined::FilterOperator {
 /// derive-generated `resolve_joined_filters`: string comparisons fold case,
 /// enum columns are cast to text on Postgres, `like_filterable` columns and
 /// the `_like` operator use a case-insensitive `LIKE`, and date, decimal,
-/// numeric, boolean and UUID columns bind typed values. Returns `None` when
+/// numeric, boolean and UUID columns bind typed values. Returns `Ok(None)` when
 /// the value cannot be applied to the column (empty or overlong strings,
-/// ranges on booleans, objects), in which case the filter is skipped.
-#[must_use]
+/// ranges on booleans, objects, or a scalar that does not parse to the column's
+/// SQL type), in which case the filter is skipped.
+///
+/// # Errors
+/// Returns `ApiError::BadRequest` when an element of an array-valued filter cannot
+/// be parsed to the column's SQL type. Scalar values that do not parse are still
+/// dropped rather than rejected.
 pub fn build_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait + Copy>(
     column: C,
     column_name: &str,
     operator: super::joined::FilterOperator,
     value: &serde_json::Value,
     backend: DatabaseBackend,
-) -> Option<Expr> {
+) -> Result<Option<Expr>, crate::errors::ApiError> {
     use super::joined::FilterOperator;
     match value {
         serde_json::Value::String(s) => {
             if operator == FilterOperator::Like {
                 if !validate_field_value(s) {
-                    return None;
+                    return Ok(None);
                 }
                 let trimmed = s.trim();
                 if trimmed.is_empty() {
-                    return None;
+                    return Ok(None);
                 }
-                return Some(build_like_condition(column_name, trimmed, backend));
+                return Ok(Some(build_like_condition(column_name, trimmed, backend)));
             }
-            process_string_filter::<T>(column_name, operator_symbol(operator), s, column, backend)
+            Ok(process_string_filter::<T>(
+                column_name,
+                operator_symbol(operator),
+                s,
+                column,
+                backend,
+            ))
         }
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                return ordered_comparison(column, operator, i);
+                return Ok(ordered_comparison(column, operator, i));
             }
             if let Some(u) = n.as_u64() {
-                return ordered_comparison(column, operator, u);
+                return Ok(ordered_comparison(column, operator, u));
             }
-            n.as_f64()
-                .and_then(|f| ordered_comparison(column, operator, f))
+            Ok(n.as_f64()
+                .and_then(|f| ordered_comparison(column, operator, f)))
         }
-        serde_json::Value::Bool(b) => match operator {
+        serde_json::Value::Bool(b) => Ok(match operator {
             FilterOperator::Eq => Some(Expr::col(column).eq(*b)),
             FilterOperator::Neq => Some(Expr::col(column).ne(*b)),
             _ => None,
-        },
-        serde_json::Value::Array(values) => {
-            process_array_filter(values, column, T::is_enum_field(column_name), backend)
-        }
-        serde_json::Value::Null => match operator {
+        }),
+        serde_json::Value::Array(values) => process_array_filter(
+            values,
+            column_name,
+            column,
+            T::is_enum_field(column_name),
+            backend,
+        ),
+        serde_json::Value::Null => Ok(match operator {
             FilterOperator::Eq | FilterOperator::IsNull => Some(Expr::col(column).is_null()),
             FilterOperator::Neq => Some(Expr::col(column).is_not_null()),
             _ => None,
-        },
-        serde_json::Value::Object(_) => None,
+        }),
+        serde_json::Value::Object(_) => Ok(None),
     }
 }
 
@@ -682,7 +764,7 @@ fn main_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait + Co
     value: &serde_json::Value,
     column: C,
     backend: DatabaseBackend,
-) -> Option<Expr> {
+) -> Result<Option<Expr>, crate::errors::ApiError> {
     build_filter_expr::<T, C>(
         column,
         base_field,
@@ -718,7 +800,8 @@ where
 ///
 /// # Errors
 /// Returns `ApiError::BadRequest` if the filter contains more than
-/// `MAX_FILTER_CLAUSES` (100) keys.
+/// `MAX_FILTER_CLAUSES` (100) keys, or if an element of an array-valued filter
+/// cannot be parsed to its column's SQL type.
 pub fn apply_filters<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -757,7 +840,7 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 
         if let Some(column) = column_opt {
             let filter_condition =
-                main_filter_expr::<T, _>(base_field, operator, value, *column, backend);
+                main_filter_expr::<T, _>(base_field, operator, value, *column, backend)?;
 
             if let Some(filter_expr) = filter_condition {
                 condition = condition.add(filter_expr);
@@ -785,7 +868,8 @@ pub fn apply_filters<T: crate::traits::CRUDResource>(
 ///
 /// # Errors
 /// Returns `ApiError::BadRequest` if the filter contains more than
-/// `MAX_FILTER_CLAUSES` (100) keys.
+/// `MAX_FILTER_CLAUSES` (100) keys, or if an element of an array-valued filter
+/// cannot be parsed to its column's SQL type.
 pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
     filter_str: Option<String>,
     searchable_columns: &[(&str, impl sea_orm::ColumnTrait)],
@@ -849,7 +933,7 @@ pub fn apply_filters_with_joins<T: crate::traits::CRUDResource>(
 
         if let Some(column) = column_opt {
             let filter_condition =
-                main_filter_expr::<T, _>(base_field, operator, value, *column, backend);
+                main_filter_expr::<T, _>(base_field, operator, value, *column, backend)?;
 
             if let Some(filter_expr) = filter_condition {
                 result.main_condition = result.main_condition.add(filter_expr);
