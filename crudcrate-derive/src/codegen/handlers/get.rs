@@ -1,24 +1,16 @@
-use crate::codegen::joins::loading::{
+//! `get_one` and `get_all` bodies.
+
+use crate::codegen::handlers::transform_hook;
+use crate::codegen::joins::batch::{
     generate_get_all_batch_loading, generate_get_all_scoped_batch_loading,
+};
+use crate::codegen::joins::per_row::{
     generate_get_one_join_loading, generate_get_one_scoped_join_loading,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::traits::crudresource::structs::{CRUDResourceMeta, EntityFieldAnalysis};
-use convert_case::{Case, Casing};
-use quote::{format_ident, quote};
-
-/// Check if a type is `Option<T>`
-fn is_option_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty {
-        type_path
-            .path
-            .segments
-            .last()
-            .is_some_and(|s| s.ident == "Option")
-    } else {
-        false
-    }
-}
+use crate::ir::{CRUDResourceMeta, EntityFieldAnalysis};
+use crate::syn_type::{column_ident, is_option_type};
+use quote::quote;
 
 /// Generate `select_only()` column selection for list queries.
 /// Included columns are selected normally. Excluded Option<T> columns are replaced
@@ -42,7 +34,7 @@ fn generate_select_only_columns(
     for field in &analysis.db_fields {
         let col_ident = {
             let name = field.ident.as_ref().unwrap().to_string();
-            format_ident!("{}", name.to_case(Case::Pascal))
+            column_ident(&name)
         };
         let included = should_include_in_model(field, "list_model");
 
@@ -82,7 +74,7 @@ fn generate_select_only_columns(
 /// 1. Query all parents
 /// 2. Batch query all children WHERE `parent_id` IN (`parent_ids`)
 /// 3. Group children by `parent_id` in memory
-pub fn generate_get_all_impl(
+pub(crate) fn generate_get_all_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
@@ -135,9 +127,7 @@ pub fn generate_get_all_impl(
         let pre = hooks.pre.as_ref().map(|fn_path| {
             quote! { #fn_path(db, condition, order_column, order_direction, offset, limit).await?; }
         });
-        let transform = hooks.transform.as_ref().map(|fn_path| {
-            quote! { let result = #fn_path(db, result).await?; }
-        });
+        let transform = transform_hook(hooks);
         let post = hooks.post.as_ref().map(|fn_path| {
             quote! { #fn_path(db, &result).await?; }
         });
@@ -262,7 +252,7 @@ pub fn generate_get_all_impl(
 /// - `read::one::body`: Replaces default fetch logic (receives id, returns `Self`)
 /// - `read::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `read::one::post`: Side effects after fetch (receives `&Self`)
-pub fn generate_get_one_impl(
+pub(crate) fn generate_get_one_impl(
     crud_meta: &CRUDResourceMeta,
     analysis: &EntityFieldAnalysis,
     api_struct_name: &syn::Ident,
@@ -298,9 +288,7 @@ pub fn generate_get_one_impl(
             let pre = hooks.pre.as_ref().map(|fn_path| {
                 quote! { #fn_path(db, id).await?; }
             });
-            let transform = hooks.transform.as_ref().map(|fn_path| {
-                quote! { let result = #fn_path(db, result).await?; }
-            });
+            let transform = transform_hook(hooks);
             let post = hooks.post.as_ref().map(|fn_path| {
                 quote! { #fn_path(db, &result).await?; }
             });

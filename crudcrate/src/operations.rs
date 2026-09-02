@@ -161,19 +161,7 @@ pub trait CRUDOperations: Send + Sync {
         db: &DatabaseConnection,
         id: ResourceId<Self>,
     ) -> Result<Self::Resource, ApiError> {
-        use sea_orm::EntityTrait;
-
-        let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id.clone())
-            .one(db)
-            .await
-            .map_err(ApiError::database)?
-            .ok_or_else(|| {
-                ApiError::not_found(
-                    <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
-                )
-            })?;
-        Ok(Self::Resource::from(model))
+        crate::core::defaults::get_one::<Self::Resource>(db, id).await
     }
 
     // ==========================================
@@ -218,27 +206,15 @@ pub trait CRUDOperations: Send + Sync {
         offset: u64,
         limit: u64,
     ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
-        use sea_orm::{EntityTrait, IdenStatic, QueryFilter, QueryOrder, QuerySelect};
-
-        let id_column = <Self::Resource as CRUDResource>::ID_COLUMN;
-        let mut query = <Self::Resource as CRUDResource>::EntityType::find()
-            .filter(condition.clone())
-            .order_by(order_column, order_direction);
-        if order_column.as_str() != id_column.as_str() {
-            query = query.order_by(id_column, Order::Asc);
-        }
-        let models = query
-            .offset(offset)
-            .limit(limit)
-            .all(db)
-            .await
-            .map_err(ApiError::database)?;
-        Ok(models
-            .into_iter()
-            .map(|model| {
-                <Self::Resource as CRUDResource>::ListModel::from(Self::Resource::from(model))
-            })
-            .collect())
+        crate::core::defaults::get_all::<Self::Resource>(
+            db,
+            condition,
+            order_column,
+            order_direction,
+            offset,
+            limit,
+        )
+        .await
     }
 
     // ==========================================
@@ -283,11 +259,7 @@ pub trait CRUDOperations: Send + Sync {
         db: &DatabaseConnection,
         data: <Self::Resource as CRUDResource>::CreateModel,
     ) -> Result<Self::Resource, ApiError> {
-        use sea_orm::ActiveModelTrait;
-
-        let active_model: <Self::Resource as CRUDResource>::ActiveModelType = data.into();
-        let model = active_model.insert(db).await.map_err(ApiError::database)?;
-        Ok(Self::Resource::from(model))
+        crate::core::defaults::create::<Self::Resource>(db, data).await
     }
 
     // ==========================================
@@ -320,23 +292,7 @@ pub trait CRUDOperations: Send + Sync {
         id: ResourceId<Self>,
         data: <Self::Resource as CRUDResource>::UpdateModel,
     ) -> Result<Self::Resource, ApiError> {
-        use crate::core::MergeIntoActiveModel;
-        use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
-
-        let model = <Self::Resource as CRUDResource>::EntityType::find_by_id(id.clone())
-            .one(db)
-            .await
-            .map_err(ApiError::database)?
-            .ok_or_else(|| {
-                ApiError::not_found(
-                    <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
-                )
-            })?;
-        let existing: <Self::Resource as CRUDResource>::ActiveModelType = model.into_active_model();
-        let updated_model = data.merge_into_activemodel(existing)?;
-        let updated = updated_model.update(db).await.map_err(ApiError::database)?;
-        Ok(Self::Resource::from(updated))
+        crate::core::defaults::update::<Self::Resource>(db, id, data).await
     }
 
     // ==========================================
@@ -386,19 +342,7 @@ pub trait CRUDOperations: Send + Sync {
         db: &DatabaseConnection,
         id: ResourceId<Self>,
     ) -> Result<ResourceId<Self>, ApiError> {
-        use sea_orm::EntityTrait;
-
-        let res = <Self::Resource as CRUDResource>::EntityType::delete_by_id(id.clone())
-            .exec(db)
-            .await
-            .map_err(ApiError::database)?;
-        match res.rows_affected {
-            0 => Err(ApiError::not_found(
-                <Self::Resource as CRUDResource>::RESOURCE_NAME_SINGULAR,
-                Some(id.to_string()),
-            )),
-            _ => Ok(id),
-        }
+        crate::core::defaults::delete::<Self::Resource>(db, id).await
     }
 
     // ==========================================
@@ -429,54 +373,7 @@ pub trait CRUDOperations: Send + Sync {
         db: &DatabaseConnection,
         ids: Vec<ResourceId<Self>>,
     ) -> Result<Vec<ResourceId<Self>>, ApiError> {
-        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
-
-        // Security: Limit batch size to prevent DoS attacks (uses resource's configured limit)
-        let batch_limit = <Self::Resource as CRUDResource>::batch_limit();
-        if ids.len() > batch_limit {
-            return Err(ApiError::bad_request(format!(
-                "Batch delete limited to {} items. Received {} items.",
-                batch_limit,
-                ids.len()
-            )));
-        }
-
-        if ids.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // Pre-query: which IDs actually exist? Select the PK column generically into
-        // the entity's PK value type so this works for UUID, integer, or String PKs.
-        let existing: Vec<ResourceId<Self>> = <Self::Resource as CRUDResource>::EntityType::find()
-            .select_only()
-            .column(<Self::Resource as CRUDResource>::ID_COLUMN)
-            .filter(<Self::Resource as CRUDResource>::ID_COLUMN.is_in(ids.clone()))
-            .into_tuple::<ResourceId<Self>>()
-            .all(db)
-            .await
-            .map_err(ApiError::database)?;
-        let existing_set: std::collections::HashSet<ResourceId<Self>> =
-            existing.into_iter().collect();
-
-        // Delete only existing IDs
-        if !existing_set.is_empty() {
-            <Self::Resource as CRUDResource>::EntityType::delete_many()
-                .filter(
-                    <Self::Resource as CRUDResource>::ID_COLUMN
-                        .is_in(existing_set.iter().cloned().collect::<Vec<_>>()),
-                )
-                .exec(db)
-                .await
-                .map_err(ApiError::database)?;
-        }
-
-        // Return only IDs that actually existed, de-duplicated while preserving input
-        // order; duplicate input ids would otherwise over-report the rows deleted.
-        let mut seen = std::collections::HashSet::new();
-        Ok(ids
-            .into_iter()
-            .filter(|id| existing_set.contains(id) && seen.insert(id.clone()))
-            .collect())
+        crate::core::defaults::delete_many::<Self::Resource>(db, ids).await
     }
 
     // ==========================================
@@ -733,10 +630,14 @@ pub trait CRUDOperations: Send + Sync {
 /// }
 /// // Automatically uses DefaultCRUDOperations<Todo>
 /// ```
+#[deprecated(
+    note = "never constructed by generated code; implement CRUDOperations on your own type; removed in the next breaking release"
+)]
 pub struct DefaultCRUDOperations<T: CRUDResource> {
     _phantom: std::marker::PhantomData<T>,
 }
 
+#[allow(deprecated)]
 impl<T: CRUDResource> DefaultCRUDOperations<T> {
     /// Create a new default operations instance
     #[must_use]
@@ -747,6 +648,7 @@ impl<T: CRUDResource> DefaultCRUDOperations<T> {
     }
 }
 
+#[allow(deprecated)]
 impl<T: CRUDResource> Default for DefaultCRUDOperations<T> {
     fn default() -> Self {
         Self::new()
@@ -754,6 +656,7 @@ impl<T: CRUDResource> Default for DefaultCRUDOperations<T> {
 }
 
 #[async_trait]
+#[allow(deprecated)]
 impl<T: CRUDResource> CRUDOperations for DefaultCRUDOperations<T> {
     type Resource = T;
 

@@ -1,5 +1,7 @@
-// join_generators functionality consolidated into this file to avoid duplicate/stub implementations
-use crate::traits::crudresource::structs::CRUDResourceMeta;
+//! `create` and `create_many` bodies.
+
+use crate::codegen::handlers::transform_hook;
+use crate::ir::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate create method implementation with hook support.
@@ -9,7 +11,7 @@ use quote::quote;
 /// - `create::one::body`: Replaces default create logic (receives `CreateModel`, returns `Self`)
 /// - `create::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `create::one::post`: Side effects after create (receives `&Self`)
-pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // Auto-validation: runs `Validatable::validate` when the CreateModel implements it,
     // and is a no-op otherwise (autoref specialization in `crudcrate::validation::__auto`).
     let validate = quote! {
@@ -52,9 +54,7 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     };
 
     // Generate transform hook call (modifies the result)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
@@ -83,7 +83,7 @@ pub fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 ///
 /// **Security Note**: The default implementation limits batch creates to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
-pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // Auto-validation: validate every item before any insert (no-op for CreateModels
     // that don't implement Validatable). See `crudcrate::validation::__auto`.
     let validate = quote! {
@@ -173,9 +173,7 @@ pub fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
     };
 
     // Generate transform hook call (modifies the results)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {

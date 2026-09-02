@@ -25,11 +25,11 @@ utoipa-axum = { workspace = true }
 rust_decimal = { workspace = true }
 
 # Additional dependencies needed by tests
-tracing = { workspace = true }
 tower-http = { workspace = true, features = ["cors", "trace"] }
 percent-encoding = { workspace = true }
 async-trait = { workspace = true }
 serial_test = "3.2"
 
 [lints.clippy]
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
+too_many_lines = "allow"

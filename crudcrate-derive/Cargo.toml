@@ -35,7 +35,7 @@ async-trait = { workspace = true }
 
 # Proc macro testing
 trybuild = "1.0"
-macrotest = "1.0"
+prettyplease = "0.2"
 crudcrate = { path = "../crudcrate", features = ["derive"] }
 
 [lints.clippy]

@@ -17,7 +17,6 @@ derive = ["crudcrate-derive"]
 mysql = ["sea-orm/sqlx-mysql"]
 postgresql = ["sea-orm/sqlx-postgres"]
 sqlite = ["sea-orm/sqlx-sqlite", "sea-orm/sqlite-use-returning-for-3_35"]
-spring-rs = ["spring", "spring-web", "derive"]
 
 [dependencies]
 # Proc macro dependency (optional)
@@ -37,12 +36,6 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
 tracing = { workspace = true }
-
-# Spring-RS dependencies (only for examples, behind feature flag)
-spring = { version = "0.4.8", optional = true }
-spring-web = { version = "0.4.8", optional = true }
-
-
 
 [lib]
 proc-macro = false

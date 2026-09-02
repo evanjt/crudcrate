@@ -4,9 +4,10 @@
 //! that are returned from GET endpoints. Join fields are included to enable
 //! relationship data in API responses.
 
-use crate::attribute_parser::get_crudcrate_bool;
-use crate::codegen::joins::config::get_join_config;
-use crate::codegen::models::shared::{resolve_dtwtz, wire_attrs};
+use crate::attrs::get_crudcrate_bool;
+use crate::attrs::join::get_join_config;
+use crate::codegen::models::shared::wire_attrs;
+use crate::syn_type::resolve_dtwtz;
 use quote::quote;
 
 /// Generate field assignment expressions for converting API struct to Response.
@@ -54,7 +55,7 @@ pub(crate) fn generate_response_struct_fields(
             // match (after unwrapping Vec/Option), not a substring of the whole type string,
             // so a field typed e.g. `VehiclePart` on a `Vehicle` struct is not misdetected.
             let is_self_referencing =
-                crate::codegen::type_resolution::extract_api_struct_type_for_recursive_call(ty)
+                crate::syn_type::extract_api_struct_type_for_recursive_call(ty)
                     .to_string()
                     .trim()
                     == api_struct_name.to_string().trim();

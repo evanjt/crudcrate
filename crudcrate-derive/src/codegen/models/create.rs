@@ -1,10 +1,13 @@
-use crate::attribute_parser::{get_crudcrate_bool, get_crudcrate_expr};
+//! Create model fields and the `From<Create>` for `ActiveModel` conversion.
+
+use crate::attrs::{get_crudcrate_bool, get_crudcrate_expr};
 use crate::codegen::models::shared::{
-    generate_active_value_set, generate_field_with_optional_default, resolve_dtwtz,
+    generate_active_value_set, generate_field_with_optional_default,
     resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
-use crate::fields::field_is_optional;
+use crate::syn_type::field_is_optional;
+use crate::syn_type::resolve_dtwtz;
 use quote::quote;
 
 /// Generates the conversion lines for a create model to active model conversion

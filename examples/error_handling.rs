@@ -1,8 +1,8 @@
 //! # Error Handling Example
 //!
-//! Demonstrates CrudCrate's ApiError system with:
-//! - All ApiError constructor methods (bad_request, forbidden, custom, etc.)
-//! - Automatic DbErr → ApiError conversion
+//! Demonstrates `CrudCrate`'s `ApiError` system with:
+//! - All `ApiError` constructor methods (`bad_request`, forbidden, custom, etc.)
+//! - Automatic `DbErr` → `ApiError` conversion
 //! - Sanitized user-facing messages vs internal logging
 //! - Proper HTTP status codes (400, 401, 403, 404, 409, 422, 500, etc.)
 //! - Custom status codes with internal/external message separation
@@ -49,7 +49,7 @@ pub struct ProductOperations;
 impl CRUDOperations for ProductOperations {
     type Resource = Product;
 
-    /// Example 1: ApiError::bad_request() - 400 Bad Request
+    /// Example 1: `ApiError::bad_request()` - 400 Bad Request
     /// Used for validation errors and malformed input
     async fn before_create(
         &self,
@@ -82,7 +82,7 @@ impl CRUDOperations for ProductOperations {
         Ok(())
     }
 
-    /// Example 2: ApiError::forbidden() - 403 Forbidden
+    /// Example 2: `ApiError::forbidden()` - 403 Forbidden
     /// Used for permission/authorization failures
     async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
         tracing::info!("Checking delete permission for product {}", id);
@@ -97,7 +97,7 @@ impl CRUDOperations for ProductOperations {
         Ok(())
     }
 
-    /// Example 3: ApiError::unauthorized() - 401 Unauthorized
+    /// Example 3: `ApiError::unauthorized()` - 401 Unauthorized
     /// Used for authentication failures
     async fn before_update(
         &self,
@@ -115,7 +115,7 @@ impl CRUDOperations for ProductOperations {
         Ok(())
     }
 
-    /// Example 4: ApiError::conflict() - 409 Conflict
+    /// Example 4: `ApiError::conflict()` - 409 Conflict
     /// Used for duplicate records or conflicting state
     async fn after_create(
         &self,
@@ -133,7 +133,7 @@ impl CRUDOperations for ProductOperations {
         Ok(())
     }
 
-    /// Example 5: ApiError::custom() - Any HTTP status code
+    /// Example 5: `ApiError::custom()` - Any HTTP status code
     /// Used for custom status codes with internal/external message separation
     async fn before_get_one(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
         // Example: Custom 429 Too Many Requests with internal logging
@@ -161,8 +161,8 @@ impl CRUDOperations for ProductOperations {
         Ok(())
     }
 
-    /// Example 6: Automatic DbErr → ApiError conversion
-    /// The ? operator automatically converts DbErr to ApiError!
+    /// Example 6: Automatic `DbErr` → `ApiError` conversion
+    /// The ? operator automatically converts `DbErr` to `ApiError`!
     async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Product, ApiError> {
         use sea_orm::EntityTrait;
 
@@ -178,7 +178,7 @@ impl CRUDOperations for ProductOperations {
         Ok(Product::from(model))
     }
 
-    /// Example 7: ApiError::internal() - 500 with internal details
+    /// Example 7: `ApiError::internal()` - 500 with internal details
     /// Used for unexpected errors you want to log but not expose
     async fn after_get_one(
         &self,
@@ -294,13 +294,13 @@ async fn create_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
 
     db.execute_raw(Statement::from_string(
         sea_orm::DatabaseBackend::Sqlite,
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS products (
             id TEXT PRIMARY KEY NOT NULL,
             name TEXT NOT NULL,
             price INTEGER NOT NULL
         )
-        "#,
+        ",
     ))
     .await?;
 

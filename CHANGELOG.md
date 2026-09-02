@@ -5,6 +5,92 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `#[crudcrate(max_child_rows = N)]` and `SecurityProfile::max_child_rows_per_relation`
+  cap the child rows one join field may load per request; exceeding the cap
+  returns `413 Payload Too Large` (new `ApiError::PayloadTooLarge`). Unlimited
+  unless set.
+- `join(relation = "Variant")` selects the child's `Relation` variant for
+  foreign key resolution.
+
+### Changed
+
+- `build_filter_expr` and `build_comparison_expr` return
+  `Result<Option<Expr>, ApiError>` instead of `Option<Expr>`. Hand-written
+  `resolve_joined_filters` implementations add `?` at the call site; generated
+  code is updated. See `docs/MIGRATION_0.11.md`.
+
+### Fixed
+
+- Array filters (`filter={"created_at":["...","..."]}`) bound every element as
+  text, so an `IN` list over a date, timestamp, decimal or float column was
+  rejected by Postgres and compared lexically elsewhere. Elements are now parsed
+  against the column's SQL type, as scalar filters already were. An element that
+  does not parse returns `400 Bad Request` rather than dropping the clause and
+  returning unfiltered rows.
+- `build_comparison_expr` bound every non-UUID string as text, so a hand-written
+  `resolve_joined_filters` comparing a non-text child column had the same defect.
+  It now routes by column type on both its scalar and array arms.
+- Join loading at depth 2 or more read `related_model.id`, so a child entity
+  whose primary key field has another name failed to compile. Loaders now go
+  through the new provided `CRUDResource::pk_value(&model)`, which the derive
+  overrides with the actual field.
+- Generated routers named `tracing::info!` without qualification, so a crate
+  without a direct `tracing` dependency failed to compile. Generated code now
+  goes through `crudcrate::tracing`.
+- Column variant idents for field names with a digit boundary (`is_2fa_enabled`)
+  were built with `convert_case` (`Is2FaEnabled`) while Sea-ORM names them with
+  heck (`Is2faEnabled`), so such entities failed to compile. All column idents
+  now use heck.
+
+### Deprecated
+
+- Relying on the `use` items that `crud_handlers!` leaks into the calling
+  module (`StatusCode`, `Json`, `Path`, ...). Import them directly; the leak
+  is removed in the next breaking release. The macro no longer needs
+  `CRUDResource` in scope at the call site.
+Scheduled for removal in the next breaking release:
+
+- `UuidIdResult`, unused since `delete_many` became generic over the primary key type.
+- `filtering::sort::generic_sort`: parses every value as a JSON pair, so a plain
+  column name falls back to the default column. Use `parse_sorting`.
+- `ValidationErrors`: generated validation returns the singular `ValidationError`.
+- `DefaultCRUDOperations`: never constructed by generated code.
+- `BatchResult::all_succeeded`: check `failed.is_empty()`.
+- `generate_crud_router!`: collapses every response model to the resource type.
+  Use `#[crudcrate(generate_router)]`.
+- The five- and three-argument arms of `crud_handlers!`.
+- The `crudcrate::database` and `crudcrate::relationships` modules, which contain no items.
+
+### Removed
+
+- The empty, hidden `crudcrate::routes` module.
+- The `spring-rs` feature and its optional `spring` and `spring-web` dependencies.
+  No code was gated on it; spring-web applications mount the generated axum
+  router directly.
+
+### Changed
+
+- Joined filters (`?filter={"vehicles.make":"bmw"}`) go through the same value
+  dispatch as main-entity filters: string equality folds case, enum columns
+  are cast on Postgres, `like_filterable` columns and `_like` use a
+  case-insensitive `LIKE`, and typed columns bind typed values. New public
+  `build_filter_expr` exposes that dispatch for custom resolvers.
+- Boolean filters with `_neq` now negate; previously the suffix was ignored.
+- `crudcrate::core::crud_operations` (the handler macros, no nameable items) is
+  now `crudcrate::core::handler_macros`. The macros are unchanged and still
+  exported at the crate root.
+- The handler macros name `apply_filters`, `parse_pagination`, `FilterOptions`,
+  `calculate_content_range` and `parse_sorting` at the crate root instead of
+  through the `filter`, `models`, `pagination` and `sort` alias modules. The
+  aliases remain exported.
+- Generated code is pinned by expansion snapshots in
+  `crudcrate-derive/tests/expand`, and `test_suite` carries a compile-only test
+  naming every `crudcrate::` path generated code emits.
+
 ## [0.10.1] - 2026-08-20
 
 ### Fixed
@@ -285,7 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Extension > CRUDResource::security_profile() > trait default`.
 
 - **Default profile flipped to `secure()`**. New resources ship hardened
-  defaults. See [MIGRATION_0.9.md](docs/MIGRATION_0.9.md) for the per-flag
+  defaults. See [MIGRATION_0.9.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.9.md) for the per-flag
   breakdown and opt-out instructions.
 
 - **Explicit batch body limit**. The generated router now applies an

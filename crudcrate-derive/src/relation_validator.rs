@@ -5,32 +5,18 @@
 //! - Depth exceeding `MAX_ALLOWED_DEPTH`
 //! - Bidirectional `SeaORM` relations that cause infinite recursion in `find_related()`
 
-use crate::codegen::joins::get_join_config;
-use crate::codegen::type_resolution::{
-    extract_api_struct_type_for_recursive_call, get_path_from_field_type,
-};
-use crate::traits::crudresource::structs::EntityFieldAnalysis;
+use crate::attrs::get_join_config;
+use crate::ir::EntityFieldAnalysis;
+use crate::syn_type::{extract_api_struct_type_for_recursive_call, get_path_from_field_type};
 use quote::quote;
 
 // Maximum allowed join depth (enforced at runtime, warned at compile-time)
 const MAX_ALLOWED_DEPTH: u8 = 5;
 
-/// Check for hard compile errors in join configurations.
-/// Returns non-empty only for errors that MUST block compilation.
-/// Advisory warnings are handled by `generate_bidirectional_checks` instead.
-pub fn generate_cyclic_dependency_check(
-    _analysis: &EntityFieldAnalysis,
-    _entity_name: &str,
-) -> proc_macro2::TokenStream {
-    // All checks moved to generate_bidirectional_checks which is included
-    // in the main output (not the early-return error path).
-    quote! {}
-}
-
 /// Check if join depth is potentially problematic for performance
 fn check_join_depth(
     field: &syn::Field,
-    join_config: &crate::codegen::joins::JoinConfig,
+    join_config: &crate::attrs::JoinConfig,
     entity_name: &str,
     warnings: &mut Vec<proc_macro2::TokenStream>,
 ) {
@@ -87,12 +73,12 @@ fn check_join_depth(
 
 /// Generate compile-time bidirectional relation detection for all join fields.
 ///
-/// Uses the `impls!` crate to check at compile time whether each join target entity
+/// Uses the vendored `crudcrate::impls!` macro to check at compile time whether each join target entity
 /// has a `Related<SelfEntity>` impl. If so:
 /// - `depth = 1`: OK (crudcrate uses safe `Entity::find().filter()`)
 /// - `depth` unspecified: COMPILE ERROR (must explicitly set depth = 1)
 /// - `depth > 1`: COMPILE ERROR (recursive `get_one()` calls would infinitely recurse)
-pub fn generate_bidirectional_checks(
+pub(crate) fn generate_bidirectional_checks(
     analysis: &EntityFieldAnalysis,
     entity_name: &str,
 ) -> proc_macro2::TokenStream {
@@ -214,23 +200,6 @@ mod tests {
         let ty: syn::Type = parse_quote!(Vec<crate::sites::replicates::db::SiteReplicate>);
         let inner = extract_api_struct_type_for_recursive_call(&ty);
         assert_ne!(inner.to_string().trim(), "Site");
-    }
-
-    #[test]
-    fn test_generate_cyclic_dependency_check_no_joins() {
-        let analysis = EntityFieldAnalysis {
-            db_fields: vec![],
-            non_db_fields: vec![],
-            primary_key_field: None,
-            sortable_fields: vec![],
-            filterable_fields: vec![],
-            fulltext_fields: vec![],
-            join_on_one_fields: vec![],
-            join_on_all_fields: vec![],
-            join_filter_sort_configs: vec![],
-        };
-        let result = generate_cyclic_dependency_check(&analysis, "TestEntity");
-        assert!(result.is_empty());
     }
 
     #[test]

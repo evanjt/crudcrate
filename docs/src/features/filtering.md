@@ -76,6 +76,20 @@ GET /items?filter={"priority_lte":10}
 | `_lte` | `<=` | `{"priority_lte":10}` |
 | (array) | `IN` | `{"status":["a","b","c"]}` |
 
+### Arrays
+
+Every element of an array filter is parsed against the column's type, so an `IN`
+list binds native values rather than text:
+
+```bash
+GET /items?filter={"priority":[1,3,5]}
+GET /items?filter={"created_at":["2024-01-15T10:30:00Z","2024-02-01T00:00:00Z"]}
+```
+
+All elements must parse or the request is rejected with `400 Bad Request` (a
+dropped clause would silently return unfiltered rows). Send decimals as strings
+(`["10.50"]`) to avoid going through a float.
+
 ## Type-Specific Filtering
 
 ### Strings
@@ -111,16 +125,31 @@ GET /items?filter={"active":false}
 
 ### Dates
 
+The accepted format depends on the column's type:
+
+| Rust type | SQL type | Accepted value |
+|-----------|----------|----------------|
+| `NaiveDate` | `DATE` | `2024-01-15` |
+| `NaiveDateTime` | `TIMESTAMP` | `2024-01-15T10:30:00`, `2024-01-15 10:30:00`, or RFC 3339 (normalised to UTC) |
+| `DateTime<Utc>`, `DateTime<FixedOffset>` | `TIMESTAMPTZ` | RFC 3339 only: `2024-01-15T10:30:00Z` |
+
 ```bash
-# Exact date
-GET /items?filter={"created_at":"2024-01-15"}
+# Date column
+GET /items?filter={"published_on":"2024-01-15"}
 
-# Date range
-GET /items?filter={"created_at_gte":"2024-01-01","created_at_lte":"2024-12-31"}
+# Timestamp column, RFC 3339 required
+GET /items?filter={"created_at":"2024-01-15T10:30:00Z"}
 
-# ISO 8601 format
-GET /items?filter={"created_at_gte":"2024-01-15T10:30:00Z"}
+# One calendar year, as a half-open range
+GET /items?filter={"created_at_gte":"2024-01-01T00:00:00Z","created_at_lt":"2025-01-01T00:00:00Z"}
 ```
+
+Use `_lt` against the start of the next period rather than `_lte` against a bare
+date: `created_at_lte=2024-12-31` would mean `<= 2024-12-31T00:00:00Z` and exclude
+the rest of 31 December.
+
+A scalar value that does not parse for the column's type causes that clause to be
+**ignored**, so the response is unfiltered on that field.
 
 ### Enums
 

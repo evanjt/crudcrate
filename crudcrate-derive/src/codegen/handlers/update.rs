@@ -1,4 +1,7 @@
-use crate::traits::crudresource::structs::CRUDResourceMeta;
+//! `update` and `update_many` bodies.
+
+use crate::codegen::handlers::transform_hook;
+use crate::ir::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate update method implementation with hook support.
@@ -8,7 +11,7 @@ use quote::quote;
 /// - `update::one::body`: Replaces default update logic (receives id, `UpdateModel`, returns `Self`)
 /// - `update::one::transform`: Modify the result (receives `Self`, returns `Self`)
 /// - `update::one::post`: Side effects after update (receives `&Self`)
-pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // Auto-validation: runs `Validatable::validate` when the UpdateModel implements it,
     // and is a no-op otherwise (autoref specialization in `crudcrate::validation::__auto`).
     let validate = quote! {
@@ -63,9 +66,7 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     };
 
     // Generate transform hook call (modifies the result)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {
@@ -93,7 +94,7 @@ pub fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 ///
 /// **Security Note**: The default implementation limits batch updates to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
-pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // Auto-validation: validate every update model before any write (no-op for
     // UpdateModels that don't implement Validatable). See `crudcrate::validation::__auto`.
     let validate = quote! {
@@ -164,9 +165,7 @@ pub fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
     };
 
     // Generate transform hook call (modifies the results)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {

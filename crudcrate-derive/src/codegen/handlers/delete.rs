@@ -1,5 +1,7 @@
-// join_generators functionality consolidated into this file to avoid duplicate/stub implementations
-use crate::traits::crudresource::structs::CRUDResourceMeta;
+//! `delete` and `delete_many` bodies.
+
+use crate::codegen::handlers::transform_hook;
+use crate::ir::CRUDResourceMeta;
 use quote::quote;
 
 /// Generate delete method implementation with hook support.
@@ -9,7 +11,7 @@ use quote::quote;
 /// - `delete::one::body`: Replaces default delete logic (receives id, returns `Uuid`)
 /// - `delete::one::transform`: Modify the result (receives `Uuid`, returns `Uuid`)
 /// - `delete::one::post`: Side effects after delete (receives deleted id)
-pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
@@ -48,9 +50,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
     };
 
     // Generate transform hook call (modifies the result)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call. Clone the result so the deleted id can still be
     // returned afterwards (the PK value type is not required to be Copy).
@@ -79,7 +79,7 @@ pub fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenS
 ///
 /// **Security Note**: The default implementation limits batch deletes to 100 items to prevent
 /// `DoS` attacks via resource exhaustion.
-pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
+pub(crate) fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::TokenStream {
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
@@ -145,9 +145,7 @@ pub fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2::T
     };
 
     // Generate transform hook call (modifies the results)
-    let transform_hook = hooks.transform.as_ref().map(|fn_path| {
-        quote! { let result = #fn_path(db, result).await?; }
-    });
+    let transform_hook = transform_hook(hooks);
 
     // Generate post hook call
     let post_hook = hooks.post.as_ref().map(|fn_path| {

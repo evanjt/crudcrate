@@ -1,0 +1,95 @@
+//! `require_scope` off: unscoped and scoped access both succeed; scoped `get_one` on a missing id is 404.
+
+/// `require_scope` Tests
+///
+/// Validates the `#[crudcrate(require_scope)]` attribute:
+/// - Resources WITHOUT `require_scope` work normally without scope middleware
+/// - Resources WITH `require_scope` return 500 when scope middleware is missing
+/// - Resources WITH `require_scope` work normally when scope middleware is present
+use test_suite as common;
+
+use axum::http::StatusCode;
+use serde_json::json;
+
+use common::{setup_scoped_app, setup_test_app, setup_test_db};
+use test_suite::http;
+
+// =============================================================================
+// 2. Resources without require_scope allow unscoped access
+// =============================================================================
+
+#[tokio::test]
+async fn no_require_scope_allows_unscoped_access() {
+    let db = setup_test_db().await.unwrap();
+    let admin = setup_test_app(&db);
+
+    // Create a customer
+    http::post(
+        &admin,
+        "/customers",
+        &json!({"name": "Public", "email": "pub@example.com"}),
+    )
+    .await;
+
+    // get_all without scope middleware: should succeed
+    let (status, body) = http::get(&admin, "/customers").await;
+    assert_eq!(status, StatusCode::OK, "Unscoped get_all should succeed");
+    let items = body.as_array().unwrap();
+    assert!(!items.is_empty(), "Should return data");
+}
+
+// =============================================================================
+// 3. Resources without require_scope allow scoped access too
+// =============================================================================
+
+#[tokio::test]
+async fn no_require_scope_allows_scoped_access() {
+    let db = setup_test_db().await.unwrap();
+    let admin = setup_test_app(&db);
+    let scoped = setup_scoped_app(&db);
+
+    http::post(
+        &admin,
+        "/customers",
+        &json!({"name": "ScopedOK", "email": "sok@example.com"}),
+    )
+    .await;
+
+    // get_all with scope middleware: should also succeed
+    let (status, body) = http::get(&scoped, "/customers").await;
+    assert_eq!(status, StatusCode::OK, "Scoped get_all should succeed");
+    let items = body.as_array().unwrap();
+    assert!(!items.is_empty(), "Should return scoped data");
+}
+
+// =============================================================================
+// 4. require_scope: get_one returns 404 (not 500) for nonexistent record with middleware
+// =============================================================================
+//
+// This verifies that 500 is only for missing middleware, not missing records.
+// We use the scoped customer endpoint (which has scope middleware but NOT require_scope)
+// as a proxy test: the behavior should be identical for require_scope resources.
+
+#[tokio::test]
+async fn scoped_get_one_nonexistent_returns_404_not_500() {
+    let db = setup_test_db().await.unwrap();
+    let scoped = setup_scoped_app(&db);
+
+    let fake_id = "00000000-0000-0000-0000-ffffffffffff";
+    let (status, _) = http::get(&scoped, &format!("/customers/{fake_id}")).await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "Nonexistent record with scope middleware should return 404, not 500"
+    );
+}
+
+// Models without the attribute default to REQUIRE_SCOPE = false.
+const _: () = {
+    use crudcrate::traits::CRUDResource;
+    assert!(!common::customer::Customer::REQUIRE_SCOPE);
+    assert!(!common::vehicle::Vehicle::REQUIRE_SCOPE);
+    assert!(!common::vehicle_part::VehiclePart::REQUIRE_SCOPE);
+    assert!(!common::maintenance_record::MaintenanceRecord::REQUIRE_SCOPE);
+    assert!(!common::category::Category::REQUIRE_SCOPE);
+};

@@ -58,24 +58,30 @@
 //! - [`parse_sorting`]: resolves sort parameters to column + direction
 //! - [`parse_pagination`]: extracts offset/limit from query params
 
+#[doc(hidden)]
 pub mod conditions;
+#[doc(hidden)]
 pub mod joined;
+#[doc(hidden)]
 pub mod pagination;
+#[doc(hidden)]
 pub mod query_parser;
+#[doc(hidden)]
 pub mod search;
+#[doc(hidden)]
 pub mod sort;
 #[cfg(test)]
 pub(crate) mod test_support;
 
 // Re-export commonly used items
 pub use conditions::{
-    apply_filters, apply_filters_with_joins, build_comparison_expr, parse_pagination, parse_range,
+    apply_filters, apply_filters_with_joins, build_comparison_expr, build_filter_expr,
     table_column_ref,
 };
 pub use joined::{
     FilterOperator, JoinedColumnDef, JoinedFilter, ParsedFilters, SortConfig, parse_dot_notation,
 };
-pub use pagination::calculate_content_range;
+pub use pagination::{calculate_content_range, parse_pagination, parse_range};
 pub use query_parser::{BatchOptions, FilterOptions};
 pub use search::build_fulltext_condition;
 pub use sort::{parse_sorting, parse_sorting_with_joins};

@@ -1,4 +1,4 @@
-use crudcrate::{CRUDResource, EntityToModels};
+use crudcrate::EntityToModels;
 use sea_orm::{Database, DatabaseConnection, entity::prelude::*};
 use uuid::Uuid;
 

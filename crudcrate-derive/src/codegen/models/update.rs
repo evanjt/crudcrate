@@ -1,8 +1,11 @@
-use crate::attribute_parser::get_crudcrate_bool;
+//! Update model fields (`Option<Option<T>>`) and their merge into `ActiveModel`.
+
+use crate::attrs::get_crudcrate_bool;
 use crate::codegen::models::shared::{
-    generate_field_with_optional_default, resolve_dtwtz, resolve_field_type_with_target_models,
+    generate_field_with_optional_default, resolve_field_type_with_target_models,
 };
 use crate::codegen::models::should_include_in_model;
+use crate::syn_type::resolve_dtwtz;
 use quote::quote;
 
 /// Generates the field declarations for an update struct

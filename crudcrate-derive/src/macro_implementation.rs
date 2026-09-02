@@ -1,21 +1,21 @@
+//! Emits the `impl CRUDResource` block: associated consts, type aliases, column entries and the CRUD method bodies.
+
+use crate::attrs::get_join_config;
+use crate::codegen::joins::fk::fk_field_name;
 use crate::codegen::{
     handlers::{create, delete, get, update},
-    joins::{
-        get_join_config,
-        loading::{
-            generate_get_all_joined_sorted_impl, generate_joined_field_has_scope_impl,
-            generate_resolve_joined_filters_impl,
-        },
+    joins::filter_sort::{
+        generate_get_all_joined_sorted_impl, generate_joined_field_has_scope_impl,
+        generate_resolve_joined_filters_impl,
     },
-    type_resolution::{
-        extract_api_struct_type_for_recursive_call, generate_crud_type_aliases,
-        generate_enum_field_checker, generate_field_entries, generate_id_column,
-        generate_like_filterable_entries, generate_scoped_excluded_entries,
-        get_path_from_field_type, is_vec_type,
+    trait_consts::{
+        generate_crud_type_aliases, generate_enum_field_checker, generate_field_entries,
+        generate_id_column, generate_like_filterable_entries, generate_scoped_excluded_entries,
     },
 };
-use crate::traits::crudresource::structs::{
-    CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig,
+use crate::ir::{CRUDResourceMeta, EntityFieldAnalysis, JoinFilterSortConfig};
+use crate::syn_type::{
+    extract_api_struct_type_for_recursive_call, get_path_from_field_type, is_vec_type,
 };
 use quote::quote;
 
@@ -36,6 +36,13 @@ pub(crate) fn generate_crud_resource_impl(
     ) = generate_crud_type_aliases(api_struct_name, crud_meta, active_model_path);
 
     let id_column = generate_id_column(analysis.primary_key_field);
+    let pk_value_impl = analysis.primary_key_field.and_then(|f| f.ident.as_ref()).map(|pk| {
+        quote! {
+            fn pk_value(model: &<Self::EntityType as sea_orm::EntityTrait>::Model) -> crudcrate::PrimaryKeyType<Self> {
+                model.#pk.clone()
+            }
+        }
+    });
     let sortable_entries = generate_field_entries(&analysis.sortable_fields);
     let filterable_entries = generate_field_entries(&analysis.filterable_fields);
     let like_filterable_entries = generate_like_filterable_entries(&analysis.filterable_fields);
@@ -55,8 +62,7 @@ pub(crate) fn generate_crud_resource_impl(
     // Generate resolve_joined_filters override (empty if no filterable joined cols)
     let resolve_joined_filters_impl =
         generate_resolve_joined_filters_impl(analysis, api_struct_name);
-    let joined_field_has_scope_impl =
-        generate_joined_field_has_scope_impl(analysis, api_struct_name);
+    let joined_field_has_scope_impl = generate_joined_field_has_scope_impl(analysis);
     // Generate get_all_joined_sorted override (empty if no sortable joined cols)
     let get_all_joined_sorted_impl = generate_get_all_joined_sorted_impl(analysis, api_struct_name);
 
@@ -70,11 +76,6 @@ pub(crate) fn generate_crud_resource_impl(
         delete_impl,
         delete_many_impl,
     ) = generate_method_impls(crud_meta, analysis, api_struct_name);
-
-    // Generate registration lazy static and auto-registration call only for models without join fields
-    // Models with join fields may have circular dependencies that prevent CRUDResource compilation
-    let _has_join_fields =
-        !analysis.join_on_one_fields.is_empty() || !analysis.join_on_all_fields.is_empty();
 
     // Generate resource name plural constant
     let resource_name_plural_impl = {
@@ -97,17 +98,30 @@ pub(crate) fn generate_crud_resource_impl(
         }
     });
 
-    let security_profile_impl = crud_meta.security_profile.as_deref().and_then(|preset| {
-        let ctor = match preset {
-            "secure" => quote! { crudcrate::SecurityProfile::secure() },
-            "react_admin" => quote! { crudcrate::SecurityProfile::react_admin() },
-            "legacy" => quote! { crudcrate::SecurityProfile::legacy() },
-            _ => return None,
+    let security_profile_impl = {
+        let preset = match crud_meta.security_profile.as_deref() {
+            Some("secure") => Some(quote! { crudcrate::SecurityProfile::secure() }),
+            Some("react_admin") => Some(quote! { crudcrate::SecurityProfile::react_admin() }),
+            Some("legacy") => Some(quote! { crudcrate::SecurityProfile::legacy() }),
+            _ => None,
         };
-        Some(quote! {
-            fn security_profile() -> crudcrate::SecurityProfile { #ctor }
-        })
-    });
+        match (preset, crud_meta.max_child_rows) {
+            (None, None) => None,
+            (preset, cap) => {
+                let base =
+                    preset.unwrap_or_else(|| quote! { crudcrate::SecurityProfile::secure() });
+                let body = match cap {
+                    Some(cap) => quote! {
+                        crudcrate::SecurityProfile { max_child_rows_per_relation: Some(#cap), ..#base }
+                    },
+                    None => base,
+                };
+                Some(quote! {
+                    fn security_profile() -> crudcrate::SecurityProfile { #body }
+                })
+            }
+        }
+    };
 
     // Generate require_scope constant (only when attribute is set, otherwise use trait default)
     let require_scope_impl = if crud_meta.require_scope {
@@ -132,6 +146,7 @@ pub(crate) fn generate_crud_resource_impl(
             type ListModel = #list_model_name;
 
             const ID_COLUMN: Self::ColumnType = #id_column;
+            #pk_value_impl
             const RESOURCE_NAME_SINGULAR: &'static str = #name_singular;
             #resource_name_plural_impl
             const TABLE_NAME: &'static str = #table_name;
@@ -276,15 +291,12 @@ fn generate_fk_validation_tests(
         }
 
         // If fk_column is explicitly set, the user owns the mapping; skip validation
-        if join_config.fk_column.is_some() {
+        if join_config.fk_column.is_some() || join_config.relation.is_some() {
             continue;
         }
 
         // Derive the convention FK column name
-        let fk_snake = {
-            use convert_case::{Case, Casing};
-            format!("{}_id", api_struct_name.to_string().to_case(Case::Snake))
-        };
+        let fk_snake = fk_field_name(api_struct_name);
 
         // Get child entity path
         let child_entity = get_path_from_field_type(&field.ty, "Entity");

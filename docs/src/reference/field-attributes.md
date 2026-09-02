@@ -43,6 +43,7 @@ pub password_hash: String,
 - `create` - Create model (POST /items)
 - `update` - Update model (PUT /items/:id)
 - `list` - List model (GET /items)
+- `all` - Shorthand for `one, list`. Does not touch `create` or `update`. Unrelated to `join(all)`, where `all` means the list endpoint.
 - `scoped` - Scoped response models (when `ScopeCondition` is active). Also strips the field from filterable/sortable lists in scoped context. See [Public & Private Endpoints](../tutorial/scoping.md).
 
 ---
@@ -164,6 +165,12 @@ pub author: Option<User>,
 // Limit recursion depth
 #[crudcrate(non_db_attr, join(one, all, depth = 2))]
 pub nested: Vec<Nested>,
+
+// Two foreign keys to the same parent: pick the relation variant
+#[crudcrate(non_db_attr, join(one, all, relation = "Author"))]
+pub authored: Vec<Document>,
+#[crudcrate(non_db_attr, join(one, all, relation = "Reviewer"))]
+pub reviewed: Vec<Document>,
 ```
 
 **Type:** Configuration
@@ -171,6 +178,9 @@ pub nested: Vec<Nested>,
 - `one` - Load in single-item responses
 - `all` - Load in list responses
 - `depth = N` - Maximum recursion depth (default: 5)
+- `relation = "Variant"` - Variant of the child's `Relation` enum to join through. Needed when the child has more than one foreign key to this entity, since `Related` can only be implemented once per pair
+- `fk_column = "Column"` - Child column variant holding the foreign key, bypassing runtime resolution from the `RelationDef`
+- `path = "crate::module"` - Module of the child entity when it cannot be derived from the field type
 
 ---
 

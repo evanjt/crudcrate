@@ -1,5 +1,8 @@
 use axum::http::header::HeaderMap;
 
+pub(crate) const MAX_PAGE_SIZE: u64 = 1000;
+pub(crate) const MAX_OFFSET: u64 = 1_000_000;
+
 /// Sanitize resource name by removing control characters for HTTP headers
 fn sanitize_resource_name(name: &str) -> String {
     name.chars()
@@ -69,6 +72,45 @@ pub fn calculate_content_range(
     }
 
     headers
+}
+
+#[must_use]
+pub fn parse_range(range_str: Option<String>) -> (u64, u64) {
+    range_str.map_or((0, 9), |r| {
+        serde_json::from_str::<[u64; 2]>(&r).map_or((0, 9), |range| (range[0], range[1]))
+    })
+}
+
+#[must_use]
+pub fn parse_pagination(params: &crate::models::FilterOptions) -> (u64, u64) {
+    // `std::cmp::min` is spelled out throughout: SeaQuery's blanket `ExprTrait` impl
+    // covers every type, so the `.min()` method call is ambiguous with `Ord::min`.
+    if let (Some(page), Some(per_page)) = (params.page, params.per_page) {
+        // Standard REST pagination (1-based page numbers)
+        // Clamp on both ends: the upper bound prevents DoS, the lower bound keeps a
+        // `per_page=0` from producing an empty page that never advances (and from
+        // reaching backends that reject a zero page size).
+        let safe_per_page = Ord::clamp(per_page, 1, MAX_PAGE_SIZE);
+
+        // Use saturating_mul to prevent overflow panic
+        let offset = (page.saturating_sub(1)).saturating_mul(safe_per_page);
+
+        // Enforce maximum offset to prevent excessive database queries
+        let safe_offset = std::cmp::min(offset, MAX_OFFSET);
+
+        (safe_offset, safe_per_page)
+    } else if let Some(range) = &params.range {
+        // React Admin pagination
+        let (start, end) = parse_range(Some(range.clone()));
+        // saturating_add: a client-supplied end of u64::MAX would otherwise overflow
+        // the `+ 1` (panic in debug/test, silent wrap-to-zero in release).
+        let limit = std::cmp::min(end.saturating_sub(start).saturating_add(1), MAX_PAGE_SIZE);
+        let safe_start = std::cmp::min(start, MAX_OFFSET);
+        (safe_start, limit)
+    } else {
+        // Default pagination
+        (0, 10)
+    }
 }
 
 #[cfg(test)]

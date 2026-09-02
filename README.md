@@ -194,11 +194,41 @@ cargo run --example minimal            # Todo API in ~60 lines
 cargo run --example recursive_join     # Multi-level relationship loading
 ```
 
-## Security caveats
+## Contributing
 
-The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`. That version is affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (the Marvin attack, a server-side timing side-channel against RSA decryption). There is no upstream fix yet.
+Rust 1.85+ (edition 2024). No database is needed for the default test run: `DATABASE_URL` falls back to `sqlite::memory:`.
 
-The feature is opt-in. If you are not connecting to MySQL, leave it disabled. If you are, terminate the MySQL connection over a private network or unix socket rather than across a network-attacker-reachable path.
+```bash
+cargo test --manifest-path test_suite/Cargo.toml --test filtering -- --test-threads=1
+```
+
+The first build compiles around 460 crates, including all three sqlx drivers. `--test-threads=1` is required: `hook_system_test` and `custom_crud_functions_test` share process state.
+
+Three test tiers:
+
+- Unit tests at the bottom of each `crudcrate/src` file
+- Integration tests in `test_suite/tests/it/*.rs`, grouped into one binary per area (`filtering`, `sorting_pagination`, `joins`, `scope`, `security`, `pk_parity`, `batch`, `models`) by the roots in `test_suite/tests/`. Run one file with `--test joins -- join_functionality_test::`. A compile error in one file blocks its group. `hook_system_test` and `custom_crud_functions_test` stay standalone because they hold process-global state.
+- Macro diagnostics in `crudcrate-derive/tests/{ui-pass,ui-fail}` (regenerate with `TRYBUILD=overwrite`; snapshots move on rustc and sea-orm bumps)
+
+Changes to filtering or joins should also be run against Postgres and MySQL, since SQLite hides backend differences:
+
+```bash
+docker run -d --name crudcrate-pg -e POSTGRES_PASSWORD=password -e POSTGRES_DB=test_db -p 5432:5432 postgres:16
+DATABASE_URL="postgres://postgres:password@localhost:5432/test_db" cargo test --workspace -- --test-threads=1
+```
+
+Generated code is pinned by `crudcrate-derive/tests/expand/*.expanded.rs`. A refactor of the derive crate must leave those files unchanged; `EXPAND_OVERWRITE=1 cargo test -p crudcrate-derive` accepts an intended change. `scripts/expand-baselines.sh` records the full downstream expansion and the public API for a before/after diff.
+
+Commits are a single imperative line with no prefix and no body.
+
+## Known limitations
+
+- Generated code names `crudcrate::` paths that the workspace does not type-check. Moving a runtime item is free; renaming a path that a `quote!` block or an exported macro names breaks downstream builds while `cargo build` stays green.
+- Self-referencing joins are capped at depth 1. Foreign keys are derived from the target type name; the `relation` and `path` join options are parsed but not used for that derivation. Join recursion deeper than one level assumes the primary key field is named `id`.
+- Attribute hooks and `CRUDOperations` are separate systems. When an entity has joins, the generated `get_one` bypasses `CRUDOperations`.
+- Fulltext search is substring matching (`ILIKE '%term%'`), not trigram similarity.
+- Joined child rows are unbounded unless `#[crudcrate(max_child_rows = N)]` is set; joined-filter sub-queries have no cap.
+- The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`, affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (a server-side timing side-channel against RSA decryption) with no upstream fix yet. If you use it, terminate the MySQL connection over a private network or unix socket.
 
 ## License
 

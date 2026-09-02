@@ -8,3 +8,5 @@ CLAUDE.md
 AGENTS.md
 
 
+/snapshots/*.rs
+/snapshots/*/

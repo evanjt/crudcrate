@@ -31,7 +31,9 @@
 //!
 //! `max_request_body_bytes` is enforced via a `DefaultBodyLimit` tower layer that
 //! is baked into the router at startup. Setting it through a request-time
-//! `Extension` cannot change the limit once the router is built; the other three
+//! `Extension` cannot change the limit once the router is built, and
+//! `max_child_rows_per_relation` is read from the resource's `security_profile()`
+//! inside join loading, so an `Extension` does not affect it either. The other
 //! fields work fully at request time.
 //!
 //! [`CRUDResource`]: crate::CRUDResource
@@ -57,6 +59,13 @@ pub struct SecurityProfile {
     /// exposes which submitted IDs existed in the database.
     pub expose_deleted_ids: bool,
 
+    /// Maximum number of child rows one join field may load in a single request
+    /// (`get_one`, or the batch query behind `get_all`). Exceeding it returns
+    /// `413 Payload Too Large`. `None` means unlimited. Set per resource with
+    /// `#[crudcrate(max_child_rows = N)]`; read from the resource's
+    /// `security_profile()`, so a request-time `Extension` does not affect it.
+    pub max_child_rows_per_relation: Option<usize>,
+
     /// Maximum total request body size in bytes. Applied via Axum's `DefaultBodyLimit`
     /// layer at router-build time.
     pub max_request_body_bytes: usize,
@@ -77,6 +86,7 @@ impl SecurityProfile {
             scope_propagation_strict: true,
             expose_deleted_ids: false,
             max_request_body_bytes: DEFAULT_BODY_LIMIT_BYTES,
+            max_child_rows_per_relation: None,
         }
     }
 
@@ -96,6 +106,7 @@ impl SecurityProfile {
             scope_propagation_strict: true,
             expose_deleted_ids: true,
             max_request_body_bytes: DEFAULT_BODY_LIMIT_BYTES,
+            max_child_rows_per_relation: None,
         }
     }
 
@@ -108,6 +119,7 @@ impl SecurityProfile {
             scope_propagation_strict: false,
             expose_deleted_ids: true,
             max_request_body_bytes: DEFAULT_BODY_LIMIT_BYTES,
+            max_child_rows_per_relation: None,
         }
     }
 }
@@ -121,6 +133,40 @@ impl SecurityProfile {
 /// Generated handlers call this with the per-resource trait method as the fallback so a
 /// global Extension layer transparently overrides every resource without touching each
 /// `impl CRUDResource`.
+impl SecurityProfile {
+    /// `LIMIT` for a child-loading query: one row more than the cap so overflow
+    /// is detectable. Not public API.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn child_row_limit(&self) -> Option<u64> {
+        self.max_child_rows_per_relation.map(|cap| {
+            u64::try_from(cap)
+                .unwrap_or(u64::MAX)
+                .saturating_add(1)
+                .min(u64::try_from(i64::MAX).unwrap_or(u64::MAX))
+        })
+    }
+
+    /// Rejects a child-loading result that exceeds the cap. Not public API.
+    ///
+    /// # Errors
+    /// `413 Payload Too Large` when `loaded` exceeds `max_child_rows_per_relation`.
+    #[doc(hidden)]
+    pub fn check_child_rows(
+        &self,
+        loaded: usize,
+        resource: &str,
+        field: &str,
+    ) -> Result<(), crate::errors::ApiError> {
+        match self.max_child_rows_per_relation {
+            Some(cap) if loaded > cap => Err(crate::errors::ApiError::payload_too_large(format!(
+                "{resource}.{field} has more than {cap} related rows (max_child_rows_per_relation)"
+            ))),
+            _ => Ok(()),
+        }
+    }
+}
+
 #[must_use]
 pub fn resolve<F>(
     extension: Option<axum::Extension<SecurityProfile>>,
@@ -143,6 +189,7 @@ mod tests {
         assert!(p.scope_propagation_strict);
         assert!(!p.expose_deleted_ids);
         assert_eq!(p.max_request_body_bytes, 2 * 1024 * 1024);
+        assert_eq!(p.max_child_rows_per_relation, None);
     }
 
     #[test]
@@ -152,6 +199,7 @@ mod tests {
         assert!(p.scope_propagation_strict);
         assert!(p.expose_deleted_ids);
         assert_eq!(p.max_request_body_bytes, 2 * 1024 * 1024);
+        assert_eq!(p.max_child_rows_per_relation, None);
     }
 
     #[test]
@@ -161,6 +209,7 @@ mod tests {
         assert!(!p.scope_propagation_strict);
         assert!(p.expose_deleted_ids);
         assert_eq!(p.max_request_body_bytes, 2 * 1024 * 1024);
+        assert_eq!(p.max_child_rows_per_relation, None);
     }
 
     #[test]
@@ -232,5 +281,26 @@ mod tests {
         );
         assert!(resolved.strict_filter_parsing);
         assert!(!resolved.expose_deleted_ids);
+    }
+
+    #[test]
+    fn test_child_row_limit_is_cap_plus_one() {
+        let unlimited = SecurityProfile::secure();
+        assert_eq!(unlimited.child_row_limit(), None);
+        assert!(unlimited.check_child_rows(usize::MAX, "r", "f").is_ok());
+
+        let capped = SecurityProfile {
+            max_child_rows_per_relation: Some(10),
+            ..SecurityProfile::secure()
+        };
+        assert_eq!(capped.child_row_limit(), Some(11));
+        assert!(capped.check_child_rows(10, "r", "f").is_ok());
+        let err = capped
+            .check_child_rows(11, "Customer", "vehicles")
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            crate::errors::ApiError::PayloadTooLarge { .. }
+        ));
     }
 }

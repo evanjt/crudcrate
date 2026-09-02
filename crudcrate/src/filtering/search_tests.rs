@@ -1,0 +1,435 @@
+use super::*;
+
+/// Column name appears in the SQL template; value is a bind parameter.
+#[test]
+fn test_column_name_in_template_value_bound() {
+    let result = build_like_condition("user_name", "test", DatabaseBackend::Sqlite);
+    let debug = format!("{result:?}");
+
+    assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+    let (template, values) = split_custom_with_expr(&debug);
+    assert!(
+        template.contains("UPPER(user_name)"),
+        "column should appear in SQL template, got: {template}"
+    );
+    assert!(
+        template.contains("LIKE ? ESCAPE '!'"),
+        "template should use bind param with ESCAPE, got: {template}"
+    );
+    assert!(
+        values.contains("Value(String"),
+        "search value should be a bind parameter, got: {values}"
+    );
+}
+
+/// Test that search query values cannot inject SQL
+#[test]
+fn test_search_query_value_safe() {
+    let malicious_values = vec!["'; DROP TABLE users; --", "' OR '1'='1"];
+
+    for malicious_value in malicious_values {
+        let result = build_like_condition("title", malicious_value, DatabaseBackend::Sqlite);
+        let debug = format!("{result:?}");
+
+        assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+        let (template, values) = split_custom_with_expr(&debug);
+        assert!(
+            !template.contains(malicious_value),
+            "malicious value must not appear in SQL template: {template}"
+        );
+        assert!(
+            values.contains("Value(String"),
+            "value should be a bind parameter: {values}"
+        );
+    }
+}
+
+/// `truncate_to_char_boundary` caps the byte length at the limit and always
+/// returns a string that ends on a UTF-8 char boundary, including when the
+/// limit lands inside a multi-byte codepoint.
+#[test]
+fn test_search_query_length_limit() {
+    let very_long_query = "a".repeat(20_000);
+    let sanitized = truncate_to_char_boundary(&very_long_query, MAX_SEARCH_QUERY_LENGTH);
+    assert_eq!(
+        sanitized.len(),
+        MAX_SEARCH_QUERY_LENGTH,
+        "ASCII query should truncate exactly to the byte limit"
+    );
+
+    // 9_999 ASCII bytes then `é` (2 bytes) puts the cap inside the `é`, so the
+    // boundary must snap back to 9_999 rather than slice the codepoint in half.
+    let multibyte = format!("{}é", "a".repeat(MAX_SEARCH_QUERY_LENGTH - 1));
+    let sanitized = truncate_to_char_boundary(&multibyte, MAX_SEARCH_QUERY_LENGTH);
+    assert!(
+        sanitized.len() <= MAX_SEARCH_QUERY_LENGTH,
+        "multi-byte query must stay within the byte limit, got {}",
+        sanitized.len()
+    );
+    assert!(
+        multibyte.is_char_boundary(sanitized.len()),
+        "truncation must end on a char boundary, got len {}",
+        sanitized.len()
+    );
+    assert_eq!(
+        sanitized.len(),
+        MAX_SEARCH_QUERY_LENGTH - 1,
+        "boundary should snap back past the start of the `é`"
+    );
+
+    // A string already within the limit is returned unchanged.
+    assert_eq!(
+        truncate_to_char_boundary("short", MAX_SEARCH_QUERY_LENGTH),
+        "short"
+    );
+}
+
+/// Security test: LIKE wildcards should be escaped with `!` prefix
+#[test]
+fn test_wildcard_escaping() {
+    assert_eq!(
+        escape_like_wildcards("test"),
+        "test",
+        "Normal text should pass through"
+    );
+    assert_eq!(
+        escape_like_wildcards("test%"),
+        "test!%",
+        "% should be escaped"
+    );
+    assert_eq!(
+        escape_like_wildcards("test_value"),
+        "test!_value",
+        "_ should be escaped"
+    );
+    assert_eq!(
+        escape_like_wildcards("100%"),
+        "100!%",
+        "% in middle should be escaped"
+    );
+    assert_eq!(
+        escape_like_wildcards("%_"),
+        "!%!_",
+        "Both wildcards should be escaped"
+    );
+    assert_eq!(
+        escape_like_wildcards("!"),
+        "!!",
+        "Escape character itself should be escaped"
+    );
+    assert_eq!(
+        escape_like_wildcards("!%"),
+        "!!!%",
+        "Escape char and % should both be escaped"
+    );
+}
+
+/// Security test: Wildcard injection should be prevented in LIKE conditions
+#[test]
+fn test_like_condition_prevents_wildcard_injection() {
+    let result_percent = build_like_condition("title", "test%", DatabaseBackend::Sqlite);
+    let debug_percent = format!("{result_percent:?}");
+    let (_, values_percent) = split_custom_with_expr(&debug_percent);
+    assert!(
+        values_percent.contains("TEST!%"),
+        "% should be escaped with ! in bound value: {values_percent}"
+    );
+
+    let result_underscore = build_like_condition("title", "test_value", DatabaseBackend::Sqlite);
+    let debug_underscore = format!("{result_underscore:?}");
+    let (_, values_underscore) = split_custom_with_expr(&debug_underscore);
+    assert!(
+        values_underscore.contains("TEST!_VALUE"),
+        "_ should be escaped with ! in bound value: {values_underscore}"
+    );
+
+    let result_just_percent = build_like_condition("title", "%", DatabaseBackend::Sqlite);
+    let debug_just_percent = format!("{result_just_percent:?}");
+    let (_, values_just_percent) = split_custom_with_expr(&debug_just_percent);
+    assert!(
+        values_just_percent.contains("!%"),
+        "Single % should be escaped: {values_just_percent}"
+    );
+}
+
+/// Test `build_like_condition` with empty value
+#[test]
+fn test_build_like_condition_empty_value() {
+    let result = build_like_condition("field", "", DatabaseBackend::Sqlite);
+    let sql = format!("{result:?}");
+    assert!(sql.contains("field"), "Should include field name");
+}
+
+/// Test `build_like_condition` case insensitivity
+#[test]
+fn test_build_like_condition_case_insensitive() {
+    let result = build_like_condition("title", "TeSt", DatabaseBackend::Sqlite);
+    let sql = format!("{result:?}");
+    // Should use UPPER() for case-insensitive matching
+    assert!(
+        sql.contains("Upper") || sql.contains("UPPER"),
+        "Should use UPPER for case insensitivity: {sql}"
+    );
+}
+
+/// Test `build_like_condition` with special characters
+#[test]
+fn test_build_like_condition_special_chars() {
+    let result = build_like_condition("title", "test@email.com", DatabaseBackend::Sqlite);
+    let sql = format!("{result:?}");
+    assert!(sql.contains("title"), "Should handle special characters");
+}
+
+// ========================================================================
+// EMPTY/WHITESPACE QUERY TESTS
+// Full entity-based tests are in integration tests
+// ========================================================================
+
+/// Test that empty query produces match-all pattern in LIKE condition
+#[test]
+fn test_like_condition_empty_query_matches_all() {
+    let result = build_like_condition("field", "", DatabaseBackend::Sqlite);
+    let sql = format!("{result:?}");
+    // Empty query produces LIKE '%%' which matches everything
+    assert!(
+        sql.contains("%%") || sql.contains("%\""),
+        "Empty query should produce match-all pattern"
+    );
+}
+
+/// Test that whitespace-only query produces match-all pattern
+#[test]
+fn test_like_condition_whitespace_query() {
+    // Note: build_like_condition doesn't trim - it passes through
+    // Trimming happens at a higher level (in conditions.rs process_string_filter)
+    let result = build_like_condition("field", "   ", DatabaseBackend::Sqlite);
+    let sql = format!("{result:?}");
+    // Pattern will be uppercased but still contain the spaces
+    assert!(sql.contains("field"), "Should include field name");
+}
+
+/// Test case-insensitive matching in LIKE condition
+#[test]
+fn test_like_condition_case_insensitive_pattern() {
+    // Test that the pattern is uppercased for case-insensitive matching
+    let result = build_like_condition("field", "MiXeD CaSe", DatabaseBackend::Sqlite);
+    let sql = format!("{result:?}");
+
+    // The pattern should contain the uppercased value
+    assert!(
+        sql.contains("MIXED CASE"),
+        "Pattern should be uppercased for case-insensitive match: {sql}"
+    );
+}
+
+/// Test query length limiting constant
+#[test]
+fn test_max_search_query_length_constant() {
+    assert_eq!(
+        MAX_SEARCH_QUERY_LENGTH, 10_000,
+        "Max query length should be 10,000"
+    );
+}
+
+/// Test escape function handles empty string
+#[test]
+fn test_escape_like_wildcards_empty() {
+    assert_eq!(
+        escape_like_wildcards(""),
+        "",
+        "Empty string should pass through"
+    );
+}
+
+// --- Issue 5: Fulltext SQL must route user value through a bind parameter ---
+
+/// Split a `CustomWithExpr` debug string into (template, `values_section`).
+/// Returns (`"`..., `[`Value(...)`]`).
+fn split_custom_with_expr(debug: &str) -> (&str, &str) {
+    let prefix = "CustomWithExpr(\"";
+    let start = debug
+        .find(prefix)
+        .map(|i| i + prefix.len())
+        .expect("not a CustomWithExpr");
+    let split = debug
+        .find("\", [")
+        .expect("CustomWithExpr without values section");
+    (&debug[start..split], &debug[split + 4..])
+}
+
+/// Postgres fulltext path must use a bind parameter, not string interpolation.
+#[test]
+fn test_postgres_fulltext_binds_query_value() {
+    let malicious = "'; DROP TABLE users; --";
+    let result = build_postgres_fulltext_condition(malicious, &["name", "email"])
+        .expect("non-empty input produces a condition");
+    let debug = format!("{result:?}");
+
+    assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+    let (template, values) = split_custom_with_expr(&debug);
+    assert!(
+        template.contains("ILIKE $1"),
+        "template must use a placeholder, got: {template}"
+    );
+    assert!(
+        !template.contains(malicious) && !template.contains("DROP TABLE"),
+        "malicious value must not appear in SQL template: {template}"
+    );
+    assert!(
+        values.contains("Value(String") && values.contains("DROP TABLE"),
+        "query value must be bound as a parameter, got: {values}"
+    );
+}
+
+/// `MySQL` fulltext path must use a bind parameter.
+#[test]
+fn test_mysql_fulltext_binds_query_value() {
+    let malicious = "' OR '1'='1";
+    let result = build_mysql_fulltext_condition(malicious, &["name", "email"])
+        .expect("non-empty input produces a condition");
+    let debug = format!("{result:?}");
+
+    assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+    let (template, values) = split_custom_with_expr(&debug);
+    assert!(
+        template.contains("LIKE ?"),
+        "template must use a placeholder, got: {template}"
+    );
+    assert!(
+        !template.contains(malicious),
+        "malicious value must not appear in SQL template: {template}"
+    );
+    assert!(
+        values.contains("Value(String"),
+        "query value must be bound as a parameter, got: {values}"
+    );
+}
+
+/// SQLite/fallback fulltext path must use a bind parameter.
+#[test]
+fn test_fallback_fulltext_binds_query_value() {
+    let malicious = "'; DELETE FROM customers; --";
+    let result = build_fallback_fulltext_condition(malicious, &["name"])
+        .expect("non-empty input produces a condition");
+    let debug = format!("{result:?}");
+
+    assert!(debug.starts_with("CustomWithExpr"), "got {debug}");
+    let (template, values) = split_custom_with_expr(&debug);
+    assert!(
+        template.contains("LIKE ?"),
+        "template must use a placeholder, got: {template}"
+    );
+    assert!(
+        !template.contains(malicious) && !template.contains("DELETE FROM"),
+        "malicious value must not appear in SQL template: {template}"
+    );
+    assert!(
+        values.contains("Value(String"),
+        "query value must be bound as a parameter, got: {values}"
+    );
+}
+
+/// LIKE wildcards in the query value remain escaped inside the bound pattern.
+#[test]
+fn test_postgres_fulltext_escapes_like_wildcards() {
+    let result = build_postgres_fulltext_condition("100%", &["name"])
+        .expect("non-empty input produces a condition");
+    let debug = format!("{result:?}");
+    assert!(
+        debug.contains("100!%"),
+        "expected LIKE wildcard escaped with ! in pattern, got {debug}"
+    );
+}
+
+/// Empty column list returns None, no SQL generated.
+#[test]
+fn test_fulltext_empty_columns_returns_none() {
+    assert!(build_postgres_fulltext_condition("foo", &[]).is_none());
+    assert!(build_mysql_fulltext_condition("foo", &[]).is_none());
+    assert!(build_fallback_fulltext_condition("foo", &[]).is_none());
+}
+
+/// Empty query returns None.
+#[test]
+fn test_fulltext_empty_query_returns_none() {
+    assert!(build_postgres_fulltext_condition("", &["name"]).is_none());
+    assert!(build_mysql_fulltext_condition("", &["name"]).is_none());
+    assert!(build_fallback_fulltext_condition("", &["name"]).is_none());
+}
+
+/// A2 regression: a query longer than the byte cap whose boundary lands inside
+/// a multi-byte codepoint must not panic the truncation slice. `9_999` ASCII bytes
+/// followed by `é` (2 bytes) puts byte index `10_000` inside the `é`.
+#[test]
+fn test_fulltext_multibyte_truncation_does_not_panic() {
+    let query = format!("{}é", "a".repeat(MAX_SEARCH_QUERY_LENGTH - 1));
+    assert!(query.len() > MAX_SEARCH_QUERY_LENGTH);
+    // None of these should panic on the byte-index slice.
+    assert!(build_postgres_fulltext_condition(&query, &["name"]).is_some());
+    assert!(build_mysql_fulltext_condition(&query, &["name"]).is_some());
+    assert!(build_fallback_fulltext_condition(&query, &["name"]).is_some());
+}
+
+/// `build_like_condition` on Postgres must use the `$1` placeholder, not `?`.
+/// All other unit tests use `SQLite`; this covers the Postgres `placeholder_for` arm.
+#[test]
+fn test_build_like_condition_postgres_placeholder() {
+    let result = build_like_condition("title", "x", DatabaseBackend::Postgres);
+    let debug = format!("{result:?}");
+    let (template, _values) = split_custom_with_expr(&debug);
+    assert!(
+        template.contains("LIKE $1 ESCAPE '!'"),
+        "Postgres must use $1 placeholder, got: {template}"
+    );
+}
+
+/// `build_fulltext_condition` dispatches per backend: `ILIKE` on Postgres,
+/// `UPPER(...) LIKE` on `MySQL` and on the `SQLite`/fallback path.
+#[test]
+fn test_fulltext_dispatch_per_backend() {
+    use crate::filtering::test_support::FulltextResource;
+
+    let pg = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::Postgres)
+        .expect("fulltext columns declared");
+    assert!(format!("{pg:?}").contains("ILIKE"), "got {pg:?}");
+
+    let mysql = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::MySql)
+        .expect("fulltext columns declared");
+    assert!(format!("{mysql:?}").contains("UPPER"), "got {mysql:?}");
+
+    let sqlite = build_fulltext_condition::<FulltextResource>("abc", DatabaseBackend::Sqlite)
+        .expect("fulltext columns declared");
+    assert!(format!("{sqlite:?}").contains("UPPER"), "got {sqlite:?}");
+}
+
+/// A resource without fulltext columns yields no condition for any backend.
+#[test]
+fn test_fulltext_no_columns_returns_none() {
+    use crate::filtering::test_support::EnumSearchResource;
+
+    for backend in [
+        DatabaseBackend::Postgres,
+        DatabaseBackend::MySql,
+        DatabaseBackend::Sqlite,
+    ] {
+        assert!(build_fulltext_condition::<EnumSearchResource>("abc", backend).is_none());
+    }
+}
+
+/// `MySQL` single-column fulltext uses a bare `COALESCE(...)` (no `CONCAT`), unlike
+/// the multi-column path. Exercises the `coalesced.len() == 1` branch.
+#[test]
+fn test_mysql_fulltext_single_column_no_concat() {
+    let result = build_mysql_fulltext_condition("hello", &["name"])
+        .expect("non-empty input produces a condition");
+    let debug = format!("{result:?}");
+    let (template, _values) = split_custom_with_expr(&debug);
+    assert!(
+        !template.contains("CONCAT"),
+        "single-column MySQL fulltext should not wrap in CONCAT: {template}"
+    );
+    assert!(
+        template.contains("COALESCE"),
+        "expected COALESCE in template: {template}"
+    );
+}

@@ -42,6 +42,14 @@ jobs:
       - name: Validate test-doc links
         run: mdbook-test-links validate
 
+      - name: Check every page is listed in SUMMARY.md
+        run: |
+          missing=0
+          for f in $(cd docs/src && find . -name '*.md' ! -name SUMMARY.md ! -name 404.md ! -name changelog.md | sed 's|^\./||'); do
+            grep -qF "(./$f)" docs/src/SUMMARY.md || { echo "not in SUMMARY.md: $f"; missing=1; }
+          done
+          exit $missing
+
       - name: Install jq
         run: sudo apt-get install -y jq
 

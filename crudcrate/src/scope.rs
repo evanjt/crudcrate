@@ -26,6 +26,14 @@ pub struct ScopeCondition {
     pub condition: sea_orm::Condition,
 }
 
+impl ScopeCondition {
+    /// Create a scope with a query condition (row filtering).
+    #[must_use]
+    pub fn new(condition: sea_orm::Condition) -> Self {
+        Self { condition }
+    }
+}
+
 /// Trait for types that can be filtered in scoped (public) contexts.
 ///
 /// Types with `exclude(scoped)` boolean fields auto-implement this to return `false`
@@ -52,13 +60,5 @@ pub trait ScopeFilterable {
     #[must_use]
     fn scope_condition() -> Option<sea_orm::Condition> {
         None
-    }
-}
-
-impl ScopeCondition {
-    /// Create a scope with a query condition (row filtering).
-    #[must_use]
-    pub fn new(condition: sea_orm::Condition) -> Self {
-        Self { condition }
     }
 }
