@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-99cf3dbd.js";
+            window.path_to_searchindex_js = "../searchindex-293eaaa6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-dd3dbf97.js"></script>
@@ -254,6 +254,9 @@ GET /items?filter={"created_at":["2024-01-15T10:30:00Z","2024-02-01T00:00:00Z"]}
 <p>All elements must parse or the request is rejected with <code>400 Bad Request</code> (a
 dropped clause would silently return unfiltered rows). Send decimals as strings
 (<code>["10.50"]</code>) to avoid going through a float.</p>
+<p>An empty list matches nothing:</p>
+<pre><code class="language-bash">GET /items?filter={"priority":[]}   # returns []
+</code></pre>
 <h2 id="type-specific-filtering"><a class="header" href="#type-specific-filtering">Type-Specific Filtering</a></h2>
 <h3 id="strings"><a class="header" href="#strings">Strings</a></h3>
 <pre><code class="language-bash"># Exact match (case-insensitive)

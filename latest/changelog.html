@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-99cf3dbd.js";
+            window.path_to_searchindex_js = "searchindex-293eaaa6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd3dbf97.js"></script>
@@ -201,6 +201,12 @@ code is updated. See <code>docs/MIGRATION_0.11.md</code>.</li>
 </ul>
 <h3 id="fixed"><a class="header" href="#fixed">Fixed</a></h3>
 <ul>
+<li>An empty array filter (<code>filter={"id":[]}</code>) dropped the clause and returned every
+row. It now matches nothing, which is what an empty <code>IN</code> list asks for.</li>
+<li>A numeric filter value against a date, time or uuid column (<code>filter={"created_at_gte":5}</code>)
+was bound as a number and rejected by the backend. The clause is now parsed
+against the column type and dropped when it does not fit. Numeric columns are
+unaffected: <code>{"year_gte":3.5}</code> and integers above <code>i64::MAX</code> bind as before.</li>
 <li>Array filters (<code>filter={"created_at":["...","..."]}</code>) bound every element as
 text, so an <code>IN</code> list over a date, timestamp, decimal or float column was
 rejected by Postgres and compared lexically elsewhere. Elements are now parsed
