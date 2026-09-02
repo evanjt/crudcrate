@@ -361,3 +361,48 @@ async fn unknown_joined_filter_column_still_skips_silently() {
         "an unknown joined column must not become an error oracle: {body}"
     );
 }
+
+/// Scenario: a client sends an empty IN list, `{"year": []}`.
+/// Expected behaviour: an empty result set. Returning every vehicle would be the
+/// opposite of the filter, and on a scoped endpoint it would leak rows.
+#[tokio::test]
+async fn empty_array_filter_matches_no_rows() {
+    let db = setup_test_db().await.expect("db");
+    let app = setup_test_app(&db);
+    let customer_id = create_test_customer(&app).await;
+    for year in [2018, 2019, 2020] {
+        create_vehicle(&app, &customer_id, year).await;
+    }
+
+    let (status, rows) = get_list(&app, "/vehicles", &json!({ "year": [] })).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        rows.is_empty(),
+        "an empty IN list must match nothing, got {rows:?}"
+    );
+}
+
+/// A number sent against a timestamptz column is a comparison no backend accepts.
+/// The clause is dropped, so the request succeeds rather than returning a 500.
+#[tokio::test]
+async fn number_against_timestamptz_column_does_not_error() {
+    let db = setup_test_db().await.expect("db");
+    let app = setup_test_app(&db);
+    let customer_id = create_test_customer(&app).await;
+    let vehicle_id = create_vehicle(&app, &customer_id, 2020).await;
+    create_maintenance(&app, &vehicle_id, "2020-01-15T00:00:00Z").await;
+
+    let (status, body) = get_raw(
+        &app,
+        "/maintenance_records",
+        &json!({ "service_date_gte": 5 }),
+    )
+    .await;
+
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a numeric bound on a timestamptz column must not reach the backend: {body}"
+    );
+}

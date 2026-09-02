@@ -90,6 +90,12 @@ All elements must parse or the request is rejected with `400 Bad Request` (a
 dropped clause would silently return unfiltered rows). Send decimals as strings
 (`["10.50"]`) to avoid going through a float.
 
+An empty list matches nothing:
+
+```bash
+GET /items?filter={"priority":[]}   # returns []
+```
+
 ## Type-Specific Filtering
 
 ### Strings

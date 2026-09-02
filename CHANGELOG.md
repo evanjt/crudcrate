@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An empty array filter (`filter={"id":[]}`) dropped the clause and returned every
+  row. It now matches nothing, which is what an empty `IN` list asks for.
+- A numeric filter value against a date, time or uuid column (`filter={"created_at_gte":5}`)
+  was bound as a number and rejected by the backend. The clause is now parsed
+  against the column type and dropped when it does not fit. Numeric columns are
+  unaffected: `{"year_gte":3.5}` and integers above `i64::MAX` bind as before.
 - Array filters (`filter={"created_at":["...","..."]}`) bound every element as
   text, so an `IN` list over a date, timestamp, decimal or float column was
   rejected by Postgres and compared lexically elsewhere. Elements are now parsed

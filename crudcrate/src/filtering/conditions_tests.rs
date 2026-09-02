@@ -629,15 +629,7 @@ fn test_build_comparison_expr_array_null_object() {
         )
         .is_some()
     );
-    // Empty array, or an array of only objects (no extractable scalars) -> None.
-    assert!(
-        cmp_expr(
-            cmp_entity::Column::Name,
-            FilterOperator::In,
-            &serde_json::json!([])
-        )
-        .is_none()
-    );
+    // An array of only objects has no extractable scalars -> None.
     assert!(
         cmp_expr(
             cmp_entity::Column::Name,
@@ -1264,4 +1256,66 @@ fn test_pagination_range_huge_end_does_not_overflow() {
     };
     let (_offset, limit) = parse_pagination(&params);
     assert!(limit <= MAX_PAGE_SIZE);
+}
+
+/// Scenario: a client sends `{"name": []}`.
+/// Expected behaviour: no row matches. Dropping the clause would return the whole
+/// table, which is the opposite of the empty set the client asked for.
+#[test]
+fn test_empty_array_matches_nothing() {
+    let expr = cmp_expr(
+        cmp_entity::Column::Name,
+        FilterOperator::In,
+        &serde_json::json!([]),
+    )
+    .expect("empty array builds a condition");
+    assert_eq!(cmp_bound_values(expr), vec![1i32.into(), 2i32.into()]);
+}
+
+/// The same guarantee on the main-entity path, which reaches `process_array_filter`.
+#[test]
+fn test_empty_array_matches_nothing_on_main_filter_path() {
+    let expr = process_array_filter(
+        &[],
+        "name",
+        cmp_entity::Column::Name,
+        false,
+        DatabaseBackend::Sqlite,
+    )
+    .expect("empty array is accepted")
+    .expect("empty array builds a condition");
+    assert_eq!(cmp_bound_values(expr), vec![1i32.into(), 2i32.into()]);
+}
+
+/// A bare number cannot be compared against a timestamp or uuid column on any
+/// backend, so the clause is dropped rather than bound and rejected at 500.
+#[test]
+fn test_number_against_timestamp_column_is_skipped() {
+    for op in [FilterOperator::Eq, FilterOperator::Gte, FilterOperator::Lt] {
+        assert!(
+            cmp_expr(cmp_entity::Column::ServiceDate, op, &serde_json::json!(5)).is_none(),
+            "a number against a timestamptz column must not build a comparison"
+        );
+    }
+}
+
+/// Numeric columns keep their JSON binding: a fractional bound against an integer
+/// column is well-defined SQL, and a `u64` above `i64::MAX` still binds exactly.
+#[test]
+fn test_number_against_numeric_column_keeps_json_binding() {
+    let frac = cmp_expr(
+        cmp_entity::Column::Id,
+        FilterOperator::Gte,
+        &serde_json::json!(3.5),
+    )
+    .expect("fractional bound on an integer column builds a comparison");
+    assert!(cmp_sql(frac).contains("3.5"));
+
+    let cost = cmp_expr(
+        cmp_entity::Column::Cost,
+        FilterOperator::Lte,
+        &serde_json::json!(10.5),
+    )
+    .expect("fractional bound on a decimal column builds a comparison");
+    assert!(cmp_sql(cost).contains("10.5"));
 }

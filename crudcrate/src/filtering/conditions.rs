@@ -131,6 +131,21 @@ fn binds_typed_value(col_type: &ColumnType) -> bool {
     )
 }
 
+/// Columns that no SQL backend will compare against a bare numeric literal.
+/// Numeric and boolean columns are excluded: `year >= 3.5` and an exact `u64`
+/// bound above `i64::MAX` are both well-defined, so those keep their JSON binding.
+fn rejects_numeric_literal(col_type: &ColumnType) -> bool {
+    matches!(
+        col_type,
+        ColumnType::Date
+            | ColumnType::Time
+            | ColumnType::DateTime
+            | ColumnType::Timestamp
+            | ColumnType::TimestampWithTimeZone
+            | ColumnType::Uuid
+    )
+}
+
 /// Parse a raw filter string into a `sea_orm::Value` matching the column's SQL type.
 /// Returns `None` when the value can't be parsed to that type, so the caller drops
 /// the clause rather than emitting a comparison the backend will reject.
@@ -435,7 +450,10 @@ fn process_array_filter(
     is_enum: bool,
     backend: DatabaseBackend,
 ) -> Result<Option<Expr>, crate::errors::ApiError> {
-    if array_values.is_empty() || array_values.len() > MAX_FILTER_ARRAY_LEN {
+    if array_values.is_empty() {
+        return Ok(Some(matches_nothing(column)));
+    }
+    if array_values.len() > MAX_FILTER_ARRAY_LEN {
         return Ok(None);
     }
 
@@ -497,6 +515,13 @@ fn process_array_filter(
         return Ok(Some(Expr::col(column).is_in(in_values)));
     }
     Ok(None)
+}
+
+/// `IN ()` over an empty filter array. Sea-query renders an empty `is_in` as
+/// `1 = 2`, so the clause matches no row; dropping it instead would return every
+/// row, which is the opposite of what the client asked for.
+fn matches_nothing<C: sea_orm::ColumnTrait + Copy>(column: C) -> Expr {
+    Expr::col(column).is_in(Vec::<i64>::new())
 }
 
 /// Comparison for value types where ordering operators apply; `Like`, `In` and
@@ -604,6 +629,13 @@ where
             })
         }
         Value::Number(n) => {
+            // A number against a date, time or uuid column is a comparison the
+            // backend rejects outright, so parse it to the column's type and drop
+            // the clause when it does not fit.
+            if rejects_numeric_literal(col_type) {
+                return Ok(typed_value_for_column(col_type, &n.to_string())
+                    .and_then(|typed| ordered_comparison(column, operator, typed)));
+            }
             if let Some(i) = n.as_i64() {
                 return Ok(ordered_comparison(column, operator, i));
             }
@@ -621,7 +653,10 @@ where
             _ => None,
         }),
         Value::Array(arr) => {
-            if arr.is_empty() || arr.len() > MAX_FILTER_ARRAY_LEN {
+            if arr.is_empty() {
+                return Ok(Some(matches_nothing(column)));
+            }
+            if arr.len() > MAX_FILTER_ARRAY_LEN {
                 return Ok(None);
             }
             // Type-matched IN list so the bound values match the column type
@@ -727,6 +762,12 @@ pub fn build_filter_expr<T: crate::traits::CRUDResource, C: sea_orm::ColumnTrait
             ))
         }
         serde_json::Value::Number(n) => {
+            let column_def = column.def();
+            let col_type = column_def.get_column_type();
+            if rejects_numeric_literal(col_type) {
+                return Ok(typed_value_for_column(col_type, &n.to_string())
+                    .and_then(|typed| ordered_comparison(column, operator, typed)));
+            }
             if let Some(i) = n.as_i64() {
                 return Ok(ordered_comparison(column, operator, i));
             }
