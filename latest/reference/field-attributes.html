@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-8b23b3bc.js";
+            window.path_to_searchindex_js = "../searchindex-99cf3dbd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-70f89627.js"></script>
+        <script src="../toc-dd3dbf97.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -205,6 +205,7 @@ pub password_hash: String,</code></pre>
 <li><code>create</code> - Create model (POST /items)</li>
 <li><code>update</code> - Update model (PUT /items/:id)</li>
 <li><code>list</code> - List model (GET /items)</li>
+<li><code>all</code> - Shorthand for <code>one, list</code>. Does not touch <code>create</code> or <code>update</code>. Unrelated to <code>join(all)</code>, where <code>all</code> means the list endpoint.</li>
 <li><code>scoped</code> - Scoped response models (when <code>ScopeCondition</code> is active). Also strips the field from filterable/sortable lists in scoped context. See <a href="../tutorial/scoping.html">Public &amp; Private Endpoints</a>.</li>
 </ul>
 <hr>
@@ -277,13 +278,22 @@ pub author: Option&lt;User&gt;,
 
 // Limit recursion depth
 #[crudcrate(non_db_attr, join(one, all, depth = 2))]
-pub nested: Vec&lt;Nested&gt;,</code></pre>
+pub nested: Vec&lt;Nested&gt;,
+
+// Two foreign keys to the same parent: pick the relation variant
+#[crudcrate(non_db_attr, join(one, all, relation = "Author"))]
+pub authored: Vec&lt;Document&gt;,
+#[crudcrate(non_db_attr, join(one, all, relation = "Reviewer"))]
+pub reviewed: Vec&lt;Document&gt;,</code></pre>
 <p><strong>Type:</strong> Configuration
 <strong>Parameters:</strong></p>
 <ul>
 <li><code>one</code> - Load in single-item responses</li>
 <li><code>all</code> - Load in list responses</li>
 <li><code>depth = N</code> - Maximum recursion depth (default: 5)</li>
+<li><code>relation = "Variant"</code> - Variant of the child’s <code>Relation</code> enum to join through. Needed when the child has more than one foreign key to this entity, since <code>Related</code> can only be implemented once per pair</li>
+<li><code>fk_column = "Column"</code> - Child column variant holding the foreign key, bypassing runtime resolution from the <code>RelationDef</code></li>
+<li><code>path = "crate::module"</code> - Module of the child entity when it cannot be derived from the field type</li>
 </ul>
 <hr>
 <h3 id="join_filterable"><a class="header" href="#join_filterable"><code>join_filterable(...)</code></a></h3>

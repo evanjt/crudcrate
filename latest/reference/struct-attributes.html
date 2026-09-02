@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-8b23b3bc.js";
+            window.path_to_searchindex_js = "../searchindex-99cf3dbd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-70f89627.js"></script>
+        <script src="../toc-dd3dbf97.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -268,6 +268,12 @@ pub struct Model { }</code></pre>
 <strong>Default:</strong> <code>1000</code>
 <strong>Runtime override:</strong> Implement <code>fn max_page_size() -&gt; u64</code> on your <code>CRUDResource</code> impl for dynamic values.</p>
 <hr>
+<h3 id="max_child_rows"><a class="header" href="#max_child_rows"><code>max_child_rows</code></a></h3>
+<p>Caps the number of child rows one join field may load in a single request. Exceeding it returns <code>413 Payload Too Large</code> instead of an unbounded response.</p>
+<pre><code class="language-rust">#[crudcrate(max_child_rows = 500)]   // default unlimited</code></pre>
+<p><strong>Type:</strong> Integer
+<strong>Runtime override:</strong> Set <code>max_child_rows_per_relation</code> on the <code>SecurityProfile</code> returned by <code>fn security_profile()</code> on your <code>CRUDResource</code> impl.</p>
+<hr>
 <h3 id="deny_unknown_fields"><a class="header" href="#deny_unknown_fields"><code>deny_unknown_fields</code></a></h3>
 <p>Reject a create or update payload that carries a key the input model does not
 accept, instead of ignoring it.</p>
@@ -443,7 +449,7 @@ pub struct Model {
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../concepts/generated-models.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../concepts/crudresource-trait.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -457,7 +463,7 @@ pub struct Model {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../concepts/generated-models.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../concepts/crudresource-trait.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

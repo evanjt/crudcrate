@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-8b23b3bc.js";
+            window.path_to_searchindex_js = "../searchindex-99cf3dbd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-70f89627.js"></script>
+        <script src="../toc-dd3dbf97.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -222,6 +222,10 @@ for.</p>
 pub struct Model { /* ... */ }</code></pre>
 <p>Override at runtime by implementing <code>CRUDResource::batch_limit()</code> (for
 example, reading from an environment variable).</p>
+<h3 id="child-row-cap"><a class="header" href="#child-row-cap">Child row cap</a></h3>
+<p><code>Vec&lt;Child&gt;</code> joins load every matching child row for the parents on the page. Cap that per join field and per request with <code>max_child_rows</code>; a request that would exceed it returns <code>413 Payload Too Large</code>. The cap is unlimited unless set.</p>
+<pre><code class="language-rust">#[crudcrate(generate_router, max_child_rows = 500)]</code></pre>
+<p>The same value is <code>max_child_rows_per_relation</code> on <code>SecurityProfile</code>. It is read from the resource’s <code>security_profile()</code> during join loading, so a request-time <code>Extension</code> does not change it. Joined-filter sub-queries are not affected: the database evaluates them without returning child rows.</p>
 <h3 id="partial-success-mode"><a class="header" href="#partial-success-mode">Partial-success mode</a></h3>
 <p><code>POST /resource/batch?partial=true</code> (and the equivalents for <code>PATCH</code>
 and <code>DELETE</code>) returns <code>207 Multi-Status</code> with a <code>succeeded</code> / <code>failed</code>
@@ -418,7 +422,7 @@ defaults. It renders only when a <code>tracing_subscriber</code> is installed.</
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/hooks.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../features/error-handling.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -432,7 +436,7 @@ defaults. It renders only when a <code>tracing_subscriber</code> is installed.</
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/hooks.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../features/error-handling.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
