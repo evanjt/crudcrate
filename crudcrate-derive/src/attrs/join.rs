@@ -363,3 +363,104 @@ pub(crate) fn synthetic_join_field(
         .to_compile_error()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+
+    fn field_from(attr: &proc_macro2::TokenStream) -> syn::Field {
+        let input: syn::DeriveInput = syn::parse2(quote! {
+            pub struct Model {
+                #attr
+                pub children: Vec<Child>,
+            }
+        })
+        .expect("parse struct");
+        match input.data {
+            syn::Data::Struct(s) => s.fields.into_iter().next().expect("one field"),
+            _ => unreachable!(),
+        }
+    }
+
+    fn messages(result: &JoinConfigResult) -> Vec<String> {
+        result
+            .errors
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect()
+    }
+
+    #[test]
+    fn test_join_parses_every_parameter() {
+        let result = get_join_config(&field_from(&quote! {
+            #[crudcrate(non_db_attr, join(
+                one,
+                all,
+                depth = 3,
+                relation = "Children",
+                path = "super::child",
+                fk_column = "OwnerUuid",
+                filterable("make", "year"),
+                sortable("year")
+            ))]
+        }));
+        assert!(result.errors.is_empty(), "{:?}", messages(&result));
+        let config = result.unwrap_or_default();
+        assert!(config.on_one);
+        assert!(config.on_all);
+        assert_eq!(config.depth, Some(3));
+        assert_eq!(config.relation.as_deref(), Some("Children"));
+        assert_eq!(config.path.as_deref(), Some("super::child"));
+        assert_eq!(config.fk_column.as_deref(), Some("OwnerUuid"));
+        assert_eq!(config.filterable_columns, ["make", "year"]);
+        assert_eq!(config.sortable_columns, ["year"]);
+    }
+
+    /// `depth = 0` would recurse without a base case, so it is rejected at the
+    /// attribute rather than expanded into a loader.
+    #[test]
+    fn test_join_depth_zero_is_rejected() {
+        let result = get_join_config(&field_from(&quote! {
+            #[crudcrate(non_db_attr, join(one, depth = 0))]
+        }));
+        let messages = messages(&result);
+        assert_eq!(messages.len(), 1);
+        assert!(
+            messages[0].contains("depth = 0"),
+            "error must name the offending depth, got {messages:?}"
+        );
+    }
+
+    /// The removed `join_filterable` / `join_sortable` attributes name their
+    /// replacement and echo the columns, so the migration is mechanical.
+    #[test]
+    fn test_legacy_join_attributes_report_their_replacement() {
+        for (legacy, replacement) in [
+            ("join_filterable", "filterable"),
+            ("join_sortable", "sortable"),
+        ] {
+            let ident = syn::Ident::new(legacy, proc_macro2::Span::call_site());
+            let result = get_join_config(&field_from(&quote! {
+                #[crudcrate(non_db_attr, #ident("make", "year"))]
+            }));
+            let messages = messages(&result);
+            assert_eq!(messages.len(), 1, "{legacy} must report one error");
+            assert!(
+                messages[0].contains(replacement)
+                    && messages[0].contains("\"make\"")
+                    && messages[0].contains("\"year\""),
+                "{legacy} error must name {replacement} and echo the columns, got {messages:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_field_without_join_has_no_config() {
+        let result = get_join_config(&field_from(&quote! {
+            #[crudcrate(non_db_attr)]
+        }));
+        assert!(result.config.is_none());
+        assert!(result.errors.is_empty());
+    }
+}

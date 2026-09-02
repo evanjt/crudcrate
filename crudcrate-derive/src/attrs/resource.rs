@@ -234,4 +234,72 @@ mod tests {
         .expect("parse struct");
         assert!(!parse_crud_resource_meta(&default.attrs).deny_unknown_fields);
     }
+
+    fn meta_from(attr: &proc_macro2::TokenStream) -> CRUDResourceMeta {
+        let input: syn::DeriveInput = syn::parse2(quote! {
+            #attr
+            pub struct Model {
+                pub id: i32,
+            }
+        })
+        .expect("parse struct");
+        parse_crud_resource_meta(&input.attrs)
+    }
+
+    /// The boolean flags accept an explicit `= true` / `= false` as well as the
+    /// bare form, and `false` must actually turn the flag off.
+    #[test]
+    fn test_bool_flags_accept_explicit_values() {
+        let on = meta_from(&quote! {
+            #[crudcrate(generate_router = true, derive_partial_eq = true, derive_eq = true)]
+        });
+        assert!(on.generate_router);
+        assert!(on.derive_partial_eq);
+        assert!(on.derive_eq);
+
+        let off = meta_from(&quote! {
+            #[crudcrate(generate_router = false, derive_partial_eq = false, derive_eq = false)]
+        });
+        assert!(!off.generate_router);
+        assert!(!off.derive_partial_eq);
+        assert!(!off.derive_eq);
+    }
+
+    #[test]
+    fn test_fulltext_language_is_parsed() {
+        let meta = meta_from(&quote! {
+            #[crudcrate(fulltext_language = "french")]
+        });
+        assert_eq!(meta.fulltext_language.as_deref(), Some("french"));
+        assert!(meta_from(&quote! {}).fulltext_language.is_none());
+    }
+
+    /// Every removed `fn_*` attribute reports its hook replacement rather than
+    /// being silently ignored, which would leave the body wired to nothing.
+    #[test]
+    fn test_legacy_fn_attributes_are_rejected_with_their_replacement() {
+        for (legacy, replacement) in [
+            ("fn_get_one", "read::one::body"),
+            ("fn_get_all", "read::many::body"),
+            ("fn_create", "create::one::body"),
+            ("fn_update", "update::one::body"),
+            ("fn_delete", "delete::one::body"),
+            ("fn_delete_many", "delete::many::body"),
+        ] {
+            let ident = syn::Ident::new(legacy, proc_macro2::Span::call_site());
+            let meta = meta_from(&quote! {
+                #[crudcrate(#ident = my_fn)]
+            });
+            let messages: Vec<String> = meta
+                .deprecation_errors
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect();
+            assert_eq!(messages.len(), 1, "{legacy} must report exactly one error");
+            assert!(
+                messages[0].contains(legacy) && messages[0].contains(replacement),
+                "{legacy} error must name its replacement {replacement}, got {messages:?}"
+            );
+        }
+    }
 }
