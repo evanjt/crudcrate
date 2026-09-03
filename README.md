@@ -133,7 +133,7 @@ cargo add crudcrate
 By default this enables SQLite + derive macros. For PostgreSQL or MySQL:
 
 ```toml
-crudcrate = { version = "0.10", default-features = false, features = ["postgresql", "derive"] }
+crudcrate = { version = "0.11", default-features = false, features = ["postgresql", "derive"] }
 ```
 
 crudcrate 0.10 and later require `sea-orm = "2.0"` (upgrade notes in
