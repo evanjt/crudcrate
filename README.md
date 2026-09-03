@@ -136,8 +136,9 @@ By default this enables SQLite + derive macros. For PostgreSQL or MySQL:
 crudcrate = { version = "0.10", default-features = false, features = ["postgresql", "derive"] }
 ```
 
-crudcrate 0.10 requires `sea-orm = "2.0"` (upgrade notes in
-[docs/MIGRATION_0.10.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.10.md)).
+crudcrate 0.10 and later require `sea-orm = "2.0"` (upgrade notes in
+[docs/MIGRATION_0.10.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.10.md)
+and [docs/MIGRATION_0.11.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.11.md)).
 For Sea-ORM 1.x, stay on crudcrate 0.9.
 
 ## Documentation
