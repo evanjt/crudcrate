@@ -99,11 +99,7 @@ pub mod counted_widget {
             Ok(())
         }
 
-        async fn before_delete(
-            &self,
-            _db: &DatabaseConnection,
-            _id: Uuid,
-        ) -> Result<(), ApiError> {
+        async fn before_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
             BEFORE_DELETE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
