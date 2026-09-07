@@ -329,6 +329,22 @@ where
         crate::core::defaults::create::<Self>(db, create_model).await
     }
 
+    /// The alternate unique key a source system registers rows under, in the order the index
+    /// declares them. Empty is a resource nothing registers, which is what makes
+    /// [`crate::upsert::upsert`] refuse rather than guess a key.
+    #[must_use]
+    fn upsert_key() -> &'static [<Self::EntityType as EntityTrait>::Column] {
+        &[]
+    }
+
+    /// The columns a registration may write and compare. Defaults to the key alone, which stores
+    /// and reports without ever changing a stored row; a resource that registers content declares
+    /// the columns that content is.
+    #[must_use]
+    fn upsert_comparable() -> &'static [<Self::EntityType as EntityTrait>::Column] {
+        Self::upsert_key()
+    }
+
     async fn update(
         db: &DatabaseConnection,
         id: PrimaryKeyType<Self>,

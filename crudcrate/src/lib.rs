@@ -132,6 +132,7 @@ pub mod profile;
 #[doc(hidden)]
 pub mod relationships;
 pub mod scope;
+pub mod upsert;
 pub mod validation;
 
 // Compatibility aliases for paths older releases exposed. `filter`, `models`,
@@ -175,6 +176,7 @@ pub use filtering::{
 pub use operations::{CRUDOperations, DefaultCRUDOperations};
 pub use profile::SecurityProfile;
 pub use scope::{ScopeCondition, ScopeFilterable};
+pub use upsert::{UpsertOutcome, UpsertStatus, upsert};
 
 /// Re-export of the `sea-orm` version crudcrate builds against, so applications
 /// can use `crudcrate::sea_orm::...` instead of pinning a matching version

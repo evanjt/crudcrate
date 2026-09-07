@@ -12,3 +12,5 @@ mod duplicate_key_conflict_test;
 mod fk_violation_test;
 #[path = "it/partial_success_batch_test.rs"]
 mod partial_success_batch_test;
+#[path = "it/upsert_registration_test.rs"]
+mod upsert_registration_test;

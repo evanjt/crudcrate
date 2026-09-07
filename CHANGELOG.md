@@ -5,6 +5,24 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Registration: `crudcrate::upsert` finds or inserts a row on an alternate
+  unique key inside one transaction and reports `Created`, `Updated` or
+  `Unchanged`, so a source system re-sending its own content writes nothing when
+  the content already stands. The key is declared with
+  `#[crudcrate(upsert_key(source_system, source_key))]`, which also generates the
+  columns a registration compares and writes (every stored column but the
+  primary key); `CRUDResource::upsert_key` and `upsert_comparable` are the trait
+  surface behind it.
+- `UpsertOutcome<K, I, S>` reports one item of a registration batch keyed by what
+  the sender holds, carrying a status, the row's id and a note. It is generic
+  over the status so a caller with refusals of its own reports them in the same
+  list rather than as failures, which `BatchResult` (per-item
+  success-or-error) cannot express.
+
 ## [0.11.1] - 2026-09-07
 
 ### Fixed

@@ -70,6 +70,8 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) require_scope: bool,
     // Reject create/update payloads carrying keys the model does not accept
     pub(crate) deny_unknown_fields: bool,
+    // The alternate unique key a source system registers rows under, field names in index order
+    pub(crate) upsert_key: Vec<String>,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

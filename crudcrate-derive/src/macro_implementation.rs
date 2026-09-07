@@ -132,6 +132,37 @@ pub(crate) fn generate_crud_resource_impl(
         None
     };
 
+    // The registration key, and the columns a registration compares and writes: every stored
+    // column but the primary key, which the row's own identity is not part of what a source sends.
+    let upsert_impl = (!crud_meta.upsert_key.is_empty()).then(|| {
+        let key_columns = crud_meta
+            .upsert_key
+            .iter()
+            .map(|field| crate::syn_type::column_ident(field))
+            .map(|column| quote! { #column_type::#column });
+        let pk = analysis
+            .primary_key_field
+            .and_then(|f| f.ident.as_ref())
+            .map(std::string::ToString::to_string);
+        let comparable_columns = analysis
+            .db_fields
+            .iter()
+            .filter_map(|field| field.ident.as_ref())
+            .map(std::string::ToString::to_string)
+            .filter(|field| Some(field) != pk.as_ref())
+            .map(|field| crate::syn_type::column_ident(&field))
+            .map(|column| quote! { #column_type::#column });
+        quote! {
+            fn upsert_key() -> &'static [<Self::EntityType as sea_orm::EntityTrait>::Column] {
+                &[#(#key_columns),*]
+            }
+
+            fn upsert_comparable() -> &'static [<Self::EntityType as sea_orm::EntityTrait>::Column] {
+                &[#(#comparable_columns),*]
+            }
+        }
+    });
+
     // Generate #[cfg(test)] FK validation tests for Vec joins
     let fk_validation_tests = generate_fk_validation_tests(analysis, api_struct_name);
 
@@ -156,6 +187,7 @@ pub(crate) fn generate_crud_resource_impl(
             #require_scope_impl
             #max_page_size_impl
             #security_profile_impl
+            #upsert_impl
 
             fn sortable_columns() -> Vec<(&'static str, Self::ColumnType)> {
                 vec![#(#sortable_entries),*]

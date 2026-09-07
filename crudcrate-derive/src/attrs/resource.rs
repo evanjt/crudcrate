@@ -153,6 +153,12 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             _ => {}
                         }
                     }
+                    Meta::List(list) if list.path.is_ident("upsert_key") => {
+                        meta.upsert_key = list
+                            .parse_args_with(Punctuated::<syn::Ident, Comma>::parse_terminated)
+                            .map(|fields| fields.iter().map(ToString::to_string).collect())
+                            .unwrap_or_default();
+                    }
                     Meta::List(list) => {
                         if list.path.is_ident("join")
                             && let Some(join_def) = parse_struct_level_join(&list)
