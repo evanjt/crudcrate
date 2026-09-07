@@ -7,21 +7,10 @@
 //! (`fetch_one`, `fetch_all`, `perform_create`, `perform_update`,
 //! `perform_delete`, `perform_delete_many`).
 //!
-//! ACTUAL-BEHAVIOUR NOTE: `create_many` / `update_many` infinite recursion.
-//! When `operations = X` is configured, the derive macro generates
-//! `Resource::create_many` / `Resource::update_many` so they delegate to
-//! `CRUDOperations::create_many` / `update_many` on the ops struct. But the
-//! *default* bodies of those two trait methods delegate straight back to
-//! `Self::Resource::create_many` / `update_many` (see crudcrate/src/operations.rs
-//! ~line 623 and 644). With no override that is unconditional mutual recursion
-//! and any call (POST /batch, PATCH /batch, even an empty batch) aborts the
-//! whole process with a stack overflow. (`create`/`update`/`delete`/
-//! `get_one`/`get_all`/`delete_many` do not have this problem: their default
-//! bodies delegate to `perform_*` / `fetch_*`, which hit the database directly.)
-//! These two endpoints are therefore deliberately NOT driven at runtime here;
-//! `create_many_update_many_signatures_exist` instead binds their function
-//! pointers so the generated code is still type-checked and documents the
-//! defect without aborting the test binary.
+//! `create_many`, `update_many` and `perform_delete_many` default to the single-row lifecycle,
+//! one item at a time, so the per-row hooks fire on the batch routes too. Delegating them back to
+//! `Self::Resource::create_many` / `update_many` is what an `operations = X` entity cannot do: the
+//! derive generates those as a call to the ops struct, so the pair recurses without bound.
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
@@ -350,35 +339,105 @@ async fn delete_missing_returns_404_from_perform_delete() {
 
 // ---------------------------------------------------------------------------
 // create_many / update_many  (POST /batch, PATCH /batch)
-//
-// These cannot be driven at runtime: with `operations = CodOps` and no override,
-// the default `CRUDOperations::create_many` / `update_many` recurse infinitely
-// (see the module doc-comment). Calling either (including an empty batch)
-// stack-overflows and aborts the whole test process. We therefore only bind the
-// generated function pointers, which keeps the code type-checked and documents
-// the defect without aborting the binary.
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn create_many_update_many_signatures_exist() {
-    // The generated impls exist and are name-resolvable through `CRUDResource`.
-    // Naming the function items (without invoking them) proves the
-    // `operations = CodOps` codegen wired both batch methods. Invoking them is
-    // intentionally avoided because the default trait bodies recurse without
-    // bound and would abort the process.
-    fn name_only<T>(_f: T) {}
-    name_only(<CodWidget as CRUDResource>::create_many);
-    name_only(<CodWidget as CRUDResource>::update_many);
+async fn create_many_runs_the_single_row_lifecycle_per_item() {
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
 
-    // Argument types are exercised by constructing the values the generated
-    // methods accept, without ever passing them in.
-    let create_arg: Vec<cod_widget::CodWidgetCreate> = vec![cod_widget::CodWidgetCreate {
-        name: "Untouched".to_string(),
-    }];
-    let update_arg: Vec<(Uuid, cod_widget::CodWidgetUpdate)> = Vec::new();
-    assert_eq!(create_arg.len(), 1);
-    assert_eq!(create_arg[0].name, "Untouched");
-    assert!(update_arg.is_empty());
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/widgets/batch")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!([{ "name": "Escapement" }, { "name": "Mainspring" }]).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let created = body_json(resp).await;
+    let arr = created.as_array().expect("batch create returns an array");
+    assert_eq!(arr.len(), 2);
+    // Each row went through `create`, so `perform_create` assigned its on_create UUID.
+    for row in arr {
+        assert!(Uuid::parse_str(row["id"].as_str().unwrap()).is_ok());
+    }
+
+    let mut names: Vec<String> = arr
+        .iter()
+        .map(|v| v["name"].as_str().unwrap().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["Escapement", "Mainspring"]);
+}
+
+#[tokio::test]
+async fn update_many_runs_the_single_row_lifecycle_per_item() {
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    let a = create_widget(&app, "Pallet").await;
+    let b = create_widget(&app, "Balance").await;
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/widgets/batch")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!([
+                        { "id": a["id"], "name": "Pallet fork" },
+                        { "id": b["id"], "name": "Balance wheel" },
+                    ])
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let updated = body_json(resp).await;
+    let arr = updated.as_array().expect("batch update returns an array");
+    assert_eq!(arr.len(), 2);
+
+    let mut names: Vec<String> = arr
+        .iter()
+        .map(|v| v["name"].as_str().unwrap().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["Balance wheel", "Pallet fork"]);
+}
+
+#[tokio::test]
+async fn update_many_reports_the_id_that_is_not_there() {
+    let db = setup_test_db().await.unwrap();
+    let app = app(&db);
+
+    let missing = Uuid::new_v4();
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/widgets/batch")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!([{ "id": missing, "name": "Nowhere" }]).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 // ---------------------------------------------------------------------------

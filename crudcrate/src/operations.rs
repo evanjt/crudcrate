@@ -367,13 +367,28 @@ pub trait CRUDOperations: Send + Sync {
         Ok(())
     }
 
-    /// Core database batch delete logic
+    /// Core batch delete logic: the single-row [`Self::delete`] lifecycle per id, so
+    /// `before_delete` and `after_delete` fire for every row. An id that is not there is skipped,
+    /// which also de-duplicates a repeated one, so the return is the ids that existed, in input
+    /// order. Override this to delete the batch in one statement, and take the hooks with it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ApiError` if any hook or delete fails for a row that exists
     async fn perform_delete_many(
         &self,
         db: &DatabaseConnection,
         ids: Vec<ResourceId<Self>>,
     ) -> Result<Vec<ResourceId<Self>>, ApiError> {
-        crate::core::defaults::delete_many::<Self::Resource>(db, ids).await
+        let mut deleted = Vec::with_capacity(ids.len());
+        for id in ids {
+            match self.delete(db, id).await {
+                Ok(id) => deleted.push(id),
+                Err(ApiError::NotFound { .. }) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(deleted)
     }
 
     // ==========================================
@@ -567,12 +582,11 @@ pub trait CRUDOperations: Send + Sync {
 
     /// Create multiple entities in a batch
     ///
-    /// Orchestrates the full batch create lifecycle:
-    /// 1. Validation via before hooks (per item)
-    /// 2. Database batch insertion
-    /// 3. After hooks (per item)
+    /// Runs the single-row [`Self::create`] lifecycle per item, so `before_create` and
+    /// `after_create` fire for every row. There is no enclosing transaction: override this to
+    /// insert the batch in one statement, and take the hooks with it.
     ///
-    /// **Security**: Limited to 100 items by default to prevent `DoS`.
+    /// **Security**: Limited to `batch_limit()` items (100 by default) to prevent `DoS`.
     ///
     /// # Errors
     ///
@@ -583,17 +597,27 @@ pub trait CRUDOperations: Send + Sync {
         db: &DatabaseConnection,
         data: Vec<<Self::Resource as CRUDResource>::CreateModel>,
     ) -> Result<Vec<Self::Resource>, ApiError> {
-        Self::Resource::create_many(db, data).await
+        if data.len() > Self::Resource::batch_limit() {
+            return Err(ApiError::bad_request(format!(
+                "Batch create limited to {} items. Received {} items.",
+                Self::Resource::batch_limit(),
+                data.len()
+            )));
+        }
+        let mut created = Vec::with_capacity(data.len());
+        for item in data {
+            created.push(self.create(db, item).await?);
+        }
+        Ok(created)
     }
 
     /// Update multiple entities in a batch
     ///
-    /// Orchestrates the full batch update lifecycle:
-    /// 1. Validation via before hooks (per item)
-    /// 2. Database batch updates
-    /// 3. After hooks (per item)
+    /// Runs the single-row [`Self::update`] lifecycle per item, so `before_update` and
+    /// `after_update` fire for every row. There is no enclosing transaction: override this to
+    /// update the batch in one statement, and take the hooks with it.
     ///
-    /// **Security**: Limited to 100 items by default to prevent `DoS`.
+    /// **Security**: Limited to `batch_limit()` items (100 by default) to prevent `DoS`.
     ///
     /// # Errors
     ///
@@ -607,7 +631,18 @@ pub trait CRUDOperations: Send + Sync {
             <Self::Resource as CRUDResource>::UpdateModel,
         )>,
     ) -> Result<Vec<Self::Resource>, ApiError> {
-        Self::Resource::update_many(db, updates).await
+        if updates.len() > Self::Resource::batch_limit() {
+            return Err(ApiError::bad_request(format!(
+                "Batch update limited to {} items. Received {} items.",
+                Self::Resource::batch_limit(),
+                updates.len()
+            )));
+        }
+        let mut updated = Vec::with_capacity(updates.len());
+        for (id, data) in updates {
+            updated.push(self.update(db, id, data).await?);
+        }
+        Ok(updated)
     }
 }
 

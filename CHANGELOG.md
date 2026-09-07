@@ -5,6 +5,19 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `CRUDOperations::create_many` and `update_many` run the single-row `create` /
+  `update` lifecycle per item instead of delegating to `CRUDResource`, which the
+  derive generates as a call back into the operations struct: an entity
+  declaring `operations = X` without overriding both recursed until the stack
+  overflowed on every batch request.
+- `CRUDOperations::perform_delete_many` deletes one row at a time through
+  `delete`, so `before_delete` and `after_delete` fire for every row of a batch.
+  An id that is not there is skipped, as before.
+
 ## [0.11.0] - 2026-09-03
 
 ### Added
