@@ -20,6 +20,8 @@ tokio = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["util"] }
 uuid = { workspace = true, features = ["serde", "v4"] }
 chrono = { workspace = true, features = ["serde"] }
+# axum_extras is what an external consumer builds the generated handlers under, and the only
+# configuration in which they failed to compile in 0.9.2. It stays on so CI reaches that path.
 utoipa = { workspace = true, features = ["uuid", "chrono", "decimal", "axum_extras"] }
 utoipa-axum = { workspace = true }
 rust_decimal = { workspace = true }
