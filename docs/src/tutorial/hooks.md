@@ -31,8 +31,8 @@ pub struct Model {
     // ... fields ...
 }
 
-async fn validate_task(
-    _db: &DatabaseConnection,
+async fn validate_task<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     data: &mut TaskCreate,
 ) -> Result<(), ApiError> {
     if data.title.len() < 3 {
@@ -64,8 +64,8 @@ Validate or modify input. Return `Err` to cancel the operation.
 ```rust
 #[crudcrate(create::one::pre = validate_task)]
 
-async fn validate_task(
-    db: &DatabaseConnection,
+async fn validate_task<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: &mut TaskCreate,  // Can modify!
 ) -> Result<(), ApiError> {
     // Validate
@@ -87,8 +87,8 @@ Run side effects like notifications or logging. The operation already succeeded.
 ```rust
 #[crudcrate(create::one::post = notify_created)]
 
-async fn notify_created(
-    _db: &DatabaseConnection,
+async fn notify_created<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     task: &Task,  // The created task
 ) -> Result<(), ApiError> {
     println!("New task created: {}", task.title);
@@ -104,8 +104,8 @@ Completely replace the default behavior. Use for soft deletes or custom logic.
 ```rust
 #[crudcrate(delete::one::body = soft_delete)]
 
-async fn soft_delete(
-    db: &DatabaseConnection,
+async fn soft_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     // Instead of deleting, set deleted_at
@@ -129,8 +129,8 @@ Transform hooks receive the operation result and return a modified version. Use 
 ```rust
 #[crudcrate(read::one::transform = enrich_with_metadata)]
 
-async fn enrich_with_metadata(
-    db: &DatabaseConnection,
+async fn enrich_with_metadata<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     mut task: Task,  // Takes ownership, returns modified
 ) -> Result<Task, ApiError> {
     // Add computed fields, enrich from other sources, etc.
@@ -169,16 +169,16 @@ pub struct Model {
 
 ```rust
 // Pre: can modify input
-async fn create_pre(db: &DatabaseConnection, data: &mut TaskCreate) -> Result<(), ApiError>;
+async fn create_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: &mut TaskCreate) -> Result<(), ApiError>;
 
 // Post: receives created item
-async fn create_post(db: &DatabaseConnection, task: &Task) -> Result<(), ApiError>;
+async fn create_post<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, task: &Task) -> Result<(), ApiError>;
 
 // Body: replace create logic
-async fn create_body(db: &DatabaseConnection, data: TaskCreate) -> Result<Task, ApiError>;
+async fn create_body<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: TaskCreate) -> Result<Task, ApiError>;
 
 // Transform: modify result before returning
-async fn create_transform(db: &DatabaseConnection, task: Task) -> Result<Task, ApiError>;
+async fn create_transform<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, task: Task) -> Result<Task, ApiError>;
 ```
 
 ### Update
@@ -187,10 +187,10 @@ async fn create_transform(db: &DatabaseConnection, task: Task) -> Result<Task, A
 
 ```rust
 // Pre: receives id and can modify input
-async fn update_pre(db: &DatabaseConnection, id: Uuid, data: &mut TaskUpdate) -> Result<(), ApiError>;
+async fn update_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: Uuid, data: &mut TaskUpdate) -> Result<(), ApiError>;
 
 // Post: receives updated item
-async fn update_post(db: &DatabaseConnection, task: &Task) -> Result<(), ApiError>;
+async fn update_post<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, task: &Task) -> Result<(), ApiError>;
 ```
 
 ### Delete
@@ -199,13 +199,13 @@ async fn update_post(db: &DatabaseConnection, task: &Task) -> Result<(), ApiErro
 
 ```rust
 // Pre: can prevent deletion
-async fn delete_pre(db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
+async fn delete_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: Uuid) -> Result<(), ApiError>;
 
 // Post: runs after deletion
-async fn delete_post(db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
+async fn delete_post<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: Uuid) -> Result<(), ApiError>;
 
 // Body: replace delete logic
-async fn delete_body(db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
+async fn delete_body<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: Uuid) -> Result<(), ApiError>;
 ```
 
 ## Execution Order
@@ -226,7 +226,7 @@ If `pre` returns an error, nothing else runs.
 ```rust
 use chrono::{DateTime, Utc};
 use crudcrate::{EntityToModels, errors::ApiError};
-use sea_orm::{entity::prelude::*, DatabaseConnection};
+use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, DeriveEntityModel, EntityToModels)]
@@ -259,8 +259,8 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
 }
 
-async fn validate_task(
-    _db: &DatabaseConnection,
+async fn validate_task<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     data: &mut TaskCreate,
 ) -> Result<(), ApiError> {
     if data.title.trim().is_empty() {
@@ -274,16 +274,16 @@ async fn validate_task(
     Ok(())
 }
 
-async fn log_create(
-    _db: &DatabaseConnection,
+async fn log_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     task: &Task,
 ) -> Result<(), ApiError> {
     tracing::info!("Task created: {} ({})", task.title, task.id);
     Ok(())
 }
 
-async fn check_delete_permission(
-    db: &DatabaseConnection,
+async fn check_delete_permission<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     let task = Entity::find_by_id(id)

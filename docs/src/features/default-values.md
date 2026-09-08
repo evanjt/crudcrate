@@ -281,9 +281,9 @@ pub struct ArticleOperations;
 impl CRUDOperations for ArticleOperations {
     type Resource = Article;
 
-    async fn before_create(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         data: &mut ArticleCreate,
     ) -> Result<(), ApiError> {
         // Complex default logic

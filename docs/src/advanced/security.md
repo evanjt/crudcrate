@@ -220,9 +220,9 @@ Authorization lives in the hook system. Use `before_get_all` for
 row-level filtering and `before_*` hooks for per-operation checks:
 
 ```rust
-async fn before_get_all(
+async fn before_get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    _db: &DatabaseConnection,
+    _db: &C,
     condition: &mut Condition,
 ) -> Result<(), ApiError> {
     let user = current_user();
@@ -232,9 +232,9 @@ async fn before_get_all(
     Ok(())
 }
 
-async fn before_update(
+async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     id: Uuid,
     _data: &mut ArticleUpdate,
 ) -> Result<(), ApiError> {
@@ -258,9 +258,9 @@ For declarative scope filtering tied to an `Extension`, see the
 Strip protected fields in `before_update`:
 
 ```rust
-async fn before_update(
+async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    _db: &DatabaseConnection,
+    _db: &C,
     _id: Uuid,
     data: &mut UserUpdate,
 ) -> Result<(), ApiError> {
@@ -293,9 +293,9 @@ natural attachment point for `#[instrument]`:
 
 ```rust
 #[instrument(skip(self, db))]
-async fn before_delete(
+async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     info!(article_id = %id, "delete attempted");

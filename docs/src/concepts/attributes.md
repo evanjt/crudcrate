@@ -264,9 +264,9 @@ Hook into CRUD operations:
 pub struct Model { }
 
 // Hook function signatures:
-async fn validate_create(db: &DatabaseConnection, data: &mut ModelCreate) -> Result<(), ApiError>;
-async fn send_welcome_email(db: &DatabaseConnection, created: &Model) -> Result<(), ApiError>;
-async fn custom_create_handler(db: &DatabaseConnection, data: ModelCreate) -> Result<Model, ApiError>;
+async fn validate_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: &mut ModelCreate) -> Result<(), ApiError>;
+async fn send_welcome_email<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, created: &Model) -> Result<(), ApiError>;
+async fn custom_create_handler<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: ModelCreate) -> Result<Model, ApiError>;
 ```
 
 ## Combining Attributes

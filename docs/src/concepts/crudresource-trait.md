@@ -5,7 +5,6 @@
 ## Trait Definition
 
 ```rust
-#[async_trait]
 pub trait CRUDResource: Sized + Send + Sync {
     /// The Sea-ORM entity type
     type EntityType: EntityTrait;
@@ -23,14 +22,14 @@ pub trait CRUDResource: Sized + Send + Sync {
     type PrimaryKey: Send + Sync;
 
     /// Get a single record by ID
-    async fn get_one(
-        db: &DatabaseConnection,
+    async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: Self::PrimaryKey,
     ) -> Result<Self, ApiError>;
 
     /// Get all records with filtering, sorting, and pagination
-    async fn get_all(
-        db: &DatabaseConnection,
+    async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: Condition,
         order: (Self::EntityType::Column, Order),
         offset: u64,
@@ -38,33 +37,33 @@ pub trait CRUDResource: Sized + Send + Sync {
     ) -> Result<Vec<Self::ListModel>, ApiError>;
 
     /// Create a new record
-    async fn create(
-        db: &DatabaseConnection,
+    async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         data: Self::CreateModel,
     ) -> Result<Self, ApiError>;
 
     /// Update an existing record
-    async fn update(
-        db: &DatabaseConnection,
+    async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: Self::PrimaryKey,
         data: Self::UpdateModel,
     ) -> Result<Self, ApiError>;
 
     /// Delete a record
-    async fn delete(
-        db: &DatabaseConnection,
+    async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: Self::PrimaryKey,
     ) -> Result<(), ApiError>;
 
     /// Delete multiple records
-    async fn delete_many(
-        db: &DatabaseConnection,
+    async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         ids: Vec<Self::PrimaryKey>,
     ) -> Result<u64, ApiError>;
 
     /// Get total count matching condition
-    async fn total_count(
-        db: &DatabaseConnection,
+    async fn total_count<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: &Condition,
     ) -> u64;
 }
@@ -87,7 +86,6 @@ pub struct Model {
 CRUDCrate generates:
 
 ```rust
-#[async_trait]
 impl CRUDResource for Task {
     type EntityType = Entity;
     type CreateModel = TaskCreate;
@@ -95,8 +93,8 @@ impl CRUDResource for Task {
     type ListModel = TaskList;
     type PrimaryKey = i32;
 
-    async fn get_one(
-        db: &DatabaseConnection,
+    async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: i32,
     ) -> Result<Self, ApiError> {
         let model = Entity::find_by_id(id)
@@ -108,8 +106,8 @@ impl CRUDResource for Task {
         Ok(model.into())
     }
 
-    async fn get_all(
-        db: &DatabaseConnection,
+    async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: Condition,
         order: (Column, Order),
         offset: u64,
@@ -127,8 +125,8 @@ impl CRUDResource for Task {
         Ok(models.into_iter().map(|m| m.into()).collect())
     }
 
-    async fn create(
-        db: &DatabaseConnection,
+    async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         data: TaskCreate,
     ) -> Result<Self, ApiError> {
         let active_model: ActiveModel = data.into();
@@ -136,8 +134,8 @@ impl CRUDResource for Task {
         Ok(model.into())
     }
 
-    async fn update(
-        db: &DatabaseConnection,
+    async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: i32,
         data: TaskUpdate,
     ) -> Result<Self, ApiError> {
@@ -154,8 +152,8 @@ impl CRUDResource for Task {
         Ok(model.into())
     }
 
-    async fn delete(
-        db: &DatabaseConnection,
+    async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: i32,
     ) -> Result<(), ApiError> {
         let result = Entity::delete_by_id(id)
@@ -170,8 +168,8 @@ impl CRUDResource for Task {
         Ok(())
     }
 
-    async fn delete_many(
-        db: &DatabaseConnection,
+    async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         ids: Vec<i32>,
     ) -> Result<u64, ApiError> {
         // Safety limit: max 100 items per request
@@ -190,8 +188,8 @@ impl CRUDResource for Task {
         Ok(result.rows_affected)
     }
 
-    async fn total_count(
-        db: &DatabaseConnection,
+    async fn total_count<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: &Condition,
     ) -> u64 {
         Entity::find()
@@ -246,7 +244,7 @@ When entities have relationships, `get_one` loads them:
 pub comments: Vec<Comment>,
 
 // Generated get_one includes relationship loading
-async fn get_one(db: &DatabaseConnection, id: i32) -> Result<Self, ApiError> {
+async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: i32) -> Result<Self, ApiError> {
     let model = Entity::find_by_id(id)
         .one(db)
         .await?
@@ -280,14 +278,13 @@ pub struct Model { /* ... */ }
 
 pub struct TaskOperations;
 
-#[async_trait]
 impl CRUDOperations for TaskOperations {
     type Resource = Task;
 
     /// Called before create
-    async fn before_create(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         data: &mut TaskCreate,
     ) -> Result<(), ApiError> {
         // Validate or transform
@@ -296,9 +293,9 @@ impl CRUDOperations for TaskOperations {
     }
 
     /// Called after create
-    async fn after_create(
+    async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         created: &Task,
     ) -> Result<(), ApiError> {
         // Send notification, update cache, etc.
@@ -306,9 +303,9 @@ impl CRUDOperations for TaskOperations {
     }
 
     /// Called before delete
-    async fn before_delete(
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         id: i32,
     ) -> Result<(), ApiError> {
         // Check permissions, cascade deletes, etc.
@@ -381,7 +378,7 @@ This enables:
 All methods return `Result<T, ApiError>`:
 
 ```rust
-async fn get_one(db: &DatabaseConnection, id: i32) -> Result<Self, ApiError> {
+async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: i32) -> Result<Self, ApiError> {
     Entity::find_by_id(id)
         .one(db)
         .await

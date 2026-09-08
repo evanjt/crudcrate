@@ -287,9 +287,9 @@ async fn get_item(db: &DatabaseConnection, id: i32) -> Result<Item, ApiError> {
 ## Usage in Hooks
 
 ```rust
-async fn before_create(
+async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     data: &mut ArticleCreate,
 ) -> Result<(), ApiError> {
     // Validation
@@ -320,9 +320,9 @@ async fn before_create(
     Ok(())
 }
 
-async fn before_update(
+async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     id: Uuid,
     _data: &mut ArticleUpdate,
 ) -> Result<(), ApiError> {

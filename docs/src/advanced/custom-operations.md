@@ -22,29 +22,26 @@ hooks on the same resource are ignored.
 ### 1. Define the operations struct
 
 ```rust
-use async_trait::async_trait;
 use crudcrate::{CRUDOperations, ApiError};
-use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
 pub struct AssetOps;
 
-#[async_trait]
 impl CRUDOperations for AssetOps {
     type Resource = Asset;
 
-    async fn before_create(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         data: &<Asset as crudcrate::traits::CRUDResource>::CreateModel,
     ) -> Result<(), ApiError> {
         // Validate, authorize, log: whatever you need
         Ok(())
     }
 
-    async fn before_delete(
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        _db: &DatabaseConnection,
+        _db: &C,
         id: Uuid,
     ) -> Result<(), ApiError> {
         // Clean up S3 before the row is deleted
@@ -74,11 +71,11 @@ pub struct Model {
 `before_*` and `after_*` methods run around the default core logic.
 
 ```rust
-async fn before_create(&self, db: &DatabaseConnection, data: &CreateModel) -> Result<(), ApiError>;
-async fn after_create(&self, db: &DatabaseConnection, entity: &mut Self::Resource) -> Result<(), ApiError>;
+async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, data: &CreateModel) -> Result<(), ApiError>;
+async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, entity: &mut Self::Resource) -> Result<(), ApiError>;
 
-async fn before_get_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
-async fn after_get_one(&self, db: &DatabaseConnection, entity: &mut Self::Resource) -> Result<(), ApiError>;
+async fn before_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<(), ApiError>;
+async fn after_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, entity: &mut Self::Resource) -> Result<(), ApiError>;
 ```
 
 `before_create` and `before_update` take **immutable** references to the
@@ -94,12 +91,12 @@ Replace the default DB query or mutation while keeping lifecycle hooks
 around it.
 
 ```rust
-async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError> {
+async fn fetch_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Self::Resource, ApiError> {
     // Custom query, eg. select specific columns, add joins
     // ...
 }
 
-async fn perform_create(&self, db: &DatabaseConnection, data: CreateModel) -> Result<Self::Resource, ApiError> {
+async fn perform_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, data: CreateModel) -> Result<Self::Resource, ApiError> {
     // Custom insertion logic, eg. transform data before insert
     // ...
 }
@@ -112,7 +109,7 @@ implementations orchestrate `before_* → core_logic → after_*`, so
 overriding here means you take full control.
 
 ```rust
-async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError> {
     // Completely custom: S3 cleanup, cascade, audit, everything
     let asset = Asset::get_one(db, id).await?;
     delete_from_s3(&asset.s3_key).await?;
@@ -144,9 +141,9 @@ Entities can have both `operations` and `join(...)` fields. When they do:
 ### Validation
 
 ```rust
-async fn before_create(
+async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    _db: &DatabaseConnection,
+    _db: &C,
     data: &ArticleCreate,
 ) -> Result<(), ApiError> {
     if data.title.trim().len() < 5 {
@@ -159,9 +156,9 @@ async fn before_create(
 ### Authorization
 
 ```rust
-async fn before_update(
+async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     id: Uuid,
     _data: &ArticleUpdate,
 ) -> Result<(), ApiError> {
@@ -181,9 +178,9 @@ async fn before_update(
 ### Enrichment via after hooks
 
 ```rust
-async fn after_get_one(
+async fn after_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     entity: &mut Article,
 ) -> Result<(), ApiError> {
     entity.view_count = get_view_count(db, entity.id).await?;
@@ -194,9 +191,9 @@ async fn after_get_one(
 ### Cascading deletes
 
 ```rust
-async fn before_delete(
+async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
     &self,
-    db: &DatabaseConnection,
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     comment::Entity::delete_many()

@@ -123,12 +123,12 @@ impl CRUDResource for Item {
     type UpdateModel = ItemUpdate;
     type ListModel = ItemList;
 
-    async fn get_one(db: &DatabaseConnection, id: i32) -> Result<Self, ApiError> {
+    async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: i32) -> Result<Self, ApiError> {
         // Generated query logic
     }
 
-    async fn get_all(
-        db: &DatabaseConnection,
+    async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: Condition,
         order: (Column, Order),
         offset: u64,
@@ -137,15 +137,15 @@ impl CRUDResource for Item {
         // Generated query logic with filtering
     }
 
-    async fn create(db: &DatabaseConnection, data: ItemCreate) -> Result<Self, ApiError> {
+    async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: ItemCreate) -> Result<Self, ApiError> {
         // Generated insert logic
     }
 
-    async fn update(db: &DatabaseConnection, id: i32, data: ItemUpdate) -> Result<Self, ApiError> {
+    async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: i32, data: ItemUpdate) -> Result<Self, ApiError> {
         // Generated update logic
     }
 
-    async fn delete(db: &DatabaseConnection, id: i32) -> Result<(), ApiError> {
+    async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: i32) -> Result<(), ApiError> {
         // Generated delete logic
     }
 }

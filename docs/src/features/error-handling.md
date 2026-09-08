@@ -100,9 +100,9 @@ async fn get_item(
 impl CRUDOperations for MyOperations {
     type Resource = Item;
 
-    async fn before_create(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         data: &mut ItemCreate,
     ) -> Result<(), ApiError> {
         // Validation
@@ -248,9 +248,9 @@ Integrate with the `tracing` crate:
 use tracing::{error, warn, info};
 
 impl CRUDOperations for MyOperations {
-    async fn before_delete(
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         id: i32,
     ) -> Result<(), ApiError> {
         let item = Entity::find_by_id(id).one(db).await?;

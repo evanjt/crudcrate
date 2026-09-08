@@ -226,13 +226,12 @@ impl Related<super::product::Entity> for Entity {
 ```rust
 pub struct OrderOperations;
 
-#[async_trait]
 impl CRUDOperations for OrderOperations {
     type Resource = Order;
 
-    async fn before_create(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         data: &mut OrderCreate,
     ) -> Result<(), ApiError> {
         // Calculate total from items
@@ -240,9 +239,9 @@ impl CRUDOperations for OrderOperations {
         Ok(())
     }
 
-    async fn after_create(
+    async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         created: &Order,
     ) -> Result<(), ApiError> {
         // Update stock quantities
@@ -250,9 +249,9 @@ impl CRUDOperations for OrderOperations {
         Ok(())
     }
 
-    async fn before_update(
+    async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         id: Uuid,
         data: &mut OrderUpdate,
     ) -> Result<(), ApiError> {

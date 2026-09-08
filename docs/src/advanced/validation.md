@@ -107,8 +107,8 @@ construct the error with `ApiError::validation_failed`, which takes a
 ```rust
 #[crudcrate(create::one::pre = validate_user)]
 
-async fn validate_user(
-    db: &DatabaseConnection,
+async fn validate_user<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: &mut UserCreate,
 ) -> Result<(), ApiError> {
     let mut errors = Vec::new();
@@ -137,8 +137,8 @@ The same construction works inside `CRUDOperations::before_create` and
 ### Uniqueness Check
 
 ```rust
-async fn check_email_unique(
-    db: &DatabaseConnection,
+async fn check_email_unique<C: sea_orm::ConnectionTrait>(
+    db: &C,
     email: &str,
 ) -> Result<(), ApiError> {
     let exists = Entity::find()
@@ -158,8 +158,8 @@ async fn check_email_unique(
 ### Foreign Key Existence
 
 ```rust
-async fn check_category_exists(
-    db: &DatabaseConnection,
+async fn check_category_exists<C: sea_orm::ConnectionTrait>(
+    db: &C,
     category_id: i32,
 ) -> Result<(), ApiError> {
     let exists = category::Entity::find_by_id(category_id)

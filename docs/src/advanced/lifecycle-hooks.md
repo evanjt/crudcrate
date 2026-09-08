@@ -30,8 +30,8 @@ Execute **before** the database operation:
 #[crudcrate(create::one::pre = validate_article)]
 
 // Hook function signature
-async fn validate_article(
-    db: &DatabaseConnection,
+async fn validate_article<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: &mut ArticleCreate,
 ) -> Result<(), ApiError> {
     if data.title.is_empty() {
@@ -51,8 +51,8 @@ Execute **after** the database operation succeeds:
 #[crudcrate(create::one::post = notify_subscribers)]
 
 // Hook function signature
-async fn notify_subscribers(
-    db: &DatabaseConnection,
+async fn notify_subscribers<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     created: &Article,
 ) -> Result<(), ApiError> {
     send_notifications(created.author_id).await;
@@ -68,8 +68,8 @@ async fn notify_subscribers(
 #[crudcrate(delete::one::body = soft_delete)]
 
 // Completely replaces the delete handler
-async fn soft_delete(
-    db: &DatabaseConnection,
+async fn soft_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     // Instead of deleting, mark as deleted
@@ -94,8 +94,8 @@ Modify the result **after** the operation (or body replacement) but **before** t
 #[crudcrate(read::one::transform = enrich_article)]
 
 // Hook function signature
-async fn enrich_article(
-    db: &DatabaseConnection,
+async fn enrich_article<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     article: Article,  // Takes ownership
 ) -> Result<Article, ApiError> {
     // Enrich, decorate, or transform the result
@@ -108,8 +108,8 @@ Transform hooks take ownership of the result and return a modified version. Supp
 For `many` operations, the transform receives and returns `Vec<T>`:
 
 ```rust
-async fn transform_articles(
-    db: &DatabaseConnection,
+async fn transform_articles<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     articles: Vec<Article>,
 ) -> Result<Vec<Article>, ApiError> {
     // Transform the batch
@@ -136,26 +136,26 @@ async fn transform_articles(
 
 ```rust
 // Pre hook - can modify the input
-async fn create_pre(
-    db: &DatabaseConnection,
+async fn create_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: &mut ArticleCreate,
 ) -> Result<(), ApiError>;
 
 // Post hook - receives the created entity
-async fn create_post(
-    db: &DatabaseConnection,
+async fn create_post<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     created: &Article,
 ) -> Result<(), ApiError>;
 
 // Body replacement - full control
-async fn create_body(
-    db: &DatabaseConnection,
+async fn create_body<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: ArticleCreate,
 ) -> Result<Article, ApiError>;
 
 // Transform - modify the result
-async fn create_transform(
-    db: &DatabaseConnection,
+async fn create_transform<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     created: Article,
 ) -> Result<Article, ApiError>;
 ```
@@ -164,28 +164,28 @@ async fn create_transform(
 
 ```rust
 // Pre hook
-async fn update_pre(
-    db: &DatabaseConnection,
+async fn update_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
     data: &mut ArticleUpdate,
 ) -> Result<(), ApiError>;
 
 // Post hook
-async fn update_post(
-    db: &DatabaseConnection,
+async fn update_post<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     updated: &Article,
 ) -> Result<(), ApiError>;
 
 // Body replacement
-async fn update_body(
-    db: &DatabaseConnection,
+async fn update_body<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
     data: ArticleUpdate,
 ) -> Result<Article, ApiError>;
 
 // Transform - modify the result
-async fn update_transform(
-    db: &DatabaseConnection,
+async fn update_transform<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     updated: Article,
 ) -> Result<Article, ApiError>;
 ```
@@ -194,20 +194,20 @@ async fn update_transform(
 
 ```rust
 // Pre hook
-async fn delete_pre(
-    db: &DatabaseConnection,
+async fn delete_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError>;
 
 // Post hook
-async fn delete_post(
-    db: &DatabaseConnection,
+async fn delete_post<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError>;
 
 // Body replacement
-async fn delete_body(
-    db: &DatabaseConnection,
+async fn delete_body<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError>;
 ```
@@ -216,14 +216,14 @@ async fn delete_body(
 
 ```rust
 // Pre hook for get_one
-async fn get_one_pre(
-    db: &DatabaseConnection,
+async fn get_one_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError>;
 
 // Pre hook for get_all - can modify the condition
-async fn get_all_pre(
-    db: &DatabaseConnection,
+async fn get_all_pre<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     condition: &mut Condition,
 ) -> Result<(), ApiError>;
 ```
@@ -235,8 +235,8 @@ async fn get_all_pre(
 ```rust
 #[crudcrate(create::one::pre = validate_user)]
 
-async fn validate_user(
-    _db: &DatabaseConnection,
+async fn validate_user<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     data: &mut UserCreate,
 ) -> Result<(), ApiError> {
     let mut errors = Vec::new();
@@ -264,8 +264,8 @@ async fn validate_user(
 ```rust
 #[crudcrate(create::one::pre = hash_password)]
 
-async fn hash_password(
-    _db: &DatabaseConnection,
+async fn hash_password<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     data: &mut UserCreate,
 ) -> Result<(), ApiError> {
     // Hash the password before storing
@@ -284,8 +284,8 @@ async fn hash_password(
 ```rust
 #[crudcrate(delete::one::body = soft_delete_article)]
 
-async fn soft_delete_article(
-    db: &DatabaseConnection,
+async fn soft_delete_article<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     let article = Entity::find_by_id(id)
@@ -306,8 +306,8 @@ async fn soft_delete_article(
 ```rust
 #[crudcrate(get::all::pre = filter_by_tenant)]
 
-async fn filter_by_tenant(
-    _db: &DatabaseConnection,
+async fn filter_by_tenant<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     condition: &mut Condition,
 ) -> Result<(), ApiError> {
     let tenant_id = get_current_tenant_id();
@@ -327,22 +327,22 @@ async fn filter_by_tenant(
     delete::one::post = log_delete,
 )]
 
-async fn log_create(
-    db: &DatabaseConnection,
+async fn log_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     created: &Article,
 ) -> Result<(), ApiError> {
     save_audit_log(db, "CREATE", "Article", &created.id.to_string()).await
 }
 
-async fn log_update(
-    db: &DatabaseConnection,
+async fn log_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     updated: &Article,
 ) -> Result<(), ApiError> {
     save_audit_log(db, "UPDATE", "Article", &updated.id.to_string()).await
 }
 
-async fn log_delete(
-    db: &DatabaseConnection,
+async fn log_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     save_audit_log(db, "DELETE", "Article", &id.to_string()).await
@@ -354,8 +354,8 @@ async fn log_delete(
 ```rust
 #[crudcrate(update::one::post = update_search_index)]
 
-async fn update_search_index(
-    _db: &DatabaseConnection,
+async fn update_search_index<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    _db: &C,
     updated: &Article,
 ) -> Result<(), ApiError> {
     // Update search engine
@@ -372,8 +372,8 @@ async fn update_search_index(
     delete::one::pre = check_delete_permission,
 )]
 
-async fn check_edit_permission(
-    db: &DatabaseConnection,
+async fn check_edit_permission<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
     _data: &mut ArticleUpdate,
 ) -> Result<(), ApiError> {
@@ -387,8 +387,8 @@ async fn check_edit_permission(
     Ok(())
 }
 
-async fn check_delete_permission(
-    db: &DatabaseConnection,
+async fn check_delete_permission<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Uuid,
 ) -> Result<(), ApiError> {
     let article = Entity::find_by_id(id).one(db).await?.ok_or(ApiError::NotFound)?;
