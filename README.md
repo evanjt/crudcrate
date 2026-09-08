@@ -139,7 +139,8 @@ crudcrate = { version = "0.12", default-features = false, features = ["postgresq
 crudcrate 0.10 and later require `sea-orm = "2.0"` (upgrade notes in
 [docs/MIGRATION_0.10.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.10.md)
 and [docs/MIGRATION_0.11.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.11.md)).
-For Sea-ORM 1.x, stay on crudcrate 0.9.
+For Sea-ORM 1.x, stay on crudcrate 0.9. Upgrading from 0.11 changes hook signatures; see
+[docs/MIGRATION_0.12.md](https://github.com/evanjt/crudcrate/blob/main/docs/MIGRATION_0.12.md).
 
 ## Documentation
 
