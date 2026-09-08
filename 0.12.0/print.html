@@ -1510,7 +1510,7 @@ pub struct Model {
 }</code></pre>
 <h2 id="hook-function-signatures"><a class="header" href="#hook-function-signatures">Hook Function Signatures</a></h2>
 <h3 id="create"><a class="header" href="#create">Create</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.12.0/test_suite/tests/hook_system_test.rs#L388-L412" target="_blank" title="hooks create test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.12.0/test_suite/tests/hook_system_test.rs#L385-L409" target="_blank" title="hooks create test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can modify input
 async fn create_pre&lt;C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait&gt;(db: &amp;C, data: &amp;mut TaskCreate) -&gt; Result&lt;(), ApiError&gt;;
 
@@ -1523,14 +1523,14 @@ async fn create_body&lt;C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait&
 // Transform: modify result before returning
 async fn create_transform&lt;C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait&gt;(db: &amp;C, task: Task) -&gt; Result&lt;Task, ApiError&gt;;</code></pre>
 <h3 id="update"><a class="header" href="#update">Update</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.12.0/test_suite/tests/hook_system_test.rs#L474-L505" target="_blank" title="hooks update test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.12.0/test_suite/tests/hook_system_test.rs#L471-L502" target="_blank" title="hooks update test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: receives id and can modify input
 async fn update_pre&lt;C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait&gt;(db: &amp;C, id: Uuid, data: &amp;mut TaskUpdate) -&gt; Result&lt;(), ApiError&gt;;
 
 // Post: receives updated item
 async fn update_post&lt;C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait&gt;(db: &amp;C, task: &amp;Task) -&gt; Result&lt;(), ApiError&gt;;</code></pre>
 <h3 id="delete"><a class="header" href="#delete">Delete</a></h3>
-<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.12.0/test_suite/tests/hook_system_test.rs#L546-L574" target="_blank" title="hooks delete test">📋 See test</a></span></p>
+<p><span class="test-link"><a href="https://github.com/evanjt/crudcrate/blob/0.12.0/test_suite/tests/hook_system_test.rs#L543-L571" target="_blank" title="hooks delete test">📋 See test</a></span></p>
 <pre><code class="language-rust">// Pre: can prevent deletion
 async fn delete_pre&lt;C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait&gt;(db: &amp;C, id: Uuid) -&gt; Result&lt;(), ApiError&gt;;
 
