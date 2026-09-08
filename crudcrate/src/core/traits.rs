@@ -1,7 +1,6 @@
 use sea_orm::{
     Condition, ConnectionTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
-    TransactionSession, TransactionTrait,
-    entity::prelude::*,
+    TransactionSession, TransactionTrait, entity::prelude::*,
 };
 use uuid::Uuid;
 
@@ -62,10 +61,6 @@ pub trait MergeIntoActiveModel<ActiveModelType> {
     -> Result<ActiveModelType, ApiError>;
 }
 
-// The futures are not declared `Send`. Every caller in the stack is concrete by the
-// time it awaits one, so the bound is inferred where it is needed; a generic caller
-// that spawns one states `+ Send` itself.
-#[allow(async_fn_in_trait)]
 pub trait CRUDResource: Sized + Send + Sync
 where
     Self::EntityType: EntityTrait + Sync,
@@ -163,23 +158,25 @@ where
     /// The primary key is appended as a secondary sort key whenever the requested
     /// sort column is not the primary key itself, so `OFFSET`/`LIMIT` paging over a
     /// column with duplicate values cannot repeat or skip a row between pages.
-    async fn get_all<C: ConnectionTrait + TransactionTrait>(
+    fn get_all<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: &Condition,
         order_column: Self::ColumnType,
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self::ListModel>, ApiError> {
-        crate::core::defaults::get_all::<Self, _>(
-            db,
-            condition,
-            order_column,
-            order_direction,
-            offset,
-            limit,
-        )
-        .await
+    ) -> impl Future<Output = Result<Vec<Self::ListModel>, ApiError>> + Send {
+        async move {
+            crate::core::defaults::get_all::<Self, _>(
+                db,
+                condition,
+                order_column,
+                order_direction,
+                offset,
+                limit,
+            )
+            .await
+        }
     }
 
     /// Scope-aware variant of `get_all` used by `get_all_handler` when a
@@ -192,15 +189,15 @@ where
     /// `ScopeFilterable::scope_condition()` to the per-join batch query, and to
     /// recurse via `get_one_scoped` at depth > 1. The default impl delegates to
     /// `get_all`, which is safe for resources without `join(all)` children.
-    async fn get_all_scoped<C: ConnectionTrait + TransactionTrait>(
+    fn get_all_scoped<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: &Condition,
         order_column: Self::ColumnType,
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self::ListModel>, ApiError> {
-        Self::get_all(db, condition, order_column, order_direction, offset, limit).await
+    ) -> impl Future<Output = Result<Vec<Self::ListModel>, ApiError>> + Send {
+        async move { Self::get_all(db, condition, order_column, order_direction, offset, limit).await }
     }
 
     /// Order parent rows by a column on a joined child entity (dot-notation
@@ -222,7 +219,7 @@ where
     ///
     /// # Errors
     /// Returns `ApiError::Database` if the parent query fails.
-    async fn get_all_joined_sorted<C: ConnectionTrait + TransactionTrait>(
+    fn get_all_joined_sorted<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: &Condition,
         join_field: &str,
@@ -230,17 +227,19 @@ where
         direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<Self::ListModel>, ApiError> {
-        let _ = (join_field, column);
-        Self::get_all(
-            db,
-            condition,
-            Self::default_index_column(),
-            direction,
-            offset,
-            limit,
-        )
-        .await
+    ) -> impl Future<Output = Result<Vec<Self::ListModel>, ApiError>> + Send {
+        async move {
+            let _ = (join_field, column);
+            Self::get_all(
+                db,
+                condition,
+                Self::default_index_column(),
+                direction,
+                offset,
+                limit,
+            )
+            .await
+        }
     }
 
     /// Resolve dot-notation joined filters (e.g. `{"vehicles.make":"BMW"}`)
@@ -262,19 +261,21 @@ where
     ///
     /// # Errors
     /// Returns `ApiError::Database` if any child sub-query fails.
-    async fn resolve_joined_filters<C: ConnectionTrait + TransactionTrait>(
+    fn resolve_joined_filters<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: Condition,
         joined_filters: &[crate::JoinedFilter],
-    ) -> Result<Condition, ApiError> {
-        let _ = db;
-        if !joined_filters.is_empty() {
-            tracing::debug!(
-                count = joined_filters.len(),
-                "Default resolve_joined_filters() ignoring joined filters; override this method or use the derive macro to apply them"
-            );
+    ) -> impl Future<Output = Result<Condition, ApiError>> + Send {
+        async move {
+            let _ = db;
+            if !joined_filters.is_empty() {
+                tracing::debug!(
+                    count = joined_filters.len(),
+                    "Default resolve_joined_filters() ignoring joined filters; override this method or use the derive macro to apply them"
+                );
+            }
+            Ok(condition)
         }
-        Ok(condition)
     }
 
     /// The primary key value of an entity model.
@@ -293,8 +294,11 @@ where
         }
     }
 
-    async fn get_one<C: ConnectionTrait + TransactionTrait>(db: &C, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
-        crate::core::defaults::get_one::<Self, _>(db, id).await
+    fn get_one<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        id: PrimaryKeyType<Self>,
+    ) -> impl Future<Output = Result<Self, ApiError>> + Send {
+        async move { crate::core::defaults::get_one::<Self, _>(db, id).await }
     }
 
     /// Fetch a single entity by ID with a scope condition applied atomically.
@@ -305,31 +309,33 @@ where
     /// change between two separate queries.
     ///
     /// The derive macro overrides this to include join loading.
-    async fn get_one_scoped<C: ConnectionTrait + TransactionTrait>(
+    fn get_one_scoped<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,
         scope: &Condition,
-    ) -> Result<Self, ApiError> {
-        use sea_orm::QueryFilter;
-        let condition = Condition::all()
-            .add(Self::ID_COLUMN.eq(id.clone()))
-            .add(scope.clone());
-        let model = Self::EntityType::find()
-            .filter(condition)
-            .one(db)
-            .await
-            .map_err(ApiError::database)?
-            .ok_or_else(|| {
-                ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
-            })?;
-        Ok(Self::from(model))
+    ) -> impl Future<Output = Result<Self, ApiError>> + Send {
+        async move {
+            use sea_orm::QueryFilter;
+            let condition = Condition::all()
+                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(scope.clone());
+            let model = Self::EntityType::find()
+                .filter(condition)
+                .one(db)
+                .await
+                .map_err(ApiError::database)?
+                .ok_or_else(|| {
+                    ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+                })?;
+            Ok(Self::from(model))
+        }
     }
 
-    async fn create<C: ConnectionTrait + TransactionTrait>(
+    fn create<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         create_model: Self::CreateModel,
-    ) -> Result<Self, ApiError> {
-        crate::core::defaults::create::<Self, _>(db, create_model).await
+    ) -> impl Future<Output = Result<Self, ApiError>> + Send {
+        async move { crate::core::defaults::create::<Self, _>(db, create_model).await }
     }
 
     /// The alternate unique key a source system registers rows under, in the order the index
@@ -353,26 +359,26 @@ where
     /// The default does nothing, which is a resource that maintains no such field.
     fn apply_on_update(_model: &mut Self::ActiveModelType) {}
 
-    async fn update<C: ConnectionTrait + TransactionTrait>(
+    fn update<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,
         update_model: Self::UpdateModel,
-    ) -> Result<Self, ApiError> {
-        crate::core::defaults::update::<Self, _>(db, id, update_model).await
+    ) -> impl Future<Output = Result<Self, ApiError>> + Send {
+        async move { crate::core::defaults::update::<Self, _>(db, id, update_model).await }
     }
 
-    async fn delete<C: ConnectionTrait + TransactionTrait>(
+    fn delete<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,
-    ) -> Result<PrimaryKeyType<Self>, ApiError> {
-        crate::core::defaults::delete::<Self, _>(db, id).await
+    ) -> impl Future<Output = Result<PrimaryKeyType<Self>, ApiError>> + Send {
+        async move { crate::core::defaults::delete::<Self, _>(db, id).await }
     }
 
-    async fn delete_many<C: ConnectionTrait + TransactionTrait>(
+    fn delete_many<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         ids: Vec<PrimaryKeyType<Self>>,
-    ) -> Result<Vec<PrimaryKeyType<Self>>, ApiError> {
-        crate::core::defaults::delete_many::<Self, _>(db, ids).await
+    ) -> impl Future<Output = Result<Vec<PrimaryKeyType<Self>>, ApiError>> + Send {
+        async move { crate::core::defaults::delete_many::<Self, _>(db, ids).await }
     }
 
     /// Create multiple entities in a batch.
@@ -389,39 +395,41 @@ where
     ///
     /// # Errors
     /// Returns an `ApiError` if any insert fails (entire batch is rolled back)
-    async fn create_many<C: ConnectionTrait + TransactionTrait>(
+    fn create_many<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         create_models: Vec<Self::CreateModel>,
-    ) -> Result<Vec<Self>, ApiError> {
-        use sea_orm::ActiveModelTrait;
+    ) -> impl Future<Output = Result<Vec<Self>, ApiError>> + Send {
+        async move {
+            use sea_orm::ActiveModelTrait;
 
-        // Security: Limit batch size to prevent DoS attacks
-        if create_models.len() > Self::batch_limit() {
-            return Err(ApiError::bad_request(format!(
-                "Batch create limited to {} items. Received {} items.",
-                Self::batch_limit(),
-                create_models.len()
-            )));
+            // Security: Limit batch size to prevent DoS attacks
+            if create_models.len() > Self::batch_limit() {
+                return Err(ApiError::bad_request(format!(
+                    "Batch create limited to {} items. Received {} items.",
+                    Self::batch_limit(),
+                    create_models.len()
+                )));
+            }
+
+            // Use a transaction for all-or-nothing semantics
+            let txn = db.begin().await.map_err(ApiError::database)?;
+
+            let mut results = Vec::with_capacity(create_models.len());
+            for create_model in create_models {
+                let active_model: Self::ActiveModelType = create_model.into();
+                let model = match active_model.insert(&txn).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        // Rollback is automatic when txn is dropped
+                        return Err(ApiError::database(e));
+                    }
+                };
+                results.push(Self::from(model));
+            }
+
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(results)
         }
-
-        // Use a transaction for all-or-nothing semantics
-        let txn = db.begin().await.map_err(ApiError::database)?;
-
-        let mut results = Vec::with_capacity(create_models.len());
-        for create_model in create_models {
-            let active_model: Self::ActiveModelType = create_model.into();
-            let model = match active_model.insert(&txn).await {
-                Ok(m) => m,
-                Err(e) => {
-                    // Rollback is automatic when txn is dropped
-                    return Err(ApiError::database(e));
-                }
-            };
-            results.push(Self::from(model));
-        }
-
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(results)
     }
 
     /// Update multiple entities in a batch.
@@ -438,58 +446,64 @@ where
     ///
     /// # Errors
     /// Returns an `ApiError` if any update fails (entire batch is rolled back)
-    async fn update_many<C: ConnectionTrait + TransactionTrait>(
+    fn update_many<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         updates: Vec<(PrimaryKeyType<Self>, Self::UpdateModel)>,
-    ) -> Result<Vec<Self>, ApiError> {
+    ) -> impl Future<Output = Result<Vec<Self>, ApiError>> + Send {
+        async move {
+            // Security: Limit batch size to prevent DoS attacks
+            if updates.len() > Self::batch_limit() {
+                return Err(ApiError::bad_request(format!(
+                    "Batch update limited to {} items. Received {} items.",
+                    Self::batch_limit(),
+                    updates.len()
+                )));
+            }
 
-        // Security: Limit batch size to prevent DoS attacks
-        if updates.len() > Self::batch_limit() {
-            return Err(ApiError::bad_request(format!(
-                "Batch update limited to {} items. Received {} items.",
-                Self::batch_limit(),
-                updates.len()
-            )));
+            // Use a transaction for atomicity
+            let txn = db.begin().await.map_err(ApiError::database)?;
+
+            let mut results = Vec::with_capacity(updates.len());
+            for (id, update_model) in updates {
+                let model = Self::EntityType::find_by_id(id.clone())
+                    .one(&txn)
+                    .await
+                    .map_err(ApiError::database)?
+                    .ok_or_else(|| {
+                        ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+                    })?;
+                let existing: Self::ActiveModelType = model.into_active_model();
+                let updated_model = update_model.merge_into_activemodel(existing)?;
+                let updated = updated_model
+                    .update(&txn)
+                    .await
+                    .map_err(ApiError::database)?;
+                results.push(Self::from(updated));
+            }
+
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(results)
         }
-
-        // Use a transaction for atomicity
-        let txn = db.begin().await.map_err(ApiError::database)?;
-
-        let mut results = Vec::with_capacity(updates.len());
-        for (id, update_model) in updates {
-            let model = Self::EntityType::find_by_id(id.clone())
-                .one(&txn)
-                .await
-                .map_err(ApiError::database)?
-                .ok_or_else(|| {
-                    ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
-                })?;
-            let existing: Self::ActiveModelType = model.into_active_model();
-            let updated_model = update_model.merge_into_activemodel(existing)?;
-            let updated = updated_model
-                .update(&txn)
-                .await
-                .map_err(ApiError::database)?;
-            results.push(Self::from(updated));
-        }
-
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(results)
     }
 
-    async fn total_count<C: ConnectionTrait + TransactionTrait>(db: &C, condition: &Condition) -> u64 {
-        let query = Self::EntityType::find().filter(condition.clone());
-        match PaginatorTrait::count(query, db).await {
-            Ok(count) => count,
-            Err(e) => {
-                // Log database error internally; return 0 to degrade gracefully
-                // Users see pagination with count=0, internal error is logged for debugging
-                tracing::warn!(
-                    error = %e,
-                    table = Self::TABLE_NAME,
-                    "Database error in total_count - returning 0"
-                );
-                0
+    fn total_count<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        condition: &Condition,
+    ) -> impl Future<Output = u64> + Send {
+        async move {
+            let query = Self::EntityType::find().filter(condition.clone());
+            match PaginatorTrait::count(query, db).await {
+                Ok(count) => count,
+                Err(e) => {
+                    // Log database error internally; return 0 to degrade gracefully
+                    // Users see pagination with count=0, internal error is logged for debugging
+                    tracing::warn!(
+                        error = %e,
+                        table = Self::TABLE_NAME,
+                        "Database error in total_count - returning 0"
+                    );
+                    0
+                }
             }
         }
     }

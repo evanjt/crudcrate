@@ -97,10 +97,6 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 ///     Ok(id)
 /// }
 /// ```
-// The futures are not declared `Send`. Every caller in the stack is concrete by the
-// time it awaits one, so the bound is inferred where it is needed; a generic caller
-// that spawns one states `+ Send` itself.
-#[allow(async_fn_in_trait)]
 pub trait CRUDOperations: Send + Sync {
     /// The CRUD resource type this operations implementation works with
     type Resource: CRUDResource;
@@ -123,8 +119,13 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn after_begin<C: ConnectionTrait + TransactionTrait>(&self, _db: &C) -> Result<(), ApiError> {
-        Ok(()) // Default: no-op
+    fn after_begin<C: ConnectionTrait + TransactionTrait>(
+        &self,
+        _db: &C,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move {
+            Ok(()) // Default: no-op
+        }
     }
 
     // ==========================================
@@ -152,12 +153,14 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn before_get_one<C: ConnectionTrait + TransactionTrait>(
+    fn before_get_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
-    ) -> Result<(), ApiError> {
-        Ok(()) // Default: no-op
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move {
+            Ok(()) // Default: no-op
+        }
     }
 
     /// Hook called after fetching a single entity
@@ -166,12 +169,14 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     /// Return `ApiError` to abort the operation
-    async fn after_get_one<C: ConnectionTrait + TransactionTrait>(
+    fn after_get_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entity: &mut Self::Resource,
-    ) -> Result<(), ApiError> {
-        Ok(()) // Default: no-op
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move {
+            Ok(()) // Default: no-op
+        }
     }
 
     /// Core database fetch logic for a single entity
@@ -180,12 +185,12 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     /// Returns `ApiError::NotFound` if entity doesn't exist
-    async fn fetch_one<C: ConnectionTrait + TransactionTrait>(
+    fn fetch_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
-    ) -> Result<Self::Resource, ApiError> {
-        crate::core::defaults::get_one::<Self::Resource, _>(db, id).await
+    ) -> impl Future<Output = Result<Self::Resource, ApiError>> + Send {
+        async move { crate::core::defaults::get_one::<Self::Resource, _>(db, id).await }
     }
 
     // ==========================================
@@ -193,7 +198,7 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before fetching multiple entities
-    async fn before_get_all<C: ConnectionTrait + TransactionTrait>(
+    fn before_get_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _condition: &Condition,
@@ -201,19 +206,19 @@ pub trait CRUDOperations: Send + Sync {
         _order_direction: &Order,
         _offset: u64,
         _limit: u64,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Hook called after fetching multiple entities
     ///
     /// Receives a mutable reference to the list for enrichment
-    async fn after_get_all<C: ConnectionTrait + TransactionTrait>(
+    fn after_get_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entities: &mut Vec<<Self::Resource as CRUDResource>::ListModel>,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Core database fetch logic for multiple entities.
@@ -221,7 +226,7 @@ pub trait CRUDOperations: Send + Sync {
     /// The primary key is appended as a secondary sort key when the requested sort
     /// column is not the primary key, keeping `OFFSET`/`LIMIT` paging stable across
     /// rows that tie on the sort column.
-    async fn fetch_all<C: ConnectionTrait + TransactionTrait>(
+    fn fetch_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         condition: &Condition,
@@ -229,16 +234,19 @@ pub trait CRUDOperations: Send + Sync {
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
-        crate::core::defaults::get_all::<Self::Resource, _>(
-            db,
-            condition,
-            order_column,
-            order_direction,
-            offset,
-            limit,
-        )
-        .await
+    ) -> impl Future<Output = Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError>> + Send
+    {
+        async move {
+            crate::core::defaults::get_all::<Self::Resource, _>(
+                db,
+                condition,
+                order_column,
+                order_direction,
+                offset,
+                limit,
+            )
+            .await
+        }
     }
 
     // ==========================================
@@ -258,32 +266,32 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn before_create<C: ConnectionTrait + TransactionTrait>(
+    fn before_create<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _data: &<Self::Resource as CRUDResource>::CreateModel,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Hook called after creating an entity
     ///
     /// Use for: sending notifications, logging, cache invalidation
-    async fn after_create<C: ConnectionTrait + TransactionTrait>(
+    fn after_create<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entity: &mut Self::Resource,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Core database insert logic
-    async fn perform_create<C: ConnectionTrait + TransactionTrait>(
+    fn perform_create<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         data: <Self::Resource as CRUDResource>::CreateModel,
-    ) -> Result<Self::Resource, ApiError> {
-        crate::core::defaults::create::<Self::Resource, _>(db, data).await
+    ) -> impl Future<Output = Result<Self::Resource, ApiError>> + Send {
+        async move { crate::core::defaults::create::<Self::Resource, _>(db, data).await }
     }
 
     // ==========================================
@@ -291,32 +299,32 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before updating an entity
-    async fn before_update<C: ConnectionTrait + TransactionTrait>(
+    fn before_update<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
         _data: &<Self::Resource as CRUDResource>::UpdateModel,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Hook called after updating an entity
-    async fn after_update<C: ConnectionTrait + TransactionTrait>(
+    fn after_update<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entity: &mut Self::Resource,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Core database update logic
-    async fn perform_update<C: ConnectionTrait + TransactionTrait>(
+    fn perform_update<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
         data: <Self::Resource as CRUDResource>::UpdateModel,
-    ) -> Result<Self::Resource, ApiError> {
-        crate::core::defaults::update::<Self::Resource, _>(db, id, data).await
+    ) -> impl Future<Output = Result<Self::Resource, ApiError>> + Send {
+        async move { crate::core::defaults::update::<Self::Resource, _>(db, id, data).await }
     }
 
     // ==========================================
@@ -341,32 +349,32 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn before_delete<C: ConnectionTrait + TransactionTrait>(
+    fn before_delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Hook called after deleting an entity
     ///
     /// Use for: cache invalidation, notifications, audit logging
-    async fn after_delete<C: ConnectionTrait + TransactionTrait>(
+    fn after_delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Core database delete logic
-    async fn perform_delete<C: ConnectionTrait + TransactionTrait>(
+    fn perform_delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
-    ) -> Result<ResourceId<Self>, ApiError> {
-        crate::core::defaults::delete::<Self::Resource, _>(db, id).await
+    ) -> impl Future<Output = Result<ResourceId<Self>, ApiError>> + Send {
+        async move { crate::core::defaults::delete::<Self::Resource, _>(db, id).await }
     }
 
     // ==========================================
@@ -374,21 +382,21 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before batch deleting entities
-    async fn before_delete_many<C: ConnectionTrait + TransactionTrait>(
+    fn before_delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _ids: &[ResourceId<Self>],
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Hook called after batch deleting entities
-    async fn after_delete_many<C: ConnectionTrait + TransactionTrait>(
+    fn after_delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _ids: &[ResourceId<Self>],
-    ) -> Result<(), ApiError> {
-        Ok(())
+    ) -> impl Future<Output = Result<(), ApiError>> + Send {
+        async move { Ok(()) }
     }
 
     /// Core batch delete logic: the single-row [`Self::delete`] lifecycle per id, so
@@ -399,20 +407,22 @@ pub trait CRUDOperations: Send + Sync {
     /// # Errors
     ///
     /// Returns `ApiError` if any hook or delete fails for a row that exists
-    async fn perform_delete_many<C: ConnectionTrait + TransactionTrait>(
+    fn perform_delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         ids: Vec<ResourceId<Self>>,
-    ) -> Result<Vec<ResourceId<Self>>, ApiError> {
-        let mut deleted = Vec::with_capacity(ids.len());
-        for id in ids {
-            match self.delete(db, id).await {
-                Ok(id) => deleted.push(id),
-                Err(ApiError::NotFound { .. }) => {}
-                Err(e) => return Err(e),
+    ) -> impl Future<Output = Result<Vec<ResourceId<Self>>, ApiError>> + Send {
+        async move {
+            let mut deleted = Vec::with_capacity(ids.len());
+            for id in ids {
+                match self.delete(db, id).await {
+                    Ok(id) => deleted.push(id),
+                    Err(ApiError::NotFound { .. }) => {}
+                    Err(e) => return Err(e),
+                }
             }
+            Ok(deleted)
         }
-        Ok(deleted)
     }
 
     // ==========================================
@@ -430,21 +440,23 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or core logic fails
-    async fn get_one<C: ConnectionTrait + TransactionTrait>(
+    fn get_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
-    ) -> Result<Self::Resource, ApiError> {
-        // 1. Before hook
-        self.before_get_one(db, id.clone()).await?;
+    ) -> impl Future<Output = Result<Self::Resource, ApiError>> + Send {
+        async move {
+            // 1. Before hook
+            self.before_get_one(db, id.clone()).await?;
 
-        // 2. Core logic (fetch)
-        let mut entity = self.fetch_one(db, id).await?;
+            // 2. Core logic (fetch)
+            let mut entity = self.fetch_one(db, id).await?;
 
-        // 3. After hook
-        self.after_get_one(db, &mut entity).await?;
+            // 3. After hook
+            self.after_get_one(db, &mut entity).await?;
 
-        Ok(entity)
+            Ok(entity)
+        }
     }
 
     /// Fetch multiple entities with filtering, sorting, and pagination
@@ -466,7 +478,7 @@ pub trait CRUDOperations: Send + Sync {
     /// # Errors
     ///
     /// Returns `ApiError` if any hook or database query fails
-    async fn get_all<C: ConnectionTrait + TransactionTrait>(
+    fn get_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         condition: &Condition,
@@ -474,20 +486,23 @@ pub trait CRUDOperations: Send + Sync {
         order_direction: Order,
         offset: u64,
         limit: u64,
-    ) -> Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError> {
-        // 1. Before hook
-        self.before_get_all(db, condition, order_column, &order_direction, offset, limit)
-            .await?;
+    ) -> impl Future<Output = Result<Vec<<Self::Resource as CRUDResource>::ListModel>, ApiError>> + Send
+    {
+        async move {
+            // 1. Before hook
+            self.before_get_all(db, condition, order_column, &order_direction, offset, limit)
+                .await?;
 
-        // 2. Core logic (fetch)
-        let mut entities = self
-            .fetch_all(db, condition, order_column, order_direction, offset, limit)
-            .await?;
+            // 2. Core logic (fetch)
+            let mut entities = self
+                .fetch_all(db, condition, order_column, order_direction, offset, limit)
+                .await?;
 
-        // 3. After hook
-        self.after_get_all(db, &mut entities).await?;
+            // 3. After hook
+            self.after_get_all(db, &mut entities).await?;
 
-        Ok(entities)
+            Ok(entities)
+        }
     }
 
     /// Create a new entity
@@ -500,27 +515,29 @@ pub trait CRUDOperations: Send + Sync {
     /// # Errors
     ///
     /// Returns `ApiError` if any hook or database insertion fails
-    async fn create<C: ConnectionTrait + TransactionTrait>(
+    fn create<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         data: <Self::Resource as CRUDResource>::CreateModel,
-    ) -> Result<Self::Resource, ApiError> {
-        let txn = db.begin().await.map_err(ApiError::database)?;
+    ) -> impl Future<Output = Result<Self::Resource, ApiError>> + Send {
+        async move {
+            let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 1. Session state for the write, on the transaction it happens in
-        self.after_begin(&txn).await?;
+            // 1. Session state for the write, on the transaction it happens in
+            self.after_begin(&txn).await?;
 
-        // 2. Before hook
-        self.before_create(&txn, &data).await?;
+            // 2. Before hook
+            self.before_create(&txn, &data).await?;
 
-        // 3. Core logic (insert)
-        let mut entity = self.perform_create(&txn, data).await?;
+            // 3. Core logic (insert)
+            let mut entity = self.perform_create(&txn, data).await?;
 
-        // 4. After hook
-        self.after_create(&txn, &mut entity).await?;
+            // 4. After hook
+            self.after_create(&txn, &mut entity).await?;
 
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(entity)
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(entity)
+        }
     }
 
     /// Update an existing entity
@@ -534,28 +551,30 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or database update fails
-    async fn update<C: ConnectionTrait + TransactionTrait>(
+    fn update<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
         data: <Self::Resource as CRUDResource>::UpdateModel,
-    ) -> Result<Self::Resource, ApiError> {
-        let txn = db.begin().await.map_err(ApiError::database)?;
+    ) -> impl Future<Output = Result<Self::Resource, ApiError>> + Send {
+        async move {
+            let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 1. Session state for the write, on the transaction it happens in
-        self.after_begin(&txn).await?;
+            // 1. Session state for the write, on the transaction it happens in
+            self.after_begin(&txn).await?;
 
-        // 2. Before hook
-        self.before_update(&txn, id.clone(), &data).await?;
+            // 2. Before hook
+            self.before_update(&txn, id.clone(), &data).await?;
 
-        // 3. Core logic (update)
-        let mut entity = self.perform_update(&txn, id, data).await?;
+            // 3. Core logic (update)
+            let mut entity = self.perform_update(&txn, id, data).await?;
 
-        // 4. After hook
-        self.after_update(&txn, &mut entity).await?;
+            // 4. After hook
+            self.after_update(&txn, &mut entity).await?;
 
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(entity)
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(entity)
+        }
     }
 
     /// Delete a single entity by ID
@@ -569,27 +588,29 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or database deletion fails
-    async fn delete<C: ConnectionTrait + TransactionTrait>(
+    fn delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
-    ) -> Result<ResourceId<Self>, ApiError> {
-        let txn = db.begin().await.map_err(ApiError::database)?;
+    ) -> impl Future<Output = Result<ResourceId<Self>, ApiError>> + Send {
+        async move {
+            let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 1. Session state for the write, on the transaction it happens in
-        self.after_begin(&txn).await?;
+            // 1. Session state for the write, on the transaction it happens in
+            self.after_begin(&txn).await?;
 
-        // 2. Before hook
-        self.before_delete(&txn, id.clone()).await?;
+            // 2. Before hook
+            self.before_delete(&txn, id.clone()).await?;
 
-        // 3. Core logic (delete)
-        let deleted_id = self.perform_delete(&txn, id).await?;
+            // 3. Core logic (delete)
+            let deleted_id = self.perform_delete(&txn, id).await?;
 
-        // 4. After hook
-        self.after_delete(&txn, deleted_id.clone()).await?;
+            // 4. After hook
+            self.after_delete(&txn, deleted_id.clone()).await?;
 
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(deleted_id)
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(deleted_id)
+        }
     }
 
     /// Delete multiple entities by IDs
@@ -605,24 +626,26 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
     /// Returns `ApiError` if any hook or database deletion fails
-    async fn delete_many<C: ConnectionTrait + TransactionTrait>(
+    fn delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         ids: Vec<ResourceId<Self>>,
-    ) -> Result<Vec<ResourceId<Self>>, ApiError> {
-        let txn = db.begin().await.map_err(ApiError::database)?;
+    ) -> impl Future<Output = Result<Vec<ResourceId<Self>>, ApiError>> + Send {
+        async move {
+            let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 1. Before hook
-        self.before_delete_many(&txn, &ids).await?;
+            // 1. Before hook
+            self.before_delete_many(&txn, &ids).await?;
 
-        // 2. Core logic (batch delete)
-        let deleted_ids = self.perform_delete_many(&txn, ids).await?;
+            // 2. Core logic (batch delete)
+            let deleted_ids = self.perform_delete_many(&txn, ids).await?;
 
-        // 3. After hook
-        self.after_delete_many(&txn, &deleted_ids).await?;
+            // 3. After hook
+            self.after_delete_many(&txn, &deleted_ids).await?;
 
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(deleted_ids)
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(deleted_ids)
+        }
     }
 
     /// Create multiple entities in a batch
@@ -639,25 +662,27 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
     /// Returns `ApiError` if any validation or database insertion fails
-    async fn create_many<C: ConnectionTrait + TransactionTrait>(
+    fn create_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         data: Vec<<Self::Resource as CRUDResource>::CreateModel>,
-    ) -> Result<Vec<Self::Resource>, ApiError> {
-        if data.len() > Self::Resource::batch_limit() {
-            return Err(ApiError::bad_request(format!(
-                "Batch create limited to {} items. Received {} items.",
-                Self::Resource::batch_limit(),
-                data.len()
-            )));
+    ) -> impl Future<Output = Result<Vec<Self::Resource>, ApiError>> + Send {
+        async move {
+            if data.len() > Self::Resource::batch_limit() {
+                return Err(ApiError::bad_request(format!(
+                    "Batch create limited to {} items. Received {} items.",
+                    Self::Resource::batch_limit(),
+                    data.len()
+                )));
+            }
+            let txn = db.begin().await.map_err(ApiError::database)?;
+            let mut created = Vec::with_capacity(data.len());
+            for item in data {
+                created.push(self.create(&txn, item).await?);
+            }
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(created)
         }
-        let txn = db.begin().await.map_err(ApiError::database)?;
-        let mut created = Vec::with_capacity(data.len());
-        for item in data {
-            created.push(self.create(&txn, item).await?);
-        }
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(created)
     }
 
     /// Update multiple entities in a batch
@@ -673,28 +698,30 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
     /// Returns `ApiError` if any validation or database update fails
-    async fn update_many<C: ConnectionTrait + TransactionTrait>(
+    fn update_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         updates: Vec<(
             ResourceId<Self>,
             <Self::Resource as CRUDResource>::UpdateModel,
         )>,
-    ) -> Result<Vec<Self::Resource>, ApiError> {
-        if updates.len() > Self::Resource::batch_limit() {
-            return Err(ApiError::bad_request(format!(
-                "Batch update limited to {} items. Received {} items.",
-                Self::Resource::batch_limit(),
-                updates.len()
-            )));
+    ) -> impl Future<Output = Result<Vec<Self::Resource>, ApiError>> + Send {
+        async move {
+            if updates.len() > Self::Resource::batch_limit() {
+                return Err(ApiError::bad_request(format!(
+                    "Batch update limited to {} items. Received {} items.",
+                    Self::Resource::batch_limit(),
+                    updates.len()
+                )));
+            }
+            let txn = db.begin().await.map_err(ApiError::database)?;
+            let mut updated = Vec::with_capacity(updates.len());
+            for (id, data) in updates {
+                updated.push(self.update(&txn, id, data).await?);
+            }
+            txn.commit().await.map_err(ApiError::database)?;
+            Ok(updated)
         }
-        let txn = db.begin().await.map_err(ApiError::database)?;
-        let mut updated = Vec::with_capacity(updates.len());
-        for (id, data) in updates {
-            updated.push(self.update(&txn, id, data).await?);
-        }
-        txn.commit().await.map_err(ApiError::database)?;
-        Ok(updated)
     }
 }
 
