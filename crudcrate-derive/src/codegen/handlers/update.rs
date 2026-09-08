@@ -26,7 +26,7 @@ pub(crate) fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn update(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+            async fn update<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
                 #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::update(&ops, db, id, data).await
@@ -74,7 +74,7 @@ pub(crate) fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     });
 
     quote! {
-        async fn update(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+        async fn update<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
             #validate
             #pre_hook
             #body
@@ -111,7 +111,7 @@ pub(crate) fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+            async fn update_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
                 #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::update_many(&ops, db, updates).await
@@ -132,7 +132,7 @@ pub(crate) fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
         quote! { let result = #fn_path(db, updates).await?; }
     } else {
         quote! {
-            use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait, TransactionTrait};
+            use sea_orm::{EntityTrait, IntoActiveModel, ActiveModelTrait, TransactionSession, TransactionTrait};
             use crudcrate::traits::MergeIntoActiveModel;
 
             // Security: Limit batch size to prevent DoS attacks (uses configurable BATCH_LIMIT)
@@ -173,7 +173,7 @@ pub(crate) fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     });
 
     quote! {
-        async fn update_many(db: &sea_orm::DatabaseConnection, updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
+        async fn update_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>) -> Result<Vec<Self>, crudcrate::ApiError> {
             #validate
             #pre_hook
             #body

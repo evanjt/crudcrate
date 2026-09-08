@@ -44,7 +44,6 @@ pub mod cod_widget {
     // No method overrides: every CRUDOperations call runs the default trait body.
     pub struct CodOps;
 
-    #[async_trait::async_trait]
     impl CRUDOperations for CodOps {
         type Resource = CodWidget;
     }

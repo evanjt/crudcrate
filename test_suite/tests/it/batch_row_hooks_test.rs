@@ -58,31 +58,31 @@ pub mod counted_widget {
 
     pub struct CountedOps;
 
-    #[async_trait::async_trait]
+    #[allow(clippy::unused_async_trait_impl)]
     impl CRUDOperations for CountedOps {
         type Resource = CountedWidget;
 
-        async fn before_create(
+        async fn before_create<C: sea_orm::ConnectionTrait>(
             &self,
-            _db: &DatabaseConnection,
+            _db: &C,
             _data: &CountedWidgetCreate,
         ) -> Result<(), ApiError> {
             BEFORE_CREATE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn after_create(
+        async fn after_create<C: sea_orm::ConnectionTrait>(
             &self,
-            _db: &DatabaseConnection,
+            _db: &C,
             _entity: &mut CountedWidget,
         ) -> Result<(), ApiError> {
             AFTER_CREATE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn before_update(
+        async fn before_update<C: sea_orm::ConnectionTrait>(
             &self,
-            _db: &DatabaseConnection,
+            _db: &C,
             _id: Uuid,
             _data: &CountedWidgetUpdate,
         ) -> Result<(), ApiError> {
@@ -90,37 +90,37 @@ pub mod counted_widget {
             Ok(())
         }
 
-        async fn after_update(
+        async fn after_update<C: sea_orm::ConnectionTrait>(
             &self,
-            _db: &DatabaseConnection,
+            _db: &C,
             _entity: &mut CountedWidget,
         ) -> Result<(), ApiError> {
             AFTER_UPDATE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn before_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
+        async fn before_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, _id: Uuid) -> Result<(), ApiError> {
             BEFORE_DELETE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn after_delete(&self, _db: &DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
+        async fn after_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, _id: Uuid) -> Result<(), ApiError> {
             AFTER_DELETE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn before_delete_many(
+        async fn before_delete_many<C: sea_orm::ConnectionTrait>(
             &self,
-            _db: &DatabaseConnection,
+            _db: &C,
             _ids: &[Uuid],
         ) -> Result<(), ApiError> {
             BEFORE_DELETE_MANY.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn after_delete_many(
+        async fn after_delete_many<C: sea_orm::ConnectionTrait>(
             &self,
-            _db: &DatabaseConnection,
+            _db: &C,
             _ids: &[Uuid],
         ) -> Result<(), ApiError> {
             AFTER_DELETE_MANY.fetch_add(1, Ordering::SeqCst);

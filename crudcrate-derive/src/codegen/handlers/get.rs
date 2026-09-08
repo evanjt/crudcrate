@@ -89,8 +89,8 @@ pub(crate) fn generate_get_all_impl(
         .filter(|_| !has_join_all_fields)
     {
         return quote! {
-            async fn get_all(
-                db: &sea_orm::DatabaseConnection,
+            async fn get_all<C: sea_orm::ConnectionTrait>(
+                db: &C,
                 condition: &sea_orm::Condition,
                 order_column: Self::ColumnType,
                 order_direction: sea_orm::Order,
@@ -213,8 +213,8 @@ pub(crate) fn generate_get_all_impl(
     });
 
     quote! {
-        async fn get_all(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_all<C: sea_orm::ConnectionTrait>(
+            db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
             order_direction: sea_orm::Order,
@@ -228,8 +228,8 @@ pub(crate) fn generate_get_all_impl(
             Ok(result)
         }
 
-        async fn get_all_scoped(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_all_scoped<C: sea_orm::ConnectionTrait>(
+            db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
             order_direction: sea_orm::Order,
@@ -264,7 +264,7 @@ pub(crate) fn generate_get_one_impl(
     // If operations is specified and there are no joins, delegate fully
     if let Some(ops_path) = crud_meta.operations.as_ref().filter(|_| !has_joins) {
         return quote! {
-            async fn get_one(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<Self, crudcrate::ApiError> {
+            async fn get_one<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>) -> Result<Self, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::get_one(&ops, db, id).await
             }
@@ -390,7 +390,7 @@ pub(crate) fn generate_get_one_impl(
     };
 
     quote! {
-        async fn get_one(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<Self, crudcrate::ApiError> {
+        async fn get_one<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>) -> Result<Self, crudcrate::ApiError> {
             #pre_hook
             #body
             #transform_hook
@@ -398,8 +398,8 @@ pub(crate) fn generate_get_one_impl(
             Ok(result)
         }
 
-        async fn get_one_scoped(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_one_scoped<C: sea_orm::ConnectionTrait>(
+            db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             scope: &sea_orm::Condition,
         ) -> Result<Self, crudcrate::ApiError> {

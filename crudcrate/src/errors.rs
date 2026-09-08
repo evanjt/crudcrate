@@ -419,7 +419,7 @@ impl std::error::Error for ApiError {}
 ///
 /// ```rust,ignore
 /// // In lifecycle hooks - limited to 500 or 404
-/// async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), DbErr> {
+/// async fn before_delete<C: ConnectionTrait>(&self, db: &C, id: Uuid) -> Result<(), DbErr> {
 ///     if !user_has_permission(id) {
 ///         // This will become a 500 Internal Server Error
 ///         return Err(DbErr::Custom("Permission check failed".into()));
@@ -428,7 +428,7 @@ impl std::error::Error for ApiError {}
 /// }
 ///
 /// // For custom status codes, use ApiError directly in your custom handlers:
-/// async fn delete_with_permission(
+/// async fn delete_with_permission<C: ConnectionTrait>(
 ///     State(db): State<DatabaseConnection>,
 ///     Path(id): Path<Uuid>,
 /// ) -> Result<StatusCode, ApiError> {

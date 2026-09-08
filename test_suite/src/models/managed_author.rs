@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crudcrate::{CRUDOperations, EntityToModels};
 use sea_orm::entity::prelude::*;
@@ -38,7 +37,6 @@ impl ActiveModelBehavior for ActiveModel {}
 
 pub struct ManagedAuthorOps;
 
-#[async_trait]
 impl CRUDOperations for ManagedAuthorOps {
     type Resource = ManagedAuthor;
 }

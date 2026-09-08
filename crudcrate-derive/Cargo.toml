@@ -31,7 +31,6 @@ chrono = { workspace = true, features = ["serde"] }
 utoipa = { workspace = true, features = ["chrono", "uuid", "decimal"] }
 uuid = { workspace = true, features = ["serde", "v4"] }
 rust_decimal = { workspace = true }
-async-trait = { workspace = true }
 
 # Proc macro testing
 trybuild = "1.0"

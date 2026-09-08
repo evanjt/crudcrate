@@ -22,7 +22,6 @@ impl ActiveModelBehavior for ActiveModel {}
 
 pub struct ProductOperations;
 
-#[async_trait]
 impl CRUDOperations for ProductOperations {
     type Resource = Product;
     async fn before_create(&self, _db: &DatabaseConnection, data: &ProductCreate) -> Result<(), ApiError> {

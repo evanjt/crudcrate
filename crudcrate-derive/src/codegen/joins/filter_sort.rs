@@ -197,8 +197,8 @@ pub(crate) fn generate_resolve_joined_filters_impl(
     });
 
     quote! {
-        async fn resolve_joined_filters(
-            db: &sea_orm::DatabaseConnection,
+        async fn resolve_joined_filters<C: sea_orm::ConnectionTrait>(
+            db: &C,
             condition: sea_orm::Condition,
             joined_filters: &[crudcrate::JoinedFilter],
         ) -> Result<sea_orm::Condition, crudcrate::ApiError> {
@@ -359,8 +359,8 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
     });
 
     quote! {
-        async fn get_all_joined_sorted(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_all_joined_sorted<C: sea_orm::ConnectionTrait>(
+            db: &C,
             condition: &sea_orm::Condition,
             join_field: &str,
             column: &str,

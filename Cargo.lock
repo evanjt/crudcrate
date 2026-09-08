@@ -814,7 +814,6 @@ checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 name = "crudcrate"
 version = "0.11.1"
 dependencies = [
- "async-trait",
  "axum",
  "chrono",
  "criterion",
@@ -842,7 +841,6 @@ dependencies = [
 name = "crudcrate-derive"
 version = "0.11.1"
 dependencies = [
- "async-trait",
  "chrono",
  "convert_case",
  "crudcrate",

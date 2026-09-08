@@ -76,8 +76,8 @@ impl Validatable for BcpItemCreate {
 ///
 /// Must be `async` to match the hook signature the derive macro calls (`.await`).
 #[allow(clippy::unused_async)]
-async fn validate_bcp_item_create(
-    _db: &sea_orm::DatabaseConnection,
+async fn validate_bcp_item_create<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     data: &BcpItemCreate,
 ) -> Result<(), ApiError> {
     data.validate()

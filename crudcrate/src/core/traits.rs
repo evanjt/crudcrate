@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use sea_orm::{
-    Condition, DatabaseConnection, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
+    Condition, ConnectionTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
+    TransactionSession, TransactionTrait,
     entity::prelude::*,
 };
 use uuid::Uuid;
@@ -62,7 +62,10 @@ pub trait MergeIntoActiveModel<ActiveModelType> {
     -> Result<ActiveModelType, ApiError>;
 }
 
-#[async_trait]
+// The futures are not declared `Send`. Every caller in the stack is concrete by the
+// time it awaits one, so the bound is inferred where it is needed; a generic caller
+// that spawns one states `+ Send` itself.
+#[allow(async_fn_in_trait)]
 pub trait CRUDResource: Sized + Send + Sync
 where
     Self::EntityType: EntityTrait + Sync,
@@ -160,15 +163,15 @@ where
     /// The primary key is appended as a secondary sort key whenever the requested
     /// sort column is not the primary key itself, so `OFFSET`/`LIMIT` paging over a
     /// column with duplicate values cannot repeat or skip a row between pages.
-    async fn get_all(
-        db: &DatabaseConnection,
+    async fn get_all<C: ConnectionTrait>(
+        db: &C,
         condition: &Condition,
         order_column: Self::ColumnType,
         order_direction: Order,
         offset: u64,
         limit: u64,
     ) -> Result<Vec<Self::ListModel>, ApiError> {
-        crate::core::defaults::get_all::<Self>(
+        crate::core::defaults::get_all::<Self, _>(
             db,
             condition,
             order_column,
@@ -189,8 +192,8 @@ where
     /// `ScopeFilterable::scope_condition()` to the per-join batch query, and to
     /// recurse via `get_one_scoped` at depth > 1. The default impl delegates to
     /// `get_all`, which is safe for resources without `join(all)` children.
-    async fn get_all_scoped(
-        db: &DatabaseConnection,
+    async fn get_all_scoped<C: ConnectionTrait>(
+        db: &C,
         condition: &Condition,
         order_column: Self::ColumnType,
         order_direction: Order,
@@ -219,8 +222,8 @@ where
     ///
     /// # Errors
     /// Returns `ApiError::Database` if the parent query fails.
-    async fn get_all_joined_sorted(
-        db: &DatabaseConnection,
+    async fn get_all_joined_sorted<C: ConnectionTrait>(
+        db: &C,
         condition: &Condition,
         join_field: &str,
         column: &str,
@@ -259,8 +262,8 @@ where
     ///
     /// # Errors
     /// Returns `ApiError::Database` if any child sub-query fails.
-    async fn resolve_joined_filters(
-        db: &DatabaseConnection,
+    async fn resolve_joined_filters<C: ConnectionTrait>(
+        db: &C,
         condition: Condition,
         joined_filters: &[crate::JoinedFilter],
     ) -> Result<Condition, ApiError> {
@@ -290,8 +293,8 @@ where
         }
     }
 
-    async fn get_one(db: &DatabaseConnection, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
-        crate::core::defaults::get_one::<Self>(db, id).await
+    async fn get_one<C: ConnectionTrait>(db: &C, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
+        crate::core::defaults::get_one::<Self, _>(db, id).await
     }
 
     /// Fetch a single entity by ID with a scope condition applied atomically.
@@ -302,8 +305,8 @@ where
     /// change between two separate queries.
     ///
     /// The derive macro overrides this to include join loading.
-    async fn get_one_scoped(
-        db: &DatabaseConnection,
+    async fn get_one_scoped<C: ConnectionTrait>(
+        db: &C,
         id: PrimaryKeyType<Self>,
         scope: &Condition,
     ) -> Result<Self, ApiError> {
@@ -322,11 +325,11 @@ where
         Ok(Self::from(model))
     }
 
-    async fn create(
-        db: &DatabaseConnection,
+    async fn create<C: ConnectionTrait>(
+        db: &C,
         create_model: Self::CreateModel,
     ) -> Result<Self, ApiError> {
-        crate::core::defaults::create::<Self>(db, create_model).await
+        crate::core::defaults::create::<Self, _>(db, create_model).await
     }
 
     /// The alternate unique key a source system registers rows under, in the order the index
@@ -345,26 +348,26 @@ where
         Self::upsert_key()
     }
 
-    async fn update(
-        db: &DatabaseConnection,
+    async fn update<C: ConnectionTrait>(
+        db: &C,
         id: PrimaryKeyType<Self>,
         update_model: Self::UpdateModel,
     ) -> Result<Self, ApiError> {
-        crate::core::defaults::update::<Self>(db, id, update_model).await
+        crate::core::defaults::update::<Self, _>(db, id, update_model).await
     }
 
-    async fn delete(
-        db: &DatabaseConnection,
+    async fn delete<C: ConnectionTrait>(
+        db: &C,
         id: PrimaryKeyType<Self>,
     ) -> Result<PrimaryKeyType<Self>, ApiError> {
-        crate::core::defaults::delete::<Self>(db, id).await
+        crate::core::defaults::delete::<Self, _>(db, id).await
     }
 
-    async fn delete_many(
-        db: &DatabaseConnection,
+    async fn delete_many<C: ConnectionTrait>(
+        db: &C,
         ids: Vec<PrimaryKeyType<Self>>,
     ) -> Result<Vec<PrimaryKeyType<Self>>, ApiError> {
-        crate::core::defaults::delete_many::<Self>(db, ids).await
+        crate::core::defaults::delete_many::<Self, _>(db, ids).await
     }
 
     /// Create multiple entities in a batch.
@@ -381,11 +384,11 @@ where
     ///
     /// # Errors
     /// Returns an `ApiError` if any insert fails (entire batch is rolled back)
-    async fn create_many(
-        db: &DatabaseConnection,
+    async fn create_many<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
         create_models: Vec<Self::CreateModel>,
     ) -> Result<Vec<Self>, ApiError> {
-        use sea_orm::{ActiveModelTrait, TransactionTrait};
+        use sea_orm::ActiveModelTrait;
 
         // Security: Limit batch size to prevent DoS attacks
         if create_models.len() > Self::batch_limit() {
@@ -430,11 +433,10 @@ where
     ///
     /// # Errors
     /// Returns an `ApiError` if any update fails (entire batch is rolled back)
-    async fn update_many(
-        db: &DatabaseConnection,
+    async fn update_many<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
         updates: Vec<(PrimaryKeyType<Self>, Self::UpdateModel)>,
     ) -> Result<Vec<Self>, ApiError> {
-        use sea_orm::TransactionTrait;
 
         // Security: Limit batch size to prevent DoS attacks
         if updates.len() > Self::batch_limit() {
@@ -470,7 +472,7 @@ where
         Ok(results)
     }
 
-    async fn total_count(db: &DatabaseConnection, condition: &Condition) -> u64 {
+    async fn total_count<C: ConnectionTrait>(db: &C, condition: &Condition) -> u64 {
         let query = Self::EntityType::find().filter(condition.clone());
         match PaginatorTrait::count(query, db).await {
             Ok(count) => count,

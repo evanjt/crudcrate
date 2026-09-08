@@ -15,7 +15,7 @@ pub(crate) fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn delete(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
+            async fn delete<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::delete(&ops, db, id).await
             }
@@ -59,7 +59,7 @@ pub(crate) fn generate_delete_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     });
 
     quote! {
-        async fn delete(db: &sea_orm::DatabaseConnection, id: crudcrate::PrimaryKeyType<Self>) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
+        async fn delete<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
             #pre_hook
             #body
             #transform_hook
@@ -83,7 +83,7 @@ pub(crate) fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<crudcrate::PrimaryKeyType<Self>>) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
+            async fn delete_many<C: sea_orm::ConnectionTrait>(db: &C, ids: Vec<crudcrate::PrimaryKeyType<Self>>) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::delete_many(&ops, db, ids).await
             }
@@ -153,7 +153,7 @@ pub(crate) fn generate_delete_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     });
 
     quote! {
-        async fn delete_many(db: &sea_orm::DatabaseConnection, ids: Vec<crudcrate::PrimaryKeyType<Self>>) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
+        async fn delete_many<C: sea_orm::ConnectionTrait>(db: &C, ids: Vec<crudcrate::PrimaryKeyType<Self>>) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
             #pre_hook
             #body
             #transform_hook

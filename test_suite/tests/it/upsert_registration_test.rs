@@ -71,14 +71,14 @@ fn sent(slope: f64) -> RegisteredCurveCreate {
 async fn a_source_registering_its_own_content_twice_stores_one_row() {
     let db = setup_test_db().await.expect("db");
 
-    let (first, status) = upsert::<RegisteredCurve>(&db, sent(1.5)).await.expect("first");
+    let (first, status) = upsert::<RegisteredCurve, _>(&db, sent(1.5)).await.expect("first");
     assert_eq!(status, UpsertStatus::Created);
 
-    let (again, status) = upsert::<RegisteredCurve>(&db, sent(1.5)).await.expect("again");
+    let (again, status) = upsert::<RegisteredCurve, _>(&db, sent(1.5)).await.expect("again");
     assert_eq!(status, UpsertStatus::Unchanged);
     assert_eq!(again.id, first.id);
 
-    let (edited, status) = upsert::<RegisteredCurve>(&db, sent(2.5)).await.expect("edited");
+    let (edited, status) = upsert::<RegisteredCurve, _>(&db, sent(2.5)).await.expect("edited");
     assert_eq!(status, UpsertStatus::Updated);
     assert_eq!(edited.id, first.id);
     assert!((edited.slope - 2.5).abs() < f64::EPSILON);
@@ -97,7 +97,7 @@ async fn a_resource_declaring_no_key_is_refused_rather_than_guessed() {
         name: "nothing registers this".to_string(),
     };
     assert!(
-        upsert::<UnregisteredWidget>(&db, sent).await.is_err(),
+        upsert::<UnregisteredWidget, _>(&db, sent).await.is_err(),
         "with no declared key there is nothing to find the row by, so it refuses"
     );
 }

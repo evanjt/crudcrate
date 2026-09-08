@@ -24,7 +24,7 @@ mod Model {
             }
         }
     }
-    #[async_trait::async_trait]
+    #[allow(clippy::unused_async_trait_impl)]
     impl crudcrate::CRUDResource for Slug {
         type EntityType = Entity;
         type ColumnType = Column;
@@ -93,8 +93,8 @@ mod Model {
         fn joined_sortable_columns() -> Vec<crudcrate::JoinedColumnDef> {
             vec![]
         }
-        async fn get_one(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_one<C: sea_orm::ConnectionTrait>(
+            db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<Self, crudcrate::ApiError> {
             let model = Self::EntityType::find_by_id(id.clone()).one(db).await?;
@@ -111,8 +111,8 @@ mod Model {
             };
             Ok(result)
         }
-        async fn get_one_scoped(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_one_scoped<C: sea_orm::ConnectionTrait>(
+            db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             scope: &sea_orm::Condition,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -134,8 +134,8 @@ mod Model {
             };
             Ok(result)
         }
-        async fn get_all(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_all<C: sea_orm::ConnectionTrait>(
+            db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
             order_direction: sea_orm::Order,
@@ -156,8 +156,8 @@ mod Model {
                 .collect();
             Ok(result)
         }
-        async fn get_all_scoped(
-            db: &sea_orm::DatabaseConnection,
+        async fn get_all_scoped<C: sea_orm::ConnectionTrait>(
+            db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
             order_direction: sea_orm::Order,
@@ -178,8 +178,8 @@ mod Model {
                 .collect();
             Ok(result)
         }
-        async fn create(
-            db: &sea_orm::DatabaseConnection,
+        async fn create<C: sea_orm::ConnectionTrait>(
+            db: &C,
             data: Self::CreateModel,
         ) -> Result<Self, crudcrate::ApiError> {
             {
@@ -193,8 +193,8 @@ mod Model {
             let result = Self::get_one(db, insert_result.last_insert_id.into()).await?;
             Ok(result)
         }
-        async fn create_many(
-            db: &sea_orm::DatabaseConnection,
+        async fn create_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+            db: &C,
             data: Vec<Self::CreateModel>,
         ) -> Result<Vec<Self>, crudcrate::ApiError> {
             {
@@ -206,7 +206,8 @@ mod Model {
                 }
             }
             use sea_orm::{
-                ActiveModelTrait, ConnectionTrait, EntityTrait, TransactionTrait,
+                ActiveModelTrait, ConnectionTrait, EntityTrait, TransactionSession,
+                TransactionTrait,
             };
             if data.is_empty() {
                 return Ok(vec![]);
@@ -245,8 +246,8 @@ mod Model {
             txn.commit().await?;
             Ok(result)
         }
-        async fn update(
-            db: &sea_orm::DatabaseConnection,
+        async fn update<C: sea_orm::ConnectionTrait>(
+            db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             data: Self::UpdateModel,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -271,8 +272,8 @@ mod Model {
             let result = Self::from(updated);
             Ok(result)
         }
-        async fn update_many(
-            db: &sea_orm::DatabaseConnection,
+        async fn update_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+            db: &C,
             updates: Vec<(crudcrate::PrimaryKeyType<Self>, Self::UpdateModel)>,
         ) -> Result<Vec<Self>, crudcrate::ApiError> {
             {
@@ -284,7 +285,8 @@ mod Model {
                 }
             }
             use sea_orm::{
-                EntityTrait, IntoActiveModel, ActiveModelTrait, TransactionTrait,
+                EntityTrait, IntoActiveModel, ActiveModelTrait, TransactionSession,
+                TransactionTrait,
             };
             use crudcrate::traits::MergeIntoActiveModel;
             if updates.len() > Self::batch_limit() {
@@ -315,8 +317,8 @@ mod Model {
             txn.commit().await?;
             Ok(result)
         }
-        async fn delete(
-            db: &sea_orm::DatabaseConnection,
+        async fn delete<C: sea_orm::ConnectionTrait>(
+            db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
             use sea_orm::EntityTrait;
@@ -334,8 +336,8 @@ mod Model {
             };
             Ok(result)
         }
-        async fn delete_many(
-            db: &sea_orm::DatabaseConnection,
+        async fn delete_many<C: sea_orm::ConnectionTrait>(
+            db: &C,
             ids: Vec<crudcrate::PrimaryKeyType<Self>>,
         ) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {
             use sea_orm::{EntityTrait, QueryFilter, QuerySelect, ColumnTrait};

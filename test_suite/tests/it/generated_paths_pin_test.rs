@@ -73,19 +73,21 @@ fn scope_filterable_methods<S: ScopeFilterable>() {
     let _ = S::scope_condition;
 }
 
+// Every lifecycle method is generic over the connection, so each path is named at a concrete
+// one: a method that stopped taking `C` would fail here rather than at the call sites.
 fn crud_operations_methods<O: crudcrate::CRUDOperations>() {
-    let _ = O::create;
-    let _ = O::create_many;
-    let _ = O::update;
-    let _ = O::update_many;
-    let _ = O::delete;
-    let _ = O::delete_many;
-    let _ = O::get_one;
-    let _ = O::get_all;
-    let _ = O::before_get_one;
-    let _ = O::before_get_all;
-    let _ = O::after_get_one;
-    let _ = O::after_get_all;
+    let _ = O::create::<sea_orm::DatabaseConnection>;
+    let _ = O::create_many::<sea_orm::DatabaseConnection>;
+    let _ = O::update::<sea_orm::DatabaseConnection>;
+    let _ = O::update_many::<sea_orm::DatabaseConnection>;
+    let _ = O::delete::<sea_orm::DatabaseConnection>;
+    let _ = O::delete_many::<sea_orm::DatabaseConnection>;
+    let _ = O::get_one::<sea_orm::DatabaseConnection>;
+    let _ = O::get_all::<sea_orm::DatabaseConnection>;
+    let _ = O::before_get_one::<sea_orm::DatabaseConnection>;
+    let _ = O::before_get_all::<sea_orm::DatabaseConnection>;
+    let _ = O::after_get_one::<sea_orm::DatabaseConnection>;
+    let _ = O::after_get_all::<sea_orm::DatabaseConnection>;
 }
 
 fn primary_key_type<R: CRUDResource>(_: PrimaryKeyType<R>) {}

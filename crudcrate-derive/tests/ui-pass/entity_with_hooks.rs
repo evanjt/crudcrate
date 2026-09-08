@@ -5,15 +5,15 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
 // Hook functions
-async fn validate_create(_db: &DatabaseConnection, _data: &AssetCreate) -> Result<(), ApiError> {
+async fn validate_create<C: sea_orm::ConnectionTrait>(_db: &C, _data: &AssetCreate) -> Result<(), ApiError> {
     Ok(())
 }
 
-async fn after_create(_db: &DatabaseConnection, _entity: &Asset) -> Result<(), ApiError> {
+async fn after_create<C: sea_orm::ConnectionTrait>(_db: &C, _entity: &Asset) -> Result<(), ApiError> {
     Ok(())
 }
 
-async fn custom_delete(_db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+async fn custom_delete<C: sea_orm::ConnectionTrait>(_db: &C, id: Uuid) -> Result<Uuid, ApiError> {
     Ok(id)
 }
 

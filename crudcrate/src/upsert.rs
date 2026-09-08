@@ -7,8 +7,8 @@
 //! status a client branches on is not an error string.
 
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection, EntityTrait,
-    IdenStatic, IntoActiveModel, ModelTrait, QueryFilter, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
+    IdenStatic, IntoActiveModel, ModelTrait, QueryFilter, TransactionSession, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -54,8 +54,8 @@ pub struct UpsertOutcome<K, I, S = UpsertStatus> {
 ///
 /// Returns `ApiError::bad_request` where the resource declares no key or the model leaves a key
 /// column unset, and the database's error where a statement fails.
-pub async fn upsert<R>(
-    db: &DatabaseConnection,
+pub async fn upsert<R, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
     create_model: R::CreateModel,
 ) -> Result<(R, UpsertStatus), ApiError>
 where

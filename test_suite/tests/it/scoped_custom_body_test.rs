@@ -43,7 +43,7 @@ pub mod scb_item {
 
     /// Custom get-one body: fetch by id and stamp the name so responses that ran
     /// through it are distinguishable from the default body.
-    async fn fetch_item_marked(db: &DatabaseConnection, id: Uuid) -> Result<ScbItem, ApiError> {
+    async fn fetch_item_marked<C: sea_orm::ConnectionTrait>(db: &C, id: Uuid) -> Result<ScbItem, ApiError> {
         let model = Entity::find_by_id(id)
             .one(db)
             .await?

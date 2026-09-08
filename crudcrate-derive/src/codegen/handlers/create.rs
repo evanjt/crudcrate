@@ -26,7 +26,7 @@ pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
+            async fn create<C: sea_orm::ConnectionTrait>(db: &C, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
                 #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::create(&ops, db, data).await
@@ -62,7 +62,7 @@ pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     });
 
     quote! {
-        async fn create(db: &sea_orm::DatabaseConnection, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
+        async fn create<C: sea_orm::ConnectionTrait>(db: &C, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
             #validate
             #pre_hook
             #body
@@ -100,7 +100,7 @@ pub(crate) fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn create_many(db: &sea_orm::DatabaseConnection, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
+            async fn create_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
                 #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::create_many(&ops, db, data).await
@@ -121,7 +121,7 @@ pub(crate) fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
         quote! { let result = #fn_path(db, data).await?; }
     } else {
         quote! {
-            use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, TransactionTrait};
+            use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, TransactionSession, TransactionTrait};
 
             if data.is_empty() {
                 return Ok(vec![]);
@@ -181,7 +181,7 @@ pub(crate) fn generate_create_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
     });
 
     quote! {
-        async fn create_many(db: &sea_orm::DatabaseConnection, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
+        async fn create_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: Vec<Self::CreateModel>) -> Result<Vec<Self>, crudcrate::ApiError> {
             #validate
             #pre_hook
             #body

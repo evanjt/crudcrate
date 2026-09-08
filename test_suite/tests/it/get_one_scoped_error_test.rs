@@ -36,8 +36,8 @@ use uuid::Uuid;
 /// fetch returns a row, ie. when the scope condition INCLUDES it. Returning a
 /// 500-class error here is the exact fault the handler must no longer mask.
 #[allow(clippy::unused_async)]
-async fn boom_on_read(
-    _db: &DatabaseConnection,
+async fn boom_on_read<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _entity: thing::Thing,
 ) -> Result<thing::Thing, ApiError> {
     Err(ApiError::internal("boom", None))

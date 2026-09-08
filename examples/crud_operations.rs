@@ -19,7 +19,6 @@
 //!
 //! Run with: `cargo run --example crud_operations`
 
-use async_trait::async_trait;
 use axum::Router;
 use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
 use sea_orm::{Condition, Database, DatabaseConnection, Order, entity::prelude::*};
@@ -55,16 +54,16 @@ impl ActiveModelBehavior for ActiveModel {}
 
 pub struct ProductOperations;
 
-#[async_trait]
+#[allow(clippy::unused_async_trait_impl)]
 impl CRUDOperations for ProductOperations {
     type Resource = Product;
 
     // LEVEL 1: Lifecycle Hooks
 
     /// Validation before creation
-    async fn before_create(
+    async fn before_create<C: sea_orm::ConnectionTrait>(
         &self,
-        _db: &DatabaseConnection,
+        _db: &C,
         data: &ProductCreate,
     ) -> Result<(), ApiError> {
         if data.price <= 0 {
@@ -77,9 +76,9 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Actions after creation (logging, notifications, etc.)
-    async fn after_create(
+    async fn after_create<C: sea_orm::ConnectionTrait>(
         &self,
-        _db: &DatabaseConnection,
+        _db: &C,
         entity: &mut Product,
     ) -> Result<(), ApiError> {
         // Send notification, trigger webhook, log event, etc.
@@ -88,9 +87,9 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Enrich data after fetching
-    async fn after_get_one(
+    async fn after_get_one<C: sea_orm::ConnectionTrait>(
         &self,
-        _db: &DatabaseConnection,
+        _db: &C,
         entity: &mut Product,
     ) -> Result<(), ApiError> {
         // Populate computed fields, fetch related data, etc.
@@ -99,7 +98,7 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Permission checks before deletion
-    async fn before_delete(&self, _db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError> {
+    async fn before_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
         // Check user permissions, validate business rules, etc.
         // if !current_user.can_delete() { return Err(ApiError::forbidden(...)) }
         println!("Deleting product {id}");
@@ -112,9 +111,9 @@ impl CRUDOperations for ProductOperations {
     ///
     /// This mirrors the default `fetch_all` query/mapping; the rest of the body
     /// is the standard find/filter/order/paginate/map pipeline.
-    async fn fetch_all(
+    async fn fetch_all<C: sea_orm::ConnectionTrait>(
         &self,
-        db: &DatabaseConnection,
+        db: &C,
         condition: &Condition,
         order_column: <Self::Resource as CRUDResource>::ColumnType,
         order_direction: Order,
@@ -146,7 +145,7 @@ impl CRUDOperations for ProductOperations {
     // LEVEL 3: Full Operation Overrides
 
     /// Complete delete override with external cleanup
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError> {
+    async fn delete<C: ConnectionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError> {
         // Multi-step operation: fetch, cleanup external resources, delete
         let product = self.fetch_one(db, id).await?;
 

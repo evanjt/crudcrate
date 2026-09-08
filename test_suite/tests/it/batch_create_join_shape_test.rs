@@ -121,8 +121,8 @@ use bcjs_parent::BcjsParent;
 ///
 /// Must be `async` to match the hook signature the derive macro calls (`.await`).
 #[allow(clippy::unused_async)]
-async fn transform_parent_after_read_one(
-    _db: &DatabaseConnection,
+async fn transform_parent_after_read_one<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     mut entity: BcjsParent,
 ) -> Result<BcjsParent, ApiError> {
     entity.name = format!("{}_read_transformed", entity.name);

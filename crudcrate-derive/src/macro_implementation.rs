@@ -167,7 +167,9 @@ pub(crate) fn generate_crud_resource_impl(
     let fk_validation_tests = generate_fk_validation_tests(analysis, api_struct_name);
 
     quote! {
-        #[async_trait::async_trait]
+        // The trait's methods are `async` whether or not a given entity's body awaits, so a
+        // generated body that does not is not a mistake the consumer can fix.
+        #[allow(clippy::unused_async_trait_impl)]
         impl crudcrate::CRUDResource for #api_struct_name {
             type EntityType = #entity_type;
             type ColumnType = #column_type;

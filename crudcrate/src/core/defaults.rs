@@ -1,15 +1,15 @@
 //! Default CRUD bodies shared by `CRUDResource` and `CRUDOperations`.
 
 use sea_orm::{
-    ActiveModelBehavior, ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait,
+    ActiveModelBehavior, ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     IdenStatic, IntoActiveModel, Order, QueryFilter, QueryOrder, QuerySelect,
 };
 
 use crate::ApiError;
 use crate::core::traits::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType};
 
-pub(crate) async fn get_all<R>(
-    db: &DatabaseConnection,
+pub(crate) async fn get_all<R, C: ConnectionTrait>(
+    db: &C,
     condition: &Condition,
     order_column: R::ColumnType,
     order_direction: Order,
@@ -37,8 +37,8 @@ where
         .collect())
 }
 
-pub(crate) async fn get_one<R>(
-    db: &DatabaseConnection,
+pub(crate) async fn get_one<R, C: ConnectionTrait>(
+    db: &C,
     id: PrimaryKeyType<R>,
 ) -> Result<R, ApiError>
 where
@@ -53,8 +53,8 @@ where
     Ok(R::from(model))
 }
 
-pub(crate) async fn create<R>(
-    db: &DatabaseConnection,
+pub(crate) async fn create<R, C: ConnectionTrait>(
+    db: &C,
     create_model: R::CreateModel,
 ) -> Result<R, ApiError>
 where
@@ -67,8 +67,8 @@ where
     Ok(R::from(model))
 }
 
-pub(crate) async fn update<R>(
-    db: &DatabaseConnection,
+pub(crate) async fn update<R, C: ConnectionTrait>(
+    db: &C,
     id: PrimaryKeyType<R>,
     update_model: R::UpdateModel,
 ) -> Result<R, ApiError>
@@ -89,8 +89,8 @@ where
     Ok(R::from(updated))
 }
 
-pub(crate) async fn delete<R>(
-    db: &DatabaseConnection,
+pub(crate) async fn delete<R, C: ConnectionTrait>(
+    db: &C,
     id: PrimaryKeyType<R>,
 ) -> Result<PrimaryKeyType<R>, ApiError>
 where
@@ -112,8 +112,8 @@ where
 
 /// Deletes only the ids that exist and echoes them back de-duplicated in input order,
 /// so a repeated input id cannot over-report the rows removed.
-pub(crate) async fn delete_many<R>(
-    db: &DatabaseConnection,
+pub(crate) async fn delete_many<R, C: ConnectionTrait>(
+    db: &C,
     ids: Vec<PrimaryKeyType<R>>,
 ) -> Result<Vec<PrimaryKeyType<R>>, ApiError>
 where

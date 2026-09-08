@@ -54,8 +54,8 @@ fn reset_hook_flags() {
 // ============================================================================
 
 /// Pre-create hook: validation before creating
-async fn validate_before_create(
-    _db: &sea_orm::DatabaseConnection,
+async fn validate_before_create<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     data: &HookTestItemCreate,
 ) -> Result<(), ApiError> {
     CREATE_PRE_CALLED.store(true, Ordering::SeqCst);
@@ -68,8 +68,8 @@ async fn validate_before_create(
 }
 
 /// Post-create hook: side effects after creating
-async fn notify_after_create(
-    _db: &sea_orm::DatabaseConnection,
+async fn notify_after_create<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _entity: &HookTestItem,
 ) -> Result<(), ApiError> {
     CREATE_POST_CALLED.store(true, Ordering::SeqCst);
@@ -77,8 +77,8 @@ async fn notify_after_create(
 }
 
 /// Pre-read hook: authorization check
-async fn check_read_permission(
-    _db: &sea_orm::DatabaseConnection,
+async fn check_read_permission<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _id: Uuid,
 ) -> Result<(), ApiError> {
     READ_PRE_CALLED.store(true, Ordering::SeqCst);
@@ -86,8 +86,8 @@ async fn check_read_permission(
 }
 
 /// Post-read hook: enrich data after fetching
-async fn enrich_after_read(
-    _db: &sea_orm::DatabaseConnection,
+async fn enrich_after_read<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _entity: &HookTestItem,
 ) -> Result<(), ApiError> {
     READ_POST_CALLED.store(true, Ordering::SeqCst);
@@ -95,8 +95,8 @@ async fn enrich_after_read(
 }
 
 /// Pre-update hook: validation before updating
-async fn validate_before_update(
-    _db: &sea_orm::DatabaseConnection,
+async fn validate_before_update<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _id: Uuid,
     data: &HookTestItemUpdate,
 ) -> Result<(), ApiError> {
@@ -112,8 +112,8 @@ async fn validate_before_update(
 }
 
 /// Post-update hook: audit log after updating
-async fn audit_after_update(
-    _db: &sea_orm::DatabaseConnection,
+async fn audit_after_update<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _entity: &HookTestItem,
 ) -> Result<(), ApiError> {
     UPDATE_POST_CALLED.store(true, Ordering::SeqCst);
@@ -121,8 +121,8 @@ async fn audit_after_update(
 }
 
 /// Pre-delete hook: cleanup before deleting
-async fn cleanup_before_delete(
-    _db: &sea_orm::DatabaseConnection,
+async fn cleanup_before_delete<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     _id: Uuid,
 ) -> Result<(), ApiError> {
     DELETE_PRE_CALLED.store(true, Ordering::SeqCst);
@@ -130,7 +130,7 @@ async fn cleanup_before_delete(
 }
 
 /// Post-delete hook: notification after deleting
-async fn notify_after_delete(_db: &sea_orm::DatabaseConnection, _id: Uuid) -> Result<(), ApiError> {
+async fn notify_after_delete<C: sea_orm::ConnectionTrait>(_db: &C, _id: Uuid) -> Result<(), ApiError> {
     DELETE_POST_CALLED.store(true, Ordering::SeqCst);
     Ok(())
 }
@@ -140,8 +140,8 @@ async fn notify_after_delete(_db: &sea_orm::DatabaseConnection, _id: Uuid) -> Re
 // ============================================================================
 
 /// Transform hook for create: modify the created entity before returning
-async fn transform_after_create(
-    _db: &sea_orm::DatabaseConnection,
+async fn transform_after_create<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     mut entity: TransformTestItem,
 ) -> Result<TransformTestItem, ApiError> {
     CREATE_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
@@ -151,8 +151,8 @@ async fn transform_after_create(
 }
 
 /// Transform hook for `read::one`: modify the entity before returning
-async fn transform_after_read_one(
-    _db: &sea_orm::DatabaseConnection,
+async fn transform_after_read_one<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     mut entity: TransformTestItem,
 ) -> Result<TransformTestItem, ApiError> {
     READ_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
@@ -162,8 +162,8 @@ async fn transform_after_read_one(
 }
 
 /// Transform hook for update: modify the updated entity before returning
-async fn transform_after_update(
-    _db: &sea_orm::DatabaseConnection,
+async fn transform_after_update<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     mut entity: TransformTestItem,
 ) -> Result<TransformTestItem, ApiError> {
     UPDATE_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
@@ -173,8 +173,8 @@ async fn transform_after_update(
 }
 
 /// Transform hook for delete: modify the deleted id before returning
-async fn transform_after_delete(
-    _db: &sea_orm::DatabaseConnection,
+async fn transform_after_delete<C: sea_orm::ConnectionTrait>(
+    _db: &C,
     id: Uuid,
 ) -> Result<Uuid, ApiError> {
     DELETE_TRANSFORM_CALLED.store(true, Ordering::SeqCst);
