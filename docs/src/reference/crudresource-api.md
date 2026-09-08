@@ -5,7 +5,6 @@ The `CRUDResource` trait is the core abstraction for CRUD operations.
 ## Trait Definition
 
 ```rust
-#[async_trait]
 pub trait CRUDResource: Sized + Send + Sync {
     /// The Sea-ORM entity type
     type EntityType: EntityTrait;
@@ -23,14 +22,14 @@ pub trait CRUDResource: Sized + Send + Sync {
     type PrimaryKey: Send + Sync;
 
     /// Get a single record by ID
-    async fn get_one(
-        db: &DatabaseConnection,
+    async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: Self::PrimaryKey,
     ) -> Result<Self, ApiError>;
 
     /// Get all records with filtering, sorting, and pagination
-    async fn get_all(
-        db: &DatabaseConnection,
+    async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: Condition,
         order: (Self::EntityType::Column, Order),
         offset: u64,
@@ -38,33 +37,33 @@ pub trait CRUDResource: Sized + Send + Sync {
     ) -> Result<Vec<Self::ListModel>, ApiError>;
 
     /// Create a new record
-    async fn create(
-        db: &DatabaseConnection,
+    async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         data: Self::CreateModel,
     ) -> Result<Self, ApiError>;
 
     /// Update an existing record
-    async fn update(
-        db: &DatabaseConnection,
+    async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: Self::PrimaryKey,
         data: Self::UpdateModel,
     ) -> Result<Self, ApiError>;
 
     /// Delete a single record
-    async fn delete(
-        db: &DatabaseConnection,
+    async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         id: Self::PrimaryKey,
     ) -> Result<(), ApiError>;
 
     /// Delete multiple records
-    async fn delete_many(
-        db: &DatabaseConnection,
+    async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         ids: Vec<Self::PrimaryKey>,
     ) -> Result<u64, ApiError>;
 
     /// Get total count matching condition
-    async fn total_count(
-        db: &DatabaseConnection,
+    async fn total_count<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
         condition: &Condition,
     ) -> u64;
 }
@@ -141,8 +140,8 @@ type PrimaryKey = i32;
 Retrieve a single record by primary key.
 
 ```rust
-async fn get_one(
-    db: &DatabaseConnection,
+async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Self::PrimaryKey,
 ) -> Result<Self, ApiError>;
 ```
@@ -169,8 +168,8 @@ let article = Article::get_one(&db, article_id).await?;
 Retrieve multiple records with filtering, sorting, and pagination.
 
 ```rust
-async fn get_all(
-    db: &DatabaseConnection,
+async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     condition: Condition,
     order: (Self::EntityType::Column, Order),
     offset: u64,
@@ -213,8 +212,8 @@ let articles = Article::get_all(
 Create a new record.
 
 ```rust
-async fn create(
-    db: &DatabaseConnection,
+async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: Self::CreateModel,
 ) -> Result<Self, ApiError>;
 ```
@@ -243,8 +242,8 @@ let new_article = Article::create(&db, ArticleCreate {
 Update an existing record.
 
 ```rust
-async fn update(
-    db: &DatabaseConnection,
+async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Self::PrimaryKey,
     data: Self::UpdateModel,
 ) -> Result<Self, ApiError>;
@@ -276,8 +275,8 @@ let updated = Article::update(&db, article_id, ArticleUpdate {
 Delete a single record.
 
 ```rust
-async fn delete(
-    db: &DatabaseConnection,
+async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: Self::PrimaryKey,
 ) -> Result<(), ApiError>;
 ```
@@ -304,8 +303,8 @@ Article::delete(&db, article_id).await?;
 Delete multiple records by IDs.
 
 ```rust
-async fn delete_many(
-    db: &DatabaseConnection,
+async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     ids: Vec<Self::PrimaryKey>,
 ) -> Result<u64, ApiError>;
 ```
@@ -332,8 +331,8 @@ let deleted_count = Article::delete_many(&db, vec![id1, id2, id3]).await?;
 Get count of records matching a condition.
 
 ```rust
-async fn total_count(
-    db: &DatabaseConnection,
+async fn total_count<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     condition: &Condition,
 ) -> u64;
 ```
@@ -352,6 +351,40 @@ let condition = Condition::all()
     .add(Column::Status.eq("published"));
 
 let count = Article::total_count(&db, &condition).await;
+```
+
+## Registration methods
+
+Generated from `#[crudcrate(upsert_key(...))]` and used by
+[`crudcrate::upsert`](../features/registration.md). A resource without the
+attribute keeps the defaults, and `upsert` refuses rather than guessing a key.
+
+### `upsert_key`
+
+The alternate unique key a source system registers rows under, in the order the
+index declares them. Empty by default.
+
+```rust
+fn upsert_key() -> &'static [<Self::EntityType as EntityTrait>::Column];
+```
+
+### `upsert_comparable`
+
+The columns a registration compares and writes: the create model's stored
+columns, minus the primary key. Defaults to the key alone.
+
+```rust
+fn upsert_comparable() -> &'static [<Self::EntityType as EntityTrait>::Column];
+```
+
+### `apply_on_update`
+
+Applies the entity's `on_update` expressions to a row a registration is about to
+change, so a field the entity maintains itself advances even though no source
+sends it. Defaults to doing nothing.
+
+```rust
+fn apply_on_update(model: &mut Self::ActiveModelType);
 ```
 
 ## Usage in Custom Handlers

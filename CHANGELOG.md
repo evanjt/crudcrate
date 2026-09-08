@@ -7,21 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-08
+
 ### Added
 
+- The CRUD stack takes the connection as a type parameter, so every operation and
+  every hook accepts a `&DatabaseTransaction` as readily as a
+  `&DatabaseConnection`. A caller composing its own transaction runs a crudcrate
+  operation inside it, and a hook writing another resource writes on the same
+  transaction as the row it guards. Trait methods and hook functions are declared
+  `<C: ConnectionTrait + TransactionTrait>` taking `db: &C`. See
+  `docs/MIGRATION_0.12.md`.
+- `CRUDOperations::after_begin` runs on the transaction the single-row lifecycle
+  opens, immediately after `BEGIN` and before every other hook. It is where the
+  session state a write needs is set (`SET LOCAL`), scoped to that one lifecycle
+  rather than to a pooled connection.
 - Registration: `crudcrate::upsert` finds or inserts a row on an alternate
   unique key inside one transaction and reports `Created`, `Updated` or
   `Unchanged`, so a source system re-sending its own content writes nothing when
   the content already stands. The key is declared with
   `#[crudcrate(upsert_key(source_system, source_key))]`, which also generates the
-  columns a registration compares and writes (every stored column but the
-  primary key); `CRUDResource::upsert_key` and `upsert_comparable` are the trait
-  surface behind it.
+  columns a registration compares and writes (the create model's stored columns
+  but the primary key); `CRUDResource::upsert_key`, `upsert_comparable` and
+  `apply_on_update` are the trait surface behind it.
 - `UpsertOutcome<K, I, S>` reports one item of a registration batch keyed by what
   the sender holds, carrying a status, the row's id and a note. It is generic
   over the status so a caller with refusals of its own reports them in the same
   list rather than as failures, which `BatchResult` (per-item
   success-or-error) cannot express.
+- `#[crudcrate(routes(read, update))]` names the route families `router()` mounts,
+  out of `create`, `read`, `update` and `delete`. An operation left out is not a
+  route, so the OpenAPI document does not advertise it. Omit the attribute for
+  every route, which stays the default.
+
+### Changed
+
+- The `CRUDResource` and `CRUDOperations` traits use native `async fn` instead of
+  `async-trait`. An `impl` of either drops its `#[async_trait]` attribute, and
+  `async-trait` is no longer a dependency of `crudcrate` or `crudcrate-derive`.
+  The futures are not declared `Send`; a generic caller that spawns one states
+  `+ Send` itself.
+- The single-row `create`, `update` and `delete` lifecycles each run in one
+  transaction. A hook that fails after the write takes the write with it, where
+  before the row stayed and the error was returned. Both the write and the hooks
+  around it now succeed or fail together.
+- `create_many`, `update_many` and `delete_many` run their rows in one
+  transaction, so a batch that fails partway leaves none of its rows. Each row's
+  own lifecycle is a savepoint within it. The `?partial=true` endpoints are
+  unaffected: they run each row on the connection and still report per-item
+  outcomes with `207 Multi-Status`.
+
+### Fixed
+
+- A registration whose entity maintains its own timestamps reported `Updated`
+  on every pass and rewrote `created_at`. The columns a registration compares
+  are those the create model can carry, so a field the entity manages is neither
+  compared nor overwritten, and one carrying `on_update` advances only when the
+  row does change.
 
 ## [0.11.1] - 2026-09-07
 

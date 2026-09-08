@@ -30,6 +30,7 @@ Build a task manager from scratch, adding features as you need them.
 - [Relationships & Joins](./features/relationships.md)
 - [Field Exclusion](./features/field-exclusion.md)
 - [Default Values](./features/default-values.md)
+- [Registration (Upsert)](./features/registration.md)
 - [Error Handling](./features/error-handling.md)
 
 ---

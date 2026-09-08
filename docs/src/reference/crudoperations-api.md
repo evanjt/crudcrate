@@ -8,56 +8,57 @@ behavior. Wire it in with `#[crudcrate(operations = MyOps)]`.
 All methods have default no-op implementations. Override only what you need.
 
 ```rust
-#[async_trait]
 pub trait CRUDOperations: Send + Sync {
     type Resource: CRUDResource;
 
     // --- Level 1: Lifecycle hooks ---
 
-    async fn before_get_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
-    async fn after_get_one(&self, db: &DatabaseConnection, entity: &mut Self::Resource) -> Result<(), ApiError>;
+    async fn after_begin<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C) -> Result<(), ApiError>;
 
-    async fn before_get_all(
-        &self, db: &DatabaseConnection, condition: &Condition,
+    async fn before_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<(), ApiError>;
+    async fn after_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, entity: &mut Self::Resource) -> Result<(), ApiError>;
+
+    async fn before_get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self, db: &C, condition: &Condition,
         order_column: <Self::Resource as CRUDResource>::ColumnType,
         order_direction: &Order, offset: u64, limit: u64,
     ) -> Result<(), ApiError>;
-    async fn after_get_all(
-        &self, db: &DatabaseConnection,
+    async fn after_get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self, db: &C,
         entities: &mut Vec<<Self::Resource as CRUDResource>::ListModel>,
     ) -> Result<(), ApiError>;
 
-    async fn before_create(&self, db: &DatabaseConnection, data: &CreateModel) -> Result<(), ApiError>;
-    async fn after_create(&self, db: &DatabaseConnection, entity: &mut Self::Resource) -> Result<(), ApiError>;
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, data: &CreateModel) -> Result<(), ApiError>;
+    async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, entity: &mut Self::Resource) -> Result<(), ApiError>;
 
-    async fn before_update(&self, db: &DatabaseConnection, id: Uuid, data: &UpdateModel) -> Result<(), ApiError>;
-    async fn after_update(&self, db: &DatabaseConnection, entity: &mut Self::Resource) -> Result<(), ApiError>;
+    async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid, data: &UpdateModel) -> Result<(), ApiError>;
+    async fn after_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, entity: &mut Self::Resource) -> Result<(), ApiError>;
 
-    async fn before_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
-    async fn after_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<(), ApiError>;
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<(), ApiError>;
+    async fn after_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<(), ApiError>;
 
-    async fn before_delete_many(&self, db: &DatabaseConnection, ids: &[Uuid]) -> Result<(), ApiError>;
-    async fn after_delete_many(&self, db: &DatabaseConnection, ids: &[Uuid]) -> Result<(), ApiError>;
+    async fn before_delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, ids: &[Uuid]) -> Result<(), ApiError>;
+    async fn after_delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, ids: &[Uuid]) -> Result<(), ApiError>;
 
     // --- Level 2: Core logic overrides ---
 
-    async fn fetch_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError>;
-    async fn fetch_all(&self, db: &DatabaseConnection, condition: &Condition, ...) -> Result<Vec<ListModel>, ApiError>;
-    async fn perform_create(&self, db: &DatabaseConnection, data: CreateModel) -> Result<Self::Resource, ApiError>;
-    async fn perform_update(&self, db: &DatabaseConnection, id: Uuid, data: UpdateModel) -> Result<Self::Resource, ApiError>;
-    async fn perform_delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError>;
-    async fn perform_delete_many(&self, db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError>;
+    async fn fetch_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Self::Resource, ApiError>;
+    async fn fetch_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, condition: &Condition, ...) -> Result<Vec<ListModel>, ApiError>;
+    async fn perform_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, data: CreateModel) -> Result<Self::Resource, ApiError>;
+    async fn perform_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid, data: UpdateModel) -> Result<Self::Resource, ApiError>;
+    async fn perform_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError>;
+    async fn perform_delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError>;
 
     // --- Level 3: Full operation overrides ---
 
-    async fn get_one(&self, db: &DatabaseConnection, id: Uuid) -> Result<Self::Resource, ApiError>;
-    async fn get_all(&self, db: &DatabaseConnection, condition: &Condition, ...) -> Result<Vec<ListModel>, ApiError>;
-    async fn create(&self, db: &DatabaseConnection, data: CreateModel) -> Result<Self::Resource, ApiError>;
-    async fn update(&self, db: &DatabaseConnection, id: Uuid, data: UpdateModel) -> Result<Self::Resource, ApiError>;
-    async fn delete(&self, db: &DatabaseConnection, id: Uuid) -> Result<Uuid, ApiError>;
-    async fn delete_many(&self, db: &DatabaseConnection, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError>;
-    async fn create_many(&self, db: &DatabaseConnection, data: Vec<CreateModel>) -> Result<Vec<Self::Resource>, ApiError>;
-    async fn update_many(&self, db: &DatabaseConnection, updates: Vec<(Uuid, UpdateModel)>) -> Result<Vec<Self::Resource>, ApiError>;
+    async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Self::Resource, ApiError>;
+    async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, condition: &Condition, ...) -> Result<Vec<ListModel>, ApiError>;
+    async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, data: CreateModel) -> Result<Self::Resource, ApiError>;
+    async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid, data: UpdateModel) -> Result<Self::Resource, ApiError>;
+    async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError>;
+    async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, ids: Vec<Uuid>) -> Result<Vec<Uuid>, ApiError>;
+    async fn create_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, data: Vec<CreateModel>) -> Result<Vec<Self::Resource>, ApiError>;
+    async fn update_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, updates: Vec<(Uuid, UpdateModel)>) -> Result<Vec<Self::Resource>, ApiError>;
 }
 ```
 
@@ -72,6 +73,8 @@ Type aliases used above for brevity:
 ### Level 1: Lifecycle hooks
 
 `before_*` and `after_*` methods. Called around the default core logic.
+`after_begin` runs first of all on a write, on the transaction the write happens
+in, which is where session state such as `SET LOCAL` belongs.
 Use for validation, authorization, logging, enrichment.
 
 `before_create` and `before_update` receive **immutable** references to the
@@ -119,35 +122,67 @@ fetch_all(db, ...)         ← or batch-loading codegen when joins exist
 after_get_all(db, &mut entities)
 ```
 
+The write lifecycles run inside a transaction the operation opens. `db` in every
+one of their hooks is that transaction, so a hook's own writes commit with the
+row and roll back with it.
+
 ### create
 
 ```
-before_create(db, &data)
+BEGIN
     ↓
-perform_create(db, data)
+after_begin(txn)
     ↓
-after_create(db, &mut entity)
+before_create(txn, &data)
+    ↓
+perform_create(txn, data)
+    ↓
+after_create(txn, &mut entity)
+    ↓
+COMMIT
 ```
 
 ### update
 
 ```
-before_update(db, id, &data)
+BEGIN
     ↓
-perform_update(db, id, data)
+after_begin(txn)
     ↓
-after_update(db, &mut entity)
+before_update(txn, id, &data)
+    ↓
+perform_update(txn, id, data)
+    ↓
+after_update(txn, &mut entity)
+    ↓
+COMMIT
 ```
 
 ### delete
 
 ```
-before_delete(db, id)
+BEGIN
     ↓
-perform_delete(db, id)
+after_begin(txn)
     ↓
-after_delete(db, id)
+before_delete(txn, id)
+    ↓
+perform_delete(txn, id)
+    ↓
+after_delete(txn, id)
+    ↓
+COMMIT
 ```
+
+Anything that returns an error rolls the transaction back, so a refusal in
+`after_create` leaves no row behind.
+
+### create_many, update_many, delete_many
+
+One transaction encloses the batch, and each row's own lifecycle is a savepoint
+within it. A failure at any row leaves none of the batch written. The
+`?partial=true` endpoints instead run each row on the connection and report
+per-item outcomes.
 
 ## See also
 

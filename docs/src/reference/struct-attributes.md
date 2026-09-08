@@ -28,6 +28,41 @@ pub fn model_router() -> Router { }
 
 ---
 
+### `routes`
+
+Names the route families `router()` mounts, out of `create`, `read`, `update`
+and `delete`. Each family covers its single-row and batch routes. An operation
+left out is not a route at all, so the OpenAPI document does not advertise it.
+
+```rust
+#[crudcrate(generate_router, routes(read, update))]
+pub struct Model { }
+
+// Mounts GET /, GET /{id}, PATCH /{id} and PATCH /batch.
+```
+
+Omit the attribute for every route, which is the default. Use it for a table
+whose rows are a projection of something else, where a create or delete has no
+legitimate meaning.
+
+**Type:** List of identifiers
+
+---
+
+### `upsert_key`
+
+Names the alternate unique key a source system registers rows under, in the
+order the index declares them. Enables [`crudcrate::upsert`](../features/registration.md).
+
+```rust
+#[crudcrate(upsert_key(source_system, source_key))]
+pub struct Model { }
+```
+
+**Type:** List of field names
+
+---
+
 ### `api_struct`
 
 Override the name of generated API structs.
@@ -210,8 +245,8 @@ Function called before create operation.
 ```rust
 #[crudcrate(create::one::pre = validate_create)]
 
-async fn validate_create(
-    db: &DatabaseConnection,
+async fn validate_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: &mut ModelCreate,
 ) -> Result<(), ApiError> { }
 ```
@@ -225,8 +260,8 @@ Function called after successful create.
 ```rust
 #[crudcrate(create::one::post = notify_created)]
 
-async fn notify_created(
-    db: &DatabaseConnection,
+async fn notify_created<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     created: &Model,
 ) -> Result<(), ApiError> { }
 ```
@@ -240,8 +275,8 @@ Replace entire create logic.
 ```rust
 #[crudcrate(create::one::body = custom_create)]
 
-async fn custom_create(
-    db: &DatabaseConnection,
+async fn custom_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     data: ModelCreate,
 ) -> Result<Model, ApiError> { }
 ```
@@ -255,8 +290,8 @@ Function called before update operation.
 ```rust
 #[crudcrate(update::one::pre = check_update_permission)]
 
-async fn check_update_permission(
-    db: &DatabaseConnection,
+async fn check_update_permission<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: PrimaryKeyType,
     data: &mut ModelUpdate,
 ) -> Result<(), ApiError> { }
@@ -271,8 +306,8 @@ Function called after successful update.
 ```rust
 #[crudcrate(update::one::post = invalidate_cache)]
 
-async fn invalidate_cache(
-    db: &DatabaseConnection,
+async fn invalidate_cache<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     updated: &Model,
 ) -> Result<(), ApiError> { }
 ```
@@ -286,8 +321,8 @@ Replace entire update logic.
 ```rust
 #[crudcrate(update::one::body = custom_update)]
 
-async fn custom_update(
-    db: &DatabaseConnection,
+async fn custom_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: PrimaryKeyType,
     data: ModelUpdate,
 ) -> Result<Model, ApiError> { }
@@ -302,8 +337,8 @@ Function called before delete operation.
 ```rust
 #[crudcrate(delete::one::pre = check_delete_permission)]
 
-async fn check_delete_permission(
-    db: &DatabaseConnection,
+async fn check_delete_permission<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: PrimaryKeyType,
 ) -> Result<(), ApiError> { }
 ```
@@ -317,8 +352,8 @@ Function called after successful delete.
 ```rust
 #[crudcrate(delete::one::post = cleanup_related)]
 
-async fn cleanup_related(
-    db: &DatabaseConnection,
+async fn cleanup_related<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: PrimaryKeyType,
 ) -> Result<(), ApiError> { }
 ```
@@ -332,8 +367,8 @@ Replace entire delete logic (e.g., for soft delete).
 ```rust
 #[crudcrate(delete::one::body = soft_delete)]
 
-async fn soft_delete(
-    db: &DatabaseConnection,
+async fn soft_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: PrimaryKeyType,
 ) -> Result<(), ApiError> { }
 ```
@@ -347,8 +382,8 @@ Function called before get_one operation.
 ```rust
 #[crudcrate(get::one::pre = check_view_permission)]
 
-async fn check_view_permission(
-    db: &DatabaseConnection,
+async fn check_view_permission<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     id: PrimaryKeyType,
 ) -> Result<(), ApiError> { }
 ```
@@ -362,8 +397,8 @@ Function called before get_all operation, can modify condition.
 ```rust
 #[crudcrate(get::all::pre = filter_by_tenant)]
 
-async fn filter_by_tenant(
-    db: &DatabaseConnection,
+async fn filter_by_tenant<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+    db: &C,
     condition: &mut Condition,
 ) -> Result<(), ApiError> { }
 ```
