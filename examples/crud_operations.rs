@@ -21,7 +21,9 @@
 
 use axum::Router;
 use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
-use sea_orm::{Condition, Database, DatabaseConnection, Order, TransactionTrait, entity::prelude::*};
+use sea_orm::{
+    Condition, Database, DatabaseConnection, Order, TransactionTrait, entity::prelude::*,
+};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
@@ -98,7 +100,11 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Permission checks before deletion
-    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self,
+        _db: &C,
+        id: Uuid,
+    ) -> Result<(), ApiError> {
         // Check user permissions, validate business rules, etc.
         // if !current_user.can_delete() { return Err(ApiError::forbidden(...)) }
         println!("Deleting product {id}");
@@ -145,7 +151,11 @@ impl CRUDOperations for ProductOperations {
     // LEVEL 3: Full Operation Overrides
 
     /// Complete delete override with external cleanup
-    async fn delete<C: ConnectionTrait + TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError> {
+    async fn delete<C: ConnectionTrait + TransactionTrait>(
+        &self,
+        db: &C,
+        id: Uuid,
+    ) -> Result<Uuid, ApiError> {
         // Multi-step operation: fetch, cleanup external resources, delete
         let product = self.fetch_one(db, id).await?;
 

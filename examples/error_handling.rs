@@ -83,7 +83,11 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 2: `ApiError::forbidden()` - 403 Forbidden
     /// Used for permission/authorization failures
-    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self,
+        _db: &C,
+        id: Uuid,
+    ) -> Result<(), ApiError> {
         tracing::info!("Checking delete permission for product {}", id);
 
         // Simulate permission check
@@ -134,7 +138,11 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 5: `ApiError::custom()` - Any HTTP status code
     /// Used for custom status codes with internal/external message separation
-    async fn before_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    async fn before_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self,
+        _db: &C,
+        id: Uuid,
+    ) -> Result<(), ApiError> {
         // Example: Custom 429 Too Many Requests with internal logging
         if id.to_string().starts_with('c') {
             return Err(ApiError::custom(
@@ -162,7 +170,11 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 6: Automatic `DbErr` → `ApiError` conversion
     /// The ? operator automatically converts `DbErr` to `ApiError`!
-    async fn fetch_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Product, ApiError> {
+    async fn fetch_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self,
+        db: &C,
+        id: Uuid,
+    ) -> Result<Product, ApiError> {
         use sea_orm::EntityTrait;
 
         // `.one(db)` returns Result<Option<Model>, DbErr>. The `?` converts any real
