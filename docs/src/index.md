@@ -62,7 +62,7 @@ Or add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-crudcrate = "0.1"
+crudcrate = "0.12"
 ```
 
 ---
