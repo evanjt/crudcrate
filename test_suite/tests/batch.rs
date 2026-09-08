@@ -10,6 +10,8 @@ mod batch_row_hooks_test;
 mod duplicate_key_conflict_test;
 #[path = "it/fk_violation_test.rs"]
 mod fk_violation_test;
+#[path = "it/lifecycle_transaction_test.rs"]
+mod lifecycle_transaction_test;
 #[path = "it/partial_success_batch_test.rs"]
 mod partial_success_batch_test;
 #[path = "it/upsert_registration_test.rs"]

@@ -200,7 +200,7 @@ mod Model {
                 .collect();
             Ok(result)
         }
-        async fn create<C: sea_orm::ConnectionTrait>(
+        async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             data: Self::CreateModel,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -271,7 +271,7 @@ mod Model {
             txn.commit().await?;
             Ok(result)
         }
-        async fn update<C: sea_orm::ConnectionTrait>(
+        async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             data: Self::UpdateModel,
@@ -345,7 +345,7 @@ mod Model {
             txn.commit().await?;
             Ok(result)
         }
-        async fn delete<C: sea_orm::ConnectionTrait>(
+        async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
@@ -355,7 +355,7 @@ mod Model {
             post_delete(db, result.clone()).await?;
             Ok(result)
         }
-        async fn delete_many<C: sea_orm::ConnectionTrait>(
+        async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             ids: Vec<crudcrate::PrimaryKeyType<Self>>,
         ) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {

@@ -135,7 +135,7 @@ mod Model {
                 )
                 .await
         }
-        async fn create<C: sea_orm::ConnectionTrait>(
+        async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             data: Self::CreateModel,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -163,7 +163,7 @@ mod Model {
             let ops = ProductOperations;
             crudcrate::CRUDOperations::create_many(&ops, db, data).await
         }
-        async fn update<C: sea_orm::ConnectionTrait>(
+        async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             data: Self::UpdateModel,
@@ -192,14 +192,14 @@ mod Model {
             let ops = ProductOperations;
             crudcrate::CRUDOperations::update_many(&ops, db, updates).await
         }
-        async fn delete<C: sea_orm::ConnectionTrait>(
+        async fn delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
             let ops = ProductOperations;
             crudcrate::CRUDOperations::delete(&ops, db, id).await
         }
-        async fn delete_many<C: sea_orm::ConnectionTrait>(
+        async fn delete_many<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             ids: Vec<crudcrate::PrimaryKeyType<Self>>,
         ) -> Result<Vec<crudcrate::PrimaryKeyType<Self>>, crudcrate::ApiError> {

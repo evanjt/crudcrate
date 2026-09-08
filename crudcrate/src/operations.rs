@@ -29,7 +29,7 @@
 //! pub struct Model { /* ... */ }
 //! ```
 
-use sea_orm::{Condition, ConnectionTrait, Order};
+use sea_orm::{Condition, ConnectionTrait, Order, TransactionSession, TransactionTrait};
 
 use crate::ApiError;
 use crate::core::CRUDResource;
@@ -104,6 +104,28 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 pub trait CRUDOperations: Send + Sync {
     /// The CRUD resource type this operations implementation works with
     type Resource: CRUDResource;
+
+    /// Hook called on the transaction the single-row lifecycle runs in, immediately after `BEGIN`
+    /// and before any other hook.
+    ///
+    /// Use for: session state the write itself needs, which is what `SET LOCAL` is for. It is set
+    /// on the transaction rather than on a pooled connection, so it applies to exactly this
+    /// lifecycle and is gone when the transaction ends.
+    ///
+    /// # Errors
+    /// Return `ApiError` to abort the operation; the transaction is rolled back and nothing is
+    /// written.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// async fn after_begin<C: ConnectionTrait>(&self, db: &C) -> Result<(), ApiError> {
+    ///     db.execute_unprepared("SET LOCAL app.actor = 'alice'").await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn after_begin<C: ConnectionTrait>(&self, _db: &C) -> Result<(), ApiError> {
+        Ok(()) // Default: no-op
+    }
 
     // ==========================================
     // LIFECYCLE HOOKS - GET ONE
@@ -377,7 +399,7 @@ pub trait CRUDOperations: Send + Sync {
     /// # Errors
     ///
     /// Returns `ApiError` if any hook or delete fails for a row that exists
-    async fn perform_delete_many<C: ConnectionTrait>(
+    async fn perform_delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         ids: Vec<ResourceId<Self>>,
@@ -478,20 +500,26 @@ pub trait CRUDOperations: Send + Sync {
     /// # Errors
     ///
     /// Returns `ApiError` if any hook or database insertion fails
-    async fn create<C: ConnectionTrait>(
+    async fn create<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         data: <Self::Resource as CRUDResource>::CreateModel,
     ) -> Result<Self::Resource, ApiError> {
-        // 1. Before hook
-        self.before_create(db, &data).await?;
+        let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 2. Core logic (insert)
-        let mut entity = self.perform_create(db, data).await?;
+        // 1. Session state for the write, on the transaction it happens in
+        self.after_begin(&txn).await?;
 
-        // 3. After hook
-        self.after_create(db, &mut entity).await?;
+        // 2. Before hook
+        self.before_create(&txn, &data).await?;
 
+        // 3. Core logic (insert)
+        let mut entity = self.perform_create(&txn, data).await?;
+
+        // 4. After hook
+        self.after_create(&txn, &mut entity).await?;
+
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(entity)
     }
 
@@ -506,21 +534,27 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or database update fails
-    async fn update<C: ConnectionTrait>(
+    async fn update<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
         data: <Self::Resource as CRUDResource>::UpdateModel,
     ) -> Result<Self::Resource, ApiError> {
-        // 1. Before hook
-        self.before_update(db, id.clone(), &data).await?;
+        let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 2. Core logic (update)
-        let mut entity = self.perform_update(db, id, data).await?;
+        // 1. Session state for the write, on the transaction it happens in
+        self.after_begin(&txn).await?;
 
-        // 3. After hook
-        self.after_update(db, &mut entity).await?;
+        // 2. Before hook
+        self.before_update(&txn, id.clone(), &data).await?;
 
+        // 3. Core logic (update)
+        let mut entity = self.perform_update(&txn, id, data).await?;
+
+        // 4. After hook
+        self.after_update(&txn, &mut entity).await?;
+
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(entity)
     }
 
@@ -535,20 +569,26 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or database deletion fails
-    async fn delete<C: ConnectionTrait>(
+    async fn delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
     ) -> Result<ResourceId<Self>, ApiError> {
-        // 1. Before hook
-        self.before_delete(db, id.clone()).await?;
+        let txn = db.begin().await.map_err(ApiError::database)?;
 
-        // 2. Core logic (delete)
-        let deleted_id = self.perform_delete(db, id).await?;
+        // 1. Session state for the write, on the transaction it happens in
+        self.after_begin(&txn).await?;
 
-        // 3. After hook
-        self.after_delete(db, deleted_id.clone()).await?;
+        // 2. Before hook
+        self.before_delete(&txn, id.clone()).await?;
 
+        // 3. Core logic (delete)
+        let deleted_id = self.perform_delete(&txn, id).await?;
+
+        // 4. After hook
+        self.after_delete(&txn, deleted_id.clone()).await?;
+
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(deleted_id)
     }
 
@@ -565,28 +605,33 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
     /// Returns `ApiError` if any hook or database deletion fails
-    async fn delete_many<C: ConnectionTrait>(
+    async fn delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         ids: Vec<ResourceId<Self>>,
     ) -> Result<Vec<ResourceId<Self>>, ApiError> {
+        let txn = db.begin().await.map_err(ApiError::database)?;
+
         // 1. Before hook
-        self.before_delete_many(db, &ids).await?;
+        self.before_delete_many(&txn, &ids).await?;
 
         // 2. Core logic (batch delete)
-        let deleted_ids = self.perform_delete_many(db, ids).await?;
+        let deleted_ids = self.perform_delete_many(&txn, ids).await?;
 
         // 3. After hook
-        self.after_delete_many(db, &deleted_ids).await?;
+        self.after_delete_many(&txn, &deleted_ids).await?;
 
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(deleted_ids)
     }
 
     /// Create multiple entities in a batch
     ///
     /// Runs the single-row [`Self::create`] lifecycle per item, so `before_create` and
-    /// `after_create` fire for every row. There is no enclosing transaction: override this to
-    /// insert the batch in one statement, and take the hooks with it.
+    /// `after_create` fire for every row, inside one transaction the batch opens: a failure at any
+    /// row leaves none of them, so a caller reading an error never has to ask which half landed.
+    /// Each row's own `begin` is a savepoint within it. Override this to insert the batch in one
+    /// statement, and take the hooks with it.
     ///
     /// **Security**: Limited to `batch_limit()` items (100 by default) to prevent `DoS`.
     ///
@@ -594,7 +639,7 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
     /// Returns `ApiError` if any validation or database insertion fails
-    async fn create_many<C: ConnectionTrait>(
+    async fn create_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         data: Vec<<Self::Resource as CRUDResource>::CreateModel>,
@@ -606,18 +651,21 @@ pub trait CRUDOperations: Send + Sync {
                 data.len()
             )));
         }
+        let txn = db.begin().await.map_err(ApiError::database)?;
         let mut created = Vec::with_capacity(data.len());
         for item in data {
-            created.push(self.create(db, item).await?);
+            created.push(self.create(&txn, item).await?);
         }
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(created)
     }
 
     /// Update multiple entities in a batch
     ///
     /// Runs the single-row [`Self::update`] lifecycle per item, so `before_update` and
-    /// `after_update` fire for every row. There is no enclosing transaction: override this to
-    /// update the batch in one statement, and take the hooks with it.
+    /// `after_update` fire for every row, inside one transaction the batch opens: a failure at any
+    /// row leaves none of them edited. Each row's own `begin` is a savepoint within it. Override
+    /// this to update the batch in one statement, and take the hooks with it.
     ///
     /// **Security**: Limited to `batch_limit()` items (100 by default) to prevent `DoS`.
     ///
@@ -625,7 +673,7 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError` if the batch size exceeds the security limit (default: 100)
     /// Returns `ApiError` if any validation or database update fails
-    async fn update_many<C: ConnectionTrait>(
+    async fn update_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         updates: Vec<(
@@ -640,10 +688,12 @@ pub trait CRUDOperations: Send + Sync {
                 updates.len()
             )));
         }
+        let txn = db.begin().await.map_err(ApiError::database)?;
         let mut updated = Vec::with_capacity(updates.len());
         for (id, data) in updates {
-            updated.push(self.update(db, id, data).await?);
+            updated.push(self.update(&txn, id, data).await?);
         }
+        txn.commit().await.map_err(ApiError::database)?;
         Ok(updated)
     }
 }

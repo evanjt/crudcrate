@@ -26,7 +26,7 @@ pub(crate) fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn update<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+            async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
                 #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::update(&ops, db, id, data).await
@@ -74,7 +74,7 @@ pub(crate) fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     });
 
     quote! {
-        async fn update<C: sea_orm::ConnectionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
+        async fn update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, id: crudcrate::PrimaryKeyType<Self>, data: Self::UpdateModel) -> Result<Self, crudcrate::ApiError> {
             #validate
             #pre_hook
             #body

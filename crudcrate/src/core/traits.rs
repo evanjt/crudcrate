@@ -325,7 +325,7 @@ where
         Ok(Self::from(model))
     }
 
-    async fn create<C: ConnectionTrait>(
+    async fn create<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         create_model: Self::CreateModel,
     ) -> Result<Self, ApiError> {
@@ -348,7 +348,7 @@ where
         Self::upsert_key()
     }
 
-    async fn update<C: ConnectionTrait>(
+    async fn update<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,
         update_model: Self::UpdateModel,
@@ -356,14 +356,14 @@ where
         crate::core::defaults::update::<Self, _>(db, id, update_model).await
     }
 
-    async fn delete<C: ConnectionTrait>(
+    async fn delete<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,
     ) -> Result<PrimaryKeyType<Self>, ApiError> {
         crate::core::defaults::delete::<Self, _>(db, id).await
     }
 
-    async fn delete_many<C: ConnectionTrait>(
+    async fn delete_many<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         ids: Vec<PrimaryKeyType<Self>>,
     ) -> Result<Vec<PrimaryKeyType<Self>>, ApiError> {

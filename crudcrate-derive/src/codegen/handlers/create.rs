@@ -26,7 +26,7 @@ pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     // If operations is specified, use it (takes full control)
     if let Some(ops_path) = &crud_meta.operations {
         return quote! {
-            async fn create<C: sea_orm::ConnectionTrait>(db: &C, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
+            async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
                 #validate
                 let ops = #ops_path;
                 crudcrate::CRUDOperations::create(&ops, db, data).await
@@ -62,7 +62,7 @@ pub(crate) fn generate_create_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
     });
 
     quote! {
-        async fn create<C: sea_orm::ConnectionTrait>(db: &C, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
+        async fn create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(db: &C, data: Self::CreateModel) -> Result<Self, crudcrate::ApiError> {
             #validate
             #pre_hook
             #body
