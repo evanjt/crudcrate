@@ -101,8 +101,9 @@ pub trait CRUDOperations: Send + Sync {
     /// The CRUD resource type this operations implementation works with
     type Resource: CRUDResource;
 
-    /// Hook called on the transaction the single-row lifecycle runs in, immediately after `BEGIN`
-    /// and before any other hook.
+    /// Hook called immediately after every `BEGIN` an operation issues, before any other hook on
+    /// that transaction: once for a single-row lifecycle, and in a batch once for the enclosing
+    /// transaction and again for each row's savepoint.
     ///
     /// Use for: session state the write itself needs, which is what `SET LOCAL` is for. It is set
     /// on the transaction rather than on a pooled connection, so it applies to exactly this
@@ -633,6 +634,7 @@ pub trait CRUDOperations: Send + Sync {
     ) -> impl Future<Output = Result<Vec<ResourceId<Self>>, ApiError>> + Send {
         async move {
             let txn = db.begin().await.map_err(ApiError::database)?;
+            self.after_begin(&txn).await?;
 
             // 1. Before hook
             self.before_delete_many(&txn, &ids).await?;
@@ -676,6 +678,7 @@ pub trait CRUDOperations: Send + Sync {
                 )));
             }
             let txn = db.begin().await.map_err(ApiError::database)?;
+            self.after_begin(&txn).await?;
             let mut created = Vec::with_capacity(data.len());
             for item in data {
                 created.push(self.create(&txn, item).await?);
@@ -715,6 +718,7 @@ pub trait CRUDOperations: Send + Sync {
                 )));
             }
             let txn = db.begin().await.map_err(ApiError::database)?;
+            self.after_begin(&txn).await?;
             let mut updated = Vec::with_capacity(updates.len());
             for (id, data) in updates {
                 updated.push(self.update(&txn, id, data).await?);

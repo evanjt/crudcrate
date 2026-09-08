@@ -10,12 +10,22 @@ use crudcrate::{ApiError, CRUDOperations, EntityToModels};
 use serial_test::serial;
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use uuid::Uuid;
 
 /// Counted across the process, so every test here is `#[serial]`: two running at once would each
 /// see the other's lifecycles.
 static AFTER_BEGIN: AtomicUsize = AtomicUsize::new(0);
+static HOOK_ORDER: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+fn record(hook: &'static str) {
+    HOOK_ORDER.lock().unwrap().push(hook);
+}
+
+fn take_hook_order() -> Vec<&'static str> {
+    std::mem::take(&mut *HOOK_ORDER.lock().unwrap())
+}
 
 pub mod audit_note {
     use super::*;
@@ -69,6 +79,34 @@ pub mod ledger_entry {
             // connection it can write on.
             db.execute_unprepared("SELECT 1").await?;
             AFTER_BEGIN.fetch_add(1, Ordering::SeqCst);
+            record("after_begin");
+            Ok(())
+        }
+
+        async fn before_delete<C: sea_orm::ConnectionTrait>(
+            &self,
+            _db: &C,
+            _id: Uuid,
+        ) -> Result<(), ApiError> {
+            record("before_delete");
+            Ok(())
+        }
+
+        async fn before_delete_many<C: sea_orm::ConnectionTrait>(
+            &self,
+            _db: &C,
+            _ids: &[Uuid],
+        ) -> Result<(), ApiError> {
+            record("before_delete_many");
+            Ok(())
+        }
+
+        async fn before_create<C: sea_orm::ConnectionTrait>(
+            &self,
+            _db: &C,
+            _data: &LedgerEntryCreate,
+        ) -> Result<(), ApiError> {
+            record("before_create");
             Ok(())
         }
 
@@ -235,5 +273,50 @@ async fn a_batch_update_that_fails_partway_leaves_no_row_edited() {
     assert!(
         !names.contains(&"renamed".to_string()),
         "the row edited before the refusal is not left edited: {names:?}"
+    );
+}
+
+/// Scenario: `after_begin` sets session state the write needs (`SET LOCAL`), and a batch has a
+/// batch-level hook that runs before any row's own lifecycle.
+///
+/// Expected behaviour: the state is there for the batch-level hook too. `after_begin` runs on the
+/// batch transaction before `before_delete_many`, and again on each row's savepoint.
+#[tokio::test]
+#[serial]
+async fn after_begin_runs_on_the_batch_transaction_before_the_batch_hook() {
+    let db = setup_test_db().await.unwrap();
+    let first = LedgerOps.create(&db, create("first")).await.unwrap();
+    let second = LedgerOps.create(&db, create("second")).await.unwrap();
+    take_hook_order();
+
+    LedgerOps
+        .delete_many(&db, vec![first.id, second.id])
+        .await
+        .unwrap();
+    assert_eq!(
+        take_hook_order(),
+        vec![
+            "after_begin",
+            "before_delete_many",
+            "after_begin",
+            "before_delete",
+            "after_begin",
+            "before_delete",
+        ]
+    );
+
+    LedgerOps
+        .create_many(&db, vec![create("third"), create("fourth")])
+        .await
+        .unwrap();
+    assert_eq!(
+        take_hook_order(),
+        vec![
+            "after_begin",
+            "after_begin",
+            "before_create",
+            "after_begin",
+            "before_create",
+        ]
     );
 }
