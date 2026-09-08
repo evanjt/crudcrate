@@ -6,6 +6,10 @@ use crate::ir::CRUDResourceMeta;
 use syn::parse::Parser;
 use syn::{Lit, Meta, punctuated::Punctuated, token::Comma};
 
+/// The route families `routes(...)` accepts, each covering that operation's single-row and batch
+/// routes.
+const ROUTE_FAMILIES: [&str; 4] = ["create", "read", "update", "delete"];
+
 /// Parses CRUD resource metadata from struct-level attributes.
 /// Looks for `#[crudcrate(...)]` attributes and extracts configuration.
 ///
@@ -151,6 +155,37 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
                             Some("require_scope") => meta.require_scope = true,
                             Some("deny_unknown_fields") => meta.deny_unknown_fields = true,
                             _ => {}
+                        }
+                    }
+                    Meta::List(list) if list.path.is_ident("routes") => {
+                        match list
+                            .parse_args_with(Punctuated::<syn::Ident, Comma>::parse_terminated)
+                        {
+                            Ok(families) => {
+                                for family in &families {
+                                    let name = family.to_string();
+                                    if ROUTE_FAMILIES.contains(&name.as_str()) {
+                                        meta.routes.push(name);
+                                    } else {
+                                        meta.deprecation_errors.push(syn::Error::new_spanned(
+                                            family,
+                                            format!(
+                                                "Unknown route family `{name}`. Expected one of: {}.",
+                                                ROUTE_FAMILIES.join(", ")
+                                            ),
+                                        ));
+                                    }
+                                }
+                                if families.is_empty() {
+                                    meta.deprecation_errors.push(syn::Error::new_spanned(
+                                        &list,
+                                        "`routes()` names no family, so the resource would mount \
+                                         nothing. Omit the attribute for every route, or use \
+                                         `generate_router = false` for none.",
+                                    ));
+                                }
+                            }
+                            Err(e) => meta.deprecation_errors.push(e),
                         }
                     }
                     Meta::List(list) if list.path.is_ident("upsert_key") => {

@@ -72,6 +72,10 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) deny_unknown_fields: bool,
     // The alternate unique key a source system registers rows under, field names in index order
     pub(crate) upsert_key: Vec<String>,
+    // The route families `router()` emits, empty meaning every one of them. A table derived from
+    // a registry or a migration has operations that are not legitimate on it, and a route that
+    // always refuses is a wire surface promising what the system will not do.
+    pub(crate) routes: Vec<String>,
     // Deprecation errors to emit as compile errors
     pub(crate) deprecation_errors: Vec<syn::Error>,
 }

@@ -404,7 +404,8 @@ mod Model {
         Item, ItemUpdate, ItemCreate, ItemList, ItemResponse, ItemList, ItemResponse
     );
     impl Item {
-        /// Generate router with all CRUD endpoints
+        /// Generate router with the resource's CRUD endpoints: every one of them, or the
+        /// families its `routes(...)` attribute names.
         pub fn router(
             db: &sea_orm::DatabaseConnection,
         ) -> utoipa_axum::router::OpenApiRouter

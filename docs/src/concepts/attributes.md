@@ -32,6 +32,23 @@ pub struct Model { }
 pub fn model_router() -> Router { }
 ```
 
+### `routes`
+
+Names the route families `router()` mounts. Omit it for every route, which is the default:
+
+```rust
+#[crudcrate(generate_router, routes(read, update))]
+pub struct Model { }
+
+// Mounts GET /, GET /{id}, PATCH /{id} and PATCH /batch.
+// POST and DELETE are not routes at all, so the OpenAPI document does not advertise them.
+```
+
+The families are `create`, `read`, `update` and `delete`, each covering its single-row and batch
+routes. Use it for a table whose rows are a projection of something else: rows a migration or a
+registry inserts have no legitimate create or delete, and a handler that refuses one still
+advertises the operation.
+
 ### `api_struct`
 
 Override the generated struct name:
@@ -335,6 +352,7 @@ pub struct Model {
 | Attribute | Level | Description |
 |-----------|-------|-------------|
 | `generate_router` | Struct | Generate Axum router |
+| `routes(...)` | Struct | The route families the router mounts |
 | `api_struct` | Struct | Custom struct name |
 | `name_singular` | Struct | Singular resource name |
 | `name_plural` | Struct | Plural resource name |

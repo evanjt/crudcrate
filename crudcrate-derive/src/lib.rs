@@ -15,6 +15,7 @@
 //! | Attribute | Type | Description |
 //! |-----------|------|-------------|
 //! | `generate_router` | flag | Generate Axum router function |
+//! | `routes(read, update)` | list | The route families `router()` mounts; omit for every one |
 //! | `api_struct = "Name"` | string | Override generated struct name |
 //! | `name_singular = "item"` | string | Singular resource name for errors/headers |
 //! | `name_plural = "items"` | string | Plural resource name for routes |

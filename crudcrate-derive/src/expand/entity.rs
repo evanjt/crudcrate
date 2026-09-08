@@ -115,7 +115,11 @@ pub(crate) fn entity_to_models_impl(input: proc_macro2::TokenStream) -> proc_mac
         .any(|f| crate::codegen::models::is_scoped_exclusion(f));
 
     let router_impl = if crud_meta.generate_router && has_crud_resource_fields {
-        crate::codegen::router::generate_router_impl(&api_struct_name, has_scoped_fields)
+        crate::codegen::router::generate_router_impl(
+            &api_struct_name,
+            has_scoped_fields,
+            &crud_meta.routes,
+        )
     } else {
         quote! {}
     };

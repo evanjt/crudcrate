@@ -2,10 +2,37 @@
 
 use quote::{format_ident, quote};
 
+/// `routes` names the families to mount, empty meaning every one of them.
 pub(crate) fn generate_router_impl(
     api_struct_name: &syn::Ident,
     has_scoped_fields: bool,
+    routes: &[String],
 ) -> proc_macro2::TokenStream {
+    let mounts = |family: &str| routes.is_empty() || routes.iter().any(|r| r == family);
+    let read = mounts("read").then(|| {
+        quote! {
+            .routes(routes!(get_one_handler))
+            .routes(routes!(get_all_handler))
+        }
+    });
+    let create = mounts("create").then(|| {
+        quote! {
+            .routes(routes!(create_one_handler))
+            .routes(routes!(create_many_handler))
+        }
+    });
+    let update = mounts("update").then(|| {
+        quote! {
+            .routes(routes!(update_one_handler))
+            .routes(routes!(update_many_handler))
+        }
+    });
+    let delete = mounts("delete").then(|| {
+        quote! {
+            .routes(routes!(delete_one_handler))
+            .routes(routes!(delete_many_handler))
+        }
+    });
     let create_model_name = format_ident!("{}Create", api_struct_name);
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
@@ -26,7 +53,8 @@ pub(crate) fn generate_router_impl(
         crudcrate::crud_handlers!(#api_struct_name, #update_model_name, #create_model_name, #list_model_name, #response_model_name, #scoped_list_name, #scoped_response_name);
 
         impl #api_struct_name {
-            /// Generate router with all CRUD endpoints
+            /// Generate router with the resource's CRUD endpoints: every one of them, or the
+            /// families its `routes(...)` attribute names.
             pub fn router(db: &sea_orm::DatabaseConnection) -> utoipa_axum::router::OpenApiRouter
             where
                 Self: crudcrate::traits::CRUDResource,
@@ -42,14 +70,10 @@ pub(crate) fn generate_router_impl(
                 );
 
                 OpenApiRouter::new()
-                    .routes(routes!(get_one_handler))
-                    .routes(routes!(get_all_handler))
-                    .routes(routes!(create_one_handler))
-                    .routes(routes!(create_many_handler))
-                    .routes(routes!(update_one_handler))
-                    .routes(routes!(update_many_handler))
-                    .routes(routes!(delete_one_handler))
-                    .routes(routes!(delete_many_handler))
+                    #read
+                    #create
+                    #update
+                    #delete
                     .layer(axum::extract::DefaultBodyLimit::max(
                         <Self as crudcrate::traits::CRUDResource>::security_profile().max_request_body_bytes,
                     ))
