@@ -130,7 +130,10 @@ async fn cleanup_before_delete<C: sea_orm::ConnectionTrait>(
 }
 
 /// Post-delete hook: notification after deleting
-async fn notify_after_delete<C: sea_orm::ConnectionTrait>(_db: &C, _id: Uuid) -> Result<(), ApiError> {
+async fn notify_after_delete<C: sea_orm::ConnectionTrait>(
+    _db: &C,
+    _id: Uuid,
+) -> Result<(), ApiError> {
     DELETE_POST_CALLED.store(true, Ordering::SeqCst);
     Ok(())
 }

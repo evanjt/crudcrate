@@ -7,9 +7,9 @@
 //! statements that write needs (`SET LOCAL`), because it runs on the same transaction.
 
 use crudcrate::{ApiError, CRUDOperations, EntityToModels};
-use serial_test::serial;
 use sea_orm::entity::prelude::*;
 use sea_orm::{DatabaseConnection, DbErr};
+use serial_test::serial;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use uuid::Uuid;
@@ -48,8 +48,8 @@ pub mod audit_note {
 }
 
 pub mod ledger_entry {
-    use super::*;
     use super::audit_note::{AuditNote, AuditNoteCreate};
+    use super::*;
 
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "ledger_entries")]
@@ -254,10 +254,7 @@ async fn a_batch_update_that_fails_partway_leaves_no_row_edited() {
     let err = LedgerOps
         .update_many(
             &db,
-            vec![
-                (kept.id, rename("renamed")),
-                (doomed.id, rename("doomed")),
-            ],
+            vec![(kept.id, rename("renamed")), (doomed.id, rename("doomed"))],
         )
         .await
         .expect_err("the after hook refuses the second row");

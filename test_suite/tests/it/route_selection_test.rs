@@ -57,7 +57,12 @@ async fn send(app: &Router, method: &str, uri: &str, payload: Option<serde_json:
             .unwrap(),
         None => builder.body(Body::empty()).unwrap(),
     };
-    app.clone().oneshot(request).await.unwrap().status().as_u16()
+    app.clone()
+        .oneshot(request)
+        .await
+        .unwrap()
+        .status()
+        .as_u16()
 }
 
 #[tokio::test]
@@ -99,7 +104,10 @@ async fn test_an_unmounted_operation_is_absent_from_the_document() {
     #[derive(OpenApi)]
     struct Api;
     let (_, api) = utoipa_axum::router::OpenApiRouter::with_openapi(Api::openapi())
-        .nest("/schedules", ProjectedSchedule::router(&setup_db().await.expect("db")))
+        .nest(
+            "/schedules",
+            ProjectedSchedule::router(&setup_db().await.expect("db")),
+        )
         .split_for_parts();
 
     let document = serde_json::to_value(&api).expect("the document serialises");

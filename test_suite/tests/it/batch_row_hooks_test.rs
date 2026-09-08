@@ -99,12 +99,20 @@ pub mod counted_widget {
             Ok(())
         }
 
-        async fn before_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, _id: Uuid) -> Result<(), ApiError> {
+        async fn before_delete<C: sea_orm::ConnectionTrait>(
+            &self,
+            _db: &C,
+            _id: Uuid,
+        ) -> Result<(), ApiError> {
             BEFORE_DELETE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
-        async fn after_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, _id: Uuid) -> Result<(), ApiError> {
+        async fn after_delete<C: sea_orm::ConnectionTrait>(
+            &self,
+            _db: &C,
+            _id: Uuid,
+        ) -> Result<(), ApiError> {
             AFTER_DELETE.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }

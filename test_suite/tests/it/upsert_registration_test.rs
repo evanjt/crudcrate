@@ -120,20 +120,30 @@ fn sent(slope: f64) -> RegisteredCurveCreate {
 async fn a_source_registering_its_own_content_twice_stores_one_row() {
     let db = setup_test_db().await.expect("db");
 
-    let (first, status) = upsert::<RegisteredCurve, _>(&db, sent(1.5)).await.expect("first");
+    let (first, status) = upsert::<RegisteredCurve, _>(&db, sent(1.5))
+        .await
+        .expect("first");
     assert_eq!(status, UpsertStatus::Created);
 
-    let (again, status) = upsert::<RegisteredCurve, _>(&db, sent(1.5)).await.expect("again");
+    let (again, status) = upsert::<RegisteredCurve, _>(&db, sent(1.5))
+        .await
+        .expect("again");
     assert_eq!(status, UpsertStatus::Unchanged);
     assert_eq!(again.id, first.id);
 
-    let (edited, status) = upsert::<RegisteredCurve, _>(&db, sent(2.5)).await.expect("edited");
+    let (edited, status) = upsert::<RegisteredCurve, _>(&db, sent(2.5))
+        .await
+        .expect("edited");
     assert_eq!(status, UpsertStatus::Updated);
     assert_eq!(edited.id, first.id);
     assert!((edited.slope - 2.5).abs() < f64::EPSILON);
 
     assert_eq!(
-        registered_curve::Entity::find().all(&db).await.expect("rows").len(),
+        registered_curve::Entity::find()
+            .all(&db)
+            .await
+            .expect("rows")
+            .len(),
         1,
         "three passes over one key are one row"
     );

@@ -107,7 +107,10 @@ impl ActiveModelBehavior for ActiveModel {}
 // Custom Delete Functions
 // ============================================================================
 
-async fn delete_asset_with_cleanup<C: sea_orm::ConnectionTrait>(db: &C, id: Uuid) -> Result<Uuid, ApiError> {
+async fn delete_asset_with_cleanup<C: sea_orm::ConnectionTrait>(
+    db: &C,
+    id: Uuid,
+) -> Result<Uuid, ApiError> {
     // 1. Fetch asset to get external key
     let asset = Entity::find_by_id(id)
         .one(db)
