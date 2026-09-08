@@ -48,7 +48,9 @@ pub struct UpsertOutcome<K, I, S = UpsertStatus> {
 ///
 /// The key columns are read from the create model itself, so a caller does not repeat them. Every
 /// column the model sets is compared against the stored row: all equal is `Unchanged` and no write
-/// happens at all, which is what tells a source its content already stands.
+/// happens at all, which is what tells a source its content already stands. Only columns the
+/// create model can carry are compared, so a field the entity maintains itself is neither
+/// compared nor overwritten; one carrying `on_update` advances when the row does change.
 ///
 /// # Errors
 ///
@@ -113,6 +115,7 @@ where
                     merged.set(column, value);
                 }
             }
+            R::apply_on_update(&mut merged);
             let model = merged.update(&txn).await.map_err(ApiError::database)?;
             (model, UpsertStatus::Updated)
         }
@@ -145,4 +148,74 @@ where
     sent_columns::<R>(active).into_iter().all(|column| {
         matches!(active.get(column), ActiveValue::Set(value) if stored.get(column) == value)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UpsertOutcome, UpsertStatus};
+
+    /// A refusal of the caller's own, reported in the same list as the writes.
+    #[derive(Debug, serde::Serialize)]
+    #[serde(rename_all = "snake_case")]
+    enum Reported {
+        Unchanged,
+        OwnerUnknownHere,
+    }
+
+    #[test]
+    fn an_outcome_carrying_nothing_beyond_its_status_serializes_key_and_status_alone() {
+        let outcome: UpsertOutcome<String, uuid::Uuid> = UpsertOutcome {
+            key: "DOC:plate-7".to_string(),
+            id: None,
+            status: UpsertStatus::Unchanged,
+            note: None,
+        };
+        let json = serde_json::to_value(&outcome).expect("serializes");
+        assert_eq!(
+            json,
+            serde_json::json!({"key": "DOC:plate-7", "status": "unchanged"})
+        );
+    }
+
+    #[test]
+    fn an_outcome_reports_the_row_it_wrote_and_what_it_has_to_say() {
+        let id = uuid::Uuid::nil();
+        let outcome = UpsertOutcome {
+            key: "DOC:plate-7".to_string(),
+            id: Some(id),
+            status: UpsertStatus::Updated,
+            note: Some("slope replaced".to_string()),
+        };
+        let json = serde_json::to_value(&outcome).expect("serializes");
+        assert_eq!(json["id"], serde_json::json!(id));
+        assert_eq!(json["status"], serde_json::json!("updated"));
+        assert_eq!(json["note"], serde_json::json!("slope replaced"));
+    }
+
+    /// The status is generic so a caller's own refusals sit in one list with the writes, which is
+    /// what `BatchResult`'s success-or-error shape cannot express.
+    #[test]
+    fn a_caller_reports_its_own_statuses_in_the_same_list() {
+        let reported: Vec<UpsertOutcome<&str, uuid::Uuid, Reported>> = vec![
+            UpsertOutcome {
+                key: "DOC:plate-7",
+                id: Some(uuid::Uuid::nil()),
+                status: Reported::Unchanged,
+                note: None,
+            },
+            UpsertOutcome {
+                key: "DOC:plate-9",
+                id: None,
+                status: Reported::OwnerUnknownHere,
+                note: Some("no such station here".to_string()),
+            },
+        ];
+        let json = serde_json::to_value(&reported).expect("serializes");
+        assert_eq!(json[0]["status"], serde_json::json!("unchanged"));
+        assert_eq!(json[1]["status"], serde_json::json!("owner_unknown_here"));
+        assert!(
+            json[1].get("id").is_none(),
+            "nothing was stored, so there is no id to report"
+        );
+    }
 }

@@ -90,6 +90,13 @@ fn crud_operations_methods<O: crudcrate::CRUDOperations>() {
     let _ = O::after_get_all::<sea_orm::DatabaseConnection>;
 }
 
+/// The registration surface the derive generates from `upsert_key(...)`.
+fn crud_resource_upsert_methods<R: CRUDResource>() {
+    let _ = R::upsert_key;
+    let _ = R::upsert_comparable;
+    let _ = R::apply_on_update;
+}
+
 fn primary_key_type<R: CRUDResource>(_: PrimaryKeyType<R>) {}
 
 #[test]

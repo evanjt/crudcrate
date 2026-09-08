@@ -348,6 +348,11 @@ where
         Self::upsert_key()
     }
 
+    /// Applies the entity's `on_update` expressions to an active model a registration is about to
+    /// write, so a field the entity maintains itself advances even though no source sends it.
+    /// The default does nothing, which is a resource that maintains no such field.
+    fn apply_on_update(_model: &mut Self::ActiveModelType) {}
+
     async fn update<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,

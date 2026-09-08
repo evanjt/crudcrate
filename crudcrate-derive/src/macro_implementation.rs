@@ -132,8 +132,9 @@ pub(crate) fn generate_crud_resource_impl(
         None
     };
 
-    // The registration key, and the columns a registration compares and writes: every stored
-    // column but the primary key, which the row's own identity is not part of what a source sends.
+    // The registration key, and the columns a registration compares and writes: the create
+    // model's stored columns but the primary key. A field the source cannot send is one the
+    // entity maintains, so it is neither compared nor written.
     let upsert_impl = (!crud_meta.upsert_key.is_empty()).then(|| {
         let key_columns = crud_meta
             .upsert_key
@@ -147,11 +148,23 @@ pub(crate) fn generate_crud_resource_impl(
         let comparable_columns = analysis
             .db_fields
             .iter()
+            .filter(|field| {
+                crate::codegen::models::should_include_in_model(field, "create_model")
+            })
             .filter_map(|field| field.ident.as_ref())
             .map(std::string::ToString::to_string)
             .filter(|field| Some(field) != pk.as_ref())
             .map(|field| crate::syn_type::column_ident(&field))
             .map(|column| quote! { #column_type::#column });
+        let on_update_assignments = analysis.db_fields.iter().filter_map(|field| {
+            let expr = crate::attrs::get_crudcrate_expr(field, "on_update")?;
+            let ident = field.ident.as_ref()?;
+            Some(crate::codegen::models::shared::generate_active_value_assignment(
+                ident,
+                &expr,
+                crate::syn_type::field_is_optional(field),
+            ))
+        });
         quote! {
             fn upsert_key() -> &'static [<Self::EntityType as sea_orm::EntityTrait>::Column] {
                 &[#(#key_columns),*]
@@ -159,6 +172,10 @@ pub(crate) fn generate_crud_resource_impl(
 
             fn upsert_comparable() -> &'static [<Self::EntityType as sea_orm::EntityTrait>::Column] {
                 &[#(#comparable_columns),*]
+            }
+
+            fn apply_on_update(model: &mut Self::ActiveModelType) {
+                #(#on_update_assignments)*
             }
         }
     });
