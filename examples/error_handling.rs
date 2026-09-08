@@ -50,7 +50,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 1: `ApiError::bad_request()` - 400 Bad Request
     /// Used for validation errors and malformed input
-    async fn before_create<C: sea_orm::ConnectionTrait>(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         data: &ProductCreate,
@@ -83,7 +83,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 2: `ApiError::forbidden()` - 403 Forbidden
     /// Used for permission/authorization failures
-    async fn before_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
         tracing::info!("Checking delete permission for product {}", id);
 
         // Simulate permission check
@@ -98,7 +98,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 3: `ApiError::unauthorized()` - 401 Unauthorized
     /// Used for authentication failures
-    async fn before_update<C: sea_orm::ConnectionTrait>(
+    async fn before_update<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         id: Uuid,
@@ -116,7 +116,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 4: `ApiError::conflict()` - 409 Conflict
     /// Used for duplicate records or conflicting state
-    async fn after_create<C: sea_orm::ConnectionTrait>(
+    async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         entity: &mut Product,
@@ -134,7 +134,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 5: `ApiError::custom()` - Any HTTP status code
     /// Used for custom status codes with internal/external message separation
-    async fn before_get_one<C: sea_orm::ConnectionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    async fn before_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
         // Example: Custom 429 Too Many Requests with internal logging
         if id.to_string().starts_with('c') {
             return Err(ApiError::custom(
@@ -162,7 +162,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 6: Automatic `DbErr` → `ApiError` conversion
     /// The ? operator automatically converts `DbErr` to `ApiError`!
-    async fn fetch_one<C: sea_orm::ConnectionTrait>(&self, db: &C, id: Uuid) -> Result<Product, ApiError> {
+    async fn fetch_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Product, ApiError> {
         use sea_orm::EntityTrait;
 
         // `.one(db)` returns Result<Option<Model>, DbErr>. The `?` converts any real
@@ -179,7 +179,7 @@ impl CRUDOperations for ProductOperations {
 
     /// Example 7: `ApiError::internal()` - 500 with internal details
     /// Used for unexpected errors you want to log but not expose
-    async fn after_get_one<C: sea_orm::ConnectionTrait>(
+    async fn after_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         entity: &mut Product,

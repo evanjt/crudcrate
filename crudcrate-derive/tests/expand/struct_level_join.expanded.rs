@@ -107,7 +107,7 @@ mod vehicle__Model {
         fn joined_sortable_columns() -> Vec<crudcrate::JoinedColumnDef> {
             vec![]
         }
-        async fn get_one<C: sea_orm::ConnectionTrait>(
+        async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -125,7 +125,7 @@ mod vehicle__Model {
             };
             Ok(result)
         }
-        async fn get_one_scoped<C: sea_orm::ConnectionTrait>(
+        async fn get_one_scoped<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             scope: &sea_orm::Condition,
@@ -148,7 +148,7 @@ mod vehicle__Model {
             };
             Ok(result)
         }
-        async fn get_all<C: sea_orm::ConnectionTrait>(
+        async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
@@ -170,7 +170,7 @@ mod vehicle__Model {
                 .collect();
             Ok(result)
         }
-        async fn get_all_scoped<C: sea_orm::ConnectionTrait>(
+        async fn get_all_scoped<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
@@ -562,7 +562,9 @@ mod customer__Model {
                 "make", full_path : "vehicles.make", }
             ]
         }
-        async fn resolve_joined_filters<C: sea_orm::ConnectionTrait>(
+        async fn resolve_joined_filters<
+            C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait,
+        >(
             db: &C,
             condition: sea_orm::Condition,
             joined_filters: &[crudcrate::JoinedFilter],
@@ -641,7 +643,9 @@ mod customer__Model {
                 _ => false,
             }
         }
-        async fn get_all_joined_sorted<C: sea_orm::ConnectionTrait>(
+        async fn get_all_joined_sorted<
+            C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait,
+        >(
             db: &C,
             condition: &sea_orm::Condition,
             join_field: &str,
@@ -723,7 +727,7 @@ mod customer__Model {
                 )
                 .await
         }
-        async fn get_one<C: sea_orm::ConnectionTrait>(
+        async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -783,7 +787,7 @@ mod customer__Model {
             };
             Ok(result)
         }
-        async fn get_one_scoped<C: sea_orm::ConnectionTrait>(
+        async fn get_one_scoped<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             scope: &sea_orm::Condition,
@@ -854,7 +858,7 @@ mod customer__Model {
             };
             Ok(result)
         }
-        async fn get_all<C: sea_orm::ConnectionTrait>(
+        async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
@@ -952,7 +956,7 @@ mod customer__Model {
             }
             Ok(result)
         }
-        async fn get_all_scoped<C: sea_orm::ConnectionTrait>(
+        async fn get_all_scoped<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,

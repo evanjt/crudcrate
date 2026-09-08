@@ -163,7 +163,7 @@ where
     /// The primary key is appended as a secondary sort key whenever the requested
     /// sort column is not the primary key itself, so `OFFSET`/`LIMIT` paging over a
     /// column with duplicate values cannot repeat or skip a row between pages.
-    async fn get_all<C: ConnectionTrait>(
+    async fn get_all<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: &Condition,
         order_column: Self::ColumnType,
@@ -192,7 +192,7 @@ where
     /// `ScopeFilterable::scope_condition()` to the per-join batch query, and to
     /// recurse via `get_one_scoped` at depth > 1. The default impl delegates to
     /// `get_all`, which is safe for resources without `join(all)` children.
-    async fn get_all_scoped<C: ConnectionTrait>(
+    async fn get_all_scoped<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: &Condition,
         order_column: Self::ColumnType,
@@ -222,7 +222,7 @@ where
     ///
     /// # Errors
     /// Returns `ApiError::Database` if the parent query fails.
-    async fn get_all_joined_sorted<C: ConnectionTrait>(
+    async fn get_all_joined_sorted<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: &Condition,
         join_field: &str,
@@ -262,7 +262,7 @@ where
     ///
     /// # Errors
     /// Returns `ApiError::Database` if any child sub-query fails.
-    async fn resolve_joined_filters<C: ConnectionTrait>(
+    async fn resolve_joined_filters<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         condition: Condition,
         joined_filters: &[crate::JoinedFilter],
@@ -293,7 +293,7 @@ where
         }
     }
 
-    async fn get_one<C: ConnectionTrait>(db: &C, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
+    async fn get_one<C: ConnectionTrait + TransactionTrait>(db: &C, id: PrimaryKeyType<Self>) -> Result<Self, ApiError> {
         crate::core::defaults::get_one::<Self, _>(db, id).await
     }
 
@@ -305,7 +305,7 @@ where
     /// change between two separate queries.
     ///
     /// The derive macro overrides this to include join loading.
-    async fn get_one_scoped<C: ConnectionTrait>(
+    async fn get_one_scoped<C: ConnectionTrait + TransactionTrait>(
         db: &C,
         id: PrimaryKeyType<Self>,
         scope: &Condition,
@@ -472,7 +472,7 @@ where
         Ok(results)
     }
 
-    async fn total_count<C: ConnectionTrait>(db: &C, condition: &Condition) -> u64 {
+    async fn total_count<C: ConnectionTrait + TransactionTrait>(db: &C, condition: &Condition) -> u64 {
         let query = Self::EntityType::find().filter(condition.clone());
         match PaginatorTrait::count(query, db).await {
             Ok(count) => count,

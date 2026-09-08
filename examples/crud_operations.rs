@@ -21,7 +21,7 @@
 
 use axum::Router;
 use crudcrate::{ApiError, CRUDOperations, CRUDResource, EntityToModels};
-use sea_orm::{Condition, Database, DatabaseConnection, Order, entity::prelude::*};
+use sea_orm::{Condition, Database, DatabaseConnection, Order, TransactionTrait, entity::prelude::*};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
@@ -61,7 +61,7 @@ impl CRUDOperations for ProductOperations {
     // LEVEL 1: Lifecycle Hooks
 
     /// Validation before creation
-    async fn before_create<C: sea_orm::ConnectionTrait>(
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         data: &ProductCreate,
@@ -76,7 +76,7 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Actions after creation (logging, notifications, etc.)
-    async fn after_create<C: sea_orm::ConnectionTrait>(
+    async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         entity: &mut Product,
@@ -87,7 +87,7 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Enrich data after fetching
-    async fn after_get_one<C: sea_orm::ConnectionTrait>(
+    async fn after_get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         _db: &C,
         entity: &mut Product,
@@ -98,7 +98,7 @@ impl CRUDOperations for ProductOperations {
     }
 
     /// Permission checks before deletion
-    async fn before_delete<C: sea_orm::ConnectionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    async fn before_delete<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
         // Check user permissions, validate business rules, etc.
         // if !current_user.can_delete() { return Err(ApiError::forbidden(...)) }
         println!("Deleting product {id}");
@@ -111,7 +111,7 @@ impl CRUDOperations for ProductOperations {
     ///
     /// This mirrors the default `fetch_all` query/mapping; the rest of the body
     /// is the standard find/filter/order/paginate/map pipeline.
-    async fn fetch_all<C: sea_orm::ConnectionTrait>(
+    async fn fetch_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
         &self,
         db: &C,
         condition: &Condition,
@@ -145,7 +145,7 @@ impl CRUDOperations for ProductOperations {
     // LEVEL 3: Full Operation Overrides
 
     /// Complete delete override with external cleanup
-    async fn delete<C: ConnectionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError> {
+    async fn delete<C: ConnectionTrait + TransactionTrait>(&self, db: &C, id: Uuid) -> Result<Uuid, ApiError> {
         // Multi-step operation: fetch, cleanup external resources, delete
         let product = self.fetch_one(db, id).await?;
 

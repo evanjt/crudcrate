@@ -12,7 +12,7 @@
 //!     type Resource = Asset;
 //!
 //!     // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
-//!     async fn delete<C: ConnectionTrait>(
+//!     async fn delete<C: ConnectionTrait + TransactionTrait>(
 //!         &self,
 //!         db: &C,
 //!         id: crudcrate::PrimaryKeyType<Self::Resource>,
@@ -59,12 +59,12 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 ///
 /// **Level 1: Hooks Only** (validation, logging, enrichment)
 /// ```rust,ignore
-/// async fn before_create<C: ConnectionTrait>(&self, db: &C, data: &CreateModel) -> Result<(), DbErr> {
+/// async fn before_create<C: ConnectionTrait + TransactionTrait>(&self, db: &C, data: &CreateModel) -> Result<(), DbErr> {
 ///     validate(data)?;
 ///     Ok(())
 /// }
 ///
-/// async fn after_get_one<C: ConnectionTrait>(&self, db: &C, entity: &mut Resource) -> Result<(), DbErr> {
+/// async fn after_get_one<C: ConnectionTrait + TransactionTrait>(&self, db: &C, entity: &mut Resource) -> Result<(), DbErr> {
 ///     entity.view_count = get_view_count(db, entity.id).await?;
 ///     Ok(())
 /// }
@@ -73,7 +73,7 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 /// **Level 2: Core Logic** (custom queries, business logic)
 /// ```rust,ignore
 /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
-/// async fn fetch_one<C: ConnectionTrait>(
+/// async fn fetch_one<C: ConnectionTrait + TransactionTrait>(
 ///     &self,
 ///     db: &C,
 ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
@@ -86,7 +86,7 @@ type ResourceId<O> = PrimaryKeyType<<O as CRUDOperations>::Resource>;
 /// **Level 3: Full Override** (complete control)
 /// ```rust,ignore
 /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
-/// async fn delete<C: ConnectionTrait>(
+/// async fn delete<C: ConnectionTrait + TransactionTrait>(
 ///     &self,
 ///     db: &C,
 ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
@@ -118,12 +118,12 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// async fn after_begin<C: ConnectionTrait>(&self, db: &C) -> Result<(), ApiError> {
+    /// async fn after_begin<C: ConnectionTrait + TransactionTrait>(&self, db: &C) -> Result<(), ApiError> {
     ///     db.execute_unprepared("SET LOCAL app.actor = 'alice'").await?;
     ///     Ok(())
     /// }
     /// ```
-    async fn after_begin<C: ConnectionTrait>(&self, _db: &C) -> Result<(), ApiError> {
+    async fn after_begin<C: ConnectionTrait + TransactionTrait>(&self, _db: &C) -> Result<(), ApiError> {
         Ok(()) // Default: no-op
     }
 
@@ -141,7 +141,7 @@ pub trait CRUDOperations: Send + Sync {
     /// # Example
     /// ```rust,ignore
     /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
-    /// async fn before_get_one<C: ConnectionTrait>(
+    /// async fn before_get_one<C: ConnectionTrait + TransactionTrait>(
     ///     &self,
     ///     _db: &C,
     ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
@@ -152,7 +152,7 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn before_get_one<C: ConnectionTrait>(
+    async fn before_get_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
@@ -166,7 +166,7 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     /// Return `ApiError` to abort the operation
-    async fn after_get_one<C: ConnectionTrait>(
+    async fn after_get_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entity: &mut Self::Resource,
@@ -180,7 +180,7 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Errors
     /// Returns `ApiError::NotFound` if entity doesn't exist
-    async fn fetch_one<C: ConnectionTrait>(
+    async fn fetch_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
@@ -193,7 +193,7 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before fetching multiple entities
-    async fn before_get_all<C: ConnectionTrait>(
+    async fn before_get_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _condition: &Condition,
@@ -208,7 +208,7 @@ pub trait CRUDOperations: Send + Sync {
     /// Hook called after fetching multiple entities
     ///
     /// Receives a mutable reference to the list for enrichment
-    async fn after_get_all<C: ConnectionTrait>(
+    async fn after_get_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entities: &mut Vec<<Self::Resource as CRUDResource>::ListModel>,
@@ -221,7 +221,7 @@ pub trait CRUDOperations: Send + Sync {
     /// The primary key is appended as a secondary sort key when the requested sort
     /// column is not the primary key, keeping `OFFSET`/`LIMIT` paging stable across
     /// rows that tie on the sort column.
-    async fn fetch_all<C: ConnectionTrait>(
+    async fn fetch_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         condition: &Condition,
@@ -251,14 +251,14 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// # Example
     /// ```rust,ignore
-    /// async fn before_create<C: ConnectionTrait>(&self, db: &C, data: &CreateModel) -> Result<(), ApiError> {
+    /// async fn before_create<C: ConnectionTrait + TransactionTrait>(&self, db: &C, data: &CreateModel) -> Result<(), ApiError> {
     ///     if data.price <= 0 {
     ///         return Err(ApiError::bad_request("Price must be greater than 0"));
     ///     }
     ///     Ok(())
     /// }
     /// ```
-    async fn before_create<C: ConnectionTrait>(
+    async fn before_create<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _data: &<Self::Resource as CRUDResource>::CreateModel,
@@ -269,7 +269,7 @@ pub trait CRUDOperations: Send + Sync {
     /// Hook called after creating an entity
     ///
     /// Use for: sending notifications, logging, cache invalidation
-    async fn after_create<C: ConnectionTrait>(
+    async fn after_create<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entity: &mut Self::Resource,
@@ -278,7 +278,7 @@ pub trait CRUDOperations: Send + Sync {
     }
 
     /// Core database insert logic
-    async fn perform_create<C: ConnectionTrait>(
+    async fn perform_create<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         data: <Self::Resource as CRUDResource>::CreateModel,
@@ -291,7 +291,7 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before updating an entity
-    async fn before_update<C: ConnectionTrait>(
+    async fn before_update<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
@@ -301,7 +301,7 @@ pub trait CRUDOperations: Send + Sync {
     }
 
     /// Hook called after updating an entity
-    async fn after_update<C: ConnectionTrait>(
+    async fn after_update<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _entity: &mut Self::Resource,
@@ -310,7 +310,7 @@ pub trait CRUDOperations: Send + Sync {
     }
 
     /// Core database update logic
-    async fn perform_update<C: ConnectionTrait>(
+    async fn perform_update<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
@@ -330,7 +330,7 @@ pub trait CRUDOperations: Send + Sync {
     /// # Example
     /// ```rust,ignore
     /// // `id` is the resource's PK value type: `crudcrate::PrimaryKeyType<Self::Resource>`.
-    /// async fn before_delete<C: ConnectionTrait>(
+    /// async fn before_delete<C: ConnectionTrait + TransactionTrait>(
     ///     &self,
     ///     db: &C,
     ///     id: crudcrate::PrimaryKeyType<Self::Resource>,
@@ -341,7 +341,7 @@ pub trait CRUDOperations: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    async fn before_delete<C: ConnectionTrait>(
+    async fn before_delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
@@ -352,7 +352,7 @@ pub trait CRUDOperations: Send + Sync {
     /// Hook called after deleting an entity
     ///
     /// Use for: cache invalidation, notifications, audit logging
-    async fn after_delete<C: ConnectionTrait>(
+    async fn after_delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _id: ResourceId<Self>,
@@ -361,7 +361,7 @@ pub trait CRUDOperations: Send + Sync {
     }
 
     /// Core database delete logic
-    async fn perform_delete<C: ConnectionTrait>(
+    async fn perform_delete<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
@@ -374,7 +374,7 @@ pub trait CRUDOperations: Send + Sync {
     // ==========================================
 
     /// Hook called before batch deleting entities
-    async fn before_delete_many<C: ConnectionTrait>(
+    async fn before_delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _ids: &[ResourceId<Self>],
@@ -383,7 +383,7 @@ pub trait CRUDOperations: Send + Sync {
     }
 
     /// Hook called after batch deleting entities
-    async fn after_delete_many<C: ConnectionTrait>(
+    async fn after_delete_many<C: ConnectionTrait + TransactionTrait>(
         &self,
         _db: &C,
         _ids: &[ResourceId<Self>],
@@ -430,7 +430,7 @@ pub trait CRUDOperations: Send + Sync {
     ///
     /// Returns `ApiError::NotFound` if the entity doesn't exist
     /// Returns `ApiError` if any hook or core logic fails
-    async fn get_one<C: ConnectionTrait>(
+    async fn get_one<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         id: ResourceId<Self>,
@@ -466,7 +466,7 @@ pub trait CRUDOperations: Send + Sync {
     /// # Errors
     ///
     /// Returns `ApiError` if any hook or database query fails
-    async fn get_all<C: ConnectionTrait>(
+    async fn get_all<C: ConnectionTrait + TransactionTrait>(
         &self,
         db: &C,
         condition: &Condition,

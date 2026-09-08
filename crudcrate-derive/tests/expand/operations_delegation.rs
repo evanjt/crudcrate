@@ -1,5 +1,4 @@
 //! operations = MyOps routes the generated CRUDResource through CRUDOperations
-use async_trait::async_trait;
 use crudcrate::{ApiError, CRUDOperations, EntityToModels};
 use sea_orm::{DatabaseConnection, entity::prelude::*};
 use uuid::Uuid;
@@ -24,7 +23,11 @@ pub struct ProductOperations;
 
 impl CRUDOperations for ProductOperations {
     type Resource = Product;
-    async fn before_create(&self, _db: &DatabaseConnection, data: &ProductCreate) -> Result<(), ApiError> {
+    async fn before_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        &self,
+        _db: &C,
+        data: &ProductCreate,
+    ) -> Result<(), ApiError> {
         if data.price <= 0 {
             return Err(ApiError::bad_request("Price must be positive"));
         }

@@ -144,7 +144,7 @@ mod item__Model {
         fn joined_sortable_columns() -> Vec<crudcrate::JoinedColumnDef> {
             vec![]
         }
-        async fn get_one<C: sea_orm::ConnectionTrait>(
+        async fn get_one<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
         ) -> Result<Self, crudcrate::ApiError> {
@@ -162,7 +162,7 @@ mod item__Model {
             };
             Ok(result)
         }
-        async fn get_one_scoped<C: sea_orm::ConnectionTrait>(
+        async fn get_one_scoped<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             id: crudcrate::PrimaryKeyType<Self>,
             scope: &sea_orm::Condition,
@@ -185,7 +185,7 @@ mod item__Model {
             };
             Ok(result)
         }
-        async fn get_all<C: sea_orm::ConnectionTrait>(
+        async fn get_all<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,
@@ -207,7 +207,7 @@ mod item__Model {
                 .collect();
             Ok(result)
         }
-        async fn get_all_scoped<C: sea_orm::ConnectionTrait>(
+        async fn get_all_scoped<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             db: &C,
             condition: &sea_orm::Condition,
             order_column: Self::ColumnType,

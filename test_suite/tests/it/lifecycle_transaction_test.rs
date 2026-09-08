@@ -17,8 +17,29 @@ use uuid::Uuid;
 /// see the other's lifecycles.
 static AFTER_BEGIN: AtomicUsize = AtomicUsize::new(0);
 
+pub mod audit_note {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "audit_notes")]
+    #[crudcrate(api_struct = "AuditNote")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+        pub id: Uuid,
+
+        pub subject: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 pub mod ledger_entry {
     use super::*;
+    use super::audit_note::{AuditNote, AuditNoteCreate};
 
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "ledger_entries")]
@@ -62,11 +83,19 @@ pub mod ledger_entry {
             Ok(())
         }
 
-        async fn after_create<C: sea_orm::ConnectionTrait>(
+        async fn after_create<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
             &self,
-            _db: &C,
+            db: &C,
             entity: &mut LedgerEntry,
         ) -> Result<(), ApiError> {
+            // A hook writing a second resource on the connection it is handed.
+            <AuditNote as crudcrate::CRUDResource>::create(
+                db,
+                AuditNoteCreate {
+                    subject: entity.name.clone(),
+                },
+            )
+            .await?;
             if entity.name == "doomed" {
                 return Err(ApiError::bad_request("the after hook refused it"));
             }
@@ -78,7 +107,7 @@ pub mod ledger_entry {
 use ledger_entry::{LedgerEntryCreate, LedgerEntryUpdate, LedgerOps};
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
-    test_suite::reset_db!(ledger_entry::Entity).await
+    test_suite::reset_db!(ledger_entry::Entity, audit_note::Entity).await
 }
 
 fn create(name: &str) -> LedgerEntryCreate {
@@ -126,6 +155,19 @@ async fn a_failing_after_hook_takes_the_insert_with_it() {
         AFTER_BEGIN.load(Ordering::SeqCst),
         2,
         "after_begin runs once per lifecycle, on the transaction the write happens in"
+    );
+
+    let subjects: Vec<String> = audit_note::Entity::find()
+        .all(&db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|m| m.subject)
+        .collect();
+    assert_eq!(
+        subjects,
+        vec!["kept".to_string()],
+        "the hook's own write lands with the row it followed, and goes back with the refused one"
     );
 }
 
