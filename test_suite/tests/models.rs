@@ -26,6 +26,8 @@ mod multi_database_test;
 mod postgres_array_bind_test;
 #[path = "it/postgres_native_enum_test.rs"]
 mod postgres_native_enum_test;
+#[path = "it/route_selection_test.rs"]
+mod route_selection_test;
 #[path = "it/standalone_derive_test.rs"]
 mod standalone_derive_test;
 #[path = "it/trait_defaults_coverage_test.rs"]
