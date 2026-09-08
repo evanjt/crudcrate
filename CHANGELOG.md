@@ -18,10 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transaction as the row it guards. Trait methods and hook functions are declared
   `<C: ConnectionTrait + TransactionTrait>` taking `db: &C`. See
   `docs/MIGRATION_0.12.md`.
-- `CRUDOperations::after_begin` runs on the transaction the single-row lifecycle
-  opens, immediately after `BEGIN` and before every other hook. It is where the
-  session state a write needs is set (`SET LOCAL`), scoped to that one lifecycle
-  rather than to a pooled connection.
+- `CRUDOperations::after_begin` runs immediately after every `BEGIN` a write
+  issues, before any other hook on that transaction: once for a single-row
+  lifecycle, and in a batch once for the enclosing transaction and again for
+  each row's savepoint. It is where the session state a write needs is set
+  (`SET LOCAL`), scoped to that transaction rather than to a pooled connection.
 - Registration: `crudcrate::upsert` finds or inserts a row on an alternate
   unique key inside one transaction and reports `Created`, `Updated` or
   `Unchanged`, so a source system re-sending its own content writes nothing when
@@ -45,8 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `CRUDResource` and `CRUDOperations` traits use native `async fn` instead of
   `async-trait`. An `impl` of either drops its `#[async_trait]` attribute, and
   `async-trait` is no longer a dependency of `crudcrate` or `crudcrate-derive`.
-  The futures are not declared `Send`; a generic caller that spawns one states
-  `+ Send` itself.
+  The traits declare each method as returning `impl Future + Send`, so code
+  generic over the resource spawns or boxes an operation's future as it did
+  under `async-trait`. An `impl` writes `async fn` as before.
+- A write lifecycle holds one pooled connection from `BEGIN` to `COMMIT`,
+  hooks included. A hook that opens its own connection from the same pool
+  rather than using the `db` it is handed can exhaust the pool under
+  concurrent writes; see `docs/MIGRATION_0.12.md`.
 - The single-row `create`, `update` and `delete` lifecycles each run in one
   transaction. A hook that fails after the write takes the write with it, where
   before the row stayed and the error was returned. Both the write and the hooks

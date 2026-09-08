@@ -16,7 +16,7 @@ takes the write with it.
 | A hook of yours writes rows it expects to keep when the operation later fails | It is now rolled back with the operation. Move that work after the call, or to a separate transaction you open yourself. |
 | You relied on a failed batch leaving its earlier rows written | It no longer does. Use `?partial=true` for per-item outcomes. |
 | You call a crudcrate operation from inside your own transaction | Pass the `&DatabaseTransaction` directly. It used to require a `&DatabaseConnection`. |
-| You spawn or box a crudcrate operation's future from code generic over the resource | No longer possible. Call it from concrete code instead. Concrete calls, including every generated handler, are unaffected. |
+| A hook of yours reaches app state for a second connection instead of using the `db` it is handed | Use `db`. The lifecycle holds a pooled connection until it commits, and a hook taking another from the same pool can exhaust it under load. |
 | You register rows with `upsert` on an entity with managed timestamps | Fixed. Re-sent content now reports `Unchanged` and leaves `created_at` alone. |
 
 ## The signature change
@@ -90,10 +90,12 @@ on the connection and report `succeeded` and `failed` with `207 Multi-Status`.
 
 ## Session state for a write
 
-`after_begin` runs on the transaction, immediately after `BEGIN` and before
-every other hook. It is the place for state the write itself needs, which is
-what `SET LOCAL` is for. Setting it here scopes it to this one lifecycle instead
-of leaving it on a pooled connection.
+`after_begin` runs immediately after every `BEGIN` a write issues, before any
+other hook on that transaction. In a batch that is once for the enclosing
+transaction, ahead of `before_create_many` and its siblings, and again for each
+row's savepoint. It is the place for state the write itself needs, which is what
+`SET LOCAL` is for. Setting it here scopes it to this transaction instead of
+leaving it on a pooled connection.
 
 ```rust
 async fn after_begin<C: ConnectionTrait + TransactionTrait>(&self, db: &C) -> Result<(), ApiError> {
@@ -116,24 +118,53 @@ commits or rolls back with yours.
 
 ## Send bounds and generic callers
 
-The trait futures are not declared `Send`. Concrete code is unaffected: the
-generated router, `crud_handlers!`, and any call that names a resource
-(`Article::create(&db, data)`) infer `Send` where it is needed, so axum handlers
-and `tokio::spawn` around concrete calls work as before.
-
-Code that is generic over the resource cannot spawn or box one of these futures:
+Every trait method is declared as returning `impl Future<Output = ...> + Send`,
+which is what `async-trait` gave you in 0.11. Code generic over the resource
+spawns or boxes an operation's future as before:
 
 ```rust
-// Does not compile in 0.12: the future's Send-ness is not knowable through `R`.
-async fn spawn_create<R: CRUDResource + 'static>(db: DatabaseConnection, data: R::CreateModel) {
-    tokio::spawn(async move { R::create(&db, data).await });
+fn spawn_create<R: CRUDResource + 'static>(db: DatabaseConnection, data: R::CreateModel)
+    -> JoinHandle<Result<R, ApiError>>
+where
+    R::CreateModel: 'static,
+{
+    tokio::spawn(async move { R::create(&db, data).await })
 }
 ```
 
-Under `async-trait` in 0.11 every method returned a boxed `Send` future, so this
-compiled. If you have generic plumbing of this shape, make the caller concrete
-(one function per resource, or a macro over your resources) and run the call
-there.
+An `impl` still writes `async fn`. The compiler checks that its future is
+`Send`, so a hook holding a non-`Send` value across an `.await` is refused at
+the impl, the same as it was under `async-trait`.
+
+## Hooks hold the connection
+
+A write lifecycle holds one pooled connection from `BEGIN` to `COMMIT`, and the
+hooks run inside that span. Two things follow.
+
+Use the `db` a hook is handed. It is the transaction, and queries on it reuse
+the connection the lifecycle already holds. A hook that instead reaches app
+state for the pool takes a second connection for the same request; under
+concurrent writes at the pool's size, every request holds one and waits for
+another, and none finishes.
+
+```rust
+// Holds two connections per request. Under load this exhausts the pool.
+async fn before_delete<C: ConnectionTrait + TransactionTrait>(&self, _db: &C, id: Uuid) -> Result<(), ApiError> {
+    Asset::get_one(&self.pool, id).await?;
+    Ok(())
+}
+
+// Holds one. `db` is the transaction the delete runs in.
+async fn before_delete<C: ConnectionTrait + TransactionTrait>(&self, db: &C, id: Uuid) -> Result<(), ApiError> {
+    Asset::get_one(db, id).await?;
+    Ok(())
+}
+```
+
+External I/O in a hook (an object store, a webhook) runs with the connection
+held, so it counts against the pool for as long as it takes. Where that time
+matters, do the call before the operation or after it returns, and keep the hook
+to the checks and writes the transaction is for.
 
 ## Registration on an entity with managed timestamps
 

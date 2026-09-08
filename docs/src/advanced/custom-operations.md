@@ -54,6 +54,14 @@ impl CRUDOperations for AssetOps {
 }
 ```
 
+`db` in a write hook is the transaction the operation opened, and the lifecycle
+holds that pooled connection until it commits. Query on `db` rather than on a
+connection taken from app state, which would hold two connections per request
+and can exhaust the pool under concurrent writes. A call out to another service,
+like the S3 cleanup above, runs with the connection held for as long as it
+takes; where that matters, make the call before the operation or after it
+returns.
+
 ### 2. Register with the entity
 
 ```rust

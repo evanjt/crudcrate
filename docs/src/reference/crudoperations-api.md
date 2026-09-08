@@ -6,6 +6,9 @@ behavior. Wire it in with `#[crudcrate(operations = MyOps)]`.
 ## Trait definition
 
 All methods have default no-op implementations. Override only what you need.
+The trait declares each method as `fn ... -> impl Future<Output = ...> + Send`;
+an `impl` writes `async fn` as shown here, and the compiler checks that its
+future is `Send`.
 
 ```rust
 pub trait CRUDOperations: Send + Sync {
@@ -73,8 +76,11 @@ Type aliases used above for brevity:
 ### Level 1: Lifecycle hooks
 
 `before_*` and `after_*` methods. Called around the default core logic.
-`after_begin` runs first of all on a write, on the transaction the write happens
-in, which is where session state such as `SET LOCAL` belongs.
+`after_begin` runs immediately after every `BEGIN` a write issues, before any
+other hook on that transaction, which is where session state such as `SET LOCAL`
+belongs. `db` in every write hook is that transaction; use it rather than a
+second connection from the pool, which the lifecycle holds one of until it
+commits.
 Use for validation, authorization, logging, enrichment.
 
 `before_create` and `before_update` receive **immutable** references to the
@@ -183,6 +189,23 @@ One transaction encloses the batch, and each row's own lifecycle is a savepoint
 within it. A failure at any row leaves none of the batch written. The
 `?partial=true` endpoints instead run each row on the connection and report
 per-item outcomes.
+
+```
+BEGIN
+    ↓
+after_begin(txn)
+    ↓
+before_delete_many(txn, &ids)
+    ↓
+perform_delete_many(txn, ids)
+    ↓
+after_delete_many(txn, &deleted)
+    ↓
+COMMIT
+```
+
+`create_many` and `update_many` run the single-row lifecycle per item after
+their own `after_begin`, so each row's savepoint runs `after_begin` again.
 
 ## See also
 

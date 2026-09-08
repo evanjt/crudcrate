@@ -4,6 +4,10 @@ The `CRUDResource` trait is the core abstraction for CRUD operations.
 
 ## Trait Definition
 
+The trait declares each async method as `fn ... -> impl Future<Output = ...> + Send`;
+an `impl` writes `async fn` as shown here, and the compiler checks that its
+future is `Send`.
+
 ```rust
 pub trait CRUDResource: Sized + Send + Sync {
     /// The Sea-ORM entity type
