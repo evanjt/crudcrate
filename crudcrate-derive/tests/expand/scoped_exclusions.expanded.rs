@@ -30,6 +30,7 @@ mod Model {
         pub updated_at: DateTime<Utc>,
         #[crudcrate(filterable, exclude(scoped, create), on_create = false)]
         pub is_private: bool,
+        #[schema(required)]
         #[crudcrate(exclude(scoped))]
         pub internal_note: Option<String>,
     }
@@ -560,6 +561,7 @@ mod Model {
         pub email: String,
         pub created_at: DateTime<Utc>,
         pub is_private: bool,
+        #[schema(required)]
         pub internal_note: Option<String>,
     }
     impl From<Customer> for CustomerList {
@@ -666,6 +668,7 @@ mod Model {
         pub email: String,
         pub updated_at: DateTime<Utc>,
         pub is_private: bool,
+        #[schema(required)]
         pub internal_note: Option<String>,
     }
     impl From<Customer> for CustomerResponse {

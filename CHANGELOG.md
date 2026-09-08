@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A nullable field on a List, Response, scoped or API model is `required` in the
+  OpenAPI document. utoipa reads every `Option<T>` as not-required and nullable,
+  so a value the API always sends as null and one a client may omit were
+  described identically, and a generated client had to handle an absence that
+  never happens. A field carrying `skip_serializing_if`, or declaring its own
+  `#[schema(required)]`, keeps what it declares; create and update models are
+  requests and are untouched.
+
 ## [0.12.0] - 2026-09-08
 
 ### Added

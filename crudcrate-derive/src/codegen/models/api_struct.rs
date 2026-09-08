@@ -38,7 +38,9 @@ pub(crate) fn generate_api_struct_content(
         // ToSchema derive (with chrono feature) recognizes it as a DateTime type.
         let resolved_type = resolve_dtwtz(field_type);
 
+        let always_sent = crate::codegen::models::shared::always_sent_attr(field);
         api_struct_fields.push(quote! {
+            #always_sent
             #(#api_field_attrs)*
             pub #field_name: #resolved_type
         });
@@ -85,8 +87,10 @@ pub(crate) fn generate_api_struct_content(
 
         let final_field_type = quote! { #field_type };
 
+        let always_sent = crate::codegen::models::shared::always_sent_attr(field);
         let field_definition = quote! {
             #schema_attrs
+            #always_sent
             #(#crudcrate_attrs)*
             pub #field_name: #final_field_type
         };

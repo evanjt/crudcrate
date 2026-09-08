@@ -16,6 +16,7 @@ mod Model {
         pub id: i32,
         #[crudcrate(filterable, sortable)]
         pub name: String,
+        #[schema(required)]
         #[crudcrate(filterable)]
         pub color: Option<String>,
     }
@@ -408,6 +409,7 @@ mod Model {
     pub struct TagList {
         pub id: i32,
         pub name: String,
+        #[schema(required)]
         pub color: Option<String>,
     }
     impl From<Tag> for TagList {
@@ -443,6 +445,7 @@ mod Model {
     pub struct TagResponse {
         pub id: i32,
         pub name: String,
+        #[schema(required)]
         pub color: Option<String>,
     }
     impl From<Tag> for TagResponse {

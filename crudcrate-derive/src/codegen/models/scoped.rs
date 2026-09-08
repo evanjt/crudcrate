@@ -1,7 +1,7 @@
 //! `ScopedList` and `ScopedResponse` models and the `ScopeFilterable` impls behind `exclude(scoped)`.
 
 use crate::attrs::get_join_config;
-use crate::codegen::models::shared::wire_attrs;
+use crate::codegen::models::shared::{always_sent_attr, wire_attrs};
 use crate::codegen::models::should_include_in_model;
 use crate::syn_type::{
     column_ident, inner_list_type_of_option, inner_list_type_of_vec, is_option_type, is_vec_type,
@@ -50,13 +50,14 @@ pub(crate) fn generate_scoped_models(
             .map(|f| {
                 let ident = &f.ident;
                 let attrs = wire_attrs(f);
+                let always_sent = always_sent_attr(f);
                 let is_join_all = get_join_config(f).is_some_and(|c| c.on_all);
                 if is_join_all {
                     let scoped_ty = transform_type_to_scoped_list_variant(&f.ty, api_struct_name);
-                    quote! { #(#attrs)* pub #ident: #scoped_ty }
+                    quote! { #always_sent #(#attrs)* pub #ident: #scoped_ty }
                 } else {
                     let ty = &f.ty;
-                    quote! { #(#attrs)* pub #ident: #ty }
+                    quote! { #always_sent #(#attrs)* pub #ident: #ty }
                 }
             })
             .collect();
@@ -88,13 +89,14 @@ pub(crate) fn generate_scoped_models(
             .map(|f| {
                 let ident = &f.ident;
                 let attrs = wire_attrs(f);
+                let always_sent = always_sent_attr(f);
                 let is_join = get_join_config(f).is_some();
                 if is_join {
                     let scoped_ty = transform_type_to_scoped_list_variant(&f.ty, api_struct_name);
-                    quote! { #(#attrs)* pub #ident: #scoped_ty }
+                    quote! { #always_sent #(#attrs)* pub #ident: #scoped_ty }
                 } else {
                     let ty = &f.ty;
-                    quote! { #(#attrs)* pub #ident: #ty }
+                    quote! { #always_sent #(#attrs)* pub #ident: #ty }
                 }
             })
             .collect();

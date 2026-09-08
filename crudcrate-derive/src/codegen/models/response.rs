@@ -6,7 +6,7 @@
 
 use crate::attrs::get_crudcrate_bool;
 use crate::attrs::join::get_join_config;
-use crate::codegen::models::shared::wire_attrs;
+use crate::codegen::models::shared::{always_sent_attr, wire_attrs};
 use crate::syn_type::resolve_dtwtz;
 use quote::quote;
 
@@ -72,9 +72,11 @@ pub(crate) fn generate_response_struct_fields(
             };
 
             let final_ty = resolve_dtwtz(ty);
+            let always_sent = always_sent_attr(field);
 
             quote! {
                 #schema_attr
+                #always_sent
                 #(#attrs)*
                 pub #ident: #final_ty
             }

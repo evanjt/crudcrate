@@ -453,6 +453,7 @@ mod vehicle__Model {
         #[crudcrate(filterable, sortable)]
         pub make: String,
         #[schema(no_recursion)]
+        #[schema(required)]
         #[crudcrate(non_db_attr, join(one, all, depth = 1))]
         pub manufacturer: Option<super::manufacturer::Manufacturer>,
     }
@@ -942,6 +943,7 @@ mod vehicle__Model {
         pub id: Uuid,
         pub manufacturer_id: Uuid,
         pub make: String,
+        #[schema(required)]
         pub manufacturer: Option<super::manufacturer::ManufacturerList>,
     }
     impl From<Vehicle> for VehicleList {
@@ -981,6 +983,7 @@ mod vehicle__Model {
         pub manufacturer_id: Uuid,
         pub make: String,
         #[schema(no_recursion)]
+        #[schema(required)]
         pub manufacturer: Option<super::manufacturer::Manufacturer>,
     }
     impl From<Vehicle> for VehicleResponse {

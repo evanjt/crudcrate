@@ -22,6 +22,8 @@ mod list_model_serde_attrs_test;
 mod list_model_test;
 #[path = "it/multi_database_test.rs"]
 mod multi_database_test;
+#[path = "it/nullable_response_field_test.rs"]
+mod nullable_response_field_test;
 #[path = "it/postgres_array_bind_test.rs"]
 mod postgres_array_bind_test;
 #[path = "it/postgres_native_enum_test.rs"]

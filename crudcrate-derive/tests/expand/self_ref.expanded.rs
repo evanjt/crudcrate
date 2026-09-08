@@ -15,6 +15,7 @@ mod Model {
         pub id: Uuid,
         #[crudcrate(filterable, sortable)]
         pub name: String,
+        #[schema(required)]
         pub parent_id: Option<Uuid>,
         #[schema(no_recursion)]
         #[crudcrate(non_db_attr, join(one, all, depth = 1))]
@@ -580,6 +581,7 @@ mod Model {
     pub struct CategoryList {
         pub id: Uuid,
         pub name: String,
+        #[schema(required)]
         pub parent_id: Option<Uuid>,
         pub children: Vec<Category>,
     }
@@ -618,6 +620,7 @@ mod Model {
     pub struct CategoryResponse {
         pub id: Uuid,
         pub name: String,
+        #[schema(required)]
         pub parent_id: Option<Uuid>,
         #[schema(no_recursion)]
         pub children: Vec<Category>,

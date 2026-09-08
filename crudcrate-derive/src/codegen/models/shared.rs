@@ -20,6 +20,29 @@ pub(crate) fn wire_attrs(field: &syn::Field) -> Vec<&syn::Attribute> {
         .collect()
 }
 
+/// `#[schema(required)]` for an `Option` a serialization model always sends.
+///
+/// utoipa reads every `Option<T>` as not-required and nullable, so a response's null field and a
+/// request's absent one are described identically and a generated client must handle both. On a
+/// List, Response or scoped model the field is always on the wire, null when empty, so the schema
+/// says required. A field serde omits when `None`, or one that already declares its own `required`,
+/// keeps what it declares.
+pub(crate) fn always_sent_attr(field: &syn::Field) -> proc_macro2::TokenStream {
+    if !crate::syn_type::is_option_type(&field.ty) {
+        return quote! {};
+    }
+    let declared = field.attrs.iter().any(|attr| {
+        let text = quote! { #attr }.to_string();
+        (attr.path().is_ident("serde") && text.contains("skip_serializing"))
+            || (attr.path().is_ident("schema") && text.contains("required"))
+    });
+    if declared {
+        quote! {}
+    } else {
+        quote! { #[schema(required)] }
+    }
+}
+
 /// Resolves the final type for a field, handling `use_target_models` transformations
 ///
 /// # Arguments
