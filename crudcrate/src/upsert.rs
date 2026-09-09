@@ -46,11 +46,9 @@ pub struct UpsertOutcome<K, I, S = UpsertStatus> {
 
 /// Register one row under the resource's [`CRUDResource::upsert_key`], in one transaction.
 ///
-/// The key columns are read from the create model itself, so a caller does not repeat them. Every
-/// column the model sets is compared against the stored row: all equal is `Unchanged` and no write
-/// happens at all, which is what tells a source its content already stands. Only columns the
-/// create model can carry are compared, so a field the entity maintains itself is neither
-/// compared nor overwritten; one carrying `on_update` advances when the row does change.
+/// The caller supplies an active model with every key column set. Columns declared by
+/// [`CRUDResource::upsert_comparable`] are compared and updated only when set on that model.
+/// Equal content returns `Unchanged` without writing; `on_update` fields advance on a change.
 ///
 /// # Errors
 ///
@@ -58,7 +56,7 @@ pub struct UpsertOutcome<K, I, S = UpsertStatus> {
 /// column unset, and the database's error where a statement fails.
 pub async fn upsert<R, C: ConnectionTrait + TransactionTrait>(
     db: &C,
-    create_model: R::CreateModel,
+    active: R::ActiveModelType,
 ) -> Result<(R, UpsertStatus), ApiError>
 where
     R: CRUDResource,
@@ -71,7 +69,6 @@ where
             R::RESOURCE_NAME_SINGULAR
         )));
     }
-    let active: R::ActiveModelType = create_model.into();
 
     let mut condition = Condition::all();
     for column in key {
@@ -124,8 +121,7 @@ where
     Ok((R::from(model), status))
 }
 
-/// The columns the create model actually set. A column it left unset is not part of what the
-/// source sent, so it neither compares nor writes.
+/// Comparable columns set on the active model.
 fn sent_columns<R>(active: &R::ActiveModelType) -> Vec<<R::EntityType as EntityTrait>::Column>
 where
     R: CRUDResource,

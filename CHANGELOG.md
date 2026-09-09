@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `upsert` takes the resource's active model. Convert a create model with
+  `.into()` and set any server-owned key columns before calling it. Registration
+  keys can remain excluded from create and update requests.
+
 ### Fixed
 
 - A nullable field on a List, Response, scoped or API model is `required` in the

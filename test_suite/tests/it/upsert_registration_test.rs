@@ -6,7 +6,7 @@
 
 use crudcrate::{EntityToModels, UpsertStatus, upsert};
 use sea_orm::entity::prelude::*;
-use sea_orm::{DatabaseConnection, DbErr, EntityTrait};
+use sea_orm::{DatabaseConnection, DbErr, EntityTrait, Set};
 use uuid::Uuid;
 
 pub mod registered_curve {
@@ -20,9 +20,9 @@ pub mod registered_curve {
         #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
         pub id: Uuid,
 
-        #[crudcrate(filterable)]
+        #[crudcrate(filterable, exclude(create, update))]
         pub source_system: String,
-        #[crudcrate(filterable)]
+        #[crudcrate(filterable, exclude(create, update))]
         pub source_key: String,
         pub slope: f64,
     }
@@ -108,12 +108,11 @@ fn stamped(slope: f64) -> StampedCurveCreate {
     }
 }
 
-fn sent(slope: f64) -> RegisteredCurveCreate {
-    RegisteredCurveCreate {
-        source_system: "cnet".to_string(),
-        source_key: "DOC:plate-7".to_string(),
-        slope,
-    }
+fn sent(slope: f64) -> registered_curve::ActiveModel {
+    let mut active: registered_curve::ActiveModel = RegisteredCurveCreate { slope }.into();
+    active.source_system = Set("cnet".to_string());
+    active.source_key = Set("DOC:plate-7".to_string());
+    active
 }
 
 #[tokio::test]
@@ -156,7 +155,9 @@ async fn a_resource_declaring_no_key_is_refused_rather_than_guessed() {
         name: "nothing registers this".to_string(),
     };
     assert!(
-        upsert::<UnregisteredWidget, _>(&db, sent).await.is_err(),
+        upsert::<UnregisteredWidget, _>(&db, sent.into())
+            .await
+            .is_err(),
         "with no declared key there is nothing to find the row by, so it refuses"
     );
 }
@@ -165,12 +166,12 @@ async fn a_resource_declaring_no_key_is_refused_rather_than_guessed() {
 async fn a_timestamped_row_resent_unchanged_keeps_its_timestamps() {
     let db = setup_test_db().await.expect("db");
 
-    let (first, status) = upsert::<StampedCurve, _>(&db, stamped(1.5))
+    let (first, status) = upsert::<StampedCurve, _>(&db, stamped(1.5).into())
         .await
         .expect("first");
     assert_eq!(status, UpsertStatus::Created);
 
-    let (again, status) = upsert::<StampedCurve, _>(&db, stamped(1.5))
+    let (again, status) = upsert::<StampedCurve, _>(&db, stamped(1.5).into())
         .await
         .expect("again");
     assert_eq!(
@@ -190,12 +191,12 @@ async fn a_timestamped_row_resent_unchanged_keeps_its_timestamps() {
 async fn a_registration_that_changes_content_advances_updated_at_only() {
     let db = setup_test_db().await.expect("db");
 
-    let (first, _) = upsert::<StampedCurve, _>(&db, stamped(1.5))
+    let (first, _) = upsert::<StampedCurve, _>(&db, stamped(1.5).into())
         .await
         .expect("first");
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
-    let (edited, status) = upsert::<StampedCurve, _>(&db, stamped(2.5))
+    let (edited, status) = upsert::<StampedCurve, _>(&db, stamped(2.5).into())
         .await
         .expect("edited");
     assert_eq!(status, UpsertStatus::Updated);
@@ -206,5 +207,23 @@ async fn a_registration_that_changes_content_advances_updated_at_only() {
     assert!(
         edited.updated_at > first.updated_at,
         "the row changed, so the field the entity maintains on update advanced"
+    );
+}
+
+#[tokio::test]
+async fn test_registration_refuses_unset_key() {
+    let db = setup_test_db().await.expect("db");
+    let mut active = sent(1.5);
+    active.source_key = sea_orm::ActiveValue::NotSet;
+    let error = upsert::<RegisteredCurve, _>(&db, active)
+        .await
+        .expect_err("missing key");
+    assert!(error.to_string().contains("part of its key"));
+    assert!(
+        registered_curve::Entity::find()
+            .all(&db)
+            .await
+            .expect("rows")
+            .is_empty()
     );
 }

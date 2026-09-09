@@ -37,7 +37,7 @@ let (curve, status) = upsert::<Curve, _>(&db, CurveCreate {
     source_system: "cnet".to_string(),
     source_key: "DOC:plate-7".to_string(),
     slope: 1.5,
-}).await?;
+}.into()).await?;
 
 match status {
     UpsertStatus::Created => "the key was not stored here before",
@@ -46,9 +46,10 @@ match status {
 };
 ```
 
-The key columns are read from the create model, so you do not repeat them. On
-`Unchanged` no write happens at all, which is what tells a source its content
-already stands.
+The key columns are read from the active model. For keys excluded from create
+and update requests, convert the create model first, then set the key columns
+from the authenticated caller before calling `upsert`. On `Unchanged` no write
+happens.
 
 ## What counts as content
 
@@ -59,7 +60,7 @@ source sends, so it is neither compared nor overwritten:
 - `created_at` keeps the value it was first stored with.
 - A field carrying `on_update` advances when the row does change, and not on an
   `Unchanged` pass.
-- A field the create model leaves unset is not compared and not written.
+- A field the active model leaves unset is not compared and not written.
 
 ## Reporting a batch
 
@@ -86,7 +87,7 @@ to report.
   two registrations racing on the same key can both find nothing and both
   insert.
 - A resource declaring no `upsert_key` refuses the call rather than guessing a
-  key, as does a create model that leaves a key column unset.
+  key, as does an active model that leaves a key column unset.
 - `upsert` is a function you call, not a generated route. It is for an ingest
   path you write, not for the public API surface.
 
