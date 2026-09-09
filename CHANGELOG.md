@@ -7,17 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-09
+
 ### Changed
 
 - `upsert` takes the resource's active model. Convert a create model with
   `.into()` and set any server-owned key columns before calling it. Registration
-  keys can remain excluded from create and update requests.
+  keys can remain excluded from create and update requests. See
+  `docs/MIGRATION_0.13.md`.
 - Scoped writes confine rows instead of refusing every request. Updates and deletes
   return 404 for excluded rows; creates and updates roll back with 403 when their
   resulting row leaves the condition. Batch checks share the write transaction,
   including custom hooks; partial batches confine each item independently. Write
   responses use scoped field exclusions. Mount `read_only_router()` or authorize
-  methods separately when a caller must not write.
+  methods separately when a caller must not write. See `docs/MIGRATION_0.13.md`.
 
 ### Fixed
 
@@ -1139,6 +1142,8 @@ Scheduled for removal in the next breaking release:
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.13.0]: https://github.com/evanjt/crudcrate/compare/0.12.0...0.13.0
+[0.12.0]: https://github.com/evanjt/crudcrate/compare/0.11.1...0.12.0
 [0.11.1]: https://github.com/evanjt/crudcrate/compare/0.11.0...0.11.1
 [0.11.0]: https://github.com/evanjt/crudcrate/compare/0.10.1...0.11.0
 [0.10.1]: https://github.com/evanjt/crudcrate/compare/0.10.0...0.10.1
