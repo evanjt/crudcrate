@@ -42,6 +42,11 @@ mod Model {
         ) -> crudcrate::PrimaryKeyType<Self> {
             model.id.clone()
         }
+        fn resource_id(
+            &self,
+        ) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
+            Ok(self.id.clone())
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "item";
         const RESOURCE_NAME_PLURAL: &'static str = "items";
         const TABLE_NAME: &'static str = "items";

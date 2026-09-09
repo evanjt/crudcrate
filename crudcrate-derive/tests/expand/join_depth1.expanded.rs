@@ -42,6 +42,11 @@ mod vehicle_part__Model {
         ) -> crudcrate::PrimaryKeyType<Self> {
             model.id.clone()
         }
+        fn resource_id(
+            &self,
+        ) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
+            Ok(self.id.clone())
+        }
         const RESOURCE_NAME_SINGULAR: &'static str = "vehicle_parts";
         const RESOURCE_NAME_PLURAL: &'static str = "vehicle_parts";
         const TABLE_NAME: &'static str = "vehicle_parts";
@@ -498,6 +503,11 @@ mod vehicle__Model {
             model: &<Self::EntityType as sea_orm::EntityTrait>::Model,
         ) -> crudcrate::PrimaryKeyType<Self> {
             model.id.clone()
+        }
+        fn resource_id(
+            &self,
+        ) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
+            Ok(self.id.clone())
         }
         const RESOURCE_NAME_SINGULAR: &'static str = "vehicles";
         const RESOURCE_NAME_PLURAL: &'static str = "vehicles";
