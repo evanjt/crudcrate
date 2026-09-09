@@ -361,10 +361,7 @@ macro_rules! crud_handlers_impl {
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             path: axum::extract::Path<CrudPrimaryKey>,
         ) -> Result<axum::http::StatusCode, crudcrate::ApiError> {
-            if scope.is_some() {
-                return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
-            }
-            <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, path.0)
+            crudcrate::scope::delete::<$resource, _>(&state.0, path.0, scope.as_ref().map(|s| &s.0))
                 .await
                 .map(|_| axum::http::StatusCode::NO_CONTENT)
                 .map_err(crudcrate::ApiError::from)
@@ -394,14 +391,16 @@ macro_rules! crud_handlers_impl {
             state: axum::extract::State<sea_orm::DatabaseConnection>,
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             json: axum::Json<$create_model>,
-        ) -> Result<(axum::http::StatusCode, axum::Json<$response_model>), crudcrate::ApiError> {
+        ) -> Result<axum::response::Response, crudcrate::ApiError> {
+            use axum::response::IntoResponse;
+            let result = crudcrate::scope::create::<$resource, _>(&state.0, json.0, scope.as_ref().map(|s| &s.0)).await?;
+            let response: $response_model = result.into();
             if scope.is_some() {
-                return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
+                let scoped: $scoped_response = response.into();
+                Ok((axum::http::StatusCode::CREATED, axum::Json(scoped)).into_response())
+            } else {
+                Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
             }
-            <$resource as crudcrate::traits::CRUDResource>::create(&state.0, json.0)
-                .await
-                .map(|res| (axum::http::StatusCode::CREATED, axum::Json(res.into())))
-                .map_err(crudcrate::ApiError::from)
         }
 
         #[utoipa::path(
@@ -431,10 +430,6 @@ macro_rules! crud_handlers_impl {
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
 
-            if scope.is_some() {
-                return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
-            }
-
             let profile = crudcrate::profile::resolve(
                 profile_ext,
                 <$resource as crudcrate::traits::CRUDResource>::security_profile,
@@ -455,7 +450,7 @@ macro_rules! crud_handlers_impl {
                 let mut result: crudcrate::BatchResult<crudcrate::PrimaryKeyType<$resource>> = crudcrate::BatchResult::new();
 
                 for (index, id) in ids.into_iter().enumerate() {
-                    match <$resource as crudcrate::traits::CRUDResource>::delete(&state.0, id).await {
+                    match crudcrate::scope::delete::<$resource, _>(&state.0, id, scope.as_ref().map(|s| &s.0)).await {
                         // Use the deleted id returned by `delete` rather than the moved
                         // `id`; the PK value type may be non-`Copy` (e.g. a `String` PK).
                         Ok(deleted) => result.add_success(deleted),
@@ -486,7 +481,7 @@ macro_rules! crud_handlers_impl {
                 }
             } else {
                 // All-or-nothing mode (default)
-                match <$resource as crudcrate::traits::CRUDResource>::delete_many(&state.0, ids).await {
+                match crudcrate::scope::delete_many::<$resource, _>(&state.0, ids, scope.as_ref().map(|s| &s.0)).await {
                     Ok(deleted_ids) => {
                         if profile.expose_deleted_ids {
                             (axum::http::StatusCode::OK, axum::Json(deleted_ids)).into_response()
@@ -523,14 +518,16 @@ macro_rules! crud_handlers_impl {
             scope: Option<axum::Extension<crudcrate::ScopeCondition>>,
             path: axum::extract::Path<CrudPrimaryKey>,
             json: axum::Json<$update_model>,
-        ) -> Result<axum::Json<$response_model>, crudcrate::ApiError> {
+        ) -> Result<axum::response::Response, crudcrate::ApiError> {
+            use axum::response::IntoResponse;
+            let result = crudcrate::scope::update::<$resource, _>(&state.0, path.0, json.0, scope.as_ref().map(|s| &s.0)).await?;
+            let response: $response_model = result.into();
             if scope.is_some() {
-                return Err(crudcrate::ApiError::forbidden("Write access denied in scoped context"));
+                let scoped: $scoped_response = response.into();
+                Ok(axum::Json(scoped).into_response())
+            } else {
+                Ok(axum::Json(response).into_response())
             }
-            <$resource as crudcrate::traits::CRUDResource>::update(&state.0, path.0, json.0)
-                .await
-                .map(|res| axum::Json(res.into()))
-                .map_err(crudcrate::ApiError::from)
         }
 
         #[utoipa::path(
@@ -557,10 +554,6 @@ macro_rules! crud_handlers_impl {
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
 
-            if scope.is_some() {
-                return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
-            }
-
             let data = json.0;
 
             // Check batch size limit
@@ -581,7 +574,7 @@ macro_rules! crud_handlers_impl {
                 let mut result: crudcrate::BatchResult<$response_model> = crudcrate::BatchResult::new();
 
                 for (index, create_model) in data.into_iter().enumerate() {
-                    match <$resource as crudcrate::traits::CRUDResource>::create_many(&state.0, vec![create_model]).await {
+                    match crudcrate::scope::create_many::<$resource, _>(&state.0, vec![create_model], scope.as_ref().map(|s| &s.0)).await {
                         Ok(mut created) => match created.pop() {
                             Some(item) => result.add_success(item.into()),
                             None => result.add_failure(index, "create produced no row".to_string()),
@@ -593,23 +586,45 @@ macro_rules! crud_handlers_impl {
                 // Determine response status
                 if result.all_failed() {
                     // All failed - return 400
-                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(result)).into_response()
+                    write_batch_response(axum::http::StatusCode::BAD_REQUEST, result, scope.is_some())
                 } else if result.is_partial() {
                     // Some succeeded, some failed - return 207
-                    (axum::http::StatusCode::MULTI_STATUS, axum::Json(result)).into_response()
+                    write_batch_response(axum::http::StatusCode::MULTI_STATUS, result, scope.is_some())
                 } else {
                     // All succeeded - return 201
-                    (axum::http::StatusCode::CREATED, axum::Json(result)).into_response()
+                    write_batch_response(axum::http::StatusCode::CREATED, result, scope.is_some())
                 }
             } else {
                 // All-or-nothing mode (default)
-                match <$resource as crudcrate::traits::CRUDResource>::create_many(&state.0, data).await {
+                match crudcrate::scope::create_many::<$resource, _>(&state.0, data, scope.as_ref().map(|s| &s.0)).await {
                     Ok(results) => {
                         let response: Vec<$response_model> = results.into_iter().map(|r| r.into()).collect();
-                        (axum::http::StatusCode::CREATED, axum::Json(response)).into_response()
+                        if scope.is_some() {
+                            let scoped: Vec<$scoped_response> = response.into_iter().map(Into::into).collect();
+                            (axum::http::StatusCode::CREATED, axum::Json(scoped)).into_response()
+                        } else {
+                            (axum::http::StatusCode::CREATED, axum::Json(response)).into_response()
+                        }
                     }
                     Err(e) => crudcrate::ApiError::from(e).into_response()
                 }
+            }
+        }
+
+        fn write_batch_response(
+            status: axum::http::StatusCode,
+            result: crudcrate::BatchResult<$response_model>,
+            scoped: bool,
+        ) -> axum::response::Response {
+            use axum::response::IntoResponse;
+            if scoped {
+                let result = crudcrate::BatchResult {
+                    succeeded: result.succeeded.into_iter().map(|row| { let row: $scoped_response = row.into(); row }).collect::<Vec<_>>(),
+                    failed: result.failed,
+                };
+                (status, axum::Json(result)).into_response()
+            } else {
+                (status, axum::Json(result)).into_response()
             }
         }
 
@@ -651,10 +666,6 @@ macro_rules! crud_handlers_impl {
         ) -> axum::response::Response {
             use axum::response::IntoResponse;
 
-            if scope.is_some() {
-                return crudcrate::ApiError::forbidden("Write access denied in scoped context").into_response();
-            }
-
             let updates: Vec<(crudcrate::PrimaryKeyType<$resource>, $update_model)> = json.0
                 .into_iter()
                 .map(|item| (item.id, item.data))
@@ -673,7 +684,7 @@ macro_rules! crud_handlers_impl {
                 let mut result: crudcrate::BatchResult<$response_model> = crudcrate::BatchResult::new();
 
                 for (index, (id, update_model)) in updates.into_iter().enumerate() {
-                    match <$resource as crudcrate::traits::CRUDResource>::update(&state.0, id, update_model).await {
+                    match crudcrate::scope::update::<$resource, _>(&state.0, id, update_model, scope.as_ref().map(|s| &s.0)).await {
                         Ok(updated) => result.add_success(updated.into()),
                         Err(e) => result.add_failure(index, e.to_string()),
                     }
@@ -682,20 +693,25 @@ macro_rules! crud_handlers_impl {
                 // Determine response status
                 if result.all_failed() {
                     // All failed - return 400
-                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(result)).into_response()
+                    write_batch_response(axum::http::StatusCode::BAD_REQUEST, result, scope.is_some())
                 } else if result.is_partial() {
                     // Some succeeded, some failed - return 207
-                    (axum::http::StatusCode::MULTI_STATUS, axum::Json(result)).into_response()
+                    write_batch_response(axum::http::StatusCode::MULTI_STATUS, result, scope.is_some())
                 } else {
                     // All succeeded - return 200
-                    (axum::http::StatusCode::OK, axum::Json(result)).into_response()
+                    write_batch_response(axum::http::StatusCode::OK, result, scope.is_some())
                 }
             } else {
                 // All-or-nothing mode (default)
-                match <$resource as crudcrate::traits::CRUDResource>::update_many(&state.0, updates).await {
+                match crudcrate::scope::update_many::<$resource, _>(&state.0, updates, scope.as_ref().map(|s| &s.0)).await {
                     Ok(results) => {
                         let response: Vec<$response_model> = results.into_iter().map(|r| r.into()).collect();
-                        (axum::http::StatusCode::OK, axum::Json(response)).into_response()
+                        if scope.is_some() {
+                            let scoped: Vec<$scoped_response> = response.into_iter().map(Into::into).collect();
+                            (axum::http::StatusCode::OK, axum::Json(scoped)).into_response()
+                        } else {
+                            (axum::http::StatusCode::OK, axum::Json(response)).into_response()
+                        }
                     }
                     Err(e) => crudcrate::ApiError::from(e).into_response()
                 }

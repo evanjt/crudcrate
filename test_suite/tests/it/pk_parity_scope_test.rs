@@ -16,8 +16,8 @@
 //!   `scope_list_response_omits_is_private` / `scope_get_one_response_omits_is_private`)
 //! - admin (unscoped) responses keep `is_private` (mirrors
 //!   `admin_response_includes_is_private`)
-//! - write verbs under scope -> 403: POST / PUT / DELETE / batch POST /
-//!   batch DELETE / batch PATCH (mirrors `scope_*_blocked`)
+//! - writes under scope confine integer-keyed rows: POST / PUT / DELETE /
+//!   batch POST / batch DELETE / batch PATCH
 //! - Content-Range reflects the scoped count (mirrors
 //!   `scope_content_range_reflects_scoped_count`)
 //! - filter / sort on the scoped-excluded column is ignored (mirrors
@@ -266,29 +266,29 @@ async fn admin_responses_include_is_private() {
 }
 
 // =============================================================================
-// Mirrors scope_create_blocked: POST under scope -> 403.
+// Mirrors scope_create_allowed: POST under scope confines rows.
 // =============================================================================
 
 #[tokio::test]
-async fn scope_create_blocked() {
+async fn scope_create_allowed() {
     let db = setup_test_db().await.unwrap();
     let scoped = scoped_app(&db);
 
     let (status, _, _) = send(&scoped, "POST", "/things", Some(json!({ "name": "Hack" }))).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::CREATED);
 }
 
 // =============================================================================
-// Mirrors scope_update_blocked: PUT /things/{int} under scope -> 403.
+// Mirrors scope_update_excluded: PUT /things/{int} under scope confines rows.
 // =============================================================================
 
 #[tokio::test]
-async fn scope_update_blocked_with_integer_id() {
+async fn scope_update_excluded_with_integer_id() {
     let db = setup_test_db().await.unwrap();
     let admin = admin_app(&db);
     let scoped = scoped_app(&db);
 
-    let id = admin_create(&admin, "Existing").await;
+    let id = admin_create_private(&admin, "Existing").await;
 
     let (status, _, _) = send(
         &scoped,
@@ -297,23 +297,23 @@ async fn scope_update_blocked_with_integer_id() {
         Some(json!({ "name": "Hacked" })),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 // =============================================================================
-// Mirrors scope_delete_blocked: DELETE /things/{int} under scope -> 403.
+// Mirrors scope_delete_excluded: DELETE /things/{int} under scope confines rows.
 // =============================================================================
 
 #[tokio::test]
-async fn scope_delete_blocked_with_integer_id() {
+async fn scope_delete_excluded_with_integer_id() {
     let db = setup_test_db().await.unwrap();
     let admin = admin_app(&db);
     let scoped = scoped_app(&db);
 
-    let id = admin_create(&admin, "Existing").await;
+    let id = admin_create_private(&admin, "Existing").await;
 
     let (status, _, _) = send(&scoped, "DELETE", &format!("/things/{id}"), None).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     // And the row is untouched: still visible via the admin app.
     let (status, _, _) = send(&admin, "GET", &format!("/things/{id}"), None).await;
@@ -321,12 +321,12 @@ async fn scope_delete_blocked_with_integer_id() {
 }
 
 // =============================================================================
-// Mirrors scope_batch_create_blocked / scope_batch_delete_blocked /
-// scope_batch_update_blocked, but with integer ids in the batch payloads.
+// Mirrors scope_batch_create_allowed / scope_batch_delete_excluded /
+// scope_batch_update_excluded, but with integer ids in the batch payloads.
 // =============================================================================
 
 #[tokio::test]
-async fn scope_batch_create_blocked() {
+async fn scope_batch_create_allowed() {
     let db = setup_test_db().await.unwrap();
     let scoped = scoped_app(&db);
 
@@ -337,28 +337,28 @@ async fn scope_batch_create_blocked() {
         Some(json!([{ "name": "A" }])),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::CREATED);
 }
 
 #[tokio::test]
-async fn scope_batch_delete_blocked_with_integer_ids() {
+async fn scope_batch_delete_excluded_with_integer_ids() {
     let db = setup_test_db().await.unwrap();
     let admin = admin_app(&db);
     let scoped = scoped_app(&db);
 
-    let id = admin_create(&admin, "Existing").await;
+    let id = admin_create_private(&admin, "Existing").await;
 
     let (status, _, _) = send(&scoped, "DELETE", "/things/batch", Some(json!([id]))).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-async fn scope_batch_update_blocked_with_integer_ids() {
+async fn scope_batch_update_excluded_with_integer_ids() {
     let db = setup_test_db().await.unwrap();
     let admin = admin_app(&db);
     let scoped = scoped_app(&db);
 
-    let id = admin_create(&admin, "Existing").await;
+    let id = admin_create_private(&admin, "Existing").await;
 
     let (status, _, _) = send(
         &scoped,
@@ -367,7 +367,7 @@ async fn scope_batch_update_blocked_with_integer_ids() {
         Some(json!([{ "id": id, "name": "Hacked" }])),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 // =============================================================================

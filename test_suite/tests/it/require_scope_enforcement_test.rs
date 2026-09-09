@@ -7,12 +7,7 @@
 //! under test is `if REQUIRE_SCOPE && scope.is_none() { return Err(internal(..)) }`,
 //! which maps to HTTP 500.
 //!
-//! Writes are deliberately outside that branch: they are governed by scope presence
-//! alone (403 when a `ScopeCondition` is present, allowed when absent), so the scope
-//! can be mounted on safe methods only. Section 1b pins that contract.
-//!
-//! Self-contained: defines its own entities, its own `setup_test_db`, and uses no
-//! shared `mod common`.
+//! Scoped writes confine their rows inside the write transaction.
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
@@ -50,7 +45,7 @@ pub mod rse_other {
 
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
     #[sea_orm(table_name = "rse_others")]
-    #[crudcrate(generate_router, api_struct = "RseOther")]
+    #[crudcrate(generate_router, api_struct = "RseOther", create::one::post = record_creation, create::many::post = record_creations)]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
         #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
@@ -64,6 +59,29 @@ pub mod rse_other {
     pub enum Relation {}
 
     impl ActiveModelBehavior for ActiveModel {}
+
+    async fn record_creation<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
+        row: &RseOther,
+    ) -> Result<(), crudcrate::ApiError> {
+        rse_item::Entity::insert(rse_item::ActiveModel {
+            id: sea_orm::Set(Uuid::new_v4()),
+            name: sea_orm::Set(row.name.clone()),
+        })
+        .exec(db)
+        .await?;
+        Ok(())
+    }
+
+    async fn record_creations<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
+        db: &C,
+        rows: &[RseOther],
+    ) -> Result<(), crudcrate::ApiError> {
+        for row in rows {
+            record_creation(db, row).await?;
+        }
+        Ok(())
+    }
 }
 
 async fn setup_test_db() -> Result<DatabaseConnection, DbErr> {
@@ -132,7 +150,7 @@ async fn require_scope_get_one_without_scope_returns_500() {
 
 // =============================================================================
 // 1b. Writes are governed by scope presence alone: `require_scope` gates reads.
-//     Without the extension a write proceeds; with it, every write is 403.
+//     With the extension, writes are confined to its condition.
 // =============================================================================
 
 async fn send(app: axum::Router, method: &str, uri: &str, body: &str) -> StatusCode {
@@ -252,48 +270,183 @@ async fn require_scope_delete_many_without_scope_is_allowed() {
     assert_eq!(status, StatusCode::OK);
 }
 
-#[tokio::test]
-async fn scoped_create_one_returns_403_and_writes_no_row() {
-    let db = setup_test_db().await.unwrap();
-
-    let status = send(items_app_scoped(&db), "POST", "/items", r#"{"name":"x"}"#).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-
-    let count = rse_item::Entity::find().all(&db).await.unwrap().len();
-    assert_eq!(count, 0, "the refused create must not have written a row");
+fn items_app_confined(db: &DatabaseConnection) -> axum::Router {
+    items_app_unscoped(db).layer(axum::Extension(crudcrate::ScopeCondition::new(
+        Condition::all().add(rse_item::Column::Name.starts_with("allowed")),
+    )))
 }
 
 #[tokio::test]
-async fn scoped_writes_return_403_on_every_verb() {
+async fn test_scoped_create_confines_single_and_batch() {
     let db = setup_test_db().await.unwrap();
-    let id = seed_item(&db, "kept").await;
-
-    for (method, uri, body) in [
-        ("POST", "/items".to_string(), r#"{"name":"x"}"#.to_string()),
+    for (uri, body, expected) in [
+        ("/items", r#"{"name":"allowed one"}"#, StatusCode::CREATED),
+        ("/items", r#"{"name":"outside"}"#, StatusCode::FORBIDDEN),
         (
-            "POST",
-            "/items/batch".to_string(),
-            r#"[{"name":"x"}]"#.to_string(),
+            "/items/batch",
+            r#"[{"name":"allowed two"},{"name":"allowed three"}]"#,
+            StatusCode::CREATED,
         ),
-        ("PUT", format!("/items/{id}"), r#"{"name":"x"}"#.to_string()),
         (
-            "PATCH",
-            "/items/batch".to_string(),
-            format!(r#"[{{"id":"{id}","name":"x"}}]"#),
-        ),
-        ("DELETE", format!("/items/{id}"), String::new()),
-        ("DELETE", "/items/batch".to_string(), format!(r#"["{id}"]"#)),
-    ] {
-        let status = send(items_app_scoped(&db), method, &uri, &body).await;
-        assert_eq!(
-            status,
+            "/items/batch",
+            r#"[{"name":"allowed rollback"},{"name":"outside"}]"#,
             StatusCode::FORBIDDEN,
-            "{method} {uri} was not refused"
+        ),
+        (
+            "/items/batch?partial=true",
+            r#"[{"name":"allowed partial"},{"name":"outside"}]"#,
+            StatusCode::MULTI_STATUS,
+        ),
+    ] {
+        assert_eq!(
+            send(items_app_confined(&db), "POST", uri, body).await,
+            expected,
+            "{uri}: {body}"
         );
     }
+    let rows = rse_item::Entity::find().all(&db).await.unwrap();
+    assert_eq!(rows.len(), 4);
+    assert!(rows.iter().all(|row| row.name.starts_with("allowed")));
+    assert!(!rows.iter().any(|row| row.name == "allowed rollback"));
+}
 
-    let row = rse_item::Entity::find_by_id(id).one(&db).await.unwrap();
-    assert_eq!(row.unwrap().name, "kept", "a scoped write reached the row");
+#[tokio::test]
+async fn test_scoped_update_confines_existing_and_resulting_rows() {
+    let db = setup_test_db().await.unwrap();
+    let allowed = seed_item(&db, "allowed original").await;
+    let outside = seed_item(&db, "outside").await;
+    for (id, name, expected) in [
+        (outside, "allowed takeover", StatusCode::NOT_FOUND),
+        (allowed, "outside", StatusCode::FORBIDDEN),
+        (allowed, "allowed changed", StatusCode::OK),
+    ] {
+        assert_eq!(
+            send(
+                items_app_confined(&db),
+                "PUT",
+                &format!("/items/{id}"),
+                &format!(r#"{{"name":"{name}"}}"#)
+            )
+            .await,
+            expected
+        );
+    }
+    assert_eq!(
+        rse_item::Entity::find_by_id(outside)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .name,
+        "outside"
+    );
+    assert_eq!(
+        rse_item::Entity::find_by_id(allowed)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .name,
+        "allowed changed"
+    );
+}
+
+#[tokio::test]
+async fn test_scoped_batch_update_and_delete_roll_back_excluded_rows() {
+    let db = setup_test_db().await.unwrap();
+    let allowed = seed_item(&db, "allowed original").await;
+    let outside = seed_item(&db, "outside").await;
+    for suffix in ["", "?partial=true"] {
+        let expected = if suffix.is_empty() {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::MULTI_STATUS
+        };
+        let body = format!(
+            r#"[{{"id":"{allowed}","name":"allowed changed"}},{{"id":"{outside}","name":"allowed takeover"}}]"#
+        );
+        assert_eq!(
+            send(
+                items_app_confined(&db),
+                "PATCH",
+                &format!("/items/batch{suffix}"),
+                &body
+            )
+            .await,
+            expected
+        );
+        let row = rse_item::Entity::find_by_id(allowed)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            row.name,
+            if suffix.is_empty() {
+                "allowed original"
+            } else {
+                "allowed changed"
+            }
+        );
+    }
+    let body = format!(r#"[{{"id":"{allowed}","name":"outside"}}]"#);
+    assert_eq!(
+        send(items_app_confined(&db), "PATCH", "/items/batch", &body).await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        send(
+            items_app_confined(&db),
+            "DELETE",
+            &format!("/items/{outside}"),
+            ""
+        )
+        .await,
+        StatusCode::NOT_FOUND
+    );
+    for suffix in ["", "?partial=true"] {
+        let expected = if suffix.is_empty() {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::MULTI_STATUS
+        };
+        assert_eq!(
+            send(
+                items_app_confined(&db),
+                "DELETE",
+                &format!("/items/batch{suffix}"),
+                &format!(r#"["{allowed}","{outside}"]"#)
+            )
+            .await,
+            expected
+        );
+        assert_eq!(
+            rse_item::Entity::find_by_id(allowed)
+                .one(&db)
+                .await
+                .unwrap()
+                .is_some(),
+            suffix.is_empty()
+        );
+    }
+    assert!(
+        rse_item::Entity::find_by_id(outside)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let allowed = seed_item(&db, "allowed delete").await;
+    assert_eq!(
+        send(
+            items_app_confined(&db),
+            "DELETE",
+            &format!("/items/{allowed}"),
+            ""
+        )
+        .await,
+        StatusCode::NO_CONTENT
+    );
 }
 
 // =============================================================================
@@ -429,3 +582,59 @@ const _: () = {
     assert!(<rse_item::RseItem as CRUDResource>::REQUIRE_SCOPE);
     assert!(!<rse_other::RseOther as CRUDResource>::REQUIRE_SCOPE);
 };
+
+#[tokio::test]
+async fn test_scoped_create_hooks_share_the_scope_transaction() {
+    let db = setup_test_db().await.unwrap();
+    let app = others_app(&db).layer(axum::Extension(crudcrate::ScopeCondition::new(
+        Condition::all().add(rse_other::Column::Name.starts_with("allowed")),
+    )));
+    assert_eq!(
+        send(app.clone(), "POST", "/others", r#"{"name":"allowed"}"#).await,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        send(app.clone(), "POST", "/others", r#"{"name":"outside"}"#).await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        send(
+            app.clone(),
+            "POST",
+            "/others/batch",
+            r#"[{"name":"allowed rollback"},{"name":"outside"}]"#
+        )
+        .await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        send(
+            app,
+            "POST",
+            "/others/batch?partial=true",
+            r#"[{"name":"allowed partial"},{"name":"outside"}]"#
+        )
+        .await,
+        StatusCode::MULTI_STATUS
+    );
+    for names in [
+        rse_item::Entity::find()
+            .all(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.name)
+            .collect::<Vec<_>>(),
+        rse_other::Entity::find()
+            .all(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.name)
+            .collect::<Vec<_>>(),
+    ] {
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"allowed".to_string()));
+        assert!(names.contains(&"allowed partial".to_string()));
+    }
+}

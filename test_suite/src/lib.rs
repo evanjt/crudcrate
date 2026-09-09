@@ -185,8 +185,7 @@ pub fn setup_test_app(db: &DatabaseConnection) -> Router {
 }
 
 /// Build app with `ScopeCondition` middleware applied to every request.
-/// Simulates unauthenticated/public access: scoped endpoints filter by `is_private` = false,
-/// and write operations are blocked by crudcrate's built-in scope guard (403).
+/// Reads and writes are confined to rows with `is_private` = false.
 #[allow(dead_code)]
 pub fn setup_scoped_app(db: &DatabaseConnection) -> Router {
     Router::new()

@@ -11,43 +11,28 @@ You build it from the same `ScopeCondition`, with two differences from the publi
 the condition is **per-tenant** (a value, not an `is_private` boolean), and you have to be
 deliberate about **writes**.
 
-## The catch: a present scope blocks all writes
+## Apply the condition to every method
 
-When a `ScopeCondition` extension is on the request, the generated `POST`/`PUT`/`DELETE` handlers
-return `403 Forbidden` ("Write access denied in scoped context"). That's the behaviour you want for
-a read-only public tier, but in a multi-tenant app it would stop a tenant from writing their *own* data.
-
-The fix: **inject the scope only on read requests.** Reads get confined by the
-`ScopeCondition`; writes are confined by your own guard (next section), so a tenant can still
-create and update within their tenant.
+A `ScopeCondition` filters reads and confines writes. Inject it on every request from a tenant:
 
 ```rust
-use axum::{extract::Request, http::Method, middleware::Next, response::Response};
+use axum::{extract::Request, middleware::Next, response::Response};
 use crudcrate::ScopeCondition;
 use sea_orm::{ColumnTrait, Condition};
 
-async fn scope_reads(request: Request, next: Next) -> Response {
-    // Your auth middleware has already put the caller's tenant into the request extensions.
-    let tenant = current_tenant(&request);
-
-    // Only GET/HEAD get a ScopeCondition. If we injected it on writes too, every tenant write
-    // would 403, so writes flow through unscoped here and are confined by `confine_writes`.
-    if let (Some(tenant_id), true) =
-        (tenant, matches!(*request.method(), Method::GET | Method::HEAD))
-    {
-        let mut request = request;
+async fn scope_tenant(mut request: Request, next: Next) -> Response {
+    if let Some(tenant_id) = current_tenant(&request) {
         request.extensions_mut().insert(ScopeCondition::new(
             Condition::all().add(widget::Column::TenantId.eq(tenant_id)),
         ));
-        return next.run(request).await;
     }
     next.run(request).await
 }
 ```
 
-An **unscoped** caller (e.g. a platform admin with `current_tenant == None`) gets no extension and
-therefore sees and edits everything, the same "absence of scope = full access" rule as the
-tutorial.
+A caller without an extension can read and write every row. Authenticate callers and decide
+which methods they may use before injecting the condition. Use `read_only_router()` for a
+public mount that must not accept writes.
 
 ## A per-tenant condition across a join (typed, injection-safe)
 
@@ -78,36 +63,20 @@ construction, usually exactly what you want for a scoped caller.
 
 ## Confining writes
 
-Reads are handled. For writes, add a small guard that resolves the **target's** tenant and rejects
-a mismatch. There's nothing CrudCrate-specific here; it's your ownership policy:
+An update or delete selects the existing row under the condition and locks it for the
+transaction. An excluded row returns 404. Creates and updates check their resulting rows
+before commit; a row outside the condition returns 403 and rolls the transaction back.
+This also catches an update that changes the row's tenant.
 
-```rust
-async fn confine_writes(
-    State(db): State<DatabaseConnection>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let Some(tenant_id) = current_tenant(&request) else {
-        return next.run(request).await; // unscoped admin, no restriction
-    };
-    if matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
-        return next.run(request).await; // reads are confined by `scope_reads`
-    }
+Batches are atomic by default. With `?partial=true`, each item has its own transaction and
+an excluded item is reported as a failure. Custom resource hooks run inside the same
+transaction as the scope checks. Hooks remain responsible for any additional rows they
+write and for external side effects that a database rollback cannot undo.
 
-    // For PUT/DELETE: look up the existing row's owning tenant by id.
-    // For POST: read the owning tenant from the create body's foreign key.
-    // Reject anything that doesn't resolve to `tenant_id` with 403. Fail closed:
-    // if you can't resolve an owner (e.g. a global/shared table), deny.
-    match resolve_owner_tenant(&db, &request).await {
-        Some(owner) if owner == tenant_id => next.run(request).await,
-        _ => forbidden("token is scoped to a different tenant"),
-    }
-}
-```
-
-Keeping reads and writes in separate guards is deliberate: read scoping stays a pure query filter
-(`ScopeCondition`), while the write guard owns the mutation policy. They never fight, because the
-read scope is never present on a write.
+The derive implements `CRUDResource::resource_id()` to identify a created row for the check.
+A manual resource implementation must provide it for scoped creates and updates; the default
+fails closed. Direct `CRUDResource` calls remain unscoped; use `crudcrate::scope` write helpers
+when composing a scoped operation outside the generated handlers.
 
 ## Fail closed with `REQUIRE_SCOPE`
 
@@ -123,18 +92,17 @@ pub struct Widget { /* ... */ }
 Leave it **off** for entities that have a legitimate unscoped (admin) caller; there, the absence
 of the extension is the intended "see everything" path.
 
-`REQUIRE_SCOPE` governs **reads only**. Write handlers ignore it: they are 403 whenever a
-`ScopeCondition` is present and allowed when it is absent, so the safe-methods-only mounting
-above keeps working. Confining writes to a tenant is the write guard's job, not this flag's.
+`REQUIRE_SCOPE` governs reads only. Writes with an extension are confined; writes without
+one remain unrestricted. It does not replace authentication or method permissions.
 
 ## Quick reference
 
 | Concern | Where it lives |
 |---------|----------------|
-| Confine **reads** to a tenant | `ScopeCondition` injected **on GET/HEAD only** |
+| Confine **reads** to a tenant | `ScopeCondition` injected by middleware |
 | Scope across a join | `Column::Fk.in_subquery(parent_ids_for_tenant)` (typed, not raw SQL) |
-| Let tenants **write** their own data | Don't inject the scope on writes; add a write guard |
-| Confine **writes** to a tenant | Your own middleware: resolve the target's tenant, 403 on mismatch |
+| Let tenants **write** their own data | Inject the scope on writes too |
+| Confine **writes** to a tenant | One condition, checked inside the write transaction |
 | Never serve unscoped by accident | `#[crudcrate(require_scope)]` |
 | Hide a column from scoped reads | `exclude(scoped)` on the field (see the tutorial) |
 

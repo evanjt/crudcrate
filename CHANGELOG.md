@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `upsert` takes the resource's active model. Convert a create model with
   `.into()` and set any server-owned key columns before calling it. Registration
   keys can remain excluded from create and update requests.
+- Scoped writes confine rows instead of refusing every request. Updates and deletes
+  return 404 for excluded rows; creates and updates roll back with 403 when their
+  resulting row leaves the condition. Batch checks share the write transaction,
+  including custom hooks; partial batches confine each item independently. Write
+  responses use scoped field exclusions. Mount `read_only_router()` or authorize
+  methods separately when a caller must not write.
 
 ### Fixed
 

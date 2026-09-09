@@ -5,7 +5,7 @@
 /// Validates that `ScopeCondition` + `exclude(scoped)` correctly:
 /// - Filters private records from list and `get_one` endpoints
 /// - Strips `is_private` from all response JSON (top-level and nested joins)
-/// - Blocks all write operations (create, update, delete, batch) with 403
+/// - Confines writes to matching records
 /// - Strips scoped columns from filterable/sortable lists
 /// - Returns correct Content-Range counts reflecting the scoped condition
 ///
@@ -309,11 +309,11 @@ async fn admin_response_includes_is_private() {
 }
 
 // =============================================================================
-// 9. Write: POST (create) blocked with 403
+// 9. Write: POST (create) confined to matching rows
 // =============================================================================
 
 #[tokio::test]
-async fn scope_create_blocked() {
+async fn scope_create_allowed() {
     let db = setup_test_db().await.unwrap();
     let scoped = setup_scoped_app(&db);
 
@@ -324,15 +324,15 @@ async fn scope_create_blocked() {
         Some(json!({"name": "Hack", "email": "h@x.com"})),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::CREATED);
 }
 
 // =============================================================================
-// 10. Write: PUT (update) blocked with 403
+// 10. Write: PUT (update) confined to matching rows
 // =============================================================================
 
 #[tokio::test]
-async fn scope_update_blocked() {
+async fn scope_update_missing() {
     let db = setup_test_db().await.unwrap();
     let scoped = setup_scoped_app(&db);
 
@@ -343,15 +343,15 @@ async fn scope_update_blocked() {
         Some(json!({"name": "Hacked"})),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 // =============================================================================
-// 11. Write: DELETE blocked with 403
+// 11. Write: DELETE confined to matching rows
 // =============================================================================
 
 #[tokio::test]
-async fn scope_delete_blocked() {
+async fn scope_delete_missing() {
     let db = setup_test_db().await.unwrap();
     let scoped = setup_scoped_app(&db);
 
@@ -362,15 +362,15 @@ async fn scope_delete_blocked() {
         None,
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 // =============================================================================
-// 12. Write: batch POST blocked with 403
+// 12. Write: batch POST confined to matching rows
 // =============================================================================
 
 #[tokio::test]
-async fn scope_batch_create_blocked() {
+async fn scope_batch_create_allowed() {
     let db = setup_test_db().await.unwrap();
     let scoped = setup_scoped_app(&db);
 
@@ -381,15 +381,15 @@ async fn scope_batch_create_blocked() {
         Some(json!([{"name": "A", "email": "a@x.com"}])),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::CREATED);
 }
 
 // =============================================================================
-// 13. Write: batch DELETE blocked with 403
+// 13. Write: batch DELETE confined to matching rows
 // =============================================================================
 
 #[tokio::test]
-async fn scope_batch_delete_blocked() {
+async fn scope_batch_delete_missing() {
     let db = setup_test_db().await.unwrap();
     let scoped = setup_scoped_app(&db);
 
@@ -400,15 +400,15 @@ async fn scope_batch_delete_blocked() {
         Some(json!(["00000000-0000-0000-0000-000000000001"])),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 // =============================================================================
-// 14. Write: batch PATCH (update) blocked with 403
+// 14. Write: batch PATCH (update) confined to matching rows
 // =============================================================================
 
 #[tokio::test]
-async fn scope_batch_update_blocked() {
+async fn scope_batch_update_missing() {
     let db = setup_test_db().await.unwrap();
     let scoped = setup_scoped_app(&db);
 
@@ -419,7 +419,7 @@ async fn scope_batch_update_blocked() {
         Some(json!([{"id": "00000000-0000-0000-0000-000000000001", "name": "Hacked"}])),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 // =============================================================================
@@ -1022,4 +1022,43 @@ async fn scope_get_one_unscoped_still_works() {
         vehicles[0].get("is_private").is_some(),
         "Admin vehicle join must include is_private field"
     );
+}
+
+#[tokio::test]
+async fn test_scoped_write_responses_hide_private_fields() {
+    let db = setup_test_db().await.unwrap();
+    let scoped = setup_scoped_app(&db);
+    let (status, row) = http::post(
+        &scoped,
+        "/customers",
+        &json!({"name":"Visible", "email":"visible@example.com"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(row.get("is_private").is_none());
+    let id = row["id"].as_str().unwrap();
+    let (status, row) = http::put(
+        &scoped,
+        &format!("/customers/{id}"),
+        &json!({"name":"Changed"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(row.get("is_private").is_none());
+    for suffix in ["", "?partial=true"] {
+        let (status, body) = http::post(
+            &scoped,
+            &format!("/customers/batch{suffix}"),
+            &json!([{ "name":"Batch", "email":format!("batch{suffix}@example.com") }]),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let row = if suffix.is_empty() {
+            &body[0]
+        } else {
+            &body["succeeded"][0]
+        };
+        assert!(row.get("id").is_some());
+        assert!(row.get("is_private").is_none());
+    }
 }

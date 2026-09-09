@@ -101,10 +101,8 @@ where
     /// if no `ScopeCondition` middleware is present, so a misrouted mount fails closed
     /// instead of leaking every row. Set via `#[crudcrate(require_scope)]` on the struct.
     ///
-    /// Reads only. Write handlers are governed solely by scope presence: 403 when a
-    /// `ScopeCondition` is present, allowed when absent. This supports mounting the
-    /// scope on safe methods only so writes arrive unscoped deliberately. Confining
-    /// writes to a tenant needs hooks or auth middleware, not this flag.
+    /// Reads only. Writes with a `ScopeCondition` are confined to that condition
+    /// inside a transaction; writes without one remain unrestricted.
     const REQUIRE_SCOPE: bool = false;
 
     /// Maximum number of items allowed in batch create/update/delete operations.
@@ -292,6 +290,17 @@ where
             Some(column) => FromValueTuple::from_value_tuple(model.get(column)),
             None => unreachable!("entity without a primary key column"),
         }
+    }
+
+    /// The response's primary key, used to verify scoped inserts before commit.
+    ///
+    /// # Errors
+    /// Returns an internal error when the resource does not implement this method.
+    fn resource_id(&self) -> Result<PrimaryKeyType<Self>, ApiError> {
+        Err(ApiError::internal(
+            "Scoped writes require resource_id",
+            None,
+        ))
     }
 
     fn get_one<C: ConnectionTrait + TransactionTrait>(

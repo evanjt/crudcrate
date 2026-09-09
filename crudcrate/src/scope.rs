@@ -1,8 +1,15 @@
+use sea_orm::{
+    ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, TransactionSession, TransactionTrait,
+};
+
+use crate::{ApiError, CRUDResource, PrimaryKeyType};
+
 /// Controls query filtering and field visibility for scoped (e.g., public) requests.
 ///
 /// Inject via Axum `Extension` in middleware. When present:
 /// - `get_all_handler` merges `condition` into the query filter
 /// - `get_one_handler` verifies the fetched record passes the condition
+/// - Write handlers check existing and resulting rows in one transaction
 /// - If scoped models exist (`exclude(scoped)` on fields), handlers return the scoped
 ///   model type which omits those fields from the response
 ///
@@ -61,4 +68,166 @@ pub trait ScopeFilterable {
     fn scope_condition() -> Option<sea_orm::Condition> {
         None
     }
+}
+
+async fn contains<R: CRUDResource, C: ConnectionTrait>(
+    db: &C,
+    id: PrimaryKeyType<R>,
+    scope: &ScopeCondition,
+    lock: bool,
+) -> Result<bool, ApiError> {
+    let query = R::EntityType::find_by_id(id).filter(scope.condition.clone());
+    let query = if lock { query.lock_exclusive() } else { query };
+    Ok(query.one(db).await?.is_some())
+}
+
+async fn check_existing<R: CRUDResource, C: ConnectionTrait>(
+    db: &C,
+    ids: &[PrimaryKeyType<R>],
+    scope: &ScopeCondition,
+) -> Result<(), ApiError> {
+    for id in ids {
+        if !contains::<R, _>(db, id.clone(), scope, true).await? {
+            return Err(ApiError::not_found(
+                R::RESOURCE_NAME_SINGULAR,
+                Some(id.to_string()),
+            ));
+        }
+    }
+    Ok(())
+}
+
+async fn check_result<R: CRUDResource, C: ConnectionTrait>(
+    db: &C,
+    rows: &[R],
+    scope: &ScopeCondition,
+) -> Result<(), ApiError> {
+    for row in rows {
+        if !contains::<R, _>(db, row.resource_id()?, scope, false).await? {
+            return Err(ApiError::forbidden("Write would leave the permitted scope"));
+        }
+    }
+    Ok(())
+}
+
+/// Run `create` with optional row confinement, preserving the resource's hooks.
+///
+/// # Errors
+/// Returns the operation error, or refuses a row outside the scope.
+pub async fn create<R: CRUDResource, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    data: R::CreateModel,
+    scope: Option<&ScopeCondition>,
+) -> Result<R, ApiError> {
+    let Some(scope) = scope else {
+        return R::create(db, data).await;
+    };
+    let txn = db.begin().await?;
+    let result = R::create(&txn, data).await?;
+    check_result::<R, _>(&txn, std::slice::from_ref(&result), scope).await?;
+    txn.commit().await?;
+    Ok(result)
+}
+
+/// Run `create_many` with optional row confinement, preserving the resource's hooks.
+///
+/// # Errors
+/// Returns the operation error, or refuses a row outside the scope.
+pub async fn create_many<R: CRUDResource, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    data: Vec<R::CreateModel>,
+    scope: Option<&ScopeCondition>,
+) -> Result<Vec<R>, ApiError> {
+    let Some(scope) = scope else {
+        return R::create_many(db, data).await;
+    };
+    let txn = db.begin().await?;
+    let result = R::create_many(&txn, data).await?;
+    check_result::<R, _>(&txn, &result, scope).await?;
+    txn.commit().await?;
+    Ok(result)
+}
+
+/// Run `update` with optional row confinement, preserving the resource's hooks.
+///
+/// # Errors
+/// Returns the operation error, or refuses a row outside the scope.
+pub async fn update<R: CRUDResource, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    id: PrimaryKeyType<R>,
+    data: R::UpdateModel,
+    scope: Option<&ScopeCondition>,
+) -> Result<R, ApiError> {
+    let Some(scope) = scope else {
+        return R::update(db, id, data).await;
+    };
+    let txn = db.begin().await?;
+    check_existing::<R, _>(&txn, std::slice::from_ref(&id), scope).await?;
+    let result = R::update(&txn, id, data).await?;
+    check_result::<R, _>(&txn, std::slice::from_ref(&result), scope).await?;
+    txn.commit().await?;
+    Ok(result)
+}
+
+/// Run `update_many` with optional row confinement, preserving the resource's hooks.
+///
+/// # Errors
+/// Returns the operation error, or refuses a row outside the scope.
+pub async fn update_many<R: CRUDResource, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    data: Vec<(PrimaryKeyType<R>, R::UpdateModel)>,
+    scope: Option<&ScopeCondition>,
+) -> Result<Vec<R>, ApiError> {
+    let Some(scope) = scope else {
+        return R::update_many(db, data).await;
+    };
+    let txn = db.begin().await?;
+    check_existing::<R, _>(
+        &txn,
+        &data.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
+        scope,
+    )
+    .await?;
+    let result = R::update_many(&txn, data).await?;
+    check_result::<R, _>(&txn, &result, scope).await?;
+    txn.commit().await?;
+    Ok(result)
+}
+
+/// Run `delete` with optional row confinement, preserving the resource's hooks.
+///
+/// # Errors
+/// Returns the operation error, or refuses a row outside the scope.
+pub async fn delete<R: CRUDResource, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    id: PrimaryKeyType<R>,
+    scope: Option<&ScopeCondition>,
+) -> Result<PrimaryKeyType<R>, ApiError> {
+    let Some(scope) = scope else {
+        return R::delete(db, id).await;
+    };
+    let txn = db.begin().await?;
+    check_existing::<R, _>(&txn, std::slice::from_ref(&id), scope).await?;
+    let result = R::delete(&txn, id).await?;
+    txn.commit().await?;
+    Ok(result)
+}
+
+/// Run `delete_many` with optional row confinement, preserving the resource's hooks.
+///
+/// # Errors
+/// Returns the operation error, or refuses a row outside the scope.
+pub async fn delete_many<R: CRUDResource, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    ids: Vec<PrimaryKeyType<R>>,
+    scope: Option<&ScopeCondition>,
+) -> Result<Vec<PrimaryKeyType<R>>, ApiError> {
+    let Some(scope) = scope else {
+        return R::delete_many(db, ids).await;
+    };
+    let txn = db.begin().await?;
+    check_existing::<R, _>(&txn, &ids, scope).await?;
+    let result = R::delete_many(&txn, ids).await?;
+    txn.commit().await?;
+    Ok(result)
 }

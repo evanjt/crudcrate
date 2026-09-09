@@ -41,6 +41,9 @@ pub(crate) fn generate_crud_resource_impl(
             fn pk_value(model: &<Self::EntityType as sea_orm::EntityTrait>::Model) -> crudcrate::PrimaryKeyType<Self> {
                 model.#pk.clone()
             }
+            fn resource_id(&self) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
+                Ok(self.#pk.clone())
+            }
         }
     });
     let sortable_entries = generate_field_entries(&analysis.sortable_fields);

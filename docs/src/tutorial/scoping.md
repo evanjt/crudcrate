@@ -67,11 +67,14 @@ When `ScopeCondition` is present, crudcrate automatically:
 
 - Filters list queries (`GET /`) to only return matching rows
 - Returns 404 for `GET /:id` if the record doesn't pass the condition
-- **Blocks all writes** (POST, PUT, DELETE) with 403 Forbidden
+- Confines writes to matching rows inside a transaction
 - Uses the scoped response model (without `exclude(scoped)` fields)
 - Returns correct pagination counts reflecting the filtered total
 
 When `ScopeCondition` is **not** present (admin requests), everything works normally: full CRUD, all fields visible.
+
+A scope does not grant or refuse write permission. Use `read_only_router()` or method
+authorization for a public tier that must not accept writes.
 
 ## Mounting the Routes
 
@@ -103,9 +106,9 @@ curl http://localhost:3000/api/tasks
 curl http://localhost:3000/api/tasks/private-uuid
 # {"error": "task not found"}
 
-# Write: blocked
+# Write: allowed when the resulting row passes the scope
 curl -X POST http://localhost:3000/api/tasks -d '{"title": "hack"}'
-# 403 Forbidden
+# 201 Created
 
 # Filter on is_private: silently ignored
 curl 'http://localhost:3000/api/tasks?filter={"is_private":true}'
@@ -198,7 +201,7 @@ For automatic filtering to work, the child entity **must** have at least one `ex
 |-----------|--------|
 | `exclude(scoped)` | Field hidden from response when scoped |
 | `ScopeCondition::new(condition)` | Filter rows in list/get_one |
-| Scope + write request | Automatically returns 403 Forbidden |
+| Scope + write request | Confines existing and resulting rows inside a transaction |
 | Scope + filter on excluded column | Filter silently ignored |
 | Scope + join fields | Child entities use scoped types too |
 
