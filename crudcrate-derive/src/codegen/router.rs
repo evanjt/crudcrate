@@ -3,15 +3,26 @@
 use quote::{format_ident, quote};
 
 /// `routes` names the families to mount, empty meaning every one of them.
+///
+/// `composite_key` holds back every route that addresses one row by its id. Those take the key
+/// through `Path<PrimaryKeyType<Self>>` against a one-segment `/{id}`, which a composite key's
+/// tuple cannot deserialize from: the route would mount and answer 500 to every call. How a
+/// composite key is spelled in a path is Q153, and nothing generated here decides it. The
+/// collection routes, the generated models and the `CRUDResource` methods are unaffected, so a
+/// composite-key resource still lists, filters, sorts and pages, and a hand-written handler still
+/// reaches one row through `get_one`.
 pub(crate) fn generate_router_impl(
     api_struct_name: &syn::Ident,
     has_scoped_fields: bool,
     routes: &[String],
+    composite_key: bool,
 ) -> proc_macro2::TokenStream {
     let mounts = |family: &str| routes.is_empty() || routes.iter().any(|r| r == family);
+    let by_id = |route: proc_macro2::TokenStream| (!composite_key).then_some(route);
     let read = mounts("read").then(|| {
+        let get_one = by_id(quote! { .routes(routes!(get_one_handler)) });
         quote! {
-            .routes(routes!(get_one_handler))
+            #get_one
             .routes(routes!(get_all_handler))
         }
     });
@@ -22,17 +33,20 @@ pub(crate) fn generate_router_impl(
         }
     });
     let update = mounts("update").then(|| {
+        let update_one = by_id(quote! { .routes(routes!(update_one_handler)) });
         quote! {
-            .routes(routes!(update_one_handler))
+            #update_one
             .routes(routes!(update_many_handler))
         }
     });
     let delete = mounts("delete").then(|| {
+        let delete_one = by_id(quote! { .routes(routes!(delete_one_handler)) });
         quote! {
-            .routes(routes!(delete_one_handler))
+            #delete_one
             .routes(routes!(delete_many_handler))
         }
     });
+    let read_only_get_one = by_id(quote! { .routes(routes!(get_one_handler)) });
     let create_model_name = format_ident!("{}Create", api_struct_name);
     let update_model_name = format_ident!("{}Update", api_struct_name);
     let list_model_name = format_ident!("{}List", api_struct_name);
@@ -107,7 +121,7 @@ pub(crate) fn generate_router_impl(
                 );
 
                 OpenApiRouter::new()
-                    .routes(routes!(get_one_handler))
+                    #read_only_get_one
                     .routes(routes!(get_all_handler))
                     .layer(axum::extract::DefaultBodyLimit::max(
                         <Self as crudcrate::traits::CRUDResource>::security_profile().max_request_body_bytes,

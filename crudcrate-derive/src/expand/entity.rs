@@ -119,6 +119,7 @@ pub(crate) fn entity_to_models_impl(input: proc_macro2::TokenStream) -> proc_mac
             &api_struct_name,
             has_scoped_fields,
             &crud_meta.routes,
+            field_analysis.primary_key_fields.len() > 1,
         )
     } else {
         quote! {}

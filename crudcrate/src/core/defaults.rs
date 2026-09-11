@@ -1,11 +1,12 @@
 //! Default CRUD bodies shared by `CRUDResource` and `CRUDOperations`.
 
 use sea_orm::{
-    ActiveModelBehavior, ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
-    IdenStatic, IntoActiveModel, Order, QueryFilter, QueryOrder, QuerySelect,
+    ActiveModelBehavior, ActiveModelTrait, Condition, ConnectionTrait, EntityTrait, IdenStatic,
+    IntoActiveModel, Order, QueryFilter, QueryOrder, QuerySelect,
 };
 
 use crate::ApiError;
+use crate::core::resource_id::{ResourceId, any_key_condition};
 use crate::core::traits::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType};
 
 pub(crate) async fn get_all<R, C: ConnectionTrait>(
@@ -22,8 +23,12 @@ where
     let mut query = R::EntityType::find()
         .filter(condition.clone())
         .order_by(order_column, order_direction);
-    if order_column.as_str() != R::ID_COLUMN.as_str() {
-        query = query.order_by(R::ID_COLUMN, Order::Asc);
+    // The key is what makes a page deterministic, so every column of it tie-breaks the sort. One
+    // column of a composite key does not order the rows, and two pages would then repeat or skip.
+    for key_column in R::id_columns() {
+        if order_column.as_str() != key_column.as_str() {
+            query = query.order_by(key_column, Order::Asc);
+        }
     }
     let models = query
         .offset(offset)
@@ -43,13 +48,13 @@ pub(crate) async fn get_one<R, C: ConnectionTrait>(
 ) -> Result<R, ApiError>
 where
     R: CRUDResource + From<<R::EntityType as EntityTrait>::Model>,
-    PrimaryKeyType<R>: Clone + std::fmt::Display,
+    PrimaryKeyType<R>: ResourceId,
 {
     let model = R::EntityType::find_by_id(id.clone())
         .one(db)
         .await
         .map_err(ApiError::database)?
-        .ok_or_else(|| ApiError::not_found(R::RESOURCE_NAME_SINGULAR, Some(id.to_string())))?;
+        .ok_or_else(|| ApiError::not_found(R::RESOURCE_NAME_SINGULAR, Some(id.render())))?;
     Ok(R::from(model))
 }
 
@@ -76,13 +81,13 @@ where
     R: CRUDResource + From<<R::EntityType as EntityTrait>::Model>,
     R::ActiveModelType: ActiveModelTrait + ActiveModelBehavior + Send + Sync,
     <R::EntityType as EntityTrait>::Model: IntoActiveModel<R::ActiveModelType>,
-    PrimaryKeyType<R>: Clone + std::fmt::Display,
+    PrimaryKeyType<R>: ResourceId,
 {
     let model = R::EntityType::find_by_id(id.clone())
         .one(db)
         .await
         .map_err(ApiError::database)?
-        .ok_or_else(|| ApiError::not_found(R::RESOURCE_NAME_SINGULAR, Some(id.to_string())))?;
+        .ok_or_else(|| ApiError::not_found(R::RESOURCE_NAME_SINGULAR, Some(id.render())))?;
     let existing: R::ActiveModelType = model.into_active_model();
     let merged = update_model.merge_into_activemodel(existing)?;
     let updated = merged.update(db).await.map_err(ApiError::database)?;
@@ -95,7 +100,7 @@ pub(crate) async fn delete<R, C: ConnectionTrait>(
 ) -> Result<PrimaryKeyType<R>, ApiError>
 where
     R: CRUDResource,
-    PrimaryKeyType<R>: Clone + std::fmt::Display,
+    PrimaryKeyType<R>: ResourceId,
 {
     let res = R::EntityType::delete_by_id(id.clone())
         .exec(db)
@@ -104,7 +109,7 @@ where
     match res.rows_affected {
         0 => Err(ApiError::not_found(
             R::RESOURCE_NAME_SINGULAR,
-            Some(id.to_string()),
+            Some(id.render()),
         )),
         _ => Ok(id),
     }
@@ -118,7 +123,7 @@ pub(crate) async fn delete_many<R, C: ConnectionTrait>(
 ) -> Result<Vec<PrimaryKeyType<R>>, ApiError>
 where
     R: CRUDResource,
-    PrimaryKeyType<R>: Clone + Eq + std::hash::Hash + Into<sea_orm::Value>,
+    PrimaryKeyType<R>: ResourceId,
 {
     if ids.len() > R::batch_limit() {
         return Err(ApiError::bad_request(format!(
@@ -130,10 +135,13 @@ where
     if ids.is_empty() {
         return Ok(vec![]);
     }
-    let existing: Vec<PrimaryKeyType<R>> = R::EntityType::find()
-        .select_only()
-        .column(R::ID_COLUMN)
-        .filter(R::ID_COLUMN.is_in(ids.clone()))
+    let key_columns = R::id_columns();
+    let mut selection = R::EntityType::find().select_only();
+    for key_column in &key_columns {
+        selection = selection.column(*key_column);
+    }
+    let existing: Vec<PrimaryKeyType<R>> = selection
+        .filter(any_key_condition(&key_columns, ids.clone()))
         .into_tuple::<PrimaryKeyType<R>>()
         .all(db)
         .await
@@ -141,7 +149,10 @@ where
     let existing_set: std::collections::HashSet<PrimaryKeyType<R>> = existing.into_iter().collect();
     if !existing_set.is_empty() {
         R::EntityType::delete_many()
-            .filter(R::ID_COLUMN.is_in(existing_set.iter().cloned().collect::<Vec<_>>()))
+            .filter(any_key_condition(
+                &key_columns,
+                existing_set.iter().cloned(),
+            ))
             .exec(db)
             .await
             .map_err(ApiError::database)?;

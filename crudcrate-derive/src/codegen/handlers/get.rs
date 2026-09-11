@@ -318,7 +318,7 @@ pub(crate) fn generate_get_one_impl(
                 Some(model) => {
                     #join_loading_code
                 }
-                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(crudcrate::ResourceId::render(&id)))),
             };
         }
     } else {
@@ -328,7 +328,7 @@ pub(crate) fn generate_get_one_impl(
                 .await?;
             let mut result = match model {
                 Some(model) => Self::from(model),
-                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(crudcrate::ResourceId::render(&id)))),
             };
         }
     };
@@ -341,14 +341,14 @@ pub(crate) fn generate_get_one_impl(
         quote! {
             use sea_orm::QueryFilter;
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(crudcrate::key_condition(&Self::id_columns(), id.clone()))
                 .add(scope.clone());
             let eligible = Self::EntityType::find()
                 .filter(scoped_condition)
                 .one(db)
                 .await?;
             if eligible.is_none() {
-                return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string())));
+                return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(crudcrate::ResourceId::render(&id))));
             }
             #body_code
         }
@@ -358,7 +358,7 @@ pub(crate) fn generate_get_one_impl(
             use sea_orm::{EntityTrait, ModelTrait, Related, QueryFilter};
 
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(crudcrate::key_condition(&Self::id_columns(), id.clone()))
                 .add(scope.clone());
 
             let main_model = Box::pin(
@@ -369,14 +369,14 @@ pub(crate) fn generate_get_one_impl(
                 Some(model) => {
                     #join_loading_code
                 }
-                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(crudcrate::ResourceId::render(&id)))),
             };
         }
     } else {
         quote! {
             use sea_orm::QueryFilter;
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(crudcrate::key_condition(&Self::id_columns(), id.clone()))
                 .add(scope.clone());
             let model = Self::EntityType::find()
                 .filter(scoped_condition)
@@ -384,7 +384,7 @@ pub(crate) fn generate_get_one_impl(
                 .await?;
             let mut result = match model {
                 Some(model) => Self::from(model),
-                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))),
+                None => return Err(crudcrate::ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(crudcrate::ResourceId::render(&id)))),
             };
         }
     };

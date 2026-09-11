@@ -56,7 +56,7 @@ pub(crate) fn generate_update_impl(crud_meta: &CRUDResourceMeta) -> proc_macro2:
                 .await?
                 .ok_or_else(|| crudcrate::ApiError::not_found(
                     Self::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string())
+                    Some(crudcrate::ResourceId::render(&id))
                 ))?;
             let existing: Self::ActiveModelType = model.into_active_model();
             let updated_model = data.merge_into_activemodel(existing)?;
@@ -152,7 +152,7 @@ pub(crate) fn generate_update_many_impl(crud_meta: &CRUDResourceMeta) -> proc_ma
                     .await?
                     .ok_or_else(|| crudcrate::ApiError::not_found(
                         Self::RESOURCE_NAME_SINGULAR,
-                        Some(id.to_string())
+                        Some(crudcrate::ResourceId::render(&id))
                     ))?;
                 let existing: Self::ActiveModelType = model.into_active_model();
                 let updated_model = update_model.merge_into_activemodel(existing)?;

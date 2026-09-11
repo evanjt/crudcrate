@@ -22,6 +22,7 @@ pub(crate) fn analyze_entity_fields<'a>(
         db_fields: Vec::new(),
         non_db_fields: Vec::new(),
         primary_key_field: None,
+        primary_key_fields: Vec::new(),
         sortable_fields: Vec::new(),
         filterable_fields: Vec::new(),
         fulltext_fields: Vec::new(),
@@ -74,7 +75,10 @@ pub(crate) fn analyze_entity_fields<'a>(
             analysis.db_fields.push(field);
 
             if attrs::field_has_crudcrate_flag(field, "primary_key") {
-                analysis.primary_key_field = Some(field);
+                if analysis.primary_key_field.is_none() {
+                    analysis.primary_key_field = Some(field);
+                }
+                analysis.primary_key_fields.push(field);
             }
             if attrs::field_has_crudcrate_flag(field, "sortable") {
                 analysis.sortable_fields.push(field);
@@ -103,20 +107,6 @@ pub(crate) fn analyze_entity_fields<'a>(
 
 /// Validate field analysis for consistency
 pub(crate) fn validate_field_analysis(analysis: &EntityFieldAnalysis) -> Result<(), TokenStream> {
-    // Check for multiple primary keys
-    let pk_count = analysis
-        .db_fields
-        .iter()
-        .filter(|field| attrs::field_has_crudcrate_flag(field, "primary_key"))
-        .count();
-    if let (Some(pk_field), true) = (&analysis.primary_key_field, pk_count > 1) {
-        return Err(syn::Error::new_spanned(
-            pk_field,
-            "Only one field can be marked with 'primary_key' attribute",
-        )
-        .to_compile_error());
-    }
-
     // Validate that non_db_attr fields have #[sea_orm(ignore)]
     for field in &analysis.non_db_fields {
         if !has_sea_orm_ignore(field) {

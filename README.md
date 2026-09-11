@@ -228,10 +228,11 @@ Commits are a single imperative line with no prefix and no body.
 ## Known limitations
 
 - Generated code names `crudcrate::` paths that the workspace does not type-check. Moving a runtime item is free; renaming a path that a `quote!` block or an exported macro names breaks downstream builds while `cargo build` stays green.
-- Self-referencing joins are capped at depth 1. Foreign keys are derived from the target type name; the `relation` and `path` join options are parsed but not used for that derivation. Join recursion deeper than one level assumes the primary key field is named `id`.
+- Self-referencing joins are capped at depth 1. Foreign keys are derived from the target type name; the `relation` and `path` join options are parsed but not used for that derivation.
 - Attribute hooks and `CRUDOperations` are separate systems. When an entity has joins, the generated `get_one` bypasses `CRUDOperations`.
 - Fulltext search is substring matching (`ILIKE '%term%'`), not trigram similarity.
 - Joined child rows are unbounded unless `#[crudcrate(max_child_rows = N)]` is set; joined-filter sub-queries have no cap.
+- A composite primary key mounts no route that addresses one row by its id. `get_one`, `update_one` and `delete_one` take the key through `Path<PrimaryKeyType<Self>>` against a one-segment `/{id}`, which a tuple cannot deserialize from. The collection routes, the generated models and every `CRUDResource` method work, so a composite-key resource lists, filters, sorts and pages, and a hand-written handler reaches one row through `get_one((a, b))`.
 - The optional `mysql` feature pulls in `sqlx-mysql`, which depends on `rsa 0.9.10`, affected by [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) (a server-side timing side-channel against RSA decryption) with no upstream fix yet. If you use it, terminate the MySQL connection over a private network or unix socket.
 
 ## License

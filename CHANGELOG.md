@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Composite primary keys. An entity may mark more than one field
+  `#[crudcrate(primary_key)]`; the key's value is the tuple SeaORM spells it as,
+  in declaration order. `ResourceId` carries what a tuple cannot implement
+  itself, rendering a key into a not-found message and decomposing it into the
+  column values a query binds, and `CRUDResource::id_columns()` names the
+  columns. Pagination tie-breaks on every key column, and a batch operation
+  filters on whole keys: a single-column key stays an `IN` list, a composite key
+  becomes an OR of per-key equality.
+
+  No route that addresses one row by its id is mounted for a composite key. Those
+  take the key through `Path<PrimaryKeyType<Self>>` against a one-segment
+  `/{id}`, which a tuple cannot deserialize from, so the route would answer 500
+  to every call. Reads, the generated models and every `CRUDResource` method are
+  unaffected.
+
 ### Fixed
 
 - Two callers registering one key concurrently no longer fail on the unique

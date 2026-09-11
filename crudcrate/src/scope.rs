@@ -4,6 +4,11 @@ use sea_orm::{
 
 use crate::{ApiError, CRUDResource, PrimaryKeyType};
 
+/// The key as a not-found message renders it, whether it is one column or several.
+fn crudcrate_render<I: crate::core::resource_id::ResourceId>(id: &I) -> String {
+    crate::core::resource_id::ResourceId::render(id)
+}
+
 /// Controls query filtering and field visibility for scoped (e.g., public) requests.
 ///
 /// Inject via Axum `Extension` in middleware. When present:
@@ -90,7 +95,7 @@ async fn check_existing<R: CRUDResource, C: ConnectionTrait>(
         if !contains::<R, _>(db, id.clone(), scope, true).await? {
             return Err(ApiError::not_found(
                 R::RESOURCE_NAME_SINGULAR,
-                Some(id.to_string()),
+                Some(crudcrate_render(id)),
             ));
         }
     }

@@ -36,13 +36,42 @@ pub(crate) fn generate_crud_resource_impl(
     ) = generate_crud_type_aliases(api_struct_name, crud_meta, active_model_path);
 
     let id_column = generate_id_column(analysis.primary_key_field);
-    let pk_value_impl = analysis.primary_key_field.and_then(|f| f.ident.as_ref()).map(|pk| {
+    // A composite key's value is the tuple SeaORM spells it as, in declaration order; a
+    // single-column key is the column's own value, unwrapped.
+    let key_idents: Vec<&syn::Ident> = analysis
+        .primary_key_fields
+        .iter()
+        .filter_map(|field| field.ident.as_ref())
+        .collect();
+    let id_columns_impl = (key_idents.len() > 1).then(|| {
+        let columns = key_idents.iter().map(|ident| {
+            let column = crate::syn_type::column_ident(&crate::syn_type::ident_to_string(ident));
+            quote! { #column_type::#column }
+        });
+        quote! {
+            fn id_columns() -> Vec<Self::ColumnType> {
+                vec![#(#columns),*]
+            }
+        }
+    });
+    let pk_value_impl = (!key_idents.is_empty()).then(|| {
+        let (value_of_model, value_of_self) = if key_idents.len() == 1 {
+            let pk = key_idents[0];
+            (quote! { model.#pk.clone() }, quote! { self.#pk.clone() })
+        } else {
+            let from_model = key_idents.iter().map(|pk| quote! { model.#pk.clone() });
+            let from_self = key_idents.iter().map(|pk| quote! { self.#pk.clone() });
+            (
+                quote! { (#(#from_model),*) },
+                quote! { (#(#from_self),*) },
+            )
+        };
         quote! {
             fn pk_value(model: &<Self::EntityType as sea_orm::EntityTrait>::Model) -> crudcrate::PrimaryKeyType<Self> {
-                model.#pk.clone()
+                #value_of_model
             }
             fn resource_id(&self) -> Result<crudcrate::PrimaryKeyType<Self>, crudcrate::ApiError> {
-                Ok(self.#pk.clone())
+                Ok(#value_of_self)
             }
         }
     });
@@ -199,6 +228,7 @@ pub(crate) fn generate_crud_resource_impl(
             type ListModel = #list_model_name;
 
             const ID_COLUMN: Self::ColumnType = #id_column;
+            #id_columns_impl
             #pk_value_impl
             const RESOURCE_NAME_SINGULAR: &'static str = #name_singular;
             #resource_name_plural_impl

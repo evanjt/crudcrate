@@ -66,21 +66,13 @@ where
     Self::EntityType: EntityTrait + Sync,
     Self::ActiveModelType: ActiveModelTrait + ActiveModelBehavior + Send + Sync,
     <Self::EntityType as EntityTrait>::Model: Sync + IntoActiveModel<Self::ActiveModelType>,
-    // The PK value type must be usable across the whole CRUD stack: cloned for
-    // re-use after a move, compared/hashed for the delete_many existence set,
-    // displayed in not-found errors, deserialized from the Axum `Path`, and
-    // bound into SeaORM queries via `Into<sea_orm::Value>`. Both `uuid::Uuid`
-    // and `i32` (and `String`) satisfy all of these.
+    // The PK value type must be usable across the whole CRUD stack: cloned for re-use after a
+    // move, compared/hashed for the delete_many existence set, rendered into not-found errors,
+    // deserialized from the Axum `Path`, and decomposed into the column values a query binds.
+    // `ResourceId` carries the last two, because a composite key is a tuple, which implements
+    // neither `Display` nor `Into<sea_orm::Value>` and cannot be given them outside this crate.
     <<Self::EntityType as EntityTrait>::PrimaryKey as PrimaryKeyTrait>::ValueType:
-        Clone
-            + Eq
-            + std::hash::Hash
-            + std::fmt::Display
-            + Send
-            + Sync
-            + serde::de::DeserializeOwned
-            + Into<sea_orm::Value>
-            + 'static,
+        crate::core::resource_id::ResourceId + serde::de::DeserializeOwned,
     Self: From<<Self::EntityType as EntityTrait>::Model>,
 {
     type EntityType: EntityTrait + Sync;
@@ -90,7 +82,19 @@ where
     type UpdateModel: Send + Sync + MergeIntoActiveModel<Self::ActiveModelType>;
     type ListModel: From<Self> + Send + Sync;
 
+    /// The key's first column. A single-column key is this one; [`Self::ID_COLUMNS`] is the whole
+    /// key and is what a query filters on.
     const ID_COLUMN: Self::ColumnType;
+
+    /// Every column of the primary key, in the order the key's value takes.
+    ///
+    /// A method rather than a const because a const default cannot borrow `Self::ID_COLUMN`. The
+    /// derive overrides it for a composite key; a single-column resource, hand-written or derived,
+    /// leaves the default.
+    #[must_use]
+    fn id_columns() -> Vec<Self::ColumnType> {
+        vec![Self::ID_COLUMN]
+    }
     const RESOURCE_NAME_SINGULAR: &str;
     const RESOURCE_NAME_PLURAL: &str;
     const TABLE_NAME: &'static str;
@@ -326,7 +330,10 @@ where
         async move {
             use sea_orm::QueryFilter;
             let condition = Condition::all()
-                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(crate::core::resource_id::key_condition(
+                    &Self::id_columns(),
+                    id.clone(),
+                ))
                 .add(scope.clone());
             let model = Self::EntityType::find()
                 .filter(condition)
@@ -334,7 +341,10 @@ where
                 .await
                 .map_err(ApiError::database)?
                 .ok_or_else(|| {
-                    ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+                    ApiError::not_found(
+                        Self::RESOURCE_NAME_SINGULAR,
+                        Some(crate::core::resource_id::ResourceId::render(&id)),
+                    )
                 })?;
             Ok(Self::from(model))
         }
@@ -479,7 +489,10 @@ where
                     .await
                     .map_err(ApiError::database)?
                     .ok_or_else(|| {
-                        ApiError::not_found(Self::RESOURCE_NAME_SINGULAR, Some(id.to_string()))
+                        ApiError::not_found(
+                            Self::RESOURCE_NAME_SINGULAR,
+                            Some(crate::core::resource_id::ResourceId::render(&id)),
+                        )
                     })?;
                 let existing: Self::ActiveModelType = model.into_active_model();
                 let updated_model = update_model.merge_into_activemodel(existing)?;

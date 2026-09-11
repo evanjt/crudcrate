@@ -140,7 +140,7 @@ mod vehicle__Model {
                     return Err(
                         crudcrate::ApiError::not_found(
                             Self::RESOURCE_NAME_SINGULAR,
-                            Some(id.to_string()),
+                            Some(crudcrate::ResourceId::render(&id)),
                         ),
                     );
                 }
@@ -154,7 +154,7 @@ mod vehicle__Model {
         ) -> Result<Self, crudcrate::ApiError> {
             use sea_orm::QueryFilter;
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(crudcrate::key_condition(&Self::id_columns(), id.clone()))
                 .add(scope.clone());
             let model = Self::EntityType::find().filter(scoped_condition).one(db).await?;
             let mut result = match model {
@@ -163,7 +163,7 @@ mod vehicle__Model {
                     return Err(
                         crudcrate::ApiError::not_found(
                             Self::RESOURCE_NAME_SINGULAR,
-                            Some(id.to_string()),
+                            Some(crudcrate::ResourceId::render(&id)),
                         ),
                     );
                 }
@@ -300,7 +300,7 @@ mod vehicle__Model {
                 .await?
                 .ok_or_else(|| crudcrate::ApiError::not_found(
                     Self::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
+                    Some(crudcrate::ResourceId::render(&id)),
                 ))?;
             let existing: Self::ActiveModelType = model.into_active_model();
             let updated_model = data.merge_into_activemodel(existing)?;
@@ -343,7 +343,7 @@ mod vehicle__Model {
                     .await?
                     .ok_or_else(|| crudcrate::ApiError::not_found(
                         Self::RESOURCE_NAME_SINGULAR,
-                        Some(id.to_string()),
+                        Some(crudcrate::ResourceId::render(&id)),
                     ))?;
                 let existing: Self::ActiveModelType = model.into_active_model();
                 let updated_model = update_model.merge_into_activemodel(existing)?;
@@ -364,7 +364,7 @@ mod vehicle__Model {
                     return Err(
                         crudcrate::ApiError::not_found(
                             Self::RESOURCE_NAME_SINGULAR,
-                            Some(id.to_string()),
+                            Some(crudcrate::ResourceId::render(&id)),
                         ),
                     );
                 }
@@ -390,10 +390,13 @@ mod vehicle__Model {
             let result = if ids.is_empty() {
                 vec![]
             } else {
-                let existing: Vec<crudcrate::PrimaryKeyType<Self>> = Self::EntityType::find()
-                    .select_only()
-                    .column(Self::ID_COLUMN)
-                    .filter(Self::ID_COLUMN.is_in(ids.clone()))
+                let key_columns = Self::id_columns();
+                let mut selection = Self::EntityType::find().select_only();
+                for key_column in &key_columns {
+                    selection = selection.column(*key_column);
+                }
+                let existing: Vec<crudcrate::PrimaryKeyType<Self>> = selection
+                    .filter(crudcrate::any_key_condition(&key_columns, ids.clone()))
                     .into_tuple::<crudcrate::PrimaryKeyType<Self>>()
                     .all(db)
                     .await?;
@@ -403,8 +406,10 @@ mod vehicle__Model {
                 if !existing_set.is_empty() {
                     Self::EntityType::delete_many()
                         .filter(
-                            Self::ID_COLUMN
-                                .is_in(existing_set.iter().cloned().collect::<Vec<_>>()),
+                            crudcrate::any_key_condition(
+                                &key_columns,
+                                existing_set.iter().cloned(),
+                            ),
                         )
                         .exec(db)
                         .await?;
@@ -825,7 +830,7 @@ mod customer__Model {
                     return Err(
                         crudcrate::ApiError::not_found(
                             Self::RESOURCE_NAME_SINGULAR,
-                            Some(id.to_string()),
+                            Some(crudcrate::ResourceId::render(&id)),
                         ),
                     );
                 }
@@ -839,7 +844,7 @@ mod customer__Model {
         ) -> Result<Self, crudcrate::ApiError> {
             use sea_orm::{EntityTrait, ModelTrait, Related, QueryFilter};
             let scoped_condition = sea_orm::Condition::all()
-                .add(Self::ID_COLUMN.eq(id.clone()))
+                .add(crudcrate::key_condition(&Self::id_columns(), id.clone()))
                 .add(scope.clone());
             let main_model = Box::pin(
                     Self::EntityType::find().filter(scoped_condition).one(db),
@@ -896,7 +901,7 @@ mod customer__Model {
                     return Err(
                         crudcrate::ApiError::not_found(
                             Self::RESOURCE_NAME_SINGULAR,
-                            Some(id.to_string()),
+                            Some(crudcrate::ResourceId::render(&id)),
                         ),
                     );
                 }
@@ -1191,7 +1196,7 @@ mod customer__Model {
                 .await?
                 .ok_or_else(|| crudcrate::ApiError::not_found(
                     Self::RESOURCE_NAME_SINGULAR,
-                    Some(id.to_string()),
+                    Some(crudcrate::ResourceId::render(&id)),
                 ))?;
             let existing: Self::ActiveModelType = model.into_active_model();
             let updated_model = data.merge_into_activemodel(existing)?;
@@ -1234,7 +1239,7 @@ mod customer__Model {
                     .await?
                     .ok_or_else(|| crudcrate::ApiError::not_found(
                         Self::RESOURCE_NAME_SINGULAR,
-                        Some(id.to_string()),
+                        Some(crudcrate::ResourceId::render(&id)),
                     ))?;
                 let existing: Self::ActiveModelType = model.into_active_model();
                 let updated_model = update_model.merge_into_activemodel(existing)?;
@@ -1255,7 +1260,7 @@ mod customer__Model {
                     return Err(
                         crudcrate::ApiError::not_found(
                             Self::RESOURCE_NAME_SINGULAR,
-                            Some(id.to_string()),
+                            Some(crudcrate::ResourceId::render(&id)),
                         ),
                     );
                 }
@@ -1281,10 +1286,13 @@ mod customer__Model {
             let result = if ids.is_empty() {
                 vec![]
             } else {
-                let existing: Vec<crudcrate::PrimaryKeyType<Self>> = Self::EntityType::find()
-                    .select_only()
-                    .column(Self::ID_COLUMN)
-                    .filter(Self::ID_COLUMN.is_in(ids.clone()))
+                let key_columns = Self::id_columns();
+                let mut selection = Self::EntityType::find().select_only();
+                for key_column in &key_columns {
+                    selection = selection.column(*key_column);
+                }
+                let existing: Vec<crudcrate::PrimaryKeyType<Self>> = selection
+                    .filter(crudcrate::any_key_condition(&key_columns, ids.clone()))
                     .into_tuple::<crudcrate::PrimaryKeyType<Self>>()
                     .all(db)
                     .await?;
@@ -1294,8 +1302,10 @@ mod customer__Model {
                 if !existing_set.is_empty() {
                     Self::EntityType::delete_many()
                         .filter(
-                            Self::ID_COLUMN
-                                .is_in(existing_set.iter().cloned().collect::<Vec<_>>()),
+                            crudcrate::any_key_condition(
+                                &key_columns,
+                                existing_set.iter().cloned(),
+                            ),
                         )
                         .exec(db)
                         .await?;

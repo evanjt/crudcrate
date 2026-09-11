@@ -128,6 +128,9 @@ pub(crate) struct EntityFieldAnalysis<'a> {
     pub(crate) db_fields: Vec<&'a syn::Field>,
     pub(crate) non_db_fields: Vec<&'a syn::Field>,
     pub(crate) primary_key_field: Option<&'a syn::Field>,
+    /// Every field marked `primary_key`, in declaration order, which is the order the key's tuple
+    /// takes for a composite key. `primary_key_field` is the first of these.
+    pub(crate) primary_key_fields: Vec<&'a syn::Field>,
     pub(crate) sortable_fields: Vec<&'a syn::Field>,
     pub(crate) filterable_fields: Vec<&'a syn::Field>,
     pub(crate) fulltext_fields: Vec<&'a syn::Field>,

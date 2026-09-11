@@ -164,7 +164,10 @@ pub use crudcrate_derive::*;
 
 pub use batch::{BatchFailure, BatchResult};
 #[allow(deprecated)]
-pub use core::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};
+pub use core::{
+    CRUDResource, MergeIntoActiveModel, PrimaryKeyType, ResourceId, UuidIdResult,
+    any_key_condition, key_condition,
+};
 pub use errors::ApiError;
 pub use filtering::{
     BatchOptions, FilterOperator, FilterOptions, JoinedColumnDef, JoinedFilter, ParsedFilters,

@@ -46,8 +46,10 @@
 
 pub(crate) mod defaults;
 pub mod handler_macros;
+pub mod resource_id;
 pub mod traits;
 
 // Re-export commonly used items
+pub use resource_id::{ResourceId, any_key_condition, key_condition};
 #[allow(deprecated)]
 pub use traits::{CRUDResource, MergeIntoActiveModel, PrimaryKeyType, UuidIdResult};
