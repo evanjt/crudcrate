@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `register_new`, an insert-only registration on the same `upsert_key` lookup as `upsert`. A key
+  already stored is returned exactly as it stands and reported `RegistrationStatus::Kept`;
+  nothing is written over. For a row whose stored content is the arithmetic something else was
+  already computed with, where re-registering the key must not move it. `RegistrationStatus` is
+  its own enum rather than a third `UpsertStatus` variant, so no existing response or schema
+  widens.
+
 ### Fixed
 
 - A list's tie-break is every key column, in the requested sort direction, in

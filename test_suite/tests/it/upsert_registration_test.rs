@@ -4,7 +4,7 @@
 //! a pass carrying the same content changes nothing and says so, and a pass carrying different
 //! content updates the row it already registered rather than storing a second one.
 
-use crudcrate::{EntityToModels, UpsertStatus, upsert};
+use crudcrate::{EntityToModels, RegistrationStatus, UpsertStatus, register_new, upsert};
 use sea_orm::entity::prelude::*;
 use sea_orm::{
     ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, Set, TransactionTrait,
@@ -311,4 +311,53 @@ async fn a_key_registered_between_the_read_and_the_insert_is_merged_not_refused(
             .len(),
         1
     );
+}
+
+/// Scenario: a curve already registered under its source key is re-sent, unchanged or not.
+///
+/// Expected behaviour: `register_new` never writes over it. The stored row comes back exactly as
+/// it stands, because it is the arithmetic readings citing it were already made with, and moving
+/// its coefficients would silently change what those readings mean.
+#[tokio::test]
+async fn a_key_already_registered_is_kept_rather_than_written_over() {
+    let db = test_suite::reset_db!(registered_curve::Entity)
+        .await
+        .expect("db");
+
+    let (stored, status) =
+        register_new::<RegisteredCurve, _>(&db, sent(1.5)).await.expect("the first registration");
+    assert_eq!(status, RegistrationStatus::Created);
+    assert!((stored.slope - 1.5).abs() < f64::EPSILON);
+
+    let (kept, status) = register_new::<RegisteredCurve, _>(&db, sent(2.5))
+        .await
+        .expect("the second registration");
+    assert_eq!(status, RegistrationStatus::Kept);
+    assert_eq!(kept.id, stored.id, "one key is one row");
+    assert!(
+        (kept.slope - 1.5).abs() < f64::EPSILON,
+        "the stored coefficients are what readings were made with, so they do not move"
+    );
+
+    assert_eq!(
+        registered_curve::Entity::find()
+            .all(&db)
+            .await
+            .expect("rows")
+            .len(),
+        1
+    );
+}
+
+/// A resource with no registration key cannot be registered insert-only either: the refusal is
+/// the same as `upsert`'s, because it is the same lookup.
+#[tokio::test]
+async fn an_insert_only_registration_refuses_a_resource_declaring_no_key() {
+    let db = test_suite::reset_db!(stamped_curve::Entity).await.expect("db");
+    let mut active: stamped_curve::ActiveModel = stamped(1.0).into();
+    active.source_system = Set("cnet".to_string());
+    active.source_key = sea_orm::ActiveValue::NotSet;
+
+    let refusal = register_new::<StampedCurve, _>(&db, active).await;
+    assert!(refusal.is_err(), "a key column left unset is refused");
 }

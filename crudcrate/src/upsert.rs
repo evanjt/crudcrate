@@ -29,6 +29,20 @@ pub enum UpsertStatus {
     Unchanged,
 }
 
+/// What an insert-only registration did to one row.
+///
+/// Separate from [`UpsertStatus`] rather than a third variant of it: `UpsertStatus` is serialised
+/// into every registering resource's responses and schema, so a variant only one caller can
+/// produce would widen what every other client has to match on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistrationStatus {
+    /// The key was not stored here before, and the row returned is the one just stored.
+    Created,
+    /// The key was already stored. The stored row is returned exactly as it stands.
+    Kept,
+}
+
 /// One item's outcome, keyed by what the sender holds.
 ///
 /// `status` is generic so that a caller with refusals of its own (a row it kept against what the
@@ -70,6 +84,34 @@ where
     R: CRUDResource,
     <R::EntityType as EntityTrait>::Model: IntoActiveModel<R::ActiveModelType>,
 {
+    let condition = key_condition::<R>(&active)?;
+
+    let txn = db.begin().await.map_err(ApiError::database)?;
+    let stored = find_by_key::<R, _>(&txn, condition.clone()).await?;
+
+    let (model, status) = match stored {
+        None => match insert_new::<R, _>(&txn, active.clone()).await? {
+            Insertion::Stored(model) => (model, UpsertStatus::Created),
+            // Another transaction committed this key between the read and the insert, so its row
+            // is what the registration compares against. The re-read locks the row: under
+            // REPEATABLE READ a plain read would still see the snapshot the first read took.
+            Insertion::Refused(refusal) => match find_winner::<R, _>(&txn, condition).await? {
+                Some(stored) => merge_sent::<R, _>(&txn, stored, &active).await?,
+                None => return Err(ApiError::database(refusal)),
+            },
+        },
+        Some(stored) => merge_sent::<R, _>(&txn, stored, &active).await?,
+    };
+    txn.commit().await.map_err(ApiError::database)?;
+    Ok((R::from(model), status))
+}
+
+/// The lookup the registration key resolves through, refusing a resource that declares no key and
+/// a model that leaves one of its columns unset.
+fn key_condition<R>(active: &R::ActiveModelType) -> Result<Condition, ApiError>
+where
+    R: CRUDResource,
+{
     let key = R::upsert_key();
     if key.is_empty() {
         return Err(ApiError::bad_request(format!(
@@ -95,22 +137,47 @@ where
             }
         }
     }
+    Ok(condition)
+}
+
+/// Register one row under the resource's [`CRUDResource::upsert_key`] without ever writing over a
+/// row already stored under it.
+///
+/// The same lookup and the same savepoint as [`upsert`], and the same answer to a concurrent
+/// registration: whichever insert loses the unique index re-reads the row that won. What differs
+/// is what happens to a key that is already stored, which is nothing. The stored row is returned
+/// as it stands and reported [`RegistrationStatus::Kept`].
+///
+/// This is for a row whose stored content is the arithmetic something else was already computed
+/// with, where re-registering the key must not move it. Where re-sent content should be written
+/// onto the stored row, use [`upsert`].
+///
+/// # Errors
+///
+/// Returns `ApiError::bad_request` where the resource declares no key or the model leaves a key
+/// column unset, and the database's error where a statement fails.
+pub async fn register_new<R, C: ConnectionTrait + TransactionTrait>(
+    db: &C,
+    active: R::ActiveModelType,
+) -> Result<(R, RegistrationStatus), ApiError>
+where
+    R: CRUDResource,
+    <R::EntityType as EntityTrait>::Model: IntoActiveModel<R::ActiveModelType>,
+{
+    let condition = key_condition::<R>(&active)?;
 
     let txn = db.begin().await.map_err(ApiError::database)?;
-    let stored = find_by_key::<R, _>(&txn, condition.clone()).await?;
-
-    let (model, status) = match stored {
-        None => match insert_new::<R, _>(&txn, active.clone()).await? {
-            Insertion::Stored(model) => (model, UpsertStatus::Created),
-            // Another transaction committed this key between the read and the insert, so its row
-            // is what the registration compares against. The re-read locks the row: under
-            // REPEATABLE READ a plain read would still see the snapshot the first read took.
+    let (model, status) = match find_by_key::<R, _>(&txn, condition.clone()).await? {
+        Some(stored) => (stored, RegistrationStatus::Kept),
+        None => match insert_new::<R, _>(&txn, active).await? {
+            Insertion::Stored(model) => (model, RegistrationStatus::Created),
+            // The key was registered between the read and the insert, so the row that won is what
+            // stands, and standing is what this entry point keeps.
             Insertion::Refused(refusal) => match find_winner::<R, _>(&txn, condition).await? {
-                Some(stored) => merge_sent::<R, _>(&txn, stored, &active).await?,
+                Some(stored) => (stored, RegistrationStatus::Kept),
                 None => return Err(ApiError::database(refusal)),
             },
         },
-        Some(stored) => merge_sent::<R, _>(&txn, stored, &active).await?,
     };
     txn.commit().await.map_err(ApiError::database)?;
     Ok((R::from(model), status))
