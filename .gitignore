@@ -1,5 +1,10 @@
-/target
-docs/test-links/target/
+# Any build directory, whatever it is called and wherever a worktree puts it: an agent sets
+# CARGO_TARGET_DIR to target-<name>/ so parallel builds do not collide, and `git add -A` staged
+# one into a commit that reached main.
+target*/
+**/target/
+# A git worktree of this repository, which the parent checkout sees as untracked files.
+/worktrees/
 .history/
 *.log
 *.profraw
