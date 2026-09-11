@@ -63,6 +63,23 @@ pub struct Model { }
 
 ---
 
+### `upsert_where`
+
+The predicate the `upsert_key` is unique under, where the index backing it is
+partial. A SeaORM expression, the same value `OnConflict::target_cond_where`
+takes; the registration's find adds it, so a row the index does not cover is
+never resolved as the key's row. Without it the key is read as unique over
+every row. Naming it without an `upsert_key` is a compile error.
+
+```rust
+#[crudcrate(upsert_key(site_id, parameter_id), upsert_where = Column::ResolvedAt.is_null())]
+pub struct Model { }
+```
+
+**Type:** Expression
+
+---
+
 ### `api_struct`
 
 Override the name of generated API structs.

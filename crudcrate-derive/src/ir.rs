@@ -72,6 +72,10 @@ pub(crate) struct CRUDResourceMeta {
     pub(crate) deny_unknown_fields: bool,
     // The alternate unique key a source system registers rows under, field names in index order
     pub(crate) upsert_key: Vec<String>,
+    // The predicate that key is unique under, where the index backing it is partial. Written as
+    // the SeaORM expression the index's own WHERE clause is, and applied to the registration's
+    // find.
+    pub(crate) upsert_where: Option<syn::Expr>,
     // The route families `router()` emits, empty meaning every one of them. A table derived from
     // a registry or a migration has operations that are not legitimate on it, and a route that
     // always refuses is a wire surface promising what the system will not do.

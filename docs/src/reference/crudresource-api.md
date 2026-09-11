@@ -372,6 +372,16 @@ index declares them. Empty by default.
 fn upsert_key() -> &'static [<Self::EntityType as EntityTrait>::Column];
 ```
 
+### `upsert_predicate`
+
+The predicate [`upsert_key`](#upsert_key) is unique under, for a key backed by a
+partial index. Defaults to `Condition::all()`, which matches every row.
+Generated from `#[crudcrate(upsert_where = ...)]`.
+
+```rust
+fn upsert_predicate() -> Condition;
+```
+
 ### `upsert_comparable`
 
 The columns a registration compares and writes: the create model's stored

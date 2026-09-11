@@ -91,6 +91,11 @@ name = "joined_filter"
 path = "../examples/joined_filter/main.rs"
 required-features = ["derive", "sqlite"]
 
+[[example]]
+name = "partial_upsert"
+path = "../examples/partial_upsert.rs"
+required-features = ["derive", "sqlite"]
+
 
 [[bench]]
 name = "crud_benchmarks"

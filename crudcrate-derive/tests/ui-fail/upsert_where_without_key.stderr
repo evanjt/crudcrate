@@ -1,0 +1,5 @@
+error: `upsert_where` names the predicate an `upsert_key` is unique under, so it needs a key. Add `upsert_key(...)`, or drop the predicate.
+  --> tests/ui-fail/upsert_where_without_key.rs:10:52
+   |
+10 | #[crudcrate(api_struct = "Episode", upsert_where = Column::ResolvedAt.is_null())]
+   |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -20,7 +20,19 @@ pub(crate) fn entity_to_models_impl(input: proc_macro2::TokenStream) -> proc_mac
     let (api_struct_name, active_model_path) = fields::parse_entity_attributes(&input, struct_name);
     let table_name =
         attrs::extract_table_name(&input.attrs).unwrap_or_else(|| struct_name.to_string());
-    let meta = attrs::parse_crud_resource_meta(&input.attrs);
+    let mut meta = attrs::parse_crud_resource_meta(&input.attrs);
+
+    // A predicate narrows a registration key, so one without a key narrows nothing and would be
+    // read as applying where it does not.
+    if let Some(predicate) = meta.upsert_where.clone()
+        && meta.upsert_key.is_empty()
+    {
+        meta.deprecation_errors.push(syn::Error::new_spanned(
+            predicate,
+            "`upsert_where` names the predicate an `upsert_key` is unique under, so it needs a \
+             key. Add `upsert_key(...)`, or drop the predicate.",
+        ));
+    }
 
     // Check for deprecation errors (legacy fn_* syntax)
     if !meta.deprecation_errors.is_empty() {

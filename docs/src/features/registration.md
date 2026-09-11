@@ -28,6 +28,35 @@ pub struct Model {
 The key is an alternate identity, not the primary key. The row keeps its own
 `id`, which is what the rest of your API refers to.
 
+## A key that is unique only sometimes
+
+Where the unique index backing the key is partial, name its predicate too. The
+find is narrowed by it, so a row the index does not cover is not the key's row:
+
+```rust
+#[crudcrate(
+    api_struct = "Episode",
+    upsert_key(site_id, parameter_id),
+    upsert_where = Column::ResolvedAt.is_null()
+)]
+```
+
+against
+
+```sql
+CREATE UNIQUE INDEX episodes_open_uniq
+    ON episodes (site_id, parameter_id) WHERE resolved_at IS NULL;
+```
+
+An open episode registers against itself. Once it is resolved it leaves the
+index, so the next registration of that slot opens a second episode rather than
+reopening the closed one, and the history of the first survives.
+
+What you write is a SeaORM expression, the same value `OnConflict::target_cond_where`
+takes, so the predicate is the index's own `WHERE` clause rather than a syntax
+of this crate's. Naming it without an `upsert_key` is a compile error: there is
+no find for it to narrow.
+
 ## Registering a row
 
 ```rust
@@ -88,6 +117,9 @@ to report.
   insert.
 - A resource declaring no `upsert_key` refuses the call rather than guessing a
   key, as does an active model that leaves a key column unset.
+- **A partial index needs `upsert_where`.** Without it the find matches rows the
+  index does not cover, so a registration updates a row the index would have let
+  it insert beside.
 - `upsert` is a function you call, not a generated route. It is for an ingest
   path you write, not for the public API surface.
 

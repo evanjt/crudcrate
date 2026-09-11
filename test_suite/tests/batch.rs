@@ -16,5 +16,7 @@ mod generic_caller_test;
 mod lifecycle_transaction_test;
 #[path = "it/partial_success_batch_test.rs"]
 mod partial_success_batch_test;
+#[path = "it/upsert_partial_key_test.rs"]
+mod upsert_partial_key_test;
 #[path = "it/upsert_registration_test.rs"]
 mod upsert_registration_test;

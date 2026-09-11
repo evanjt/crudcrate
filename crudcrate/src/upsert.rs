@@ -47,6 +47,9 @@ pub struct UpsertOutcome<K, I, S = UpsertStatus> {
 
 /// Register one row under the resource's [`CRUDResource::upsert_key`], in one transaction.
 ///
+/// The key is looked up under [`CRUDResource::upsert_predicate`], so a key backed by a partial
+/// unique index only ever resolves to a row that index covers.
+///
 /// The caller supplies an active model with every key column set. Columns declared by
 /// [`CRUDResource::upsert_comparable`] are compared and updated only when set on that model.
 /// Equal content returns `Unchanged` without writing; `on_update` fields advance on a change.
@@ -75,7 +78,9 @@ where
         )));
     }
 
-    let mut condition = Condition::all();
+    // The predicate the key is unique under, for a key backed by a partial index: a row the
+    // index does not cover is not the key's row, so the find must not return it.
+    let mut condition = Condition::all().add(R::upsert_predicate());
     for column in key {
         match active.get(*column) {
             ActiveValue::Set(value) | ActiveValue::Unchanged(value) => {

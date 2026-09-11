@@ -183,6 +183,18 @@ GET /customers?filter={"name_like":"John","email_neq":"spam@example.com"}
 GET /customers?q=urgent&sort=["name","ASC"]&range=[0,24]
 ```
 
+**Registration**: Find-or-insert on an alternate unique key and report what it
+did, for a source system that re-sends its own content. Where the index backing
+that key is partial, name its predicate and the find is narrowed by it, so a
+row the index does not cover opens a new one instead of updating the old.
+
+```rust
+#[crudcrate(
+    upsert_key(site_id, parameter_id),                    // the alternate identity
+    upsert_where = Column::ResolvedAt.is_null(),          // ... and where it is unique
+)]
+```
+
 **Field control**: Decide exactly what appears in each generated model.
 
 ```rust
@@ -196,6 +208,7 @@ GET /customers?q=urgent&sort=["name","ASC"]&range=[0,24]
 ```bash
 cargo run --example minimal            # Todo API in ~60 lines
 cargo run --example recursive_join     # Multi-level relationship loading
+cargo run --example partial_upsert     # Registration under a partial unique index
 ```
 
 ## Contributing

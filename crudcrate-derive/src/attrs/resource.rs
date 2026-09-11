@@ -27,6 +27,9 @@ pub(crate) fn parse_crud_resource_meta(attrs: &[syn::Attribute]) -> CRUDResource
         {
             for item in metas {
                 match item {
+                    Meta::NameValue(nv) if nv.path.is_ident("upsert_where") => {
+                        meta.upsert_where = Some(nv.value.clone());
+                    }
                     Meta::NameValue(nv) => {
                         // Handle literal values (strings, booleans, etc.)
                         if let syn::Expr::Lit(expr_lit) = &nv.value {

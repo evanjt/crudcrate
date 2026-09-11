@@ -27,6 +27,17 @@ Demonstrates the `CRUDOperations` trait for customization:
 cargo run --example crud_operations
 ```
 
+### Partial Upsert (`partial_upsert.rs`)
+
+Registration under a key that is unique only where a predicate holds: an alarm
+episode unique on its slot `WHERE resolved_at IS NULL`. An open episode
+registers against itself; once it is resolved the slot is free and the next
+breach opens a second episode.
+
+```bash
+cargo run --example partial_upsert
+```
+
 ### Error Handling (`error_handling.rs`)
 
 Error-handling patterns with `ApiError` and the HTTP status codes each variant maps to.

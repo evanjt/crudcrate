@@ -167,6 +167,13 @@ pub(crate) fn generate_crud_resource_impl(
     // The registration key, and the columns a registration compares and writes: the create
     // model's stored columns but the primary key. A field the source cannot send is one the
     // entity maintains, so it is neither compared nor written.
+    let upsert_predicate_impl = crud_meta.upsert_where.as_ref().map(|predicate| {
+        quote! {
+            fn upsert_predicate() -> sea_orm::Condition {
+                sea_orm::sea_query::IntoCondition::into_condition(#predicate)
+            }
+        }
+    });
     let upsert_impl = (!crud_meta.upsert_key.is_empty()).then(|| {
         let key_columns = crud_meta
             .upsert_key
@@ -209,6 +216,8 @@ pub(crate) fn generate_crud_resource_impl(
             fn apply_on_update(model: &mut Self::ActiveModelType) {
                 #(#on_update_assignments)*
             }
+
+            #upsert_predicate_impl
         }
     });
 

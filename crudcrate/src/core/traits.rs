@@ -373,6 +373,22 @@ where
         Self::upsert_key()
     }
 
+    /// The predicate [`upsert_key`](Self::upsert_key) is unique under, where the index backing it
+    /// is partial. The default matches every row, which is a total index.
+    ///
+    /// [`crate::upsert::upsert`] adds this to the key it looks the row up by, so a row the index
+    /// does not cover is not found and the registration opens a new one: an `alarm_events` row
+    /// unique on its slot only `WHERE resolved_at IS NULL` declares
+    /// `Column::ResolvedAt.is_null()` here, and a breach after the last episode was resolved
+    /// opens a second episode rather than reopening the closed one.
+    ///
+    /// The value is the one `SeaORM`'s `OnConflict::target_cond_where` takes, so what is written
+    /// here is the index's own `WHERE` clause.
+    #[must_use]
+    fn upsert_predicate() -> Condition {
+        Condition::all()
+    }
+
     /// Applies the entity's `on_update` expressions to an active model a registration is about to
     /// write, so a field the entity maintains itself advances even though no source sends it.
     /// The default does nothing, which is a resource that maintains no such field.
