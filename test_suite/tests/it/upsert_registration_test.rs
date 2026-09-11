@@ -6,7 +6,9 @@
 
 use crudcrate::{EntityToModels, UpsertStatus, upsert};
 use sea_orm::entity::prelude::*;
-use sea_orm::{DatabaseConnection, DbErr, EntityTrait, Set};
+use sea_orm::{
+    ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, Set, TransactionTrait,
+};
 use uuid::Uuid;
 
 pub mod registered_curve {
@@ -225,5 +227,88 @@ async fn test_registration_refuses_unset_key() {
             .await
             .expect("rows")
             .is_empty()
+    );
+}
+
+pub mod raced_curve {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, EntityToModels)]
+    #[sea_orm(table_name = "raced_curves")]
+    #[crudcrate(api_struct = "RacedCurve", upsert_key(source_system, source_key))]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        #[crudcrate(primary_key, exclude(create, update), on_create = Uuid::new_v4())]
+        pub id: Uuid,
+
+        #[crudcrate(filterable, exclude(create, update))]
+        pub source_system: String,
+        #[crudcrate(filterable, exclude(create, update))]
+        pub source_key: String,
+        pub slope: f64,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+use raced_curve::{RacedCurve, RacedCurveCreate};
+
+fn raced(slope: f64) -> raced_curve::ActiveModel {
+    let mut active: raced_curve::ActiveModel = RacedCurveCreate { slope }.into();
+    active.source_system = Set("cnet".to_string());
+    active.source_key = Set("DOC:plate-9".to_string());
+    active
+}
+
+/// Scenario: two registrations of one key arrive together, and the first commits between the
+/// second's read and its insert, which is the interleaving READ COMMITTED allows.
+///
+/// Expected behaviour: the second reports what the first stored rather than failing the unique
+/// index the key is held by. SQLite serialises writers instead, so there is no such interleaving
+/// to drive there.
+#[tokio::test]
+async fn a_key_registered_between_the_read_and_the_insert_is_merged_not_refused() {
+    let db = test_suite::reset_db!(raced_curve::Entity)
+        .await
+        .expect("db");
+    if db.get_database_backend() == DbBackend::Sqlite {
+        return;
+    }
+    db.execute_unprepared(
+        "CREATE UNIQUE INDEX raced_curves_key ON raced_curves (source_system, source_key)",
+    )
+    .await
+    .expect("the key is held by a unique index, as a registered table's is");
+
+    let other = test_suite::connect().await.expect("second connection");
+    let holder = other.begin().await.expect("holding transaction");
+    let first = raced_curve::Entity::insert(raced(1.5))
+        .exec_with_returning(&holder)
+        .await
+        .expect("the registration that wins the race");
+
+    let registering = tokio::spawn(async move { upsert::<RacedCurve, _>(&db, raced(2.5)).await });
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    holder.commit().await.expect("the winner commits");
+
+    let (merged, status) = registering
+        .await
+        .expect("the losing registration returns")
+        .expect("it is not an error");
+    assert_eq!(status, UpsertStatus::Updated);
+    assert_eq!(merged.id, first.id, "one key is one row");
+    assert!((merged.slope - 2.5).abs() < f64::EPSILON);
+
+    let db = test_suite::connect().await.expect("reading connection");
+    assert_eq!(
+        raced_curve::Entity::find()
+            .all(&db)
+            .await
+            .expect("rows")
+            .len(),
+        1
     );
 }

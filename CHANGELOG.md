@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Two callers registering one key concurrently no longer fail on the unique
+  index. `upsert` read the key and inserted where it read as absent, with
+  nothing holding the key between the two, so under READ COMMITTED both
+  transactions read absent and the second violated the constraint. The insert
+  now runs inside a savepoint and the loser re-reads the row that won,
+  reporting `Updated` or `Unchanged` against it.
+
 ## [0.13.0] - 2026-09-09
 
 ### Changed

@@ -7,8 +7,9 @@
 //! status a client branches on is not an error string.
 
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
-    IdenStatic, IntoActiveModel, ModelTrait, QueryFilter, TransactionSession, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait,
+    IdenStatic, IntoActiveModel, ModelTrait, QueryFilter, QuerySelect, SqlErr, TransactionSession,
+    TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -50,6 +51,10 @@ pub struct UpsertOutcome<K, I, S = UpsertStatus> {
 /// [`CRUDResource::upsert_comparable`] are compared and updated only when set on that model.
 /// Equal content returns `Unchanged` without writing; `on_update` fields advance on a change.
 ///
+/// Two callers registering one key concurrently both read it as absent, so the insert runs inside
+/// a savepoint: whichever loses the unique index re-reads the row that won and reports `Updated`
+/// or `Unchanged` against it rather than failing.
+///
 /// # Errors
 ///
 /// Returns `ApiError::bad_request` where the resource declares no key or the model leaves a key
@@ -87,38 +92,120 @@ where
     }
 
     let txn = db.begin().await.map_err(ApiError::database)?;
-    let stored = R::EntityType::find()
-        .filter(condition)
-        .one(&txn)
-        .await
-        .map_err(ApiError::database)?;
+    let stored = find_by_key::<R, _>(&txn, condition.clone()).await?;
 
     let (model, status) = match stored {
-        None => {
-            let model = active.insert(&txn).await.map_err(ApiError::database)?;
-            (model, UpsertStatus::Created)
-        }
-        Some(stored) if sends_nothing_new::<R>(&stored, &active) => {
-            (stored, UpsertStatus::Unchanged)
-        }
-        Some(stored) => {
-            let mut merged = stored.into_active_model();
-            for column in sent_columns::<R>(&active) {
-                // A key column identifies the row; only what the source says about it is written.
-                if key.iter().any(|k| k.as_str() == column.as_str()) {
-                    continue;
-                }
-                if let ActiveValue::Set(value) = active.get(column) {
-                    merged.set(column, value);
-                }
-            }
-            R::apply_on_update(&mut merged);
-            let model = merged.update(&txn).await.map_err(ApiError::database)?;
-            (model, UpsertStatus::Updated)
-        }
+        None => match insert_new::<R, _>(&txn, active.clone()).await? {
+            Insertion::Stored(model) => (model, UpsertStatus::Created),
+            // Another transaction committed this key between the read and the insert, so its row
+            // is what the registration compares against. The re-read locks the row: under
+            // REPEATABLE READ a plain read would still see the snapshot the first read took.
+            Insertion::Refused(refusal) => match find_winner::<R, _>(&txn, condition).await? {
+                Some(stored) => merge_sent::<R, _>(&txn, stored, &active).await?,
+                None => return Err(ApiError::database(refusal)),
+            },
+        },
+        Some(stored) => merge_sent::<R, _>(&txn, stored, &active).await?,
     };
     txn.commit().await.map_err(ApiError::database)?;
     Ok((R::from(model), status))
+}
+
+/// The row the key resolves to, if it is stored here.
+async fn find_by_key<R, T>(
+    txn: &T,
+    condition: Condition,
+) -> Result<Option<<R::EntityType as EntityTrait>::Model>, ApiError>
+where
+    R: CRUDResource,
+    T: ConnectionTrait,
+{
+    R::EntityType::find()
+        .filter(condition)
+        .one(txn)
+        .await
+        .map_err(ApiError::database)
+}
+
+/// The row a concurrent registration committed under the key, read past the transaction's
+/// snapshot.
+async fn find_winner<R, T>(
+    txn: &T,
+    condition: Condition,
+) -> Result<Option<<R::EntityType as EntityTrait>::Model>, ApiError>
+where
+    R: CRUDResource,
+    T: ConnectionTrait,
+{
+    R::EntityType::find()
+        .filter(condition)
+        .lock_exclusive()
+        .one(txn)
+        .await
+        .map_err(ApiError::database)
+}
+
+/// What an insert of a key that read as absent did.
+enum Insertion<M> {
+    Stored(M),
+    /// A unique constraint refused it, which is what a key registered concurrently looks like.
+    Refused(DbErr),
+}
+
+/// Insert inside a savepoint, so a refusal leaves the caller's transaction usable rather than
+/// aborted.
+async fn insert_new<R, T>(
+    txn: &T,
+    active: R::ActiveModelType,
+) -> Result<Insertion<<R::EntityType as EntityTrait>::Model>, ApiError>
+where
+    R: CRUDResource,
+    T: ConnectionTrait + TransactionTrait,
+    <R::EntityType as EntityTrait>::Model: IntoActiveModel<R::ActiveModelType>,
+{
+    let savepoint = txn.begin().await.map_err(ApiError::database)?;
+    match active.insert(&savepoint).await {
+        Ok(model) => {
+            savepoint.commit().await.map_err(ApiError::database)?;
+            Ok(Insertion::Stored(model))
+        }
+        Err(error) if matches!(error.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) => {
+            savepoint.rollback().await.map_err(ApiError::database)?;
+            Ok(Insertion::Refused(error))
+        }
+        Err(error) => Err(ApiError::database(error)),
+    }
+}
+
+/// Write what the source sent onto the row already registered under the key, reporting whether
+/// any of it differed.
+async fn merge_sent<R, T>(
+    txn: &T,
+    stored: <R::EntityType as EntityTrait>::Model,
+    active: &R::ActiveModelType,
+) -> Result<(<R::EntityType as EntityTrait>::Model, UpsertStatus), ApiError>
+where
+    R: CRUDResource,
+    T: ConnectionTrait,
+    <R::EntityType as EntityTrait>::Model: IntoActiveModel<R::ActiveModelType>,
+{
+    if sends_nothing_new::<R>(&stored, active) {
+        return Ok((stored, UpsertStatus::Unchanged));
+    }
+    let key = R::upsert_key();
+    let mut merged = stored.into_active_model();
+    for column in sent_columns::<R>(active) {
+        // A key column identifies the row; only what the source says about it is written.
+        if key.iter().any(|k| k.as_str() == column.as_str()) {
+            continue;
+        }
+        if let ActiveValue::Set(value) = active.get(column) {
+            merged.set(column, value);
+        }
+    }
+    R::apply_on_update(&mut merged);
+    let model = merged.update(txn).await.map_err(ApiError::database)?;
+    Ok((model, UpsertStatus::Updated))
 }
 
 /// Comparable columns set on the active model.
