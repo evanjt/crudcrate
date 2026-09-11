@@ -5,6 +5,15 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- A list's tie-break is every key column, in the requested sort direction, in
+  the derived `get_all` bodies as well as the default one. The derived bodies
+  appended only the first key column, always ascending, so a composite key did
+  not order a page and a descending walk was not the ascending one reversed.
+
 ## [0.14.0] - 2026-09-11
 
 ### Added

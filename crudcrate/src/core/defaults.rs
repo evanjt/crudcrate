@@ -22,12 +22,14 @@ where
 {
     let mut query = R::EntityType::find()
         .filter(condition.clone())
-        .order_by(order_column, order_direction);
+        .order_by(order_column, order_direction.clone());
     // The key is what makes a page deterministic, so every column of it tie-breaks the sort. One
     // column of a composite key does not order the rows, and two pages would then repeat or skip.
+    // The tie-break follows the requested direction, so a descending walk is the ascending one
+    // reversed, ties included.
     for key_column in R::id_columns() {
         if order_column.as_str() != key_column.as_str() {
-            query = query.order_by(key_column, Order::Asc);
+            query = query.order_by(key_column, order_direction.clone());
         }
     }
     let models = query

@@ -120,6 +120,58 @@ async fn a_composite_key_paginates_without_repeating_a_row() {
     );
 }
 
+/// A descending walk is the ascending one reversed, ties included: the key tie-break follows the
+/// requested direction rather than always ascending.
+#[tokio::test]
+async fn a_descending_list_is_the_ascending_one_reversed() {
+    let db = setup_test_db().await.expect("db");
+    seed(
+        &db,
+        &[
+            ("alice", 1, "reader"),
+            ("alice", 2, "reader"),
+            ("bob", 1, "reader"),
+            ("bob", 2, "reader"),
+        ],
+    )
+    .await;
+    let keys = |rows: Vec<grant::GrantList>| -> Vec<(String, i32)> {
+        rows.into_iter()
+            .map(|g| (g.user_sub, g.project_id))
+            .collect()
+    };
+    let ascending = keys(
+        grant::Grant::get_all(
+            &db,
+            &sea_orm::Condition::all(),
+            grant::Column::Role,
+            sea_orm::Order::Asc,
+            0,
+            100,
+        )
+        .await
+        .expect("ascending"),
+    );
+    let descending = keys(
+        grant::Grant::get_all(
+            &db,
+            &sea_orm::Condition::all(),
+            grant::Column::Role,
+            sea_orm::Order::Desc,
+            0,
+            100,
+        )
+        .await
+        .expect("descending"),
+    );
+    let mut reversed = ascending.clone();
+    reversed.reverse();
+    assert_eq!(
+        descending, reversed,
+        "every row shares one role, so the key alone orders them"
+    );
+}
+
 /// `get_one`, `update` and `delete` take the key as a tuple. They are the trait's methods, not
 /// routes, so a hand-written handler can reach one row without the path question being settled.
 #[tokio::test]

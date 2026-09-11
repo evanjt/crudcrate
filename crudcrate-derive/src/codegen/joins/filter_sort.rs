@@ -339,10 +339,13 @@ pub(crate) fn generate_get_all_joined_sorted_impl(
                         Box::new(__subquery.into_sub_query_statement()),
                     );
 
-                    let __models = Self::EntityType::find()
+                    let mut __models = Self::EntityType::find()
                         .filter(condition.clone())
-                        .order_by(__order_expr, direction)
-                        .order_by(Self::ID_COLUMN, sea_orm::Order::Asc)
+                        .order_by(__order_expr, direction.clone());
+                    for __key_column in Self::id_columns() {
+                        __models = __models.order_by(__key_column, direction.clone());
+                    }
+                    let __models = __models
                         .offset(offset)
                         .limit(limit)
                         .all(db)
