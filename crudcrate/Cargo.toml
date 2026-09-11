@@ -1,6 +1,6 @@
 [package]
 name = "crudcrate"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Derive complete REST APIs from Sea-ORM entities: endpoints, filtering, pagination, batch ops, and OpenAPI on Axum"
@@ -20,7 +20,7 @@ sqlite = ["sea-orm/sqlx-sqlite", "sea-orm/sqlite-use-returning-for-3_35"]
 
 [dependencies]
 # Proc macro dependency (optional)
-crudcrate-derive = { version = "=0.13.0", optional = true, path = "../crudcrate-derive" }
+crudcrate-derive = { version = "=0.14.0", optional = true, path = "../crudcrate-derive" }
 
 # Core dependencies using workspace versions
 axum = { workspace = true, features = ["macros"] }

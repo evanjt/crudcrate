@@ -5,7 +5,7 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] - 2026-09-11
 
 ### Added
 
@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/{id}`, which a tuple cannot deserialize from, so the route would answer 500
   to every call. Reads, the generated models and every `CRUDResource` method are
   unaffected.
+
+- A registration key may declare the predicate it is unique under. Where the
+  unique index backing `upsert_key` is partial, `upsert_where = <expr>` names
+  its `WHERE` clause, the same SeaORM expression `OnConflict::target_cond_where`
+  takes, and the find is narrowed by it. A row the index does not cover is not
+  the key's row, so registering a slot whose previous row has left the index
+  opens a new row instead of updating the old one. The predicate is exposed as
+  `CRUDResource::upsert_predicate()`, defaulting to every row. Naming it without
+  an `upsert_key` is a compile error. See `cargo run --example partial_upsert`.
 
 ### Fixed
 
@@ -1168,6 +1177,7 @@ Scheduled for removal in the next breaking release:
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.14.0]: https://github.com/evanjt/crudcrate/compare/0.13.0...0.14.0
 [0.13.0]: https://github.com/evanjt/crudcrate/compare/0.12.0...0.13.0
 [0.12.0]: https://github.com/evanjt/crudcrate/compare/0.11.1...0.12.0
 [0.11.1]: https://github.com/evanjt/crudcrate/compare/0.11.0...0.11.1
