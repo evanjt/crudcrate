@@ -138,13 +138,17 @@ pub fn to_list_model(input: TokenStream) -> TokenStream {
 ///
 /// Key attributes: `api_struct`, `generate_router`, `exclude()`, `join()`, `on_create/update`.
 /// See crate documentation for full attribute reference and examples.
+///
+/// `#[schema(...)]` on a field is inert here and forwarded to the generated API and List models,
+/// so a column whose Rust type says less than the value it holds (a jsonb `serde_json::Value`
+/// holding an array of strings) declares its shape where the schema is derived.
 /// # Panics
 ///
 /// This function will panic in the following cases:
 /// - When deprecated syntax is used (e.g., `create_model = false` instead of `exclude(create)`)
 /// - When there are cyclic join dependencies without explicit depth specification
 /// - When required Sea-ORM relation enums are missing for join fields
-#[proc_macro_derive(EntityToModels, attributes(crudcrate))]
+#[proc_macro_derive(EntityToModels, attributes(crudcrate, schema))]
 pub fn entity_to_models(input: TokenStream) -> TokenStream {
     expand::entity::entity_to_models_impl(input.into()).into()
 }

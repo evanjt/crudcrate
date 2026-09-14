@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `#[schema(...)]` on an entity field is accepted by `EntityToModels` and forwarded to the
+  generated API and List models, so a column whose Rust type says less than the value it holds (a
+  jsonb `serde_json::Value` over an array of strings) declares its shape where the schema is
+  derived: `#[schema(value_type = Vec<String>)]`. Previously the attribute did not compile on the
+  entity, and a consumer had to redeclare the wire shape by hand.
 - `register_new`, an insert-only registration on the same `upsert_key` lookup as `upsert`. A key
   already stored is returned exactly as it stands and reported `RegistrationStatus::Kept`;
   nothing is written over. For a row whose stored content is the arithmetic something else was
