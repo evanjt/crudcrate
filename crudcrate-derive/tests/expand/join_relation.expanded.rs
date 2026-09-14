@@ -166,9 +166,11 @@ mod vehicle_part__Model {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, IdenStatic};
             let mut __query = Self::EntityType::find()
                 .filter(condition.clone())
-                .order_by(order_column, order_direction);
-            if order_column.as_str() != Self::ID_COLUMN.as_str() {
-                __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                .order_by(order_column, order_direction.clone());
+            for __key_column in Self::id_columns() {
+                if order_column.as_str() != __key_column.as_str() {
+                    __query = __query.order_by(__key_column, order_direction.clone());
+                }
             }
             let models = __query.offset(offset).limit(limit).all(db).await?;
             let result: Vec<Self::ListModel> = models
@@ -188,9 +190,11 @@ mod vehicle_part__Model {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, IdenStatic};
             let mut __query = Self::EntityType::find()
                 .filter(condition.clone())
-                .order_by(order_column, order_direction);
-            if order_column.as_str() != Self::ID_COLUMN.as_str() {
-                __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                .order_by(order_column, order_direction.clone());
+            for __key_column in Self::id_columns() {
+                if order_column.as_str() != __key_column.as_str() {
+                    __query = __query.order_by(__key_column, order_direction.clone());
+                }
             }
             let models = __query.offset(offset).limit(limit).all(db).await?;
             let result: Vec<Self::ListModel> = models
@@ -711,9 +715,11 @@ mod vehicle__Model {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait, IdenStatic};
             let mut __query = Self::EntityType::find()
                 .filter(condition.clone())
-                .order_by(order_column, order_direction);
-            if order_column.as_str() != Self::ID_COLUMN.as_str() {
-                __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                .order_by(order_column, order_direction.clone());
+            for __key_column in Self::id_columns() {
+                if order_column.as_str() != __key_column.as_str() {
+                    __query = __query.order_by(__key_column, order_direction.clone());
+                }
             }
             let models = __query.offset(offset).limit(limit).all(db).await?;
             let parent_ids: Vec<crudcrate::PrimaryKeyType<Self>> = models
@@ -807,9 +813,11 @@ mod vehicle__Model {
             use sea_orm::{QueryOrder, QuerySelect, EntityTrait, ModelTrait, IdenStatic};
             let mut __query = Self::EntityType::find()
                 .filter(condition.clone())
-                .order_by(order_column, order_direction);
-            if order_column.as_str() != Self::ID_COLUMN.as_str() {
-                __query = __query.order_by(Self::ID_COLUMN, sea_orm::Order::Asc);
+                .order_by(order_column, order_direction.clone());
+            for __key_column in Self::id_columns() {
+                if order_column.as_str() != __key_column.as_str() {
+                    __query = __query.order_by(__key_column, order_direction.clone());
+                }
             }
             let models = __query.offset(offset).limit(limit).all(db).await?;
             let parent_ids: Vec<crudcrate::PrimaryKeyType<Self>> = models
