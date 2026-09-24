@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#1E2433"/>
+      <stop offset="100%" stop-color="#141820"/>
+    </linearGradient>
+    <linearGradient id="db" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4DA3E8"/>
+      <stop offset="100%" stop-color="#2B6CB0"/>
+    </linearGradient>
+    <linearGradient id="brace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6AD55"/>
+      <stop offset="100%" stop-color="#DD6B20"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#4299E1" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#4299E1" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="200" height="200" rx="32" fill="url(#bg)"/>
+
+  <!-- Subtle glow -->
+  <circle cx="100" cy="100" r="64" fill="url(#glow)"/>
+
+  <!-- Left curly brace -->
+  <path d="M 60 28 Q 30 28, 30 56 L 30 82 Q 30 100, 14 100 Q 30 100, 30 118 L 30 144 Q 30 172, 60 172"
+    fill="none" stroke="url(#brace)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Right curly brace -->
+  <path d="M 140 28 Q 170 28, 170 56 L 170 82 Q 170 100, 186 100 Q 170 100, 170 118 L 170 144 Q 170 172, 140 172"
+    fill="none" stroke="url(#brace)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Database cylinder -->
+  <ellipse cx="100" cy="58" rx="34" ry="12" fill="#5AABE4"/>
+  <rect x="66" y="58" width="68" height="84" fill="url(#db)"/>
+  <ellipse cx="100" cy="142" rx="34" ry="12" fill="#2563A0"/>
+
+  <!-- Ring lines -->
+  <ellipse cx="100" cy="86" rx="34" ry="10" fill="none" stroke="#7CC4F0" stroke-width="1.2" opacity="0.35"/>
+  <ellipse cx="100" cy="114" rx="34" ry="10" fill="none" stroke="#7CC4F0" stroke-width="1.2" opacity="0.35"/>
+
+  <!-- Top cap highlight -->
+  <ellipse cx="100" cy="58" rx="20" ry="6" fill="#90CDF4" opacity="0.3"/>
+
+  <!-- Colored data rows — curved arcs on cylinder surface -->
+  <path d="M 78 74 A 34 10 0 0 0 114 74" fill="none" stroke="#48BB78" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>
+  <path d="M 82 93 A 34 10 0 0 0 124 93" fill="none" stroke="#B794F4" stroke-width="3.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M 76 111 A 34 10 0 0 0 118 111" fill="none" stroke="#ED8936" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>
+  <path d="M 84 129 A 34 10 0 0 0 110 129" fill="none" stroke="#FC8181" stroke-width="3.5" stroke-linecap="round" opacity="0.8"/>
+</svg>
