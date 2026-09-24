@@ -5,7 +5,7 @@ All notable changes to the crudcrate project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.0] - 2026-09-24
 
 ### Added
 
@@ -25,8 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A list's tie-break is every key column, in the requested sort direction, in
   the derived `get_all` bodies as well as the default one. The derived bodies
-  appended only the first key column, always ascending, so a composite key did
-  not order a page and a descending walk was not the ascending one reversed.
+  appended only the first key column, so a composite key did not order a page,
+  and every body tie-broke ascending, so a descending walk was not the
+  ascending one reversed. A descending page whose rows tie on the sort column
+  now lists them in descending key order.
 
 ## [0.14.0] - 2026-09-11
 
@@ -1200,6 +1202,7 @@ Scheduled for removal in the next breaking release:
 
 - **derive**: Initial release (0.1.0) with `ToCreateModel` and `ToUpdateModel` derive macros, field-level attribute support for CRUD customization, and integration with Sea-ORM ActiveModel system
 
+[0.15.0]: https://github.com/evanjt/crudcrate/compare/0.14.0...0.15.0
 [0.14.0]: https://github.com/evanjt/crudcrate/compare/0.13.0...0.14.0
 [0.13.0]: https://github.com/evanjt/crudcrate/compare/0.12.0...0.13.0
 [0.12.0]: https://github.com/evanjt/crudcrate/compare/0.11.1...0.12.0

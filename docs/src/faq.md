@@ -36,7 +36,7 @@ Yes. CRUDCrate works alongside Sea-ORM:
 
 ```toml
 [dependencies]
-crudcrate = "0.14"
+crudcrate = "0.15"
 sea-orm = { version = "2.0", features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 ```
 
