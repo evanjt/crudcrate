@@ -324,8 +324,9 @@ async fn a_key_already_registered_is_kept_rather_than_written_over() {
         .await
         .expect("db");
 
-    let (stored, status) =
-        register_new::<RegisteredCurve, _>(&db, sent(1.5)).await.expect("the first registration");
+    let (stored, status) = register_new::<RegisteredCurve, _>(&db, sent(1.5))
+        .await
+        .expect("the first registration");
     assert_eq!(status, RegistrationStatus::Created);
     assert!((stored.slope - 1.5).abs() < f64::EPSILON);
 
@@ -353,7 +354,9 @@ async fn a_key_already_registered_is_kept_rather_than_written_over() {
 /// the same as `upsert`'s, because it is the same lookup.
 #[tokio::test]
 async fn an_insert_only_registration_refuses_a_resource_declaring_no_key() {
-    let db = test_suite::reset_db!(stamped_curve::Entity).await.expect("db");
+    let db = test_suite::reset_db!(stamped_curve::Entity)
+        .await
+        .expect("db");
     let mut active: stamped_curve::ActiveModel = stamped(1.0).into();
     active.source_system = Set("cnet".to_string());
     active.source_key = sea_orm::ActiveValue::NotSet;
