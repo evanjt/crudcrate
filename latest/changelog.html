@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-66b6eb01.js";
+            window.path_to_searchindex_js = "searchindex-107efa05.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-b2fd45e0.js"></script>
@@ -182,9 +182,14 @@
 <p>All notable changes to the crudcrate project will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2 id="unreleased"><a class="header" href="#unreleased">[Unreleased]</a></h2>
+<h2 id="0150---2026-09-24"><a class="header" href="#0150---2026-09-24"><a href="https://github.com/evanjt/crudcrate/compare/0.14.0...0.15.0">0.15.0</a> - 2026-09-24</a></h2>
 <h3 id="added"><a class="header" href="#added">Added</a></h3>
 <ul>
+<li><code>#[schema(...)]</code> on an entity field is accepted by <code>EntityToModels</code> and forwarded to the
+generated API and List models, so a column whose Rust type says less than the value it holds (a
+jsonb <code>serde_json::Value</code> over an array of strings) declares its shape where the schema is
+derived: <code>#[schema(value_type = Vec&lt;String&gt;)]</code>. Previously the attribute did not compile on the
+entity, and a consumer had to redeclare the wire shape by hand.</li>
 <li><code>register_new</code>, an insert-only registration on the same <code>upsert_key</code> lookup as <code>upsert</code>. A key
 already stored is returned exactly as it stands and reported <code>RegistrationStatus::Kept</code>;
 nothing is written over. For a row whose stored content is the arithmetic something else was
@@ -196,8 +201,10 @@ widens.</li>
 <ul>
 <li>A list’s tie-break is every key column, in the requested sort direction, in
 the derived <code>get_all</code> bodies as well as the default one. The derived bodies
-appended only the first key column, always ascending, so a composite key did
-not order a page and a descending walk was not the ascending one reversed.</li>
+appended only the first key column, so a composite key did not order a page,
+and every body tie-broke ascending, so a descending walk was not the
+ascending one reversed. A descending page whose rows tie on the sort column
+now lists them in descending key order.</li>
 </ul>
 <h2 id="0140---2026-09-11"><a class="header" href="#0140---2026-09-11"><a href="https://github.com/evanjt/crudcrate/compare/0.13.0...0.14.0">0.14.0</a> - 2026-09-11</a></h2>
 <h3 id="added-1"><a class="header" href="#added-1">Added</a></h3>
