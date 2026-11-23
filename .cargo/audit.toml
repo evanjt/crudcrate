@@ -1,10 +1,6 @@
 # cargo-audit configuration.
 # Docs: https://github.com/rustsec/rustsec/tree/main/cargo-audit
 #
-# RUSTSEC-2023-0071 (Marvin timing side-channel in `rsa`): no fixed version
-# exists upstream. It reaches the tree only transitively via `sqlx-mysql`, which
-# sits behind the non-default `mysql` feature, so default (sqlite) builds never
-# link it. Drop this entry once `rsa` ships a fix.
 #
 # RUSTSEC-2026-0235 (out-of-bounds reads in `rkyv` 0.7): rkyv 0.7 enters the
 # lockfile only through `rust_decimal`'s optional legacy `rkyv` feature, which
@@ -12,4 +8,4 @@
 # rust_decimal (1.42.1) still declares the 0.7 edge; drop this entry once it is
 # removed upstream.
 [advisories]
-ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0235"]
+ignore = ["RUSTSEC-2026-0235"]
